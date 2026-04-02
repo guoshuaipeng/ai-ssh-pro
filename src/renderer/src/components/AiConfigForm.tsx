@@ -8,7 +8,7 @@ export default function AiConfigForm() {
   const [baseURL, setBaseURL] = useState('')
   const [model, setModel] = useState('')
   const [apiKey, setApiKey] = useState('')
-  const [temperature, setTemperature] = useState(0.4)
+  const [temperature, setTemperature] = useState(0.1)
   const [sshParseInstructions, setSshParseInstructions] = useState('')
   const [savedHint, setSavedHint] = useState<string | null>(null)
 
@@ -17,7 +17,7 @@ export default function AiConfigForm() {
       setBaseURL(s.baseURL)
       setModel(s.model)
       setApiKey(s.apiKey ? MASK : '')
-      setTemperature(typeof s.temperature === 'number' ? s.temperature : 0.4)
+      setTemperature(typeof s.temperature === 'number' ? s.temperature : 0.1)
       setSshParseInstructions(s.sshParseInstructions ?? '')
     })
   }, [])
@@ -33,7 +33,7 @@ export default function AiConfigForm() {
       temperature:
         typeof temperature === 'number' && Number.isFinite(temperature)
           ? Math.min(2, Math.max(0, temperature))
-          : 0.4,
+          : 0.1,
       sshParseInstructions: sshParseInstructions.trim()
     }
     if (apiKey && apiKey !== MASK) {
@@ -49,26 +49,26 @@ export default function AiConfigForm() {
   return (
     <>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-        API Key 仅存于本机主进程。对话与「智能填表」共用下列接口。
+        默认对接阿里云 DashScope 兼容 OpenAI 接口；API Key 仅存于本机主进程，需自行在控制台创建。
       </p>
       <div className="field">
         <label>Base URL</label>
         <input
           value={baseURL}
           onChange={(e) => setBaseURL(e.target.value)}
-          placeholder="https://api.openai.com/v1"
+          placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
         />
       </div>
       <div className="field">
         <label>Model</label>
-        <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o-mini" />
+        <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="qwen-max" />
       </div>
       <div className="field">
         <label>API Key</label>
         <input
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-..."
+          placeholder="DashScope API-Key（自行填写）"
           type="password"
           autoComplete="off"
         />

@@ -56,7 +56,7 @@ export async function streamOpenAICompatibleChat(
         temperature:
           typeof settings.temperature === 'number' && Number.isFinite(settings.temperature)
             ? Math.min(2, Math.max(0, settings.temperature))
-            : 0.4
+            : 0.1
       })
     })
   } catch (e) {
