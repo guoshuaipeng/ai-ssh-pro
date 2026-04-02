@@ -64,16 +64,40 @@ export type AiChatPayload = {
 
 export type AiStreamEvent =
   | { type: 'delta'; text: string }
+  | { type: 'status'; text: string }
+  | {
+      type: 'step'
+      /**
+       * 当 action 为 tool_call / command 时，主进程会先把这一步展示给用户，
+       * 然后等待用户确认后继续；此 requestId 用于用户在 UI 点击后回传给主进程。
+       */
+      requestId?: string
+      structured: AiAssistantReply
+    }
   | { type: 'done' }
+  | { type: 'cancelled'; message?: string }
   | { type: 'error'; message: string }
 
-export type AiSettings = {
+export type AiProvider = {
+  /** 唯一 ID；用于切换不同大模型地址/供应商 */
+  id: string
+  /** 仅用于界面展示，例如「ChatGPT」「DeepSeek」「Qwen」 */
+  name: string
+  /** OpenAI 兼容接口 base URL（例如带 /v1 的 DashScope URL） */
   baseURL: string
-  /** 当前请求使用的模型 ID（须在 modelList 中） */
-  model: string
-  /** 可切换的模型 ID 列表（去重、非空） */
-  modelList: string[]
+  /** 主进程本地存储的 API Key（不要在渲染进程控制台打印） */
   apiKey: string
+  /** 当前 Provider 支持的模型 ID 列表（去重、非空；用于下拉选择） */
+  modelList: string[]
+}
+
+export type AiSettings = {
+  /** 多 Provider（多大模型地址/供应商）配置 */
+  providers: AiProvider[]
+  /** 当前请求使用的 Provider ID */
+  activeProviderId: string
+  /** 当前请求使用的模型 ID（须在 active provider 的 modelList 中） */
+  model: string
   /** 对话采样温度 0–2 */
   temperature: number
   /**
@@ -83,10 +107,34 @@ export type AiSettings = {
   sshParseInstructions: string
 }
 
-/** AI 助手单轮回复（模型应仅输出 JSON，解析成功后用于展示与「执行」建议命令） */
+export type AiAssistantAction = 'tool_call' | 'command' | 'end'
+
+export type AiGetTerminalSnapshotInput = {
+  /** 读取最近终端输出行数（由 UI 实际截取并回传给模型） */
+  maxLines?: number
+}
+
+/** AI 助手单轮回复（模型应仅输出 JSON，解析成功后用于展示与“下一步动作”） */
 export type AiAssistantReply = {
   /** 面向用户的说明与结论 */
   description: string
+  /**
+   * 下一步要做什么（且都需要用户同意/确认后执行）：
+   * - tool_call：请求 UI 调用指定工具（本项目当前主要是 get_terminal_snapshot）
+   * - command：请求 UI 在终端执行指定命令
+   * - end：任务完成，无需再执行下一步
+   */
+  action: AiAssistantAction
+  /**
+   * 是否已完成当前任务。
+   * - true：action=end 的含义（或任务已满足，后续可停止）
+   * - false：需要继续执行/轮询
+   */
+  completed?: boolean
+  /** 工具名；当 action=tool_call 时建议给出具体工具名，例如 get_terminal_snapshot */
+  toolName?: string
+  /** 工具输入参数；当 action=tool_call 时建议给出可选的参数 */
+  toolInput?: AiGetTerminalSnapshotInput
   /** 建议执行的完整命令；单行，勿含换行 */
   command?: string
   /** 风险等级，如 low / medium / high */
@@ -108,13 +156,38 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
     const obj = JSON.parse(s) as Record<string, unknown>
     const description = typeof obj.description === 'string' ? obj.description.trim() : ''
     if (!description) return null
+    const completed = typeof obj.completed === 'boolean' ? obj.completed : undefined
     const riskLevel = typeof obj.riskLevel === 'string' && obj.riskLevel.trim() ? obj.riskLevel.trim() : 'medium'
+    const action =
+      typeof obj.action === 'string' && (obj.action === 'tool_call' || obj.action === 'command' || obj.action === 'end')
+        ? obj.action
+        : typeof obj.command === 'string' && obj.command.trim()
+          ? 'command'
+          : 'end'
+    const toolName = typeof obj.toolName === 'string' && obj.toolName.trim() ? obj.toolName.trim() : undefined
+    let toolInput: AiGetTerminalSnapshotInput | undefined
+    if (obj.toolInput && typeof obj.toolInput === 'object' && !Array.isArray(obj.toolInput)) {
+      const mi = (obj.toolInput as Record<string, unknown>).maxLines
+      if (typeof mi === 'number' && Number.isFinite(mi) && mi > 0) {
+        toolInput = { maxLines: Math.min(500, Math.floor(mi)) }
+      }
+    }
     let command: string | undefined
     if (typeof obj.command === 'string' && obj.command.trim()) {
       command = obj.command.replace(/\r\n/g, '\n').replace(/[\r\n]+/g, ' ').trim()
     }
     const notes = typeof obj.notes === 'string' && obj.notes.trim() ? obj.notes.trim() : undefined
-    return { description, command, riskLevel, notes }
+    return {
+      description,
+      action,
+      // 如果模型没返回 completed，按 action 推断
+      completed: typeof completed === 'boolean' ? completed : action === 'end',
+      toolName,
+      toolInput,
+      command,
+      riskLevel,
+      notes
+    }
   } catch {
     return null
   }

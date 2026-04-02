@@ -10,7 +10,7 @@ function AppGate(): React.ReactElement {
   useEffect(() => {
     const w = window as unknown as { aiss?: unknown }
     const href = typeof window !== 'undefined' ? window.location.href : ''
-    const line = `[renderer] 挂载时 window.aiss = ${w.aiss === undefined ? 'undefined' : typeof w.aiss}`
+    const line = `[renderer] mount: window.aiss = ${w.aiss === undefined ? 'undefined' : typeof w.aiss}`
     console.warn(line)
     setDiag(`${line}\n页面 URL: ${href}\n\n请查看运行「npm run dev」或调试启动的终端里以 [main] / [preload] 开头的日志。`)
   }, [])

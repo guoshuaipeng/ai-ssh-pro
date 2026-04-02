@@ -48,11 +48,17 @@ export async function parseSshFormWithAi(rawText: string, settings: AiSettings):
   if (!trimmed) {
     throw new Error('请先粘贴需要解析的文字')
   }
-  const apiKey = settings.apiKey.trim()
+
+  const provider = settings.providers.find((p) => p.id === settings.activeProviderId) ?? settings.providers[0]
+  if (!provider) {
+    throw new Error('未找到有效的 AI Provider 配置')
+  }
+
+  const apiKey = provider.apiKey.trim()
   if (!apiKey) {
     throw new Error('请先在左侧「AI 配置」中填写 API Key')
   }
-  const base = settings.baseURL.replace(/\/$/, '')
+  const base = provider.baseURL.replace(/\/$/, '')
   const url = `${base}/chat/completions`
 
   let system = SYSTEM_BASE

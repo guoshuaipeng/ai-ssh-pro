@@ -34,6 +34,7 @@ export type AissPreload = {
     getSettings: () => Promise<AiSettings>
     setSettings: (partial: Partial<AiSettings>) => Promise<void>
     chat: (payload: AiChatPayload) => Promise<void>
+    confirmStep: (requestId: string, ok: boolean) => Promise<boolean>
     parseSshForm: (rawText: string) => Promise<AiParsedSshForm>
     onStream: (cb: (ev: AiStreamEvent) => void) => () => void
   }

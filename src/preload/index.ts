@@ -12,7 +12,7 @@ import type {
   AppDialogKind
 } from '../shared/ipc'
 
-console.log('[preload] 脚本开始执行')
+console.log('[preload] preload script starting')
 
 function unsub(channel: string, fn: (e: IpcRendererEvent, ...args: unknown[]) => void): void {
   ipcRenderer.removeListener(channel, fn)
@@ -53,6 +53,8 @@ const api = {
     getSettings: (): Promise<AiSettings> => ipcRenderer.invoke('ai:settings:get'),
     setSettings: (partial: Partial<AiSettings>): Promise<void> => ipcRenderer.invoke('ai:settings:set', partial),
     chat: (payload: AiChatPayload): Promise<void> => ipcRenderer.invoke('ai:chat', payload),
+    confirmStep: (requestId: string, ok: boolean): Promise<boolean> =>
+      ipcRenderer.invoke('ai:confirmStep', requestId, ok),
     parseSshForm: (rawText: string): Promise<AiParsedSshForm> =>
       ipcRenderer.invoke('ai:parseSshForm', rawText),
     onStream: (cb: (ev: AiStreamEvent) => void): (() => void) => {
@@ -65,7 +67,7 @@ const api = {
 
 try {
   contextBridge.exposeInMainWorld('aiss', api)
-  console.log('[preload] contextBridge.exposeInMainWorld("aiss") 已成功')
+  console.log('[preload] contextBridge.exposeInMainWorld("aiss") succeeded')
 } catch (e) {
-  console.error('[preload] contextBridge 暴露失败（请把本行及堆栈发给开发者）:', e)
+  console.error('[preload] contextBridge exposure failed (please share line + stack):', e)
 }

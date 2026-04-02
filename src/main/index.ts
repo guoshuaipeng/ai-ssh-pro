@@ -5,7 +5,7 @@ import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
 import { appStore, getAiSettings, setAiSettings } from './app-store'
-import { runLangGraphAgentChat } from './ai-langgraph'
+import { resolveAiConfirmStep, runLangGraphAgentChat } from './ai-interactive-agent'
 import { parseSshFormWithAi } from './ai-parse-ssh'
 import type { SavedSessionProfile, SshConnectOptions, AiChatPayload, AiSettings } from '../shared/ipc'
 
@@ -32,20 +32,20 @@ function preloadPath(): string {
 
 function logPreloadDiagnostics(resolvedPreload: string): void {
   const abs = resolve(resolvedPreload)
-  console.log('[main] —— preload 诊断 ——')
+  console.log('[main] —— preload diagnostics ——')
   console.log('[main] __dirname (main bundle) =', __dirname)
-  console.log('[main] preload 配置路径 =', abs)
-  console.log('[main] preload 文件存在 =', existsSync(abs))
+  console.log('[main] preload resolved path =', abs)
+  console.log('[main] preload file exists =', existsSync(abs))
   if (existsSync(abs)) {
     try {
       const st = statSync(abs)
-      console.log('[main] preload 文件大小(bytes) =', st.size)
+      console.log('[main] preload size (bytes) =', st.size)
     } catch (e) {
-      console.error('[main] stat preload 失败', e)
+      console.error('[main] stat preload failed', e)
     }
   }
-  console.log('[main] ELECTRON_RENDERER_URL =', process.env.ELECTRON_RENDERER_URL ?? '(未设置)')
-  console.log('[main] NODE_ENV =', process.env.NODE_ENV ?? '(未设置)')
+  console.log('[main] ELECTRON_RENDERER_URL =', process.env.ELECTRON_RENDERER_URL ?? '(not set)')
+  console.log('[main] NODE_ENV =', process.env.NODE_ENV ?? '(not set)')
   console.log('[main] app.isPackaged =', app.isPackaged)
   console.log('[main] Electron / Chrome =', process.versions.electron, '/', process.versions.chrome)
 }
@@ -54,7 +54,7 @@ function attachWebContentsDiagnostics(win: BrowserWindow): void {
   const wc = win.webContents
 
   wc.on('preload-error', (_event, preloadPath, error) => {
-    console.error('[main] preload-error: 预加载脚本抛错')
+    console.error('[main] preload-error: preload script threw')
     console.error('[main]   preloadPath =', preloadPath)
     console.error('[main]   error.name =', error.name, 'message =', error.message)
     console.error('[main]   stack =\n', error.stack)
@@ -83,10 +83,10 @@ function attachWebContentsDiagnostics(win: BrowserWindow): void {
         const keys = await wc.executeJavaScript(
           `typeof window.aiss === 'object' && window.aiss !== null ? Object.keys(window.aiss).join(',') : '(无)'`
         )
-        console.log('[main] did-finish-load → executeJavaScript: window.aiss 存在?', hasAiss)
-        console.log('[main] did-finish-load → window.aiss 键:', keys)
+        console.log('[main] did-finish-load → executeJavaScript: window.aiss exists?', hasAiss)
+        console.log('[main] did-finish-load → executeJavaScript: window.aiss keys:', keys)
       } catch (e) {
-        console.error('[main] did-finish-load 后 executeJavaScript 失败:', e)
+        console.error('[main] did-finish-load: executeJavaScript failed:', e)
       }
     })()
   })
@@ -174,6 +174,10 @@ function registerIpc(): void {
 
   ipcMain.handle('ai:chat', async (event, payload: AiChatPayload) => {
     await runLangGraphAgentChat(event.sender, getAiSettings(), payload, sshManager)
+  })
+
+  ipcMain.handle('ai:confirmStep', async (_event, requestId: string, ok: boolean) => {
+    return resolveAiConfirmStep(requestId, Boolean(ok))
   })
 
   ipcMain.handle('ai:parseSshForm', async (_e, rawText: string) => {

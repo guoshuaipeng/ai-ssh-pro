@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AiAssistantReply, AiChatMessage } from '@shared/ipc'
+import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { parseAiAssistantReply } from '@shared/ipc'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 
@@ -14,6 +14,8 @@ type AssistantLine = {
   content: string
   streaming?: boolean
   structured?: AiAssistantReply
+  /** 新交互协议下：需要用户确认后才能继续的 requestId */
+  requestId?: string
 }
 
 type Line = UserLine | AssistantLine
@@ -30,23 +32,36 @@ export default function AIPanel({ activeSessionId }: Props) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [includeTerminal, setIncludeTerminal] = useState(false)
+  const [pendingConfirm, setPendingConfirm] = useState<{ requestId: string; action: AiAssistantReply['action'] } | null>(null)
   const [hasApiKey, setHasApiKey] = useState(false)
-  const [modelList, setModelList] = useState<string[]>([])
+  const [providers, setProviders] = useState<AiProvider[]>([])
+  const [activeProviderId, setActiveProviderId] = useState('')
   const [activeModel, setActiveModel] = useState('')
   const tailRef = useRef<HTMLDivElement>(null)
+
+  const activeProvider = providers.find((p) => p.id === activeProviderId) ?? providers[0]
+  const modelList = activeProvider?.modelList ?? []
 
   useEffect(() => {
     const refresh = () => {
       void window.aiss.ai.getSettings().then((s) => {
-        setHasApiKey(Boolean(s.apiKey?.trim()))
-        const list = s.modelList?.length ? s.modelList : [s.model]
-        setModelList(list)
+        const p = s.providers.find((x) => x.id === s.activeProviderId) ?? s.providers[0]
+        setProviders(s.providers)
+        setActiveProviderId(s.activeProviderId)
         setActiveModel(s.model)
+        setHasApiKey(Boolean(p?.apiKey?.trim()))
       })
     }
     refresh()
     window.addEventListener('aiss-ai-settings-saved', refresh)
     return () => window.removeEventListener('aiss-ai-settings-saved', refresh)
+  }, [])
+
+  const onProviderChange = useCallback((value: string) => {
+    setActiveProviderId(value)
+    void window.aiss.ai.setSettings({ activeProviderId: value }).then(() => {
+      window.dispatchEvent(new CustomEvent('aiss-ai-settings-saved'))
+    })
   }, [])
 
   const onModelChange = useCallback((value: string) => {
@@ -74,6 +89,7 @@ export default function AIPanel({ activeSessionId }: Props) {
     setLines((prev) => [...prev, userLine])
     setInput('')
     setBusy(true)
+    setPendingConfirm(null)
 
     const history: AiChatMessage[] = [
       ...lines.map<AiChatMessage>((l) => ({
@@ -83,9 +99,37 @@ export default function AIPanel({ activeSessionId }: Props) {
       { role: 'user', content: text }
     ]
 
+    let usedStepProtocol = false
     let assistant = ''
     const unsub = window.aiss.ai.onStream((ev) => {
+      if (ev.type === 'status') {
+        setLines((prev) => {
+          const next = [...prev]
+          const last = next[next.length - 1]
+          if (last?.role === 'assistant' && last.streaming) return next
+          next.push({ role: 'assistant', content: '', streaming: true })
+          return next
+        })
+        return
+      }
+      if (ev.type === 'step') {
+        usedStepProtocol = true
+        const s = ev.structured
+        setLines((prev) => {
+          const next = [...prev]
+          const last = next[next.length - 1]
+          if (last?.role === 'assistant' && last.streaming && !last.structured) {
+            next[next.length - 1] = { role: 'assistant', content: s.description, streaming: false, structured: s, requestId: ev.requestId }
+          } else {
+            next.push({ role: 'assistant', content: s.description, structured: s, requestId: ev.requestId })
+          }
+          return next
+        })
+        setPendingConfirm(ev.requestId ? { requestId: ev.requestId, action: s.action } : null)
+        return
+      }
       if (ev.type === 'delta') {
+        if (usedStepProtocol) return
         assistant += ev.text
         setLines((prev) => {
           const next = [...prev]
@@ -94,7 +138,25 @@ export default function AIPanel({ activeSessionId }: Props) {
           next.push({ role: 'assistant', content: '', streaming: true })
           return next
         })
-      } else if (ev.type === 'error') {
+        return
+      }
+      if (ev.type === 'cancelled') {
+        setPendingConfirm(null)
+        setLines((prev) => {
+          const next = [...prev]
+          const msg = ev.message ? `已取消：${ev.message}` : '已取消'
+          const last = next[next.length - 1]
+          if (last?.role === 'assistant' && last.streaming) {
+            next[next.length - 1] = { role: 'assistant', content: msg }
+            return next
+          }
+          next.push({ role: 'assistant', content: msg })
+          return next
+        })
+        return
+      }
+      if (ev.type === 'error') {
+        setPendingConfirm(null)
         setLines((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
@@ -114,33 +176,36 @@ export default function AIPanel({ activeSessionId }: Props) {
         targetSessionId: activeSessionId ?? undefined,
         terminalExcerpt
       })
-      const raw = assistant.trim()
-      const parsed = parseAiAssistantReply(raw)
-      setLines((prev) => {
-        const next = [...prev]
-        const last = next[next.length - 1]
-        if (last?.role === 'assistant' && last.streaming) {
-          if (parsed) {
-            next[next.length - 1] = { role: 'assistant', content: raw, structured: parsed }
-          } else {
-            next[next.length - 1] = {
-              role: 'assistant',
-              content: raw || '（模型未返回可解析的 JSON）'
+      if (!usedStepProtocol) {
+        const raw = assistant.trim()
+        const parsed = parseAiAssistantReply(raw)
+        setLines((prev) => {
+          const next = [...prev]
+          const last = next[next.length - 1]
+          if (last?.role === 'assistant' && last.streaming) {
+            if (parsed) {
+              next[next.length - 1] = { role: 'assistant', content: raw, structured: parsed }
+            } else {
+              next[next.length - 1] = {
+                role: 'assistant',
+                content: raw || '（模型未返回可解析的 JSON）'
+              }
+            }
+          } else if (last?.role === 'user') {
+            if (raw) {
+              if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed })
+              else next.push({ role: 'assistant', content: raw })
+            } else {
+              next.push({ role: 'assistant', content: '（无回复）' })
             }
           }
-        } else if (last?.role === 'user') {
-          if (raw) {
-            if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed })
-            else next.push({ role: 'assistant', content: raw })
-          } else {
-            next.push({ role: 'assistant', content: '（无回复）' })
-          }
-        }
-        return next
-      })
+          return next
+        })
+      }
     } finally {
       unsub()
       setBusy(false)
+      setPendingConfirm(null)
     }
   }, [activeSessionId, busy, includeTerminal, input, lines])
 
@@ -154,10 +219,34 @@ export default function AIPanel({ activeSessionId }: Props) {
     [activeSessionId]
   )
 
+  const confirmStep = useCallback(async (requestId: string, ok: boolean) => {
+    if (!requestId) return
+    setPendingConfirm(null)
+    await window.aiss.ai.confirmStep(requestId, ok)
+  }, [])
+
   return (
     <aside className="ai-panel">
       <div className="ai-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <span>AI 助手</span>
+        {providers.length > 0 && (
+          <label style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>当前 Provider</span>
+            <select
+              value={providers.some((p) => p.id === activeProviderId) ? activeProviderId : providers[0]?.id ?? ''}
+              onChange={(e) => onProviderChange(e.target.value)}
+              disabled={busy || providers.length <= 1}
+              style={{ width: '100%', fontSize: 12 }}
+            >
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {modelList.length > 0 && (
           <label style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>当前模型</span>
@@ -178,7 +267,7 @@ export default function AIPanel({ activeSessionId }: Props) {
       </div>
       {!hasApiKey && (
         <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-          请先在「会话 → AI 配置」填写 API Key；可在配置里编辑多模型列表。
+          请先在「会话 → AI 配置」为当前 Provider 填写 API Key；也可以在配置里创建多个 Provider（ChatGPT / DeepSeek / Qwen 等）。
         </div>
       )}
 
@@ -205,12 +294,43 @@ export default function AIPanel({ activeSessionId }: Props) {
           }
           if (l.structured) {
             const s = l.structured
+            const isConfirmable = Boolean(l.requestId && pendingConfirm?.requestId === l.requestId)
             return (
               <div key={i} className="msg assistant ai-structured">
                 <div className="ai-reply-desc">{s.description}</div>
                 <div className={`ai-risk-badge ${riskClass(s.riskLevel)}`}>风险：{s.riskLevel}</div>
                 {s.notes && <div className="ai-reply-notes">{s.notes}</div>}
-                {s.command?.trim() && (
+                {s.action === 'tool_call' && l.requestId ? (
+                  <div className="ai-reply-cmd">
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      需要调用工具：<code>{s.toolName ?? '(unknown)'}</code>
+                      {s.toolInput?.maxLines ? <span style={{ marginLeft: 8 }}>maxLines：{s.toolInput.maxLines}</span> : null}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
+                        同意并继续
+                      </button>
+                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
+                        不同意
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {s.action === 'command' && s.command?.trim() && l.requestId ? (
+                  <div className="ai-reply-cmd">
+                    <code className="ai-reply-cmd-code">{s.command}</code>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
+                        同意并执行
+                      </button>
+                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
+                        不同意
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {/* Legacy fallback：无 requestId 时，允许用户手动执行建议命令 */}
+                {(!l.requestId || l.requestId == null) && s.command?.trim() ? (
                   <div className="ai-reply-cmd">
                     <code className="ai-reply-cmd-code">{s.command}</code>
                     <button
@@ -223,7 +343,7 @@ export default function AIPanel({ activeSessionId }: Props) {
                       执行
                     </button>
                   </div>
-                )}
+                ) : null}
               </div>
             )
           }
@@ -254,14 +374,15 @@ export default function AIPanel({ activeSessionId }: Props) {
           onChange={(e) => setInput(e.target.value)}
           placeholder="例如：解释上面报错、给出安全的排查命令…"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            // 聊天输入：默认按 Enter 发送；按 Shift+Enter 换行。
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               void send()
             }
           }}
         />
         <button type="button" className="primary" disabled={busy || !input.trim()} onClick={() => void send()}>
-          {busy ? '生成中…' : '发送 (Ctrl+Enter)'}
+          {busy ? '生成中…' : '发送 (Enter)'}
         </button>
       </div>
     </aside>
