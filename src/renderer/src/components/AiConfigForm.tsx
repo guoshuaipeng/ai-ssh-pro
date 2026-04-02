@@ -1,21 +1,30 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiSettings } from '@shared/ipc'
 
 const MASK = '••••••••'
+
+function parseModelLines(text: string): string[] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  return [...new Set(lines)]
+}
 
 /** 对话框内 AI 配置表单（无折叠） */
 export default function AiConfigForm() {
   const [baseURL, setBaseURL] = useState('')
   const [model, setModel] = useState('')
+  const [modelListText, setModelListText] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [temperature, setTemperature] = useState(0.1)
   const [sshParseInstructions, setSshParseInstructions] = useState('')
   const [savedHint, setSavedHint] = useState<string | null>(null)
 
+  const parsedModelList = useMemo(() => parseModelLines(modelListText), [modelListText])
+
   const load = useCallback(() => {
     void window.aiss.ai.getSettings().then((s) => {
       setBaseURL(s.baseURL)
       setModel(s.model)
+      setModelListText((s.modelList && s.modelList.length > 0 ? s.modelList : [s.model]).join('\n'))
       setApiKey(s.apiKey ? MASK : '')
       setTemperature(typeof s.temperature === 'number' ? s.temperature : 0.1)
       setSshParseInstructions(s.sshParseInstructions ?? '')
@@ -26,10 +35,24 @@ export default function AiConfigForm() {
     load()
   }, [load])
 
+  useEffect(() => {
+    if (parsedModelList.length === 0) return
+    if (!parsedModelList.includes(model)) {
+      setModel(parsedModelList[0]!)
+    }
+  }, [parsedModelList, model])
+
   const save = useCallback(async () => {
+    const list = parseModelLines(modelListText)
+    const finalList = list.length > 0 ? list : [model.trim() || 'qwen-max']
+    let active = model.trim()
+    if (!finalList.includes(active)) {
+      active = finalList[0]!
+    }
     const partial: Partial<AiSettings> = {
       baseURL: baseURL.trim() || undefined,
-      model: model.trim() || undefined,
+      model: active,
+      modelList: finalList,
       temperature:
         typeof temperature === 'number' && Number.isFinite(temperature)
           ? Math.min(2, Math.max(0, temperature))
@@ -44,7 +67,7 @@ export default function AiConfigForm() {
     setTimeout(() => setSavedHint(null), 2000)
     load()
     window.dispatchEvent(new CustomEvent('aiss-ai-settings-saved'))
-  }, [apiKey, baseURL, model, sshParseInstructions, temperature, load])
+  }, [apiKey, baseURL, model, modelListText, sshParseInstructions, temperature, load])
 
   return (
     <>
@@ -59,10 +82,37 @@ export default function AiConfigForm() {
           placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
         />
       </div>
+
       <div className="field">
-        <label>Model</label>
-        <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="qwen-max" />
+        <label>模型列表（每行一个模型 ID）</label>
+        <textarea
+          value={modelListText}
+          onChange={(e) => setModelListText(e.target.value)}
+          placeholder={'qwen-max\nqwen-turbo\nqwen-plus'}
+          rows={5}
+          style={{ width: '100%', resize: 'vertical', minHeight: 100, fontFamily: 'inherit' }}
+        />
       </div>
+      <div className="field">
+        <label>当前使用的模型</label>
+        <select
+          value={parsedModelList.includes(model) ? model : parsedModelList[0] ?? ''}
+          onChange={(e) => setModel(e.target.value)}
+          disabled={parsedModelList.length === 0}
+          style={{ width: '100%' }}
+        >
+          {parsedModelList.length === 0 ? <option value="">请先填写上方列表</option> : null}
+          {parsedModelList.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+          侧栏「AI 助手」顶部也可快速切换，无需打开本窗口。
+        </p>
+      </div>
+
       <div className="field">
         <label>API Key</label>
         <input

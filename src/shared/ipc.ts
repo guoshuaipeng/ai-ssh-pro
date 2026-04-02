@@ -66,7 +66,10 @@ export type AiStreamEvent =
 
 export type AiSettings = {
   baseURL: string
+  /** 当前请求使用的模型 ID（须在 modelList 中） */
   model: string
+  /** 可切换的模型 ID 列表（去重、非空） */
+  modelList: string[]
   apiKey: string
   /** 对话采样温度 0–2 */
   temperature: number

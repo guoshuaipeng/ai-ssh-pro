@@ -13,15 +13,29 @@ export default function AIPanel({ activeSessionId }: Props) {
   const [busy, setBusy] = useState(false)
   const [includeTerminal, setIncludeTerminal] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
+  const [modelList, setModelList] = useState<string[]>([])
+  const [activeModel, setActiveModel] = useState('')
   const tailRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const refresh = () => {
-      void window.aiss.ai.getSettings().then((s) => setHasApiKey(Boolean(s.apiKey?.trim())))
+      void window.aiss.ai.getSettings().then((s) => {
+        setHasApiKey(Boolean(s.apiKey?.trim()))
+        const list = s.modelList?.length ? s.modelList : [s.model]
+        setModelList(list)
+        setActiveModel(s.model)
+      })
     }
     refresh()
     window.addEventListener('aiss-ai-settings-saved', refresh)
     return () => window.removeEventListener('aiss-ai-settings-saved', refresh)
+  }, [])
+
+  const onModelChange = useCallback((value: string) => {
+    setActiveModel(value)
+    void window.aiss.ai.setSettings({ model: value }).then(() => {
+      window.dispatchEvent(new CustomEvent('aiss-ai-settings-saved'))
+    })
   }, [])
 
   useEffect(() => {
@@ -84,12 +98,29 @@ export default function AIPanel({ activeSessionId }: Props) {
 
   return (
     <aside className="ai-panel">
-      <div className="ai-header">
+      <div className="ai-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <span>AI 助手</span>
+        {modelList.length > 0 && (
+          <label style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>当前模型</span>
+            <select
+              value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
+              onChange={(e) => onModelChange(e.target.value)}
+              disabled={busy}
+              style={{ width: '100%', fontSize: 12 }}
+            >
+              {modelList.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {!hasApiKey && (
         <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-          请先在左侧栏「AI 配置」填写 API Key 与模型。
+          请先在「会话 → AI 配置」填写 API Key；可在配置里编辑多模型列表。
         </div>
       )}
 
