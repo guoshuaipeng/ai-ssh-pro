@@ -10,6 +10,8 @@ import type {
   AiStreamEvent
 } from '../shared/ipc'
 
+console.log('[preload] 脚本开始执行')
+
 function unsub(channel: string, fn: (e: IpcRendererEvent, ...args: unknown[]) => void): void {
   ipcRenderer.removeListener(channel, fn)
 }
@@ -50,4 +52,9 @@ const api = {
   }
 }
 
-contextBridge.exposeInMainWorld('aiss', api)
+try {
+  contextBridge.exposeInMainWorld('aiss', api)
+  console.log('[preload] contextBridge.exposeInMainWorld("aiss") 已成功')
+} catch (e) {
+  console.error('[preload] contextBridge 暴露失败（请把本行及堆栈发给开发者）:', e)
+}
