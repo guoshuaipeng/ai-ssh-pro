@@ -12,34 +12,21 @@ export default function AIPanel({ activeSessionId }: Props) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [includeTerminal, setIncludeTerminal] = useState(false)
-  const [baseURL, setBaseURL] = useState('')
-  const [model, setModel] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [showSettings, setShowSettings] = useState(false)
+  const [hasApiKey, setHasApiKey] = useState(false)
   const tailRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void window.aiss.ai.getSettings().then((s) => {
-      setBaseURL(s.baseURL)
-      setModel(s.model)
-      setApiKey(s.apiKey ? '••••••••' : '')
-    })
+    const refresh = () => {
+      void window.aiss.ai.getSettings().then((s) => setHasApiKey(Boolean(s.apiKey?.trim())))
+    }
+    refresh()
+    window.addEventListener('aiss-ai-settings-saved', refresh)
+    return () => window.removeEventListener('aiss-ai-settings-saved', refresh)
   }, [])
 
   useEffect(() => {
     tailRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [lines, busy])
-
-  const persistSettings = useCallback(async () => {
-    const partial: { baseURL?: string; model?: string; apiKey?: string } = {
-      baseURL: baseURL.trim() || undefined,
-      model: model.trim() || undefined
-    }
-    if (apiKey && apiKey !== '••••••••') {
-      partial.apiKey = apiKey
-    }
-    await window.aiss.ai.setSettings(partial)
-  }, [apiKey, baseURL, model])
 
   const send = useCallback(async () => {
     const text = input.trim()
@@ -97,43 +84,19 @@ export default function AIPanel({ activeSessionId }: Props) {
 
   return (
     <aside className="ai-panel">
-      <div className="ai-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="ai-header">
         <span>AI 助手</span>
-        <button type="button" onClick={() => setShowSettings((s) => !s)} style={{ fontSize: 12 }}>
-          {showSettings ? '收起设置' : '模型设置'}
-        </button>
       </div>
-
-      {showSettings && (
-        <div style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
-          <div className="field">
-            <label>Base URL</label>
-            <input value={baseURL} onChange={(e) => setBaseURL(e.target.value)} placeholder="https://api.openai.com/v1" />
-          </div>
-          <div className="field">
-            <label>Model</label>
-            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o-mini" />
-          </div>
-          <div className="field">
-            <label>API Key（仅存于本机主进程配置）</label>
-            <input
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-..."
-              type="password"
-              autoComplete="off"
-            />
-          </div>
-          <button type="button" className="primary" onClick={() => void persistSettings()}>
-            保存设置
-          </button>
+      {!hasApiKey && (
+        <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
+          请先在左侧栏「AI 配置」填写 API Key 与模型。
         </div>
       )}
 
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="msg assistant" style={{ opacity: 0.85 }}>
-            在下方输入问题；可勾选「附带最近终端输出」把当前标签会话的环形缓冲（最多约 200 行）一并发给模型。请先配置 API Key。
+            在下方输入问题；可勾选「附带最近终端输出」把当前标签会话的环形缓冲（最多约 200 行）一并发给模型。接口与密钥在左侧「AI 配置」。
           </div>
         )}
         {lines.map((l, i) => (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import TerminalPane from './components/TerminalPane'
 import AIPanel from './components/AIPanel'
+import AiConfigSection from './components/AiConfigSection'
 import type { SavedSessionProfile, SshConnectOptions } from '@shared/ipc'
 
 type Tab = {
@@ -28,6 +29,10 @@ export default function App() {
 
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [smartPaste, setSmartPaste] = useState('')
+  const [aiParsing, setAiParsing] = useState(false)
+  const [parseNotes, setParseNotes] = useState<string | null>(null)
 
   const activeTab = tabs.find((t) => t.tabId === activeTabId) ?? null
   const activeSessionId = activeTab?.sessionId ?? null
@@ -142,11 +147,74 @@ export default function App() {
     [persistSaved, saved]
   )
 
+  const parseAndFillForm = useCallback(async () => {
+    setError(null)
+    setParseNotes(null)
+    const blob = smartPaste.trim()
+    if (!blob) return
+    setAiParsing(true)
+    try {
+      const p = await window.aiss.ai.parseSshForm(blob)
+      if (p.label != null && p.label !== '') setLabel(p.label)
+      if (p.host != null && p.host !== '') setHost(p.host)
+      if (p.port != null && Number.isFinite(p.port)) setPort(String(p.port))
+      if (p.username != null && p.username !== '') setUsername(p.username)
+      if (p.password != null) setPassword(p.password)
+      if (p.privateKeyPath != null) setPrivateKeyPath(p.privateKeyPath)
+      if (p.passphrase != null) setPassphrase(p.passphrase)
+      setParseNotes(p.notes ?? null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAiParsing(false)
+    }
+  }, [smartPaste])
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-scroll">
-          <h3>新建连接</h3>
+          <AiConfigSection />
+
+          <h3>智能填表</h3>
+          <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+            粘贴一段文字（工单、聊天记录、ssh 命令等），由模型按左侧「自定义拆分说明」+ 默认规则提取字段并填入下方表单。不会自动连接。
+          </p>
+          <div className="field" style={{ marginBottom: 8 }}>
+            <textarea
+              value={smartPaste}
+              onChange={(e) => setSmartPaste(e.target.value)}
+              placeholder="例如：&#10;测试机 test_nlp01&#10;172.19.161.225 root 密码见 vault&#10;端口 22"
+              rows={5}
+              style={{ width: '100%', resize: 'vertical', minHeight: 100 }}
+            />
+          </div>
+          <button
+            type="button"
+            className="primary"
+            disabled={aiParsing || !smartPaste.trim()}
+            onClick={() => void parseAndFillForm()}
+          >
+            {aiParsing ? '解析中…' : 'AI 解析并填入表单'}
+          </button>
+          {parseNotes && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 8,
+                fontSize: 11,
+                color: 'var(--muted)',
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                whiteSpace: 'pre-wrap'
+              }}
+            >
+              模型备注：{parseNotes}
+            </div>
+          )}
+
+          <h3 style={{ marginTop: 22 }}>新建连接</h3>
           {error && (
             <div style={{ color: 'var(--danger)', marginBottom: 10, fontSize: 12 }}>{error}</div>
           )}

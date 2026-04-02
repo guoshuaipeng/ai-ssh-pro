@@ -65,4 +65,24 @@ export type AiSettings = {
   baseURL: string
   model: string
   apiKey: string
+  /** 对话采样温度 0–2 */
+  temperature: number
+  /**
+   * 自定义说明：模型应如何从用户粘贴的整段文字里拆分 SSH 连接信息（主机、端口、用户等）。
+   * 可与默认规则叠加。
+   */
+  sshParseInstructions: string
+}
+
+/** AI 解析粘贴文本后得到的连接表单字段（均为可选，仅填文本中明确出现的信息） */
+export type AiParsedSshForm = {
+  label?: string
+  host?: string
+  port?: number
+  username?: string
+  password?: string
+  privateKeyPath?: string
+  passphrase?: string
+  /** 未能归入字段的说明 */
+  notes?: string
 }

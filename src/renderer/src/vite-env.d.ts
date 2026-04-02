@@ -8,7 +8,8 @@ import type {
   SavedSessionProfile,
   AiChatPayload,
   AiSettings,
-  AiStreamEvent
+  AiStreamEvent,
+  AiParsedSshForm
 } from '@shared/ipc'
 
 export type AissPreload = {
@@ -29,6 +30,7 @@ export type AissPreload = {
     getSettings: () => Promise<AiSettings>
     setSettings: (partial: Partial<AiSettings>) => Promise<void>
     chat: (payload: AiChatPayload) => Promise<void>
+    parseSshForm: (rawText: string) => Promise<AiParsedSshForm>
     onStream: (cb: (ev: AiStreamEvent) => void) => () => void
   }
 }

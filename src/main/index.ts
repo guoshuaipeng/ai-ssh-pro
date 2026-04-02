@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
 import { appStore, getAiSettings, setAiSettings } from './app-store'
 import { streamOpenAICompatibleChat } from './ai-stream'
+import { parseSshFormWithAi } from './ai-parse-ssh'
 import type { SavedSessionProfile, SshConnectOptions, AiChatPayload, AiSettings } from '../shared/ipc'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -158,6 +159,10 @@ function registerIpc(): void {
 
   ipcMain.handle('ai:chat', async (event, payload: AiChatPayload) => {
     await streamOpenAICompatibleChat(event.sender, getAiSettings(), payload)
+  })
+
+  ipcMain.handle('ai:parseSshForm', async (_e, rawText: string) => {
+    return await parseSshFormWithAi(rawText, getAiSettings())
   })
 }
 

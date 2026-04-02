@@ -53,7 +53,10 @@ export async function streamOpenAICompatibleChat(
         model: settings.model,
         messages,
         stream: true,
-        temperature: 0.3
+        temperature:
+          typeof settings.temperature === 'number' && Number.isFinite(settings.temperature)
+            ? Math.min(2, Math.max(0, settings.temperature))
+            : 0.4
       })
     })
   } catch (e) {

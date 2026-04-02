@@ -7,7 +7,8 @@ import type {
   SavedSessionProfile,
   AiChatPayload,
   AiSettings,
-  AiStreamEvent
+  AiStreamEvent,
+  AiParsedSshForm
 } from '../shared/ipc'
 
 console.log('[preload] 脚本开始执行')
@@ -44,6 +45,8 @@ const api = {
     getSettings: (): Promise<AiSettings> => ipcRenderer.invoke('ai:settings:get'),
     setSettings: (partial: Partial<AiSettings>): Promise<void> => ipcRenderer.invoke('ai:settings:set', partial),
     chat: (payload: AiChatPayload): Promise<void> => ipcRenderer.invoke('ai:chat', payload),
+    parseSshForm: (rawText: string): Promise<AiParsedSshForm> =>
+      ipcRenderer.invoke('ai:parseSshForm', rawText),
     onStream: (cb: (ev: AiStreamEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiStreamEvent)
       ipcRenderer.on('ai:stream', fn)
