@@ -1,3 +1,6 @@
+/** 主菜单 / 工具栏打开的对话框类型 */
+export type AppDialogKind = 'connection' | 'ai'
+
 export type SessionMeta = {
   host: string
   port: number

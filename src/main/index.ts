@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import { installApplicationMenu, setMainWindowForMenu } from './application-menu'
 import { existsSync, statSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -112,6 +113,11 @@ function createWindow(): void {
 
   attachWebContentsDiagnostics(win)
 
+  setMainWindowForMenu(win)
+  win.on('closed', () => {
+    setMainWindowForMenu(null)
+  })
+
   if (process.env.ELECTRON_RENDERER_URL) {
     console.log('[main] loadURL (dev) =', process.env.ELECTRON_RENDERER_URL)
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -169,6 +175,7 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   console.log('[main] app ready, userData =', app.getPath('userData'))
   registerIpc()
+  installApplicationMenu()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

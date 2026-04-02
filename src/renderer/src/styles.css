@@ -37,6 +37,126 @@ body {
   overflow: hidden;
 }
 
+.app-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.app-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  min-height: 44px;
+}
+
+.app-toolbar-brand {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.app-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-toolbar-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .app-toolbar-hint {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: transparent !important;
+  border: none !important;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modal-section-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 button,
 input,
 select,

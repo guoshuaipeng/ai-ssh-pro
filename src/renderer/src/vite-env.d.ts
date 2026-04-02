@@ -9,10 +9,14 @@ import type {
   AiChatPayload,
   AiSettings,
   AiStreamEvent,
-  AiParsedSshForm
+  AiParsedSshForm,
+  AppDialogKind
 } from '@shared/ipc'
 
 export type AissPreload = {
+  app: {
+    onOpenDialog: (cb: (kind: AppDialogKind) => void) => () => void
+  }
   ssh: {
     connect: (opts: SshConnectOptions) => Promise<SshConnectResult>
     disconnect: (sessionId: string) => Promise<void>

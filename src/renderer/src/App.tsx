@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { AppDialogKind } from '@shared/ipc'
 import TerminalPane from './components/TerminalPane'
 import AIPanel from './components/AIPanel'
-import AiConfigSection from './components/AiConfigSection'
+import AppToolbar from './components/AppToolbar'
+import AiConfigModal from './components/AiConfigModal'
+import ConnectionConfigModal from './components/ConnectionConfigModal'
 import type { SavedSessionProfile, SshConnectOptions } from '@shared/ipc'
 
 type Tab = {
@@ -15,6 +18,7 @@ function uuid(): string {
 }
 
 export default function App() {
+  const [dialog, setDialog] = useState<AppDialogKind | null>(null)
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [saved, setSaved] = useState<SavedSessionProfile[]>([])
@@ -42,6 +46,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    return window.aiss.app.onOpenDialog((kind) => setDialog(kind))
+  }, [])
+
+  useEffect(() => {
     return window.aiss.ssh.onStatus((st) => {
       if (st.status === 'error' && st.message) {
         setError(st.message)
@@ -63,28 +71,27 @@ export default function App() {
     await window.aiss.sessions.save(next)
   }, [])
 
-  const openSession = useCallback(
-    async (opts: SshConnectOptions) => {
-      setError(null)
-      setConnecting(true)
-      try {
-        const { sessionId, meta } = await window.aiss.ssh.connect(opts)
-        const title = meta.label ?? `${meta.username}@${meta.host}`
-        const tabId = uuid()
-        setTabs((prev) => [...prev, { tabId, sessionId, title }])
-        setActiveTabId(tabId)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-      } finally {
-        setConnecting(false)
-      }
-    },
-    []
-  )
+  const openSession = useCallback(async (opts: SshConnectOptions): Promise<boolean> => {
+    setError(null)
+    setConnecting(true)
+    try {
+      const { sessionId, meta } = await window.aiss.ssh.connect(opts)
+      const title = meta.label ?? `${meta.username}@${meta.host}`
+      const tabId = uuid()
+      setTabs((prev) => [...prev, { tabId, sessionId, title }])
+      setActiveTabId(tabId)
+      return true
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      return false
+    } finally {
+      setConnecting(false)
+    }
+  }, [])
 
-  const connectFromForm = useCallback(() => {
+  const connectFromForm = useCallback(async () => {
     const p = Number(port) || 22
-    void openSession({
+    const ok = await openSession({
       host: host.trim(),
       port: p,
       username: username.trim(),
@@ -93,6 +100,7 @@ export default function App() {
       passphrase: passphrase || undefined,
       label: label.trim() || undefined
     })
+    if (ok) setDialog(null)
   }, [host, label, openSession, passphrase, password, port, privateKeyPath, username])
 
   const closeTab = useCallback(
@@ -171,161 +179,114 @@ export default function App() {
   }, [smartPaste])
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-scroll">
-          <AiConfigSection />
+    <div className="app-root">
+      <AppToolbar onOpenConnection={() => setDialog('connection')} onOpenAi={() => setDialog('ai')} />
 
-          <h3>智能填表</h3>
-          <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-            粘贴一段文字（工单、聊天记录、ssh 命令等），由模型按左侧「自定义拆分说明」+ 默认规则提取字段并填入下方表单。不会自动连接。
-          </p>
-          <div className="field" style={{ marginBottom: 8 }}>
-            <textarea
-              value={smartPaste}
-              onChange={(e) => setSmartPaste(e.target.value)}
-              placeholder="例如：&#10;测试机 test_nlp01&#10;172.19.161.225 root 密码见 vault&#10;端口 22"
-              rows={5}
-              style={{ width: '100%', resize: 'vertical', minHeight: 100 }}
-            />
-          </div>
-          <button
-            type="button"
-            className="primary"
-            disabled={aiParsing || !smartPaste.trim()}
-            onClick={() => void parseAndFillForm()}
-          >
-            {aiParsing ? '解析中…' : 'AI 解析并填入表单'}
-          </button>
-          {parseNotes && (
-            <div
-              style={{
-                marginTop: 10,
-                padding: 8,
-                fontSize: 11,
-                color: 'var(--muted)',
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                whiteSpace: 'pre-wrap'
-              }}
-            >
-              模型备注：{parseNotes}
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="sidebar-scroll">
+            <div style={{ marginBottom: 12 }}>
+              <button type="button" className="primary" style={{ width: '100%' }} onClick={() => setDialog('connection')}>
+                打开连接配置
+              </button>
+              <button
+                type="button"
+                style={{ width: '100%', marginTop: 8 }}
+                onClick={() => setDialog('ai')}
+              >
+                打开 AI 配置
+              </button>
             </div>
-          )}
 
-          <h3 style={{ marginTop: 22 }}>新建连接</h3>
-          {error && (
-            <div style={{ color: 'var(--danger)', marginBottom: 10, fontSize: 12 }}>{error}</div>
-          )}
-          <div className="field">
-            <label>显示名</label>
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="可选" />
-          </div>
-          <div className="field">
-            <label>主机</label>
-            <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="172.19.161.225" />
-          </div>
-          <div className="field">
-            <label>端口</label>
-            <input value={port} onChange={(e) => setPort(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>用户名</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="root" />
-          </div>
-          <div className="field">
-            <label>密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="与私钥二选一"
-              autoComplete="off"
-            />
-          </div>
-          <div className="field">
-            <label>私钥路径（本机）</label>
-            <input
-              value={privateKeyPath}
-              onChange={(e) => setPrivateKeyPath(e.target.value)}
-              placeholder="例如 C:\\Users\\me\\.ssh\\id_rsa"
-            />
-          </div>
-          <div className="field">
-            <label>私钥口令</label>
-            <input
-              type="password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-          <button type="button" className="primary" disabled={connecting} onClick={() => void connectFromForm()}>
-            {connecting ? '连接中…' : '连接'}
-          </button>
-          <button type="button" style={{ marginLeft: 8 }} onClick={() => void saveProfile()}>
-            保存到列表
-          </button>
-
-          <h3 style={{ marginTop: 20 }}>已保存会话</h3>
-          {saved.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>}
-          {saved.map((p) => (
-            <div key={p.id} className="profile-row">
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                  {p.username}@{p.host}:{p.port}
+            <h3>已保存会话</h3>
+            {saved.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>}
+            {saved.map((p) => (
+              <div key={p.id} className="profile-row">
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    {p.username}@{p.host}:{p.port}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <button type="button" onClick={() => connectProfile(p)}>
+                    连接
+                  </button>
+                  <button type="button" onClick={() => removeProfile(p.id)}>
+                    删除
+                  </button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <button type="button" onClick={() => connectProfile(p)}>
-                  连接
-                </button>
-                <button type="button" onClick={() => removeProfile(p.id)}>
-                  删除
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
+            ))}
+          </div>
+        </aside>
 
-      <section className="main">
-        <div className="tab-bar">
-          {tabs.length === 0 && <span style={{ padding: '8px 12px', color: 'var(--muted)' }}>未打开会话</span>}
-          {tabs.map((t) => (
-            <button
-              key={t.tabId}
-              type="button"
-              className={`tab ${t.tabId === activeTabId ? 'active' : ''}`}
-              onClick={() => setActiveTabId(t.tabId)}
-            >
-              {t.title}
-              <span
-                role="presentation"
-                className="tab-close"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  closeTab(t.tabId, t.sessionId)
-                }}
+        <section className="main">
+          <div className="tab-bar">
+            {tabs.length === 0 && <span style={{ padding: '8px 12px', color: 'var(--muted)' }}>未打开会话</span>}
+            {tabs.map((t) => (
+              <button
+                key={t.tabId}
+                type="button"
+                className={`tab ${t.tabId === activeTabId ? 'active' : ''}`}
+                onClick={() => setActiveTabId(t.tabId)}
               >
-                ×
-              </span>
-            </button>
-          ))}
-        </div>
+                {t.title}
+                <span
+                  role="presentation"
+                  className="tab-close"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    closeTab(t.tabId, t.sessionId)
+                  }}
+                >
+                  ×
+                </span>
+              </button>
+            ))}
+          </div>
 
-        <div className="terminal-stack">
-          {tabs.map((t) => (
-            <div key={t.tabId} className={`terminal-layer ${t.tabId === activeTabId ? 'active' : ''}`}>
-              <TerminalPane sessionId={t.sessionId} active={t.tabId === activeTabId} />
-            </div>
-          ))}
-        </div>
-      </section>
+          <div className="terminal-stack">
+            {tabs.map((t) => (
+              <div key={t.tabId} className={`terminal-layer ${t.tabId === activeTabId ? 'active' : ''}`}>
+                <TerminalPane sessionId={t.sessionId} active={t.tabId === activeTabId} />
+              </div>
+            ))}
+          </div>
+        </section>
 
-      <AIPanel activeSessionId={activeSessionId} />
+        <AIPanel activeSessionId={activeSessionId} />
+      </div>
+
+      <ConnectionConfigModal
+        open={dialog === 'connection'}
+        onClose={() => setDialog(null)}
+        error={error}
+        host={host}
+        setHost={setHost}
+        port={port}
+        setPort={setPort}
+        username={username}
+        setUsername={setUsername}
+        password={password}
+        setPassword={setPassword}
+        privateKeyPath={privateKeyPath}
+        setPrivateKeyPath={setPrivateKeyPath}
+        passphrase={passphrase}
+        setPassphrase={setPassphrase}
+        label={label}
+        setLabel={setLabel}
+        smartPaste={smartPaste}
+        setSmartPaste={setSmartPaste}
+        parseNotes={parseNotes}
+        aiParsing={aiParsing}
+        connecting={connecting}
+        onParseAndFill={parseAndFillForm}
+        onConnect={connectFromForm}
+        onSaveProfile={saveProfile}
+      />
+
+      <AiConfigModal open={dialog === 'ai'} onClose={() => setDialog(null)} />
     </div>
   )
 }

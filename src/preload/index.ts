@@ -8,7 +8,8 @@ import type {
   AiChatPayload,
   AiSettings,
   AiStreamEvent,
-  AiParsedSshForm
+  AiParsedSshForm,
+  AppDialogKind
 } from '../shared/ipc'
 
 console.log('[preload] 脚本开始执行')
@@ -18,6 +19,13 @@ function unsub(channel: string, fn: (e: IpcRendererEvent, ...args: unknown[]) =>
 }
 
 const api = {
+  app: {
+    onOpenDialog: (cb: (kind: AppDialogKind) => void): (() => void) => {
+      const fn = (_e: IpcRendererEvent, kind: AppDialogKind) => cb(kind)
+      ipcRenderer.on('app:open-dialog', fn)
+      return () => ipcRenderer.removeListener('app:open-dialog', fn)
+    }
+  },
   ssh: {
     connect: (opts: SshConnectOptions): Promise<SshConnectResult> => ipcRenderer.invoke('ssh:connect', opts),
     disconnect: (sessionId: string): Promise<void> => ipcRenderer.invoke('ssh:disconnect', sessionId),
