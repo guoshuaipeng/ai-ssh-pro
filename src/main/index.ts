@@ -1,17 +1,24 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu } from './application-menu'
 import { existsSync, statSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
 import { appStore, getAiSettings, setAiSettings } from './app-store'
-import { streamOpenAICompatibleChat } from './ai-stream'
+import { runLangGraphAgentChat } from './ai-langgraph'
 import { parseSshFormWithAi } from './ai-parse-ssh'
 import type { SavedSessionProfile, SshConnectOptions, AiChatPayload, AiSettings } from '../shared/ipc'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const sshManager = new SshSessionManager()
+
+function appIconPath(): string {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'icon.ico')
+  }
+  return join(__dirname, '../../build/icon.ico')
+}
 
 function preloadPath(): string {
   const cjs = join(__dirname, '../preload/index.cjs')
@@ -96,6 +103,7 @@ function createWindow(): void {
   const resolvedPreload = preloadPath()
   logPreloadDiagnostics(resolvedPreload)
 
+  const iconFile = appIconPath()
   const win = new BrowserWindow({
     width: 1400,
     height: 880,
@@ -108,7 +116,8 @@ function createWindow(): void {
       // ESM 预加载脚本与 sandbox 并存时，部分环境下 preload 不执行 → window.aiss 不存在
       sandbox: false
     },
-    title: 'AI-SSH-Pro'
+    title: 'AI-SSH-Pro',
+    ...(existsSync(iconFile) ? { icon: nativeImage.createFromPath(iconFile) } : {})
   })
 
   attachWebContentsDiagnostics(win)
@@ -164,7 +173,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('ai:chat', async (event, payload: AiChatPayload) => {
-    await streamOpenAICompatibleChat(event.sender, getAiSettings(), payload)
+    await runLangGraphAgentChat(event.sender, getAiSettings(), payload, sshManager)
   })
 
   ipcMain.handle('ai:parseSshForm', async (_e, rawText: string) => {

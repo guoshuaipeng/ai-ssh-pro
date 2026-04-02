@@ -40,7 +40,7 @@ export function installApplicationMenu(): void {
     label: '会话',
     submenu: [
       {
-        label: '连接配置…',
+        label: '新建连接…',
         accelerator: 'CmdOrCtrl+Shift+N',
         click: () => sendOpenDialog('connection')
       },

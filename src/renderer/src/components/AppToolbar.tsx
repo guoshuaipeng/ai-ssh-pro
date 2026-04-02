@@ -9,13 +9,13 @@ export default function AppToolbar({ onOpenConnection, onOpenAi }: Props) {
       <span className="app-toolbar-brand">AI-SSH-Pro</span>
       <div className="app-toolbar-actions">
         <button type="button" onClick={onOpenConnection}>
-          连接配置
+          新建连接
         </button>
         <button type="button" onClick={onOpenAi}>
           AI 配置
         </button>
       </div>
-      <span className="app-toolbar-hint">菜单：会话 → 连接配置 / AI 配置</span>
+      <span className="app-toolbar-hint">菜单：会话 → 新建连接 / AI 配置</span>
     </header>
   )
 }

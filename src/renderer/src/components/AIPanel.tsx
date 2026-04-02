@@ -1,11 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AiChatMessage } from '@shared/ipc'
+import type { AiAssistantReply, AiChatMessage } from '@shared/ipc'
+import { parseAiAssistantReply } from '@shared/ipc'
+import { dispatchInjectTerminal } from '../lib/terminal-inject'
 
 type Props = {
   activeSessionId: string | null
 }
 
-type Line = { role: 'user' | 'assistant'; content: string }
+type UserLine = { role: 'user'; content: string }
+
+type AssistantLine = {
+  role: 'assistant'
+  content: string
+  streaming?: boolean
+  structured?: AiAssistantReply
+}
+
+type Line = UserLine | AssistantLine
+
+function riskClass(level: string): string {
+  const n = level.toLowerCase()
+  if (n === 'low') return 'ai-risk-low'
+  if (n === 'high') return 'ai-risk-high'
+  return 'ai-risk-medium'
+}
 
 export default function AIPanel({ activeSessionId }: Props) {
   const [lines, setLines] = useState<Line[]>([])
@@ -52,7 +70,7 @@ export default function AIPanel({ activeSessionId }: Props) {
       if (snap) terminalExcerpt = snap
     }
 
-    const userLine: Line = { role: 'user', content: text }
+    const userLine: UserLine = { role: 'user', content: text }
     setLines((prev) => [...prev, userLine])
     setInput('')
     setBusy(true)
@@ -72,15 +90,21 @@ export default function AIPanel({ activeSessionId }: Props) {
         setLines((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
-          if (last?.role === 'assistant') {
-            next[next.length - 1] = { role: 'assistant', content: assistant }
-          } else {
-            next.push({ role: 'assistant', content: assistant })
-          }
+          if (last?.role === 'assistant' && last.streaming) return next
+          next.push({ role: 'assistant', content: '', streaming: true })
           return next
         })
       } else if (ev.type === 'error') {
-        setLines((prev) => [...prev, { role: 'assistant', content: `错误：${ev.message}` }])
+        setLines((prev) => {
+          const next = [...prev]
+          const last = next[next.length - 1]
+          if (last?.role === 'assistant' && last.streaming) {
+            next[next.length - 1] = { role: 'assistant', content: `错误：${ev.message}` }
+          } else {
+            next.push({ role: 'assistant', content: `错误：${ev.message}` })
+          }
+          return next
+        })
       }
     })
 
@@ -90,11 +114,45 @@ export default function AIPanel({ activeSessionId }: Props) {
         targetSessionId: activeSessionId ?? undefined,
         terminalExcerpt
       })
+      const raw = assistant.trim()
+      const parsed = parseAiAssistantReply(raw)
+      setLines((prev) => {
+        const next = [...prev]
+        const last = next[next.length - 1]
+        if (last?.role === 'assistant' && last.streaming) {
+          if (parsed) {
+            next[next.length - 1] = { role: 'assistant', content: raw, structured: parsed }
+          } else {
+            next[next.length - 1] = {
+              role: 'assistant',
+              content: raw || '（模型未返回可解析的 JSON）'
+            }
+          }
+        } else if (last?.role === 'user') {
+          if (raw) {
+            if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed })
+            else next.push({ role: 'assistant', content: raw })
+          } else {
+            next.push({ role: 'assistant', content: '（无回复）' })
+          }
+        }
+        return next
+      })
     } finally {
       unsub()
       setBusy(false)
     }
   }, [activeSessionId, busy, includeTerminal, input, lines])
+
+  const runSuggestedCommand = useCallback(
+    (cmd: string) => {
+      if (!activeSessionId) return
+      const oneLine = cmd.replace(/\r\n/g, '\n').replace(/[\r\n]+/g, ' ').trim()
+      if (!oneLine) return
+      dispatchInjectTerminal(activeSessionId, oneLine, true)
+    },
+    [activeSessionId]
+  )
 
   return (
     <aside className="ai-panel">
@@ -127,14 +185,54 @@ export default function AIPanel({ activeSessionId }: Props) {
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="msg assistant" style={{ opacity: 0.85 }}>
-            在下方输入问题；可勾选「附带最近终端输出」把当前标签会话的环形缓冲（最多约 200 行）一并发给模型。接口与密钥在左侧「AI 配置」。
+            助手会以 JSON 返回说明（description）、可选命令（command）、风险等级（riskLevel）等；生成过程中先显示「正在生成…」。若有命令，可点「执行」写入当前 SSH 标签页并回车执行。
           </div>
         )}
-        {lines.map((l, i) => (
-          <div key={i} className={`msg ${l.role}`}>
-            {l.content}
-          </div>
-        ))}
+        {lines.map((l, i) => {
+          if (l.role === 'user') {
+            return (
+              <div key={i} className="msg user">
+                {l.content}
+              </div>
+            )
+          }
+          if (l.streaming) {
+            return (
+              <div key={i} className="msg assistant">
+                正在生成…
+              </div>
+            )
+          }
+          if (l.structured) {
+            const s = l.structured
+            return (
+              <div key={i} className="msg assistant ai-structured">
+                <div className="ai-reply-desc">{s.description}</div>
+                <div className={`ai-risk-badge ${riskClass(s.riskLevel)}`}>风险：{s.riskLevel}</div>
+                {s.notes && <div className="ai-reply-notes">{s.notes}</div>}
+                {s.command?.trim() && (
+                  <div className="ai-reply-cmd">
+                    <code className="ai-reply-cmd-code">{s.command}</code>
+                    <button
+                      type="button"
+                      className="ai-fill-cmd-btn"
+                      disabled={!activeSessionId}
+                      title={activeSessionId ? '写入当前 SSH 终端当前行并回车执行' : '请先连接并选中 SSH 标签页'}
+                      onClick={() => runSuggestedCommand(s.command!)}
+                    >
+                      执行
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          }
+          return (
+            <div key={i} className="msg assistant">
+              {l.content}
+            </div>
+          )
+        })}
         <div ref={tailRef} />
       </div>
 

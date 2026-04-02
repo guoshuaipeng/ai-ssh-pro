@@ -9,8 +9,14 @@ function send(wc: WebContents, ev: AiStreamEvent): void {
 
 function buildMessages(payload: AiChatPayload): { role: string; content: string }[] {
   const systemParts: string[] = [
-    '你是运维/开发助手，帮助用户生成与解释 Shell 命令、分析终端输出。',
-    '不要假设用户已确认执行命令；说明风险。回答简洁，必要时用 Markdown。'
+    '你是运维/开发助手，结合用户问题与终端上下文给出 Shell 与排错建议。',
+    '你必须只输出一个 JSON 对象：不要使用 Markdown、不要代码围栏、不要输出任何 JSON 以外的文字。',
+    'JSON 字段约定：',
+    '- description（必填，字符串）：说明结论、步骤或原因，并提示是否需在用户确认后再执行命令。',
+    '- command（可选，字符串）：建议用户在终端执行的单行完整命令；不需要命令时可省略或设为 ""；禁止换行。',
+    '- riskLevel（必填，字符串）：风险等级，三选一：low、medium、high。',
+    '- notes（可选，字符串）：补充注意点、回滚、备份或需先确认的信息。',
+    '不要假设用户已执行命令；高风险操作须在 description/notes 中明确说明。'
   ]
   if (payload.targetSessionId) {
     systemParts.push(`当前关联的 SSH 会话 ID：${payload.targetSessionId}（仅作上下文，不要当作秘密）。`)

@@ -2,6 +2,10 @@ import Modal from './Modal'
 
 export type ConnectionConfigModalProps = {
   open: boolean
+  /** 默认「新建连接」；编辑已保存会话时可传入更明确的标题 */
+  title?: string
+  /** 默认「保存到列表」 */
+  saveProfileButtonLabel?: string
   onClose: () => void
   error: string | null
   host: string
@@ -30,6 +34,8 @@ export type ConnectionConfigModalProps = {
 
 export default function ConnectionConfigModal({
   open,
+  title = '新建连接',
+  saveProfileButtonLabel = '保存到列表',
   onClose,
   error,
   host,
@@ -58,7 +64,7 @@ export default function ConnectionConfigModal({
   return (
     <Modal
       open={open}
-      title="连接配置"
+      title={title}
       onClose={onClose}
       width={560}
       footer={
@@ -67,7 +73,7 @@ export default function ConnectionConfigModal({
             关闭
           </button>
           <button type="button" onClick={onSaveProfile}>
-            保存到列表
+            {saveProfileButtonLabel}
           </button>
           <button type="button" className="primary" disabled={connecting} onClick={() => void onConnect()}>
             {connecting ? '连接中…' : '连接'}
@@ -115,6 +121,9 @@ export default function ConnectionConfigModal({
       )}
 
       <h3 className="modal-section-title">连接参数</h3>
+      <p style={{ margin: '0 0 10px', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+        「保存到列表」会一并保存当前密码与私钥口令（仅本机 electron-store，请勿在共享电脑上使用）。
+      </p>
       {error && (
         <div style={{ color: 'var(--danger)', marginBottom: 10, fontSize: 12 }}>{error}</div>
       )}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppDialogKind } from '@shared/ipc'
 import TerminalPane from './components/TerminalPane'
 import AIPanel from './components/AIPanel'
@@ -38,6 +38,16 @@ export default function App() {
   const [aiParsing, setAiParsing] = useState(false)
   const [parseNotes, setParseNotes] = useState<string | null>(null)
 
+  /** 非空表示正在编辑侧栏已保存会话，保存时按 id 写回 */
+  const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
+
+  const [sessionMenu, setSessionMenu] = useState<{
+    x: number
+    y: number
+    profile: SavedSessionProfile
+  } | null>(null)
+  const sessionMenuRef = useRef<HTMLDivElement>(null)
+
   const activeTab = tabs.find((t) => t.tabId === activeTabId) ?? null
   const activeSessionId = activeTab?.sessionId ?? null
 
@@ -46,7 +56,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    return window.aiss.app.onOpenDialog((kind) => setDialog(kind))
+    return window.aiss.app.onOpenDialog((kind) => {
+      if (kind === 'connection') setEditingSavedId(null)
+      setDialog(kind)
+    })
   }, [])
 
   useEffect(() => {
@@ -65,6 +78,23 @@ export default function App() {
       setActiveTabId(tabs[0]?.tabId ?? null)
     }
   }, [tabs, activeTabId])
+
+  useEffect(() => {
+    if (!sessionMenu) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (sessionMenuRef.current?.contains(e.target as Node)) return
+      setSessionMenu(null)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSessionMenu(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [sessionMenu])
 
   const persistSaved = useCallback(async (next: SavedSessionProfile[]) => {
     setSaved(next)
@@ -100,7 +130,10 @@ export default function App() {
       passphrase: passphrase || undefined,
       label: label.trim() || undefined
     })
-    if (ok) setDialog(null)
+    if (ok) {
+      setDialog(null)
+      setEditingSavedId(null)
+    }
   }, [host, label, openSession, passphrase, password, port, privateKeyPath, username])
 
   const closeTab = useCallback(
@@ -117,35 +150,58 @@ export default function App() {
       setError('保存前请填写主机与用户名')
       return
     }
-    const p: SavedSessionProfile = {
-      id: uuid(),
-      label: label.trim() || `${username.trim()}@${host.trim()}`,
-      host: host.trim(),
-      port: Number(port) || 22,
-      username: username.trim(),
-      privateKeyPath: privateKeyPath.trim() || undefined
+    const h = host.trim()
+    const po = Number(port) || 22
+    const u = username.trim()
+    const base = {
+      label: label.trim() || `${u}@${h}`,
+      host: h,
+      port: po,
+      username: u,
+      password: password.trim() || undefined,
+      privateKeyPath: privateKeyPath.trim() || undefined,
+      passphrase: passphrase.trim() || undefined
     }
-    void persistSaved([...saved, p])
-  }, [host, label, persistSaved, port, privateKeyPath, saved, username])
+
+    let next: SavedSessionProfile[]
+    if (editingSavedId) {
+      const id = editingSavedId
+      const merged: SavedSessionProfile = { ...base, id }
+      const exists = saved.some((s) => s.id === id)
+      next = exists ? saved.map((s) => (s.id === id ? merged : s)) : [...saved, merged]
+    } else {
+      const sameTarget = (s: SavedSessionProfile) => s.host === h && s.port === po && s.username === u
+      const existing = saved.find(sameTarget)
+      const row: SavedSessionProfile = { ...base, id: existing?.id ?? uuid() }
+      next = existing ? saved.map((s) => (s.id === existing.id ? row : s)) : [...saved, row]
+    }
+    void persistSaved(next)
+  }, [editingSavedId, host, label, passphrase, password, persistSaved, port, privateKeyPath, saved, username])
+
+  const applyProfileToForm = useCallback((profile: SavedSessionProfile) => {
+    setHost(profile.host)
+    setPort(String(profile.port))
+    setUsername(profile.username)
+    setPassword(profile.password ?? '')
+    setPrivateKeyPath(profile.privateKeyPath ?? '')
+    setPassphrase(profile.passphrase ?? '')
+    setLabel(profile.label)
+  }, [])
 
   const connectProfile = useCallback(
     (p: SavedSessionProfile) => {
-      setHost(p.host)
-      setPort(String(p.port))
-      setUsername(p.username)
-      setPrivateKeyPath(p.privateKeyPath ?? '')
-      setLabel(p.label)
+      applyProfileToForm(p)
       void openSession({
         host: p.host,
         port: p.port,
         username: p.username,
         privateKeyPath: p.privateKeyPath,
-        password: password || undefined,
-        passphrase: passphrase || undefined,
+        password: p.password?.trim() || undefined,
+        passphrase: p.passphrase?.trim() || undefined,
         label: p.label
       })
     },
-    [openSession, passphrase, password]
+    [applyProfileToForm, openSession]
   )
 
   const removeProfile = useCallback(
@@ -180,41 +236,52 @@ export default function App() {
 
   return (
     <div className="app-root">
-      <AppToolbar onOpenConnection={() => setDialog('connection')} onOpenAi={() => setDialog('ai')} />
+      <AppToolbar
+        onOpenConnection={() => {
+          setEditingSavedId(null)
+          setDialog('connection')
+        }}
+        onOpenAi={() => setDialog('ai')}
+      />
 
       <div className="app-shell">
         <aside className="sidebar">
           <div className="sidebar-scroll">
-            <div style={{ marginBottom: 12 }}>
-              <button type="button" className="primary" style={{ width: '100%' }} onClick={() => setDialog('connection')}>
-                打开连接配置
-              </button>
-              <button
-                type="button"
-                style={{ width: '100%', marginTop: 8 }}
-                onClick={() => setDialog('ai')}
+            {error && dialog !== 'connection' && (
+              <div
+                style={{
+                  color: 'var(--danger)',
+                  fontSize: 11,
+                  marginBottom: 12,
+                  lineHeight: 1.4,
+                  padding: 8,
+                  background: 'var(--bg)',
+                  borderRadius: 6,
+                  border: '1px solid var(--border)'
+                }}
               >
-                打开 AI 配置
-              </button>
-            </div>
+                {error}
+              </div>
+            )}
 
             <h3>已保存会话</h3>
             {saved.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>}
             {saved.map((p) => (
-              <div key={p.id} className="profile-row">
+              <div
+                key={p.id}
+                className="profile-row"
+                title="双击连接，右键打开菜单"
+                onDoubleClick={() => connectProfile(p)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setSessionMenu({ x: e.clientX, y: e.clientY, profile: p })
+                }}
+              >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     {p.username}@{p.host}:{p.port}
                   </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <button type="button" onClick={() => connectProfile(p)}>
-                    连接
-                  </button>
-                  <button type="button" onClick={() => removeProfile(p.id)}>
-                    删除
-                  </button>
                 </div>
               </div>
             ))}
@@ -260,7 +327,12 @@ export default function App() {
 
       <ConnectionConfigModal
         open={dialog === 'connection'}
-        onClose={() => setDialog(null)}
+        title={editingSavedId ? '编辑已保存会话' : '新建连接'}
+        saveProfileButtonLabel={editingSavedId ? '保存修改' : '保存到列表'}
+        onClose={() => {
+          setDialog(null)
+          setEditingSavedId(null)
+        }}
         error={error}
         host={host}
         setHost={setHost}
@@ -287,6 +359,51 @@ export default function App() {
       />
 
       <AiConfigModal open={dialog === 'ai'} onClose={() => setDialog(null)} />
+
+      {sessionMenu && (
+        <div
+          ref={sessionMenuRef}
+          className="session-context-menu"
+          style={{ left: sessionMenu.x, top: sessionMenu.y }}
+          role="menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item"
+            onClick={() => {
+              connectProfile(sessionMenu.profile)
+              setSessionMenu(null)
+            }}
+          >
+            连接
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item"
+            onClick={() => {
+              applyProfileToForm(sessionMenu.profile)
+              setEditingSavedId(sessionMenu.profile.id)
+              setSessionMenu(null)
+              setDialog('connection')
+            }}
+          >
+            编辑
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item danger"
+            onClick={() => {
+              removeProfile(sessionMenu.profile.id)
+              setSessionMenu(null)
+            }}
+          >
+            删除
+          </button>
+        </div>
+      )}
     </div>
   )
 }

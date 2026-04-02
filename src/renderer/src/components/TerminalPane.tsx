@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { AISS_INJECT_TERMINAL_EVENT } from '../lib/terminal-inject'
 
 type Props = {
   sessionId: string
@@ -63,6 +64,22 @@ export default function TerminalPane({ sessionId, active }: Props) {
       term.dispose()
       apiRef.current = null
     }
+  }, [sessionId])
+
+  useEffect(() => {
+    const onInject = (e: Event) => {
+      const ce = e as CustomEvent<{ sessionId?: string; text?: string; execute?: boolean }>
+      if (ce.detail?.sessionId !== sessionId) return
+      const api = apiRef.current
+      if (!api) return
+      const text = (ce.detail.text ?? '').replace(/\r\n/g, '\n').replace(/[\r\n]/g, '')
+      if (!text) return
+      api.term.focus()
+      const payload = ce.detail.execute ? `${text}\r` : text
+      api.term.paste(payload)
+    }
+    window.addEventListener(AISS_INJECT_TERMINAL_EVENT, onInject)
+    return () => window.removeEventListener(AISS_INJECT_TERMINAL_EVENT, onInject)
   }, [sessionId])
 
   useEffect(() => {

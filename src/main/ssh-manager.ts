@@ -1,4 +1,7 @@
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { WebContents } from 'electron'
 import { Client, type ClientChannel } from 'ssh2'
 import { randomUUID } from 'node:crypto'
@@ -14,6 +17,23 @@ import { RingBuffer } from './ring-buffer'
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
 const RING_MAX_LINES = 4000
+
+/** 与 OpenSSH 类似：未指定私钥时尝试默认路径（仅在没有密码时） */
+const DEFAULT_PRIVATE_KEY_NAMES = ['id_ed25519', 'id_rsa', 'id_ecdsa'] as const
+
+async function tryReadDefaultPrivateKey(): Promise<Buffer | null> {
+  const base = join(homedir(), '.ssh')
+  for (const name of DEFAULT_PRIVATE_KEY_NAMES) {
+    const fp = join(base, name)
+    if (!existsSync(fp)) continue
+    try {
+      return await readFile(fp)
+    } catch {
+      /* 忽略无权限等 */
+    }
+  }
+  return null
+}
 
 export type ManagedSession = {
   sessionId: string
@@ -81,10 +101,20 @@ export class SshSessionManager {
       if (opts.passphrase) {
         connectConfig.passphrase = opts.passphrase
       }
+    } else if (!opts.password) {
+      const fallbackKey = await tryReadDefaultPrivateKey()
+      if (fallbackKey) {
+        connectConfig.privateKey = fallbackKey
+        if (opts.passphrase) {
+          connectConfig.passphrase = opts.passphrase
+        }
+      }
     }
 
-    if (!opts.password && !opts.privateKeyPath?.trim()) {
-      throw new Error('请提供密码或私钥路径')
+    if (!connectConfig.password && !connectConfig.privateKey) {
+      throw new Error(
+        '请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）'
+      )
     }
 
     return await new Promise<SshConnectResult>((resolve, reject) => {
