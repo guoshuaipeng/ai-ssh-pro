@@ -29,7 +29,8 @@ function createWindow(): void {
       preload: preloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      // ESM 预加载脚本与 sandbox 并存时，部分环境下 preload 不执行 → window.aiss 不存在
+      sandbox: false
     },
     title: 'AI-SSH-Pro'
   })

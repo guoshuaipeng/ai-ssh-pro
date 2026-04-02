@@ -12,7 +12,15 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: 'index.js'
+        }
+      }
+    }
   },
   renderer: {
     // 渲染 root 默认为 src/renderer，引用 src/shared 需放行上级目录，否则 dev 下模块加载失败 → 黑屏
