@@ -12,11 +12,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const sshManager = new SshSessionManager()
 
 function preloadPath(): string {
+  const cjs = join(__dirname, '../preload/index.cjs')
   const js = join(__dirname, '../preload/index.js')
   const mjs = join(__dirname, '../preload/index.mjs')
+  if (existsSync(cjs)) return cjs
   if (existsSync(js)) return js
   if (existsSync(mjs)) return mjs
-  return js
+  return cjs
 }
 
 function logPreloadDiagnostics(resolvedPreload: string): void {

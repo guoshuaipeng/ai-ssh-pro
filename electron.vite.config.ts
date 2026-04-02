@@ -17,7 +17,9 @@ export default defineConfig({
       rollupOptions: {
         output: {
           format: 'cjs',
-          entryFileNames: 'index.js'
+          // package.json 含 "type":"module" 时 .js 会被当作 ESM，Electron 用 require() 加载 preload 会报 ERR_REQUIRE_ESM
+          entryFileNames: 'index.cjs',
+          chunkFileNames: '[name]-[hash].cjs'
         }
       }
     }
