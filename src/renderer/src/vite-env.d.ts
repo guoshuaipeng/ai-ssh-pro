@@ -9,7 +9,7 @@ import type {
   AiChatPayload,
   AiSettings,
   AiStreamEvent
-} from '../../shared/ipc'
+} from '@shared/ipc'
 
 export type AissPreload = {
   ssh: {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import TerminalPane from './components/TerminalPane'
 import AIPanel from './components/AIPanel'
-import type { SavedSessionProfile, SshConnectOptions } from '../../shared/ipc'
+import type { SavedSessionProfile, SshConnectOptions } from '@shared/ipc'
 
 type Tab = {
   tabId: string

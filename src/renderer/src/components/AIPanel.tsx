@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AiChatMessage } from '../../../shared/ipc'
+import type { AiChatMessage } from '@shared/ipc'
 
 type Props = {
   activeSessionId: string | null
