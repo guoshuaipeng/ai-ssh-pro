@@ -5,7 +5,7 @@ import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
 import { appStore, getAiSettings, setAiSettings } from './app-store'
-import { resolveAiConfirmStep, runLangGraphAgentChat } from './ai-interactive-agent'
+import { abortAiChat, resolveAiConfirmStep, runLangGraphAgentChat } from './ai-interactive-agent'
 import { parseSshFormWithAi } from './ai-parse-ssh'
 import type { SavedSessionProfile, SshConnectOptions, AiChatPayload, AiSettings } from '../shared/ipc'
 
@@ -174,6 +174,10 @@ function registerIpc(): void {
 
   ipcMain.handle('ai:chat', async (event, payload: AiChatPayload) => {
     await runLangGraphAgentChat(event.sender, getAiSettings(), payload, sshManager)
+  })
+
+  ipcMain.handle('ai:abortChat', () => {
+    abortAiChat()
   })
 
   ipcMain.handle('ai:confirmStep', async (_event, requestId: string, ok: boolean) => {

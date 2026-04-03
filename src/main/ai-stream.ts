@@ -64,6 +64,7 @@ function buildMessages(payload: AiChatPayload): { role: string; content: string 
     '- riskLevel（必填，字符串）：low / medium / high',
     '- notes（可选，字符串）：补充注意点、回滚、确认事项或备选命令',
     '用户同意规则：无论 action=tool_call 还是 action=command，都视为“请求”，必须等待用户点确认后再执行下一步；你自己不要执行任何东西。',
+    '何时必须 action=end（强约束）：终端片段或上下文已能回答用户问题（含已显示 ls/目录列表/报错等）时，必须 end 并简要总结，禁止再建议实质相同的 command（如重复的 ls -la）；若与上一轮建议命令等价且输出已在上下文中，也必须 end。',
     '风险建议：',
     '- tool_call 以及纯读取命令（只读证据）优先用 low',
     '- 可能修改服务/重启/重载的命令用 medium/high，并在 notes 明确写“需确认/可能影响业务/回滚建议”。'

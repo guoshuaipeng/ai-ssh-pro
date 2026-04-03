@@ -53,6 +53,7 @@ const api = {
     getSettings: (): Promise<AiSettings> => ipcRenderer.invoke('ai:settings:get'),
     setSettings: (partial: Partial<AiSettings>): Promise<void> => ipcRenderer.invoke('ai:settings:set', partial),
     chat: (payload: AiChatPayload): Promise<void> => ipcRenderer.invoke('ai:chat', payload),
+    abortChat: (): Promise<void> => ipcRenderer.invoke('ai:abortChat'),
     confirmStep: (requestId: string, ok: boolean): Promise<boolean> =>
       ipcRenderer.invoke('ai:confirmStep', requestId, ok),
     parseSshForm: (rawText: string): Promise<AiParsedSshForm> =>

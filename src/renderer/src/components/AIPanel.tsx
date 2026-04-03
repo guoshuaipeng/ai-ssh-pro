@@ -144,7 +144,7 @@ export default function AIPanel({ activeSessionId }: Props) {
         setPendingConfirm(null)
         setLines((prev) => {
           const next = [...prev]
-          const msg = ev.message ? `已取消：${ev.message}` : '已取消'
+          const msg = ev.message?.trim() ? ev.message.trim() : '已取消'
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
             next[next.length - 1] = { role: 'assistant', content: msg }
@@ -225,6 +225,30 @@ export default function AIPanel({ activeSessionId }: Props) {
     await window.aiss.ai.confirmStep(requestId, ok)
   }, [])
 
+  const stopGeneration = useCallback(() => {
+    void window.aiss.ai.abortChat()
+  }, [])
+
+  const clearConversation = useCallback(() => {
+    if (busy) return
+    setLines([])
+    setPendingConfirm(null)
+  }, [busy])
+
+  const undoLastRound = useCallback(() => {
+    if (busy) return
+    setLines((prev) => {
+      const next = [...prev]
+      while (next.length && next[next.length - 1].role === 'assistant') next.pop()
+      if (next.length && next[next.length - 1].role === 'user') {
+        const u = next.pop() as UserLine
+        setInput(u.content)
+      }
+      return next
+    })
+    setPendingConfirm(null)
+  }, [busy])
+
   return (
     <aside className="ai-panel">
       <div className="ai-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -264,6 +288,17 @@ export default function AIPanel({ activeSessionId }: Props) {
             </select>
           </label>
         )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <button type="button" className="ai-fill-cmd-btn" disabled={!busy} onClick={stopGeneration} title="中断当前模型请求或等待中的确认">
+            停止生成
+          </button>
+          <button type="button" className="ai-fill-cmd-btn" disabled={busy} onClick={clearConversation}>
+            清空对话
+          </button>
+          <button type="button" className="ai-fill-cmd-btn" disabled={busy || lines.length === 0} onClick={undoLastRound} title="去掉上一轮用户消息及之后助手回复，并把该条问题填回输入框">
+            撤回上一轮
+          </button>
+        </div>
       </div>
       {!hasApiKey && (
         <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>

@@ -41,6 +41,8 @@
   "build": {
     "appId": "com.aisspro.app",
     "productName": "AI-SSH-Pro",
+    "npmRebuild": false,
+    "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "release"
     },
@@ -56,9 +58,12 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
-      ]
+        "dir"
+      ],
+      "signAndEditExecutable": false,
+      "signtoolOptions": {
+        "sign": null
+      }
     }
   }
 }

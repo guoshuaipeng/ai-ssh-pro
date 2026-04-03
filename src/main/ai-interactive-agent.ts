@@ -39,6 +39,27 @@ function redactTerminalExcerptFromSystemPrompt(systemPrompt: string): string {
 
 const confirmWaiters = new Map<string, { resolve: (ok: boolean) => void; timer: NodeJS.Timeout }>()
 
+type ActiveAiChat = { ac: AbortController; ctx: { userAborted: boolean } }
+let activeAiChat: ActiveAiChat | null = null
+
+/** 停止当前一轮 AI 助手（中断模型请求、解除等待中的命令确认） */
+export function abortAiChat(): void {
+  const cur = activeAiChat
+  if (!cur) return
+  cur.ctx.userAborted = true
+  cur.ac.abort()
+  for (const [, rec] of [...confirmWaiters.entries()]) {
+    clearTimeout(rec.timer)
+    rec.resolve(false)
+  }
+  confirmWaiters.clear()
+}
+
+function isAbortError(e: unknown): boolean {
+  if (e instanceof Error && e.name === 'AbortError') return true
+  return typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'AbortError'
+}
+
 function confirmTimeoutMs(): number {
   const raw = process.env.AISS_CONFIRM_TIMEOUT_MS
   const n = raw ? Number(raw) : NaN
@@ -141,6 +162,13 @@ function buildSystemPrompt(
     '可用工具：get_terminal_snapshot（读取当前关联 SSH 会话终端 ring buffer 最近若干行）。当需要最新证据时必须先 tool_call get_terminal_snapshot。',
     '命令策略（强约束）：action=command 时必须给出 command，且 command 必须是单行、禁止换行；当风险较高或不确定时用 riskLevel=high 并在 notes 里强调为什么要确认。',
     '上下文策略：不要虚构终端输出；若工具返回为空，你必须在 description 里说明并改用通用排查步骤。',
+    '防重复（强约束）：系统消息里若已包含「最近一次 get_terminal_snapshot 返回」且与上一轮相比没有新的有效信息，禁止再次 action=tool_call 读取快照；必须改为 action=command（给出具体单行排查命令）或 action=end。',
+    '何时必须终止 action=end（强约束）：满足任一条时本回合只能 end，且 completed=true，禁止再发 command 或 tool_call：',
+    '  (1) 用户问题已被「用户随消息附带的终端片段」或「最近一次 get_terminal_snapshot 返回」直接满足（例如已能看到目录列表、ls 结果、报错行、提示符与当前路径）。',
+    '  (2) 你拟给出的 command 与「上一条已由应用发送的命令」实质相同或仅换说法（如再次 ls -la、再次 “列出目录”），而终端里已有对应输出或无需再执行一遍：必须 end，在 description 里用一两句话总结已看到的要点与后续可选操作，不要让用户再点一次同意。',
+    '  (3) 当前信息已足够给出结论或排查方向，没有新的、非重复的单行命令值得代用户执行时。',
+    '  (4) 确实缺信息且多一次快照也不会更好：end，在 description 说明缺什么、请用户粘贴哪段输出或说明目标。',
+    '一轮一问原则：每个用户问题默认尽量少步结束；能一次快照或已有片段里回答就不要再链式重复读终端或重复同类命令。',
     'JSON 字段约定（强约束）：description, action, completed(可选), toolName(仅 action=tool_call 时建议给出), toolInput(仅 action=tool_call 时建议给出 maxLines), command(仅 action=command 时), riskLevel, notes(可选)。'
   ]
 
@@ -162,6 +190,9 @@ function buildSystemPrompt(
     parts.push(
       `上一条命令已由应用发送到远端（writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}，是否成功需结合 get_terminal_snapshot 判断）：\n\`\`\`\n${ctx.lastCommand}\n\`\`\``
     )
+    parts.push(
+      '若最近一次快照里已包含该命令的输出，或用户需求仅为「看目录/列文件」且输出已在快照中：你必须 action=end，不得再建议同义命令（例如再次 ls -la）。'
+    )
   }
 
   return parts.join('\n')
@@ -174,12 +205,23 @@ async function callModelJson(params: {
   temperature: number
   messages: Array<{ role: string; content: string }>
   timeoutMs: number
+  userAbortSignal?: AbortSignal
 }): Promise<string> {
-  const { apiKey, baseURL, model, temperature, messages, timeoutMs } = params
+  const { apiKey, baseURL, model, temperature, messages, timeoutMs, userAbortSignal } = params
   const url = `${baseURL.replace(/\/$/, '')}/chat/completions`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const onUserAbort = (): void => {
+    controller.abort()
+  }
+  if (userAbortSignal) {
+    if (userAbortSignal.aborted) {
+      clearTimeout(timer)
+      throw new DOMException('Aborted', 'AbortError')
+    }
+    userAbortSignal.addEventListener('abort', onUserAbort)
+  }
 
   const baseBody: Record<string, unknown> = { model, messages, temperature }
 
@@ -209,8 +251,15 @@ async function callModelJson(params: {
     const content = json.choices?.[0]?.message?.content
     if (!content || typeof content !== 'string') throw new Error('模型未返回有效 content')
     return content
+  } catch (e) {
+    if (isAbortError(e)) {
+      if (userAbortSignal?.aborted) throw e
+      throw new Error(`请求超时（${timeoutMs}ms）`)
+    }
+    throw e
   } finally {
     clearTimeout(timer)
+    userAbortSignal?.removeEventListener('abort', onUserAbort)
   }
 }
 
@@ -264,8 +313,27 @@ export async function runLangGraphAgentChat(
 
   const MAX_TOOL_RESULT_CHARS = 6000
 
+  if (activeAiChat) {
+    abortAiChat()
+  }
+  const runCtx = { userAborted: false }
+  const ac = new AbortController()
+  activeAiChat = { ac, ctx: runCtx }
+
+  let prevSnapFingerprint: string | null = null
+  let sameSnapshotRepeat = 0
+  let consecutiveSnapshotTools = 0
+  const MAX_SAME_SNAPSHOT_REPEAT = 2
+  const MAX_CONSECUTIVE_SNAPSHOT_TOOLS = 6
+
   try {
     for (let step = 1; step <= maxSteps; step++) {
+      if (runCtx.userAborted) {
+        send(wc, { type: 'cancelled', message: '已停止生成' })
+        send(wc, { type: 'done' })
+        return
+      }
+
       send(wc, { type: 'status', text: `正在生成第 ${step} 步...` })
 
       const sysPrompt = buildSystemPrompt(payload, {
@@ -293,7 +361,8 @@ export async function runLangGraphAgentChat(
         model: settings.model,
         temperature,
         messages,
-        timeoutMs
+        timeoutMs,
+        userAbortSignal: ac.signal
       })
 
       const jsonText = extractJsonObject(content)
@@ -314,12 +383,18 @@ export async function runLangGraphAgentChat(
 
       // For command steps, wait for user confirmation before executing.
       if (parsed.action === 'command') {
+        consecutiveSnapshotTools = 0
         if (!requestId) {
           send(wc, { type: 'error', message: '内部错误：command 缺少 requestId' })
           return
         }
 
         const ok = await waitForAiConfirm(requestId)
+        if (runCtx.userAborted) {
+          send(wc, { type: 'cancelled', message: '已停止生成' })
+          send(wc, { type: 'done' })
+          return
+        }
         if (!ok) {
           send(wc, { type: 'cancelled', message: '已取消：你未同意执行该命令' })
           return
@@ -337,26 +412,49 @@ export async function runLangGraphAgentChat(
 
         // get_terminal_snapshot is auto-executed (no user confirmation).
 
+        let snapText: string
         if (!targetSessionId) {
-          lastToolResult = '（当前未关联 SSH 会话，无法读取终端快照。）'
-          lastCommand = null
-          lastWriteOk = null
-          continue
+          snapText = '（当前未关联 SSH 会话，无法读取终端快照。）'
+        } else {
+          const maxLines =
+            toolInput?.maxLines && Number.isFinite(toolInput.maxLines)
+              ? Math.min(500, Math.max(1, Math.floor(toolInput.maxLines)))
+              : 200
+
+          logAi('tool:get_terminal_snapshot exec', { maxLines, targetSessionId })
+
+          const snap = ssh.getRingSnapshot(targetSessionId, maxLines)
+          snapText =
+            snap == null || !snap.trim() ? '（该会话暂无缓冲输出或会话已断开。）' : snap.trimEnd()
         }
 
-        const maxLines =
-          toolInput?.maxLines && Number.isFinite(toolInput.maxLines)
-            ? Math.min(500, Math.max(1, Math.floor(toolInput.maxLines)))
-            : 200
+        if (prevSnapFingerprint != null && snapText === prevSnapFingerprint) {
+          sameSnapshotRepeat++
+        } else {
+          sameSnapshotRepeat = 0
+        }
+        prevSnapFingerprint = snapText
 
-        logAi('tool:get_terminal_snapshot exec', { maxLines, targetSessionId })
-
-        const snap = ssh.getRingSnapshot(targetSessionId, maxLines)
-        if (snap == null || !snap.trim()) lastToolResult = '（该会话暂无缓冲输出或会话已断开。）'
-        else lastToolResult = snap
-
+        lastToolResult = snapText
         lastCommand = null
         lastWriteOk = null
+        consecutiveSnapshotTools++
+
+        if (sameSnapshotRepeat >= MAX_SAME_SNAPSHOT_REPEAT || consecutiveSnapshotTools >= MAX_CONSECUTIVE_SNAPSHOT_TOOLS) {
+          send(wc, {
+            type: 'step',
+            structured: {
+              description:
+                '已自动结束：模型多次读取终端快照但未带来新信息（内容重复或步数过多）。请直接描述你的目标，或勾选「附带最近终端输出」后重新提问。',
+              action: 'end',
+              completed: true,
+              riskLevel: 'low',
+              notes: '若需继续排查，可把关键命令输出粘贴到问题里，或手动执行只读命令（如 journalctl -b、systemctl status）后再问。'
+            }
+          })
+          send(wc, { type: 'done' })
+          return
+        }
       } else if (parsed.action === 'command') {
         // command requires user confirmation (handled below).
         const cmdRaw = parsed.command ?? ''
@@ -392,10 +490,17 @@ export async function runLangGraphAgentChat(
     })
     send(wc, { type: 'done' })
   } catch (e) {
+    if (isAbortError(e) || runCtx.userAborted) {
+      send(wc, { type: 'cancelled', message: '已停止生成' })
+      send(wc, { type: 'done' })
+      return
+    }
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[ai] Interactive agent failed, fallback to legacy streaming JSON chat:', msg)
     logAi('ai:interactive error', msg)
     await streamOpenAICompatibleChat(wc, settings, payload)
+  } finally {
+    if (activeAiChat?.ac === ac) activeAiChat = null
   }
 }
 
