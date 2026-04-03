@@ -60,10 +60,7 @@
       "target": [
         "dir"
       ],
-      "signAndEditExecutable": false,
-      "signtoolOptions": {
-        "sign": null
-      }
+      "icon": "build/icon.ico"
     }
   }
 }
