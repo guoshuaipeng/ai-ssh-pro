@@ -1,5 +1,5 @@
 /** 主菜单 / 工具栏打开的对话框类型 */
-export type AppDialogKind = 'connection' | 'ai'
+export type AppDialogKind = 'connection' | 'ai' | 'debug'
 
 export type SessionMeta = {
   host: string
@@ -39,6 +39,20 @@ export type SshStatusEvent = {
   message?: string
 }
 
+export type SshSnapshotOptions = {
+  /** 读取最近终端输出行数 */
+  maxLines?: number
+  /** 从“当前命令”开始读取（命令本身 + 其后输出） */
+  fromCurrentCommand?: boolean
+  /** fromCurrentCommand=true 时，是否包含命令行文本（默认 true） */
+  includeCommandLine?: boolean
+}
+
+export type SavedSessionFolder = {
+  id: string
+  name: string
+}
+
 export type SavedSessionProfile = {
   id: string
   label: string
@@ -49,6 +63,31 @@ export type SavedSessionProfile = {
   password?: string
   privateKeyPath?: string
   passphrase?: string
+  /** 所属分组 id；缺省表示未分组（根目录） */
+  folderId?: string
+}
+
+/** 侧栏已保存会话与分组（持久化） */
+export type SavedSessionsState = {
+  folders: SavedSessionFolder[]
+  profiles: SavedSessionProfile[]
+}
+
+/** 从外部文件解析出的草稿（无 id，导入时由 UI 分配） */
+export type ImportedSessionDraft = {
+  label: string
+  host: string
+  port: number
+  username: string
+  password?: string
+  privateKeyPath?: string
+  passphrase?: string
+}
+
+export type SessionImportPickResult = {
+  items: ImportedSessionDraft[]
+  /** 人类可读提示，如跳过原因 */
+  notes: string[]
 }
 
 export type AiChatMessage = {
@@ -60,6 +99,8 @@ export type AiChatPayload = {
   messages: AiChatMessage[]
   targetSessionId?: string
   terminalExcerpt?: string
+  /** 渲染进程为本轮用户提问生成的 ID，用于调试面板聚合 request/response */
+  debugTurnId?: string
 }
 
 export type AiStreamEvent =
@@ -77,6 +118,7 @@ export type AiStreamEvent =
   | { type: 'done' }
   | { type: 'cancelled'; message?: string }
   | { type: 'error'; message: string }
+  | { type: 'debug'; payload: AiDebugStreamPayload }
 
 export type AiProvider = {
   /** 唯一 ID；用于切换不同大模型地址/供应商 */
@@ -105,6 +147,11 @@ export type AiSettings = {
    * 可与默认规则叠加。
    */
   sshParseInstructions: string
+  /**
+   * 使用项目内置 OpenClaw 风格核心智能体（Core-A：记忆、上下文工程、分步决策）。
+   * 为 false 时仅用上方 Provider 直连模型。
+   */
+  useOpenClaw?: boolean
 }
 
 export type AiAssistantAction = 'tool_call' | 'command' | 'end'
@@ -112,6 +159,10 @@ export type AiAssistantAction = 'tool_call' | 'command' | 'end'
 export type AiGetTerminalSnapshotInput = {
   /** 读取最近终端输出行数（由 UI 实际截取并回传给模型） */
   maxLines?: number
+  /** 从当前命令开始读取（命令+其后输出） */
+  fromCurrentCommand?: boolean
+  /** fromCurrentCommand=true 时，是否包含命令行 */
+  includeCommandLine?: boolean
 }
 
 /** AI 助手单轮回复（模型应仅输出 JSON，解析成功后用于展示与“下一步动作”） */
@@ -143,6 +194,32 @@ export type AiAssistantReply = {
   notes?: string
 }
 
+/** 调试面板单条记录：模型一轮请求，或随后的工具/命令执行结果 */
+export type AiDebugEntry =
+  | {
+      kind: 'model'
+      /** 智能体循环步号（与界面「第 N 轮」对应） */
+      round: number
+      model: string
+      temperature: number
+      requestMessages: Array<{ role: string; content: string }>
+      responseRaw: string
+      structured: AiAssistantReply | null
+      parseError?: string
+    }
+  | {
+      kind: 'execution'
+      round: number
+      label: string
+      detail?: string
+    }
+
+export type AiDebugStreamPayload = {
+  debugTurnId: string
+  userQuestion: string
+  entry: AiDebugEntry
+}
+
 /** 从模型输出中解析 AiAssistantReply；支持外层 ```json 围栏或前后杂质 */
 export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
   let s = raw.trim()
@@ -167,9 +244,16 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
     const toolName = typeof obj.toolName === 'string' && obj.toolName.trim() ? obj.toolName.trim() : undefined
     let toolInput: AiGetTerminalSnapshotInput | undefined
     if (obj.toolInput && typeof obj.toolInput === 'object' && !Array.isArray(obj.toolInput)) {
-      const mi = (obj.toolInput as Record<string, unknown>).maxLines
+      const o = obj.toolInput as Record<string, unknown>
+      const mi = o.maxLines
       if (typeof mi === 'number' && Number.isFinite(mi) && mi > 0) {
-        toolInput = { maxLines: Math.min(500, Math.floor(mi)) }
+        toolInput = { ...(toolInput ?? {}), maxLines: Math.min(2000, Math.floor(mi)) }
+      }
+      if (typeof o.fromCurrentCommand === 'boolean') {
+        toolInput = { ...(toolInput ?? {}), fromCurrentCommand: o.fromCurrentCommand }
+      }
+      if (typeof o.includeCommandLine === 'boolean') {
+        toolInput = { ...(toolInput ?? {}), includeCommandLine: o.includeCommandLine }
       }
     }
     let command: string | undefined

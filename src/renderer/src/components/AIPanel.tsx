@@ -31,13 +31,16 @@ export default function AIPanel({ activeSessionId }: Props) {
   const [lines, setLines] = useState<Line[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [includeTerminal, setIncludeTerminal] = useState(false)
+  const [includeTerminal, setIncludeTerminal] = useState(true)
   const [pendingConfirm, setPendingConfirm] = useState<{ requestId: string; action: AiAssistantReply['action'] } | null>(null)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [providers, setProviders] = useState<AiProvider[]>([])
   const [activeProviderId, setActiveProviderId] = useState('')
   const [activeModel, setActiveModel] = useState('')
   const tailRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
+  const inputMenuRef = useRef<HTMLDivElement>(null)
 
   const activeProvider = providers.find((p) => p.id === activeProviderId) ?? providers[0]
   const modelList = activeProvider?.modelList ?? []
@@ -75,33 +78,37 @@ export default function AIPanel({ activeSessionId }: Props) {
     tailRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [lines, busy])
 
-  const send = useCallback(async () => {
-    const text = input.trim()
-    if (!text || busy) return
+  const [snapshotBusy, setSnapshotBusy] = useState(false)
 
-    let terminalExcerpt: string | undefined
-    if (includeTerminal && activeSessionId) {
-      const snap = await window.aiss.ssh.getSnapshot(activeSessionId, 200)
-      if (snap) terminalExcerpt = snap
-    }
+  const fetchTerminalSnapshot = useCallback(async (mode: 'recent' | 'fromCommand') => {
+    if (!activeSessionId) return null
+    return await window.aiss.ssh.getSnapshot(activeSessionId, {
+      maxLines: 1200,
+      fromCurrentCommand: mode === 'fromCommand',
+      includeCommandLine: true
+    })
+  }, [activeSessionId])
 
-    const userLine: UserLine = { role: 'user', content: text }
-    setLines((prev) => [...prev, userLine])
-    setInput('')
-    setBusy(true)
-    setPendingConfirm(null)
+  const submitToAi = useCallback(
+    async (text: string, terminalExcerpt?: string) => {
+      const userLine: UserLine = { role: 'user', content: text }
+      setLines((prev) => [...prev, userLine])
+      setBusy(true)
+      setPendingConfirm(null)
 
-    const history: AiChatMessage[] = [
-      ...lines.map<AiChatMessage>((l) => ({
-        role: l.role,
-        content: l.content
-      })),
-      { role: 'user', content: text }
-    ]
+      const history: AiChatMessage[] = [
+        ...lines.map<AiChatMessage>((l) => ({
+          role: l.role,
+          content: l.content
+        })),
+        { role: 'user', content: text }
+      ]
 
-    let usedStepProtocol = false
-    let assistant = ''
-    const unsub = window.aiss.ai.onStream((ev) => {
+      const debugTurnId = crypto.randomUUID()
+
+      let usedStepProtocol = false
+      let assistant = ''
+      const unsub = window.aiss.ai.onStream((ev) => {
       if (ev.type === 'status') {
         setLines((prev) => {
           const next = [...prev]
@@ -174,7 +181,8 @@ export default function AIPanel({ activeSessionId }: Props) {
       await window.aiss.ai.chat({
         messages: history,
         targetSessionId: activeSessionId ?? undefined,
-        terminalExcerpt
+        terminalExcerpt,
+        debugTurnId
       })
       if (!usedStepProtocol) {
         const raw = assistant.trim()
@@ -207,7 +215,46 @@ export default function AIPanel({ activeSessionId }: Props) {
       setBusy(false)
       setPendingConfirm(null)
     }
-  }, [activeSessionId, busy, includeTerminal, input, lines])
+  },
+    [activeSessionId, lines]
+  )
+
+  const send = useCallback(async () => {
+    const text = input.trim()
+    if (!text || busy) return
+
+    let terminalExcerpt: string | undefined
+    if (includeTerminal && activeSessionId) {
+      const snap = await fetchTerminalSnapshot('fromCommand')
+      if (snap) terminalExcerpt = snap
+    }
+
+    setInput('')
+    await submitToAi(text, terminalExcerpt)
+  }, [busy, fetchTerminalSnapshot, includeTerminal, activeSessionId, input, submitToAi])
+
+  const sendConsoleToAi = useCallback(async () => {
+    if (!activeSessionId || busy || snapshotBusy) return
+    setSnapshotBusy(true)
+    try {
+      const snap = await fetchTerminalSnapshot('recent')
+      if (!snap?.trim()) {
+        setLines((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '（当前终端暂无缓冲输出。请先连接 SSH，在终端产生输出后再试。）'
+          }
+        ])
+        return
+      }
+      const text =
+        '【已附带当前终端输出】请分析并说明当前状态、异常或风险，并给出建议的下一步（只读排查优先）。'
+      await submitToAi(text, snap.trim())
+    } finally {
+      setSnapshotBusy(false)
+    }
+  }, [activeSessionId, busy, fetchTerminalSnapshot, snapshotBusy, submitToAi])
 
   const runSuggestedCommand = useCallback(
     (cmd: string) => {
@@ -248,6 +295,16 @@ export default function AIPanel({ activeSessionId }: Props) {
     })
     setPendingConfirm(null)
   }, [busy])
+
+  useEffect(() => {
+    if (!inputMenu) return
+    const close = (e: MouseEvent) => {
+      if (inputMenuRef.current?.contains(e.target as Node)) return
+      setInputMenu(null)
+    }
+    window.addEventListener('mousedown', close, true)
+    return () => window.removeEventListener('mousedown', close, true)
+  }, [inputMenu])
 
   return (
     <aside className="ai-panel">
@@ -402,12 +459,39 @@ export default function AIPanel({ activeSessionId }: Props) {
             />
             附带最近终端输出
           </label>
+          <button
+            type="button"
+            className="ai-fill-cmd-btn"
+            disabled={!activeSessionId || busy || snapshotBusy}
+            title={
+              activeSessionId
+                ? '抓取当前 SSH 终端最近约 1200 行并发送给 AI 分析（不依赖上方勾选）'
+                : '请先连接并选中 SSH 标签页'
+            }
+            onClick={() => void sendConsoleToAi()}
+          >
+            {snapshotBusy ? '读取终端…' : '发送控制台给 AI'}
+          </button>
           {!activeSessionId && <span style={{ color: 'var(--muted)', fontSize: 12 }}>（需先连接 SSH）</span>}
         </div>
         <textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="例如：解释上面报错、给出安全的排查命令…"
+          title="松开鼠标后自动复制选中文本；右键可复制/粘贴"
+          onMouseUp={() => {
+            const ta = inputRef.current
+            if (!ta) return
+            const { selectionStart, selectionEnd } = ta
+            if (selectionStart === selectionEnd) return
+            const slice = ta.value.slice(selectionStart, selectionEnd)
+            if (slice) void navigator.clipboard.writeText(slice)
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setInputMenu({ x: e.clientX, y: e.clientY })
+          }}
           onKeyDown={(e) => {
             // 聊天输入：默认按 Enter 发送；按 Shift+Enter 换行。
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -420,6 +504,60 @@ export default function AIPanel({ activeSessionId }: Props) {
           {busy ? '生成中…' : '发送 (Enter)'}
         </button>
       </div>
+      {inputMenu ? (
+        <div
+          ref={inputMenuRef}
+          className="session-context-menu"
+          style={{ left: inputMenu.x, top: inputMenu.y }}
+          role="menu"
+        >
+          <button
+            type="button"
+            className="session-context-menu-item"
+            disabled={
+              !inputRef.current || inputRef.current.selectionStart === inputRef.current.selectionEnd
+            }
+            onClick={() => {
+              const ta = inputRef.current
+              if (!ta || ta.selectionStart === ta.selectionEnd) {
+                setInputMenu(null)
+                return
+              }
+              void navigator.clipboard.writeText(ta.value.slice(ta.selectionStart, ta.selectionEnd))
+              setInputMenu(null)
+            }}
+          >
+            复制
+          </button>
+          <button
+            type="button"
+            className="session-context-menu-item"
+            onClick={() => {
+              const ta = inputRef.current
+              if (!ta) {
+                setInputMenu(null)
+                return
+              }
+              const start = ta.selectionStart
+              const end = ta.selectionEnd
+              setInputMenu(null)
+              void navigator.clipboard.readText().then((text) => {
+                if (!text) return
+                setInput((v) => v.slice(0, start) + text + v.slice(end))
+                const caret = start + text.length
+                queueMicrotask(() => {
+                  const el = inputRef.current
+                  if (!el) return
+                  el.focus()
+                  el.setSelectionRange(caret, caret)
+                })
+              })
+            }}
+          >
+            粘贴
+          </button>
+        </div>
+      ) : null}
     </aside>
   )
 }

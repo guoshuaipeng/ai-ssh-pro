@@ -7,6 +7,11 @@ export function setMainWindowForMenu(win: BrowserWindow | null): void {
   mainWindowRef = win
 }
 
+/** 文件对话框等需要父窗口时优先用主窗口 */
+export function getMainBrowserWindow(): BrowserWindow | null {
+  return mainWindowRef
+}
+
 function sendOpenDialog(kind: AppDialogKind): void {
   const w = BrowserWindow.getFocusedWindow() ?? mainWindowRef
   if (w && !w.isDestroyed()) {
@@ -48,6 +53,10 @@ export function installApplicationMenu(): void {
         label: 'AI 配置…',
         accelerator: 'CmdOrCtrl+,',
         click: () => sendOpenDialog('ai')
+      },
+      {
+        label: 'AI 助手调试…',
+        click: () => sendOpenDialog('debug')
       }
     ]
   })
@@ -62,6 +71,20 @@ export function installApplicationMenu(): void {
       { role: 'copy' },
       { role: 'paste' },
       { role: 'selectAll' }
+    ]
+  })
+
+  template.push({
+    label: isMac ? '显示' : '查看',
+    submenu: [
+      {
+        label: '切换开发者工具',
+        accelerator: 'F12',
+        click: (_item, focusedWindow) => {
+          const w = (focusedWindow ?? BrowserWindow.getFocusedWindow()) as BrowserWindow | null
+          if (w && !w.isDestroyed()) w.webContents.toggleDevTools()
+        }
+      }
     ]
   })
 

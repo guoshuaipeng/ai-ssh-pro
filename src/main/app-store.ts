@@ -1,8 +1,8 @@
 import Store from 'electron-store'
-import type { SavedSessionProfile, AiProvider, AiSettings } from '../shared/ipc'
+import type { SavedSessionProfile, SavedSessionFolder, SavedSessionsState, AiProvider, AiSettings } from '../shared/ipc'
 
 type StoreSchema = {
-  savedSessions: SavedSessionProfile[]
+  savedSessions: SavedSessionsState
   ai: AiSettings
 }
 
@@ -31,7 +31,8 @@ export const AI_SETTINGS_DEFAULTS: AiSettings = {
   activeProviderId: 'dashscope',
   model: defaultModel,
   temperature: 0.1,
-  sshParseInstructions: ''
+  sshParseInstructions: '',
+  useOpenClaw: true
 }
 
 function normalizeAi(merged: AiSettings): AiSettings {
@@ -135,6 +136,10 @@ function normalizeAi(merged: AiSettings): AiSettings {
       : AI_SETTINGS_DEFAULTS.temperature
 
   const sshParseInstructions = typeof anyMerged.sshParseInstructions === 'string' ? anyMerged.sshParseInstructions : ''
+  const useOpenClaw =
+    typeof anyMerged.useOpenClaw === 'boolean'
+      ? anyMerged.useOpenClaw
+      : (AI_SETTINGS_DEFAULTS.useOpenClaw ?? true)
 
   // Only return the new-shape fields to avoid keeping legacy keys around.
   return {
@@ -142,12 +147,58 @@ function normalizeAi(merged: AiSettings): AiSettings {
     activeProviderId: normalizedActiveProviderId,
     model,
     temperature,
-    sshParseInstructions
+    sshParseInstructions,
+    useOpenClaw
   }
 }
 
+function normalizeSavedSessionsRaw(raw: unknown): SavedSessionsState {
+  const normalizeFolder = (x: unknown): SavedSessionFolder | null => {
+    if (!x || typeof x !== 'object') return null
+    const o = x as Record<string, unknown>
+    const id = typeof o.id === 'string' && o.id.trim() ? o.id.trim() : null
+    const name = typeof o.name === 'string' && o.name.trim() ? o.name.trim() : null
+    if (!id || !name) return null
+    return { id, name }
+  }
+
+  const normalizeProfile = (x: unknown): SavedSessionProfile | null => {
+    if (!x || typeof x !== 'object') return null
+    const o = x as Record<string, unknown>
+    const id = typeof o.id === 'string' && o.id.trim() ? o.id.trim() : null
+    const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim() : null
+    const host = typeof o.host === 'string' && o.host.trim() ? o.host.trim() : null
+    const username = typeof o.username === 'string' && o.username.trim() ? o.username.trim() : null
+    const port = typeof o.port === 'number' && Number.isFinite(o.port) ? Math.floor(o.port) : 22
+    if (!id || !label || !host || !username) return null
+    const folderId = typeof o.folderId === 'string' && o.folderId.trim() ? o.folderId.trim() : undefined
+    const row: SavedSessionProfile = { id, label, host, port: port > 0 ? port : 22, username }
+    if (folderId) row.folderId = folderId
+    if (typeof o.password === 'string' && o.password) row.password = o.password
+    if (typeof o.privateKeyPath === 'string' && o.privateKeyPath.trim()) row.privateKeyPath = o.privateKeyPath.trim()
+    if (typeof o.passphrase === 'string' && o.passphrase) row.passphrase = o.passphrase
+    return row
+  }
+
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const o = raw as Record<string, unknown>
+    const folders = Array.isArray(o.folders) ? (o.folders.map(normalizeFolder).filter(Boolean) as SavedSessionFolder[]) : []
+    const profiles = Array.isArray(o.profiles)
+      ? (o.profiles.map(normalizeProfile).filter(Boolean) as SavedSessionProfile[])
+      : []
+    return { folders, profiles }
+  }
+
+  if (Array.isArray(raw)) {
+    const profiles = raw.map(normalizeProfile).filter(Boolean) as SavedSessionProfile[]
+    return { folders: [], profiles }
+  }
+
+  return { folders: [], profiles: [] }
+}
+
 const defaults: StoreSchema = {
-  savedSessions: [],
+  savedSessions: { folders: [], profiles: [] },
   ai: { ...AI_SETTINGS_DEFAULTS }
 }
 
@@ -155,6 +206,20 @@ export const appStore = new Store<StoreSchema>({
   name: 'ai-ssh-pro',
   defaults
 })
+
+/** 读取并（必要时）从旧版「仅数组」迁移为含分组结构 */
+export function getSavedSessionsState(): SavedSessionsState {
+  const raw = appStore.get('savedSessions') as unknown
+  const next = normalizeSavedSessionsRaw(raw)
+  if (Array.isArray(raw)) {
+    appStore.set('savedSessions', next)
+  }
+  return next
+}
+
+export function setSavedSessionsState(state: SavedSessionsState): void {
+  appStore.set('savedSessions', state)
+}
 
 export function getAiSettings(): AiSettings {
   const stored = appStore.get('ai')

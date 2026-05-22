@@ -6,11 +6,15 @@ import type {
   SshDataEvent,
   SshStatusEvent,
   SavedSessionProfile,
+  SavedSessionsState,
+  SessionImportPickResult,
   AiChatPayload,
   AiSettings,
   AiStreamEvent,
   AiParsedSshForm,
-  AppDialogKind
+  AiDebugStreamPayload,
+  AppDialogKind,
+  SshSnapshotOptions
 } from '@shared/ipc'
 
 export type AissPreload = {
@@ -22,13 +26,14 @@ export type AissPreload = {
     disconnect: (sessionId: string) => Promise<void>
     write: (sessionId: string, data: string) => Promise<boolean>
     resize: (sessionId: string, cols: number, rows: number) => Promise<boolean>
-    getSnapshot: (sessionId: string, maxLines?: number) => Promise<string | null>
+    getSnapshot: (sessionId: string, options?: number | SshSnapshotOptions) => Promise<string | null>
     onData: (cb: (payload: SshDataEvent) => void) => () => void
     onStatus: (cb: (payload: SshStatusEvent) => void) => () => void
   }
   sessions: {
-    list: () => Promise<SavedSessionProfile[]>
-    save: (list: SavedSessionProfile[]) => Promise<void>
+    list: () => Promise<SavedSessionsState>
+    save: (state: SavedSessionsState) => Promise<void>
+    importPick: () => Promise<SessionImportPickResult | null>
   }
   ai: {
     getSettings: () => Promise<AiSettings>
@@ -38,6 +43,10 @@ export type AissPreload = {
     confirmStep: (requestId: string, ok: boolean) => Promise<boolean>
     parseSshForm: (rawText: string) => Promise<AiParsedSshForm>
     onStream: (cb: (ev: AiStreamEvent) => void) => () => void
+  }
+  debug: {
+    openWindow: () => Promise<void>
+    onPush: (cb: (payload: AiDebugStreamPayload) => void) => () => void
   }
 }
 

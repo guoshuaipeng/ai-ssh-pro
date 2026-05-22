@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppDialogKind } from '@shared/ipc'
 import TerminalPane from './components/TerminalPane'
 import AIPanel from './components/AIPanel'
 import AppToolbar from './components/AppToolbar'
 import AiConfigModal from './components/AiConfigModal'
 import ConnectionConfigModal from './components/ConnectionConfigModal'
-import type { SavedSessionProfile, SshConnectOptions } from '@shared/ipc'
+import type { SavedSessionProfile, SavedSessionsState, SshConnectOptions } from '@shared/ipc'
 
 type Tab = {
   tabId: string
@@ -21,7 +21,8 @@ export default function App() {
   const [dialog, setDialog] = useState<AppDialogKind | null>(null)
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
-  const [saved, setSaved] = useState<SavedSessionProfile[]>([])
+  const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
+  const { folders, profiles } = sessionState
 
   const [host, setHost] = useState('')
   const [port, setPort] = useState('22')
@@ -47,17 +48,30 @@ export default function App() {
     profile: SavedSessionProfile
   } | null>(null)
   const sessionMenuRef = useRef<HTMLDivElement>(null)
+  const [folderMenu, setFolderMenu] = useState<{
+    x: number
+    y: number
+    folderId: string
+    folderName: string
+  } | null>(null)
+  const folderMenuRef = useRef<HTMLDivElement>(null)
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
+  const [sideInfo, setSideInfo] = useState<string | null>(null)
 
   const activeTab = tabs.find((t) => t.tabId === activeTabId) ?? null
   const activeSessionId = activeTab?.sessionId ?? null
 
   useEffect(() => {
-    void window.aiss.sessions.list().then(setSaved)
+    void window.aiss.sessions.list().then(setSessionState)
   }, [])
 
   useEffect(() => {
     return window.aiss.app.onOpenDialog((kind) => {
       if (kind === 'connection') setEditingSavedId(null)
+      if (kind === 'debug') {
+        void window.aiss.debug.openWindow()
+        return
+      }
       setDialog(kind)
     })
   }, [])
@@ -80,13 +94,18 @@ export default function App() {
   }, [tabs, activeTabId])
 
   useEffect(() => {
-    if (!sessionMenu) return
+    if (!sessionMenu && !folderMenu) return
     const onPointerDown = (e: PointerEvent) => {
-      if (sessionMenuRef.current?.contains(e.target as Node)) return
+      if (sessionMenu && sessionMenuRef.current?.contains(e.target as Node)) return
+      if (folderMenu && folderMenuRef.current?.contains(e.target as Node)) return
       setSessionMenu(null)
+      setFolderMenu(null)
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSessionMenu(null)
+      if (e.key === 'Escape') {
+        setSessionMenu(null)
+        setFolderMenu(null)
+      }
     }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -94,10 +113,10 @@ export default function App() {
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [sessionMenu])
+  }, [sessionMenu, folderMenu])
 
-  const persistSaved = useCallback(async (next: SavedSessionProfile[]) => {
-    setSaved(next)
+  const persistSessionState = useCallback(async (next: SavedSessionsState) => {
+    setSessionState(next)
     await window.aiss.sessions.save(next)
   }, [])
 
@@ -163,20 +182,23 @@ export default function App() {
       passphrase: passphrase.trim() || undefined
     }
 
-    let next: SavedSessionProfile[]
+    let nextProfiles: SavedSessionProfile[]
     if (editingSavedId) {
       const id = editingSavedId
+      const prev = profiles.find((s) => s.id === id)
       const merged: SavedSessionProfile = { ...base, id }
-      const exists = saved.some((s) => s.id === id)
-      next = exists ? saved.map((s) => (s.id === id ? merged : s)) : [...saved, merged]
+      if (prev?.folderId) merged.folderId = prev.folderId
+      const exists = profiles.some((s) => s.id === id)
+      nextProfiles = exists ? profiles.map((s) => (s.id === id ? merged : s)) : [...profiles, merged]
     } else {
       const sameTarget = (s: SavedSessionProfile) => s.host === h && s.port === po && s.username === u
-      const existing = saved.find(sameTarget)
+      const existing = profiles.find(sameTarget)
       const row: SavedSessionProfile = { ...base, id: existing?.id ?? uuid() }
-      next = existing ? saved.map((s) => (s.id === existing.id ? row : s)) : [...saved, row]
+      if (existing?.folderId) row.folderId = existing.folderId
+      nextProfiles = existing ? profiles.map((s) => (s.id === existing.id ? row : s)) : [...profiles, row]
     }
-    void persistSaved(next)
-  }, [editingSavedId, host, label, passphrase, password, persistSaved, port, privateKeyPath, saved, username])
+    void persistSessionState({ folders, profiles: nextProfiles })
+  }, [editingSavedId, folders, host, label, passphrase, password, persistSessionState, port, privateKeyPath, profiles, username])
 
   const applyProfileToForm = useCallback((profile: SavedSessionProfile) => {
     setHost(profile.host)
@@ -206,10 +228,129 @@ export default function App() {
 
   const removeProfile = useCallback(
     (id: string) => {
-      void persistSaved(saved.filter((s) => s.id !== id))
+      void persistSessionState({ folders, profiles: profiles.filter((s) => s.id !== id) })
     },
-    [persistSaved, saved]
+    [folders, persistSessionState, profiles]
   )
+
+  const folderIdSet = useMemo(() => new Set(folders.map((f) => f.id)), [folders])
+  const rootProfiles = useMemo(
+    () =>
+      profiles
+        .filter((p) => !p.folderId || !folderIdSet.has(p.folderId))
+        .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hans-CN')),
+    [profiles, folderIdSet]
+  )
+
+  const profilesInFolder = useCallback(
+    (fid: string) =>
+      profiles
+        .filter((p) => p.folderId === fid)
+        .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hans-CN')),
+    [profiles]
+  )
+
+  const toggleFolderExpanded = useCallback((id: string) => {
+    setExpandedFolders((prev) => {
+      const open = prev[id] !== false
+      return { ...prev, [id]: !open }
+    })
+  }, [])
+
+  const addFolder = useCallback(() => {
+    const name = window.prompt('新建文件夹名称', '新文件夹')?.trim()
+    if (!name) return
+    const id = uuid()
+    void persistSessionState({ folders: [...folders, { id, name }], profiles })
+    setExpandedFolders((e) => ({ ...e, [id]: true }))
+  }, [folders, persistSessionState, profiles])
+
+  const renameFolder = useCallback(
+    (folderId: string, currentName: string) => {
+      const name = window.prompt('重命名文件夹', currentName)?.trim()
+      if (!name) return
+      void persistSessionState({
+        folders: folders.map((f) => (f.id === folderId ? { ...f, name } : f)),
+        profiles
+      })
+      setFolderMenu(null)
+    },
+    [folders, persistSessionState, profiles]
+  )
+
+  const deleteFolder = useCallback(
+    (folderId: string) => {
+      const nextProfiles = profiles.map((p) => {
+        if (p.folderId !== folderId) return p
+        const { folderId: _omit, ...rest } = p
+        return rest as SavedSessionProfile
+      })
+      void persistSessionState({
+        folders: folders.filter((f) => f.id !== folderId),
+        profiles: nextProfiles
+      })
+      setFolderMenu(null)
+    },
+    [folders, persistSessionState, profiles]
+  )
+
+  const moveProfileToFolder = useCallback(
+    (profileId: string, targetFolderId: string | undefined) => {
+      const next = profiles.map((p) => {
+        if (p.id !== profileId) return p
+        if (!targetFolderId) {
+          const { folderId: _omit, ...rest } = p
+          return rest as SavedSessionProfile
+        }
+        return { ...p, folderId: targetFolderId }
+      })
+      void persistSessionState({ folders, profiles: next })
+      setSessionMenu(null)
+    },
+    [folders, persistSessionState, profiles]
+  )
+
+  const importSessionsPick = useCallback(async () => {
+    setError(null)
+    setSideInfo(null)
+    try {
+      const res = await window.aiss.sessions.importPick()
+      if (!res) return
+      const { items, notes } = res
+      const dupKey = (p: { host: string; port: number; username: string }) =>
+        `${p.host}|${p.port}|${p.username}`.toLowerCase()
+      const existingKeys = new Set(profiles.map(dupKey))
+      const additions: SavedSessionProfile[] = []
+      for (const d of items) {
+        const k = dupKey(d)
+        if (existingKeys.has(k)) continue
+        existingKeys.add(k)
+        additions.push({
+          id: uuid(),
+          label: d.label?.trim() || d.username,
+          host: d.host,
+          port: d.port,
+          username: d.username,
+          password: d.password,
+          privateKeyPath: d.privateKeyPath,
+          passphrase: d.passphrase
+        })
+      }
+      if (additions.length) {
+        void persistSessionState({ folders, profiles: [...profiles, ...additions] })
+      }
+      const tail = additions.length ? `已添加 ${additions.length} 条。` : '未添加新会话（可能已全部存在）。'
+      setSideInfo([...notes, tail].join(' '))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [folders, persistSessionState, profiles])
+
+  useEffect(() => {
+    if (!sideInfo) return
+    const t = window.setTimeout(() => setSideInfo(null), 12000)
+    return () => window.clearTimeout(t)
+  }, [sideInfo])
 
   const parseAndFillForm = useCallback(async () => {
     setError(null)
@@ -242,6 +383,19 @@ export default function App() {
           setDialog('connection')
         }}
         onOpenAi={() => setDialog('ai')}
+        onOpenDebug={() => {
+          try {
+            const d = window.aiss?.debug
+            if (!d?.openWindow) {
+              window.alert('调试接口未加载：请执行 npm run build 后重启应用，或使用菜单「会话 → AI 助手调试」重试。')
+              return
+            }
+            void d.openWindow()
+          } catch (e) {
+            console.error('[App] openDebugWindow', e)
+            window.alert(e instanceof Error ? e.message : String(e))
+          }
+        }}
       />
 
       <div className="app-shell">
@@ -264,9 +418,82 @@ export default function App() {
               </div>
             )}
 
+            {sideInfo && (
+              <div className="sidebar-info-banner" role="status">
+                {sideInfo}
+              </div>
+            )}
+
             <h3>已保存会话</h3>
-            {saved.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>}
-            {saved.map((p) => (
+            <div className="session-sidebar-toolbar">
+              <button type="button" className="session-toolbar-btn" onClick={addFolder}>
+                新建文件夹
+              </button>
+              <button type="button" className="session-toolbar-btn" onClick={() => void importSessionsPick()}>
+                导入…
+              </button>
+            </div>
+            <p className="session-sidebar-hint">
+              支持 Xshell 的 .xsh 与 OpenSSH 的 config。Xshell 密码多为加密存储，无法导入时需在本应用内补填。
+            </p>
+
+            {folders.length === 0 && profiles.length === 0 && (
+              <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>
+            )}
+
+            {folders.map((f) => {
+              const expanded = expandedFolders[f.id] !== false
+              const inFolder = profilesInFolder(f.id)
+              return (
+                <div key={f.id} className="session-folder-block">
+                  <div
+                    className="session-folder-row"
+                    role="button"
+                    tabIndex={0}
+                    title="单击展开/折叠，右键管理文件夹"
+                    onClick={() => toggleFolderExpanded(f.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      setFolderMenu({ x: e.clientX, y: e.clientY, folderId: f.id, folderName: f.name })
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        toggleFolderExpanded(f.id)
+                      }
+                    }}
+                  >
+                    <span className="session-folder-chevron" aria-hidden>
+                      {expanded ? '▼' : '▶'}
+                    </span>
+                    <span className="session-folder-name">{f.name}</span>
+                    <span className="session-folder-count">{inFolder.length}</span>
+                  </div>
+                  {expanded &&
+                    inFolder.map((p) => (
+                      <div
+                        key={p.id}
+                        className="profile-row profile-row--in-folder"
+                        title="双击连接，右键打开菜单"
+                        onDoubleClick={() => connectProfile(p)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setSessionMenu({ x: e.clientX, y: e.clientY, profile: p })
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                            {p.username}@{p.host}:{p.port}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )
+            })}
+
+            {rootProfiles.map((p) => (
               <div
                 key={p.id}
                 className="profile-row"
@@ -363,7 +590,7 @@ export default function App() {
       {sessionMenu && (
         <div
           ref={sessionMenuRef}
-          className="session-context-menu"
+          className="session-context-menu session-context-menu--wide"
           style={{ left: sessionMenu.x, top: sessionMenu.y }}
           role="menu"
         >
@@ -391,6 +618,30 @@ export default function App() {
           >
             编辑
           </button>
+          <div className="session-context-menu-sub">移动到…</div>
+          <div className="session-context-menu-scroll">
+            <button
+              type="button"
+              role="menuitem"
+              className="session-context-menu-item"
+              disabled={!sessionMenu.profile.folderId}
+              onClick={() => moveProfileToFolder(sessionMenu.profile.id, undefined)}
+            >
+              未分组
+            </button>
+            {folders.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="menuitem"
+                className="session-context-menu-item"
+                disabled={sessionMenu.profile.folderId === f.id}
+                onClick={() => moveProfileToFolder(sessionMenu.profile.id, f.id)}
+              >
+                {f.name}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             role="menuitem"
@@ -401,6 +652,32 @@ export default function App() {
             }}
           >
             删除
+          </button>
+        </div>
+      )}
+
+      {folderMenu && (
+        <div
+          ref={folderMenuRef}
+          className="session-context-menu"
+          style={{ left: folderMenu.x, top: folderMenu.y }}
+          role="menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item"
+            onClick={() => renameFolder(folderMenu.folderId, folderMenu.folderName)}
+          >
+            重命名…
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item danger"
+            onClick={() => deleteFolder(folderMenu.folderId)}
+          >
+            删除文件夹（会话移至未分组）
           </button>
         </div>
       )}

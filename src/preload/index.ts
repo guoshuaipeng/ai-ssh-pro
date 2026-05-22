@@ -5,11 +5,15 @@ import type {
   SshDataEvent,
   SshStatusEvent,
   SavedSessionProfile,
+  SavedSessionsState,
+  SessionImportPickResult,
   AiChatPayload,
   AiSettings,
   AiStreamEvent,
   AiParsedSshForm,
-  AppDialogKind
+  AiDebugStreamPayload,
+  AppDialogKind,
+  SshSnapshotOptions
 } from '../shared/ipc'
 
 console.log('[preload] preload script starting')
@@ -32,8 +36,8 @@ const api = {
     write: (sessionId: string, data: string): Promise<boolean> => ipcRenderer.invoke('ssh:write', sessionId, data),
     resize: (sessionId: string, cols: number, rows: number): Promise<boolean> =>
       ipcRenderer.invoke('ssh:resize', sessionId, cols, rows),
-    getSnapshot: (sessionId: string, maxLines?: number): Promise<string | null> =>
-      ipcRenderer.invoke('ssh:getSnapshot', sessionId, maxLines),
+    getSnapshot: (sessionId: string, options?: number | SshSnapshotOptions): Promise<string | null> =>
+      ipcRenderer.invoke('ssh:getSnapshot', sessionId, options),
     onData: (cb: (payload: SshDataEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as SshDataEvent)
       ipcRenderer.on('ssh:data', fn)
@@ -46,8 +50,9 @@ const api = {
     }
   },
   sessions: {
-    list: (): Promise<SavedSessionProfile[]> => ipcRenderer.invoke('sessions:list'),
-    save: (list: SavedSessionProfile[]): Promise<void> => ipcRenderer.invoke('sessions:save', list)
+    list: (): Promise<SavedSessionsState> => ipcRenderer.invoke('sessions:list'),
+    save: (state: SavedSessionsState): Promise<void> => ipcRenderer.invoke('sessions:save', state),
+    importPick: (): Promise<SessionImportPickResult | null> => ipcRenderer.invoke('sessions:importPick')
   },
   ai: {
     getSettings: (): Promise<AiSettings> => ipcRenderer.invoke('ai:settings:get'),
@@ -62,6 +67,14 @@ const api = {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiStreamEvent)
       ipcRenderer.on('ai:stream', fn)
       return () => unsub('ai:stream', fn)
+    }
+  },
+  debug: {
+    openWindow: (): Promise<void> => ipcRenderer.invoke('debug:openWindow'),
+    onPush: (cb: (payload: AiDebugStreamPayload) => void): (() => void) => {
+      const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiDebugStreamPayload)
+      ipcRenderer.on('ai-debug:push', fn)
+      return () => unsub('ai-debug:push', fn)
     }
   }
 }

@@ -10,7 +10,8 @@ import type {
   SshConnectResult,
   SessionMeta,
   SshDataEvent,
-  SshStatusEvent
+  SshStatusEvent,
+  SshSnapshotOptions
 } from '../shared/ipc'
 import { RingBuffer } from './ring-buffer'
 
@@ -42,6 +43,8 @@ export type ManagedSession = {
   stream: ClientChannel
   ring: RingBuffer
   owner: WebContents
+  commandMarkers: Array<{ command: string; at: number; lineCount: number }>
+  pendingInput: string
 }
 
 export class SshSessionManager {
@@ -55,10 +58,51 @@ export class SshSessionManager {
     return [...this.sessions.values()].map((s) => ({ ...s.meta }))
   }
 
-  getRingSnapshot(sessionId: string, maxLines: number): string | null {
+  getRingSnapshot(sessionId: string, options?: number | SshSnapshotOptions): string | null {
     const s = this.sessions.get(sessionId)
     if (!s) return null
-    return s.ring.getSnapshot(maxLines)
+    const opt = typeof options === 'number' ? { maxLines: options } : options ?? {}
+    const maxLines = Number.isFinite(opt.maxLines) ? Math.min(4000, Math.max(1, Math.floor(opt.maxLines!))) : 200
+    if (!opt.fromCurrentCommand) {
+      return s.ring.getSnapshot(maxLines)
+    }
+    const last = s.commandMarkers[s.commandMarkers.length - 1]
+    if (!last) return s.ring.getSnapshot(maxLines)
+    const body = s.ring.getSnapshotFromAbsoluteLine(last.lineCount, maxLines)
+    if (!body.trim()) {
+      // Fallback: when command boundary has no newline-terminated output yet,
+      // return a broader latest snapshot to avoid false "empty" tool results.
+      const fallback = s.ring.getSnapshot(maxLines)
+      if (fallback.trim()) return fallback
+    }
+    if (opt.includeCommandLine === false) return body
+    const prefix = `$ ${last.command}`
+    return body.trim() ? `${prefix}\n${body}` : `${prefix}\n（命令已发送，暂未捕获到后续输出）`
+  }
+
+  private trackWriteCommand(s: ManagedSession, data: string): void {
+    for (let i = 0; i < data.length; i++) {
+      const ch = data[i]!
+      if (ch === '\r' || ch === '\n') {
+        const cmd = s.pendingInput.trim()
+        if (cmd) {
+          s.commandMarkers.push({ command: cmd, at: Date.now(), lineCount: s.ring.getTotalLineCount() })
+          if (s.commandMarkers.length > 60) s.commandMarkers = s.commandMarkers.slice(-60)
+        }
+        s.pendingInput = ''
+        continue
+      }
+      if (ch === '\u007f' || ch === '\b') {
+        s.pendingInput = s.pendingInput.slice(0, -1)
+        continue
+      }
+      if (ch >= ' ' && ch !== '\u0000') {
+        s.pendingInput += ch
+        if (s.pendingInput.length > 400) {
+          s.pendingInput = s.pendingInput.slice(-400)
+        }
+      }
+    }
   }
 
   async connect(opts: SshConnectOptions, owner: WebContents): Promise<SshConnectResult> {
@@ -183,7 +227,9 @@ export class SshSessionManager {
               client,
               stream,
               ring,
-              owner
+              owner,
+              commandMarkers: [],
+              pendingInput: ''
             })
 
             if (!owner.isDestroyed()) {
@@ -205,6 +251,7 @@ export class SshSessionManager {
   write(sessionId: string, data: string): boolean {
     const s = this.sessions.get(sessionId)
     if (!s) return false
+    this.trackWriteCommand(s, data)
     return s.stream.write(data)
   }
 

@@ -1,10 +1,12 @@
 import type { WebContents } from 'electron'
-import type { AiChatPayload, AiSettings, AiStreamEvent } from '../shared/ipc'
+import { parseAiAssistantReply, type AiChatPayload, type AiSettings, type AiStreamEvent } from '../shared/ipc'
+import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
 
 function send(wc: WebContents, ev: AiStreamEvent): void {
   if (!wc.isDestroyed()) {
     wc.send('ai:stream', ev)
   }
+  if (ev.type === 'debug') forwardDebugPayloadToWindow(ev.payload)
 }
 
 const DEBUG_AI =
@@ -22,6 +24,16 @@ function trimForLog(s: string, max = 2000): string {
   const t = s.replace(/\s+/g, ' ')
   if (t.length <= max) return t
   return t.slice(0, max) + `...(trimmed ${t.length - max} chars)`
+}
+
+function lastUserQuestionForDebug(messages: { role: string; content: string }[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') {
+      const c = messages[i].content?.trim() ?? ''
+      return c.length > 800 ? `${c.slice(0, 800)}…` : c || '(空)'
+    }
+  }
+  return '(无用户消息)'
 }
 
 function redactTerminalExcerptFromSystemPrompt(systemPrompt: string): string {
@@ -59,7 +71,7 @@ function buildMessages(payload: AiChatPayload): { role: string; content: string 
     '- action（必填，字符串）：只能取 `tool_call` / `command` / `end`',
     '- completed（必填，布尔）：true 表示 action=end 且无需再继续；false 表示需要继续分步',
     '- toolName（可选，字符串）：当 action=tool_call 时必须为 `get_terminal_snapshot`',
-    '- toolInput（可选，对象）：当 action=tool_call 时给出 `{ "maxLines": number }`（1-500）',
+    '- toolInput（可选，对象）：当 action=tool_call 时可给 `{ "maxLines": number, "fromCurrentCommand": boolean, "includeCommandLine": boolean }`',
     '- command（可选，字符串）：当 action=command 时给出“单行完整命令”；禁止换行；不要包含回车符',
     '- riskLevel（必填，字符串）：low / medium / high',
     '- notes（可选，字符串）：补充注意点、回滚、确认事项或备选命令',
@@ -105,9 +117,15 @@ export async function streamOpenAICompatibleChat(
   }
 
   const messages = buildMessages(payload)
+  const debugTurnId = payload.debugTurnId?.trim() ?? ''
+  const temperature =
+    typeof settings.temperature === 'number' && Number.isFinite(settings.temperature)
+      ? Math.min(2, Math.max(0, settings.temperature))
+      : 0.1
 
   let deltaCount = 0
   let deltaChars = 0
+  let streamedAssistant = ''
 
   const systemPrompt = messages[0]?.content ?? ''
   const systemPromptForLog = redactTerminalExcerptFromSystemPrompt(systemPrompt)
@@ -135,10 +153,7 @@ export async function streamOpenAICompatibleChat(
         model: settings.model,
         messages,
         stream: true,
-        temperature:
-          typeof settings.temperature === 'number' && Number.isFinite(settings.temperature)
-            ? Math.min(2, Math.max(0, settings.temperature))
-            : 0.1
+        temperature
       })
     })
   } catch (e) {
@@ -180,6 +195,26 @@ export async function streamOpenAICompatibleChat(
         const data = s.slice(5).trim()
         if (data === '[DONE]') {
           logAi('ai:chat legacy done', { deltaCount, deltaChars })
+          if (debugTurnId) {
+            const structured = parseAiAssistantReply(streamedAssistant)
+            send(wc, {
+              type: 'debug',
+              payload: {
+                debugTurnId,
+                userQuestion: lastUserQuestionForDebug(payload.messages),
+                entry: {
+                  kind: 'model',
+                  round: 1,
+                  model: settings.model,
+                  temperature,
+                  requestMessages: JSON.parse(JSON.stringify(messages)) as Array<{ role: string; content: string }>,
+                  responseRaw: streamedAssistant,
+                  structured,
+                  parseError: structured ? undefined : '流式输出无法解析为助手 JSON（可能为说明性文本）'
+                }
+              }
+            })
+          }
           send(wc, { type: 'done' })
           return
         }
@@ -191,6 +226,7 @@ export async function streamOpenAICompatibleChat(
           if (piece) {
             deltaCount += 1
             deltaChars += piece.length
+            streamedAssistant += piece
             send(wc, { type: 'delta', text: piece })
           }
         } catch {
@@ -204,5 +240,25 @@ export async function streamOpenAICompatibleChat(
     return
   }
 
+  if (debugTurnId) {
+    const structured = parseAiAssistantReply(streamedAssistant)
+    send(wc, {
+      type: 'debug',
+      payload: {
+        debugTurnId,
+        userQuestion: lastUserQuestionForDebug(payload.messages),
+        entry: {
+          kind: 'model',
+          round: 1,
+          model: settings.model,
+          temperature,
+          requestMessages: JSON.parse(JSON.stringify(messages)) as Array<{ role: string; content: string }>,
+          responseRaw: streamedAssistant,
+          structured,
+          parseError: structured ? undefined : '流式输出无法解析为助手 JSON（可能为说明性文本）'
+        }
+      }
+    })
+  }
   send(wc, { type: 'done' })
 }

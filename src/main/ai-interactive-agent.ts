@@ -1,12 +1,22 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import type { AiAssistantReply, AiChatPayload, AiSettings, AiStreamEvent } from '../shared/ipc'
+import {
+  parseAiAssistantReply,
+  type AiAssistantReply,
+  type AiChatPayload,
+  type AiDebugEntry,
+  type AiSettings,
+  type AiStreamEvent
+} from '../shared/ipc'
 import type { SshSessionManager } from './ssh-manager'
-import { streamOpenAICompatibleChat } from './ai-stream'
+import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
+import { buildBootstrapPrompt } from './core-a-bootstrap'
+import { loadPersistedCoreSession, savePersistedCoreSession } from './core-a-memory'
 
 function send(wc: WebContents, ev: AiStreamEvent): void {
   if (!wc.isDestroyed()) wc.send('ai:stream', ev)
+  if (ev.type === 'debug') forwardDebugPayloadToWindow(ev.payload)
 }
 
 const DEBUG_AI =
@@ -24,17 +34,29 @@ function trimForLog(s: string, max = 2000): string {
   return t.slice(0, max) + `...(trimmed ${t.length - max} chars)`
 }
 
-function redactTerminalExcerptFromSystemPrompt(systemPrompt: string): string {
-  if (process.env.AISS_LOG_AI_PROMPT_FULL === '1') return systemPrompt
+function lastUserQuestionForDebug(messages: { role: string; content: string }[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') {
+      const c = messages[i].content?.trim() ?? ''
+      return c.length > 800 ? `${c.slice(0, 800)}…` : c || '(空)'
+    }
+  }
+  return '(无用户消息)'
+}
 
-  const redactedBlock = '\n```\n[REDACTED terminal excerpt]\n```'
+function cloneChatMessages(m: Array<{ role: string; content: string }>): Array<{ role: string; content: string }> {
+  return JSON.parse(JSON.stringify(m)) as Array<{ role: string; content: string }>
+}
 
-  const re1 = /用户提供的终端片段[\s\S]*?\n```\n[\s\S]*?\n```/m
-  const re2 = /用户随消息附带的终端片段[\s\S]*?\n```\n[\s\S]*?\n```/m
+function capDebugDetail(s: string, max = 12000): string {
+  if (s.length <= max) return s
+  return `${s.slice(0, max)}\n…(已截断，共 ${s.length} 字符)`
+}
 
-  return systemPrompt
-    .replace(re1, (m) => m.split('\n```')[0].trimEnd() + redactedBlock)
-    .replace(re2, (m) => m.split('\n```')[0].trimEnd() + redactedBlock)
+function truncate(s: string, max: number): string {
+  const t = s.trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max)}...`
 }
 
 const confirmWaiters = new Map<string, { resolve: (ok: boolean) => void; timer: NodeJS.Timeout }>()
@@ -98,6 +120,248 @@ function normalizeRiskLevel(raw: unknown): 'low' | 'medium' | 'high' {
   return 'medium'
 }
 
+type CoreSessionState = {
+  notes: string[]
+  recentActions: string[]
+  recentCommands: string[]
+  observations: string[]
+  taskGraph: TaskNode[]
+  nextTaskId: number
+  failureStreak: number
+  lastToolScore?: ToolScore
+  repeatActionCount: number
+  lastActionFingerprint: string | null
+}
+
+type TaskNodeStatus = 'open' | 'in_progress' | 'blocked' | 'done'
+type TaskNode = {
+  id: string
+  title: string
+  status: TaskNodeStatus
+  confidence: number
+  updatedAt: number
+}
+
+type ToolScore = {
+  score: number
+  level: 'low' | 'medium' | 'high'
+  reason: string
+}
+
+const coreStateBySession = new Map<string, CoreSessionState>()
+
+function getSessionState(targetSessionId?: string): CoreSessionState {
+  const key = targetSessionId?.trim() || 'global'
+  const existing = coreStateBySession.get(key)
+  if (existing) return existing
+
+  const persisted = loadPersistedCoreSession(key)
+  const created: CoreSessionState = {
+    notes: persisted?.notes ?? [],
+    recentActions: [],
+    recentCommands: persisted?.recentCommands ?? [],
+    observations: persisted?.observations ?? [],
+    taskGraph: [],
+    nextTaskId: 1,
+    failureStreak: 0,
+    repeatActionCount: 0,
+    lastActionFingerprint: null
+  }
+  if (persisted?.taskSummaries?.length) {
+    const validStatus = new Set<TaskNodeStatus>(['open', 'in_progress', 'blocked', 'done'])
+    for (const line of persisted.taskSummaries) {
+      const m = /^\[(\w+)\]\s*(.+)$/.exec(line)
+      if (m) {
+        const st = m[1] as TaskNodeStatus
+        created.taskGraph.push({
+          id: `T${created.nextTaskId++}`,
+          title: m[2]!.trim().slice(0, 120) || '历史任务',
+          status: validStatus.has(st) ? st : 'open',
+          confidence: 0.5,
+          updatedAt: persisted.updatedAt
+        })
+      }
+    }
+  }
+  coreStateBySession.set(key, created)
+  return created
+}
+
+function persistSessionState(targetSessionId: string | undefined, state: CoreSessionState): void {
+  savePersistedCoreSession(targetSessionId?.trim() || 'global', {
+    notes: state.notes,
+    recentCommands: state.recentCommands,
+    observations: state.observations,
+    taskGraph: state.taskGraph.map((t) => ({ title: t.title, status: t.status }))
+  })
+}
+
+function lastUserQuestion(messages: { role: string; content: string }[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return messages[i].content?.trim() ?? ''
+  }
+  return ''
+}
+
+type PlannerTurn = { role: 'user' | 'assistant' | 'system'; content: string }
+
+function compactConversation(conv: PlannerTurn[], maxTurns = 8): PlannerTurn[] {
+  const maxMessages = maxTurns * 2
+  if (conv.length <= maxMessages) return conv
+  return conv.slice(-maxMessages)
+}
+
+function appendObservation(state: CoreSessionState, snapshot: string, command?: string | null): void {
+  const raw = snapshot.trim()
+  if (!raw || raw.includes('暂无缓冲') || raw.includes('无法读取')) return
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const tail = lines.slice(-4).join(' | ')
+  const head = command ? `cmd=${command}: ` : ''
+  const obs = truncate(`${head}${tail}`, 240)
+  if (!obs) return
+  state.observations.push(obs)
+  if (state.observations.length > 10) state.observations = state.observations.slice(-10)
+}
+
+async function captureTerminalSnapshot(
+  ssh: SshSessionManager,
+  sessionId: string,
+  preferFromCommand: boolean
+): Promise<string | null> {
+  const snap = ssh.getRingSnapshot(sessionId, {
+    maxLines: 1000,
+    fromCurrentCommand: preferFromCommand,
+    includeCommandLine: true
+  })
+  if (snap == null || !snap.trim()) return null
+  let text = snap.trimEnd()
+  if (preferFromCommand && text.includes('（命令已发送，暂未捕获到后续输出）')) {
+    await new Promise<void>((r) => setTimeout(r, 500))
+    const retry = ssh.getRingSnapshot(sessionId, {
+      maxLines: 1000,
+      fromCurrentCommand: true,
+      includeCommandLine: true
+    })
+    if (retry?.trim()) text = retry.trimEnd()
+  }
+  return text
+}
+
+function settleMsAfterCommand(): number {
+  const raw = process.env.AISS_COMMAND_SETTLE_MS
+  const n = raw ? Number(raw) : 800
+  return Number.isFinite(n) && n >= 200 ? Math.min(5000, Math.floor(n)) : 800
+}
+
+function shouldEvidenceGateEnd(
+  userQuestion: string,
+  state: CoreSessionState,
+  hasTerminalExcerpt: boolean
+): boolean {
+  if (hasTerminalExcerpt) return false
+  const score = state.lastToolScore?.score
+  if (score != null && score >= 0.55) return false
+  const q = userQuestion.trim()
+  if (!q) return false
+  return /查|看|分析|排查|诊断|为什么|错误|异常|状态|日志|help|check|debug|fix|issue/i.test(q)
+}
+
+function rememberNote(state: CoreSessionState, text: string): void {
+  const note = truncate(text.replace(/\s+/g, ' '), 280)
+  if (!note) return
+  state.notes.push(note)
+  if (state.notes.length > 8) state.notes = state.notes.slice(-8)
+}
+
+function rememberAction(state: CoreSessionState, action: string): void {
+  state.recentActions.push(action)
+  if (state.recentActions.length > 8) state.recentActions = state.recentActions.slice(-8)
+}
+
+function rememberCommand(state: CoreSessionState, command: string): void {
+  const cmd = truncate(command.replace(/\s+/g, ' '), 220)
+  if (!cmd) return
+  state.recentCommands.push(cmd)
+  if (state.recentCommands.length > 6) state.recentCommands = state.recentCommands.slice(-6)
+}
+
+function summarizeTaskGraph(state: CoreSessionState): string {
+  if (state.taskGraph.length === 0) return '（暂无）'
+  return state.taskGraph
+    .slice(-6)
+    .map((t) => `- [${t.status}] ${t.title} (置信度 ${Math.round(t.confidence * 100)}%)`)
+    .join('\n')
+}
+
+function ensureSeedTask(state: CoreSessionState, userQuestion: string): void {
+  if (state.taskGraph.length > 0) return
+  const title = truncate(userQuestion || '解决用户当前问题', 120)
+  state.taskGraph.push({
+    id: `T${state.nextTaskId++}`,
+    title: title || '解决用户当前问题',
+    status: 'open',
+    confidence: 0.4,
+    updatedAt: Date.now()
+  })
+}
+
+function updateTaskGraphOnAction(state: CoreSessionState, action: AiAssistantReply): void {
+  const now = Date.now()
+  const active = state.taskGraph.find((t) => t.status === 'in_progress') ?? state.taskGraph.find((t) => t.status === 'open')
+  if (!active) return
+  if (action.action === 'tool_call') {
+    active.status = 'in_progress'
+    active.confidence = Math.min(0.95, active.confidence + 0.08)
+    active.updatedAt = now
+    return
+  }
+  if (action.action === 'command') {
+    active.status = 'in_progress'
+    active.confidence = Math.min(0.95, active.confidence + 0.12)
+    active.updatedAt = now
+    const descTitle = truncate(action.description, 90)
+    if (descTitle && state.taskGraph.every((t) => t.title !== descTitle)) {
+      state.taskGraph.push({
+        id: `T${state.nextTaskId++}`,
+        title: descTitle,
+        status: 'open',
+        confidence: 0.45,
+        updatedAt: now
+      })
+    }
+    if (state.taskGraph.length > 10) state.taskGraph = state.taskGraph.slice(-10)
+    return
+  }
+  if (action.action === 'end') {
+    active.status = 'done'
+    active.confidence = Math.max(active.confidence, 0.9)
+    active.updatedAt = now
+  }
+}
+
+function scoreToolSnapshot(snapshot: string, lastCommand: string | null): ToolScore {
+  const raw = snapshot.trim()
+  if (!raw || raw.includes('暂无缓冲输出') || raw.includes('无法读取终端快照')) {
+    return { score: 0.15, level: 'high', reason: '快照为空或会话不可用' }
+  }
+  const lineCount = raw.split(/\r?\n/).length
+  const hasError = /\b(error|failed|denied|not found|traceback|exception)\b/i.test(raw)
+  const hasPrompt = /[$#>]\s*$/.test(raw) || /\[[^\]]+@\w+/.test(raw)
+  const containsCmd = lastCommand ? raw.toLowerCase().includes(lastCommand.toLowerCase()) : false
+
+  let score = 0.35
+  if (lineCount >= 5) score += 0.2
+  if (lineCount >= 20) score += 0.15
+  if (containsCmd) score += 0.15
+  if (hasPrompt) score += 0.1
+  if (hasError) score += 0.1
+  score = Math.min(1, Math.max(0, score))
+
+  if (score >= 0.75) return { score, level: 'low', reason: '快照信息充分，可继续决策' }
+  if (score >= 0.5) return { score, level: 'medium', reason: '快照信息一般，建议补充证据' }
+  return { score, level: 'high', reason: '快照信息不足，可能需要替代策略' }
+}
+
 const assistantStepSchema = z
   .object({
     description: z.string().describe('结论、步骤或原因；当 action 为 tool_call/command 时说明为何需要以及风险等级'),
@@ -106,7 +370,9 @@ const assistantStepSchema = z
     toolName: z.string().optional().describe('当 action=tool_call 时：工具名（仅允许 get_terminal_snapshot）'),
     toolInput: z
       .object({
-        maxLines: z.number().int().min(1).max(500).optional().describe('最多读取行数，建议 50-300')
+        maxLines: z.number().int().min(1).max(2000).optional().describe('最多读取行数，建议 200-1200'),
+        fromCurrentCommand: z.boolean().optional().describe('是否从当前命令开始读取（命令+其后输出）'),
+        includeCommandLine: z.boolean().optional().describe('fromCurrentCommand=true 时，是否包含命令行')
       })
       .optional()
       .describe('当 action=tool_call 时：工具输入'),
@@ -150,55 +416,159 @@ function extractJsonObject(text: string): string {
   return s
 }
 
-function buildSystemPrompt(
+function pickStringField(obj: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = obj[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return ''
+}
+
+function inferActionFromRaw(obj: Record<string, unknown>): AiAssistantReply['action'] {
+  const a = pickStringField(obj, ['action'])
+  if (a === 'tool_call' || a === 'command' || a === 'end') return a
+  if (pickStringField(obj, ['command', 'cmd'])) return 'command'
+  if (pickStringField(obj, ['toolName', 'tool'])) return 'tool_call'
+  if (obj.completed === true) return 'end'
+  return 'end'
+}
+
+/** 兼容模型漏字段/别名字段，避免 Zod 因 description 缺失直接失败 */
+function normalizeAssistantStepRaw(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...obj }
+  const action = inferActionFromRaw(out)
+
+  let description = pickStringField(out, ['description', 'message', 'summary', 'reasoning', 'reason', 'text', 'content', 'explanation'])
+  const command = pickStringField(out, ['command', 'cmd'])
+  const toolName = pickStringField(out, ['toolName', 'tool']) || 'get_terminal_snapshot'
+  const notes = pickStringField(out, ['notes', 'note', 'comment'])
+
+  if (!description) {
+    if (action === 'command' && command) description = `建议执行命令：${command}`
+    else if (action === 'tool_call') description = '需要读取终端快照以获取最新证据'
+    else if (notes) description = notes
+    else description = '根据当前上下文继续分析'
+  }
+
+  out.action = action
+  out.description = description
+  if (notes) out.notes = notes
+  if (action === 'command' && command) out.command = command
+  if (action === 'tool_call') {
+    out.toolName = toolName
+    if (out.toolInput == null || typeof out.toolInput !== 'object') {
+      out.toolInput = { maxLines: 800, fromCurrentCommand: true, includeCommandLine: true }
+    }
+  }
+  if (action === 'end') {
+    out.completed = out.completed ?? true
+    delete out.command
+    delete out.toolName
+    delete out.toolInput
+  }
+  if (out.riskLevel == null || String(out.riskLevel).trim() === '') out.riskLevel = 'medium'
+
+  return out
+}
+
+function formatParseError(e: unknown): string {
+  if (e instanceof z.ZodError) {
+    const lines = e.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+    return `模型 JSON 字段不符合约定：${lines.join('；')}`
+  }
+  return e instanceof Error ? e.message : String(e)
+}
+
+/** 供脚本自测；生产路径见 runOpenClawCoreAgentChat */
+export function parseAssistantStep(content: string): { structured: AiAssistantReply | null; parseError?: string } {
+  const jsonText = extractJsonObject(content)
+  try {
+    const raw = JSON.parse(jsonText) as unknown
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return { structured: null, parseError: '模型返回的不是 JSON 对象' }
+    }
+    const normalized = normalizeAssistantStepRaw(raw as Record<string, unknown>)
+    const parsed = assistantStepSchema.parse(normalized) as unknown as AiAssistantReply
+    const completed = typeof parsed.completed === 'boolean' ? parsed.completed : parsed.action === 'end'
+    return { structured: { ...parsed, completed }, parseError: undefined }
+  } catch (e) {
+    const loose = parseAiAssistantReply(content)
+    if (loose) {
+      return { structured: loose, parseError: `严格校验失败，已宽松恢复：${formatParseError(e)}` }
+    }
+    return { structured: null, parseError: formatParseError(e) }
+  }
+}
+
+function buildCoreSystemPrompt(
   payload: AiChatPayload,
-  ctx: { lastToolResult?: string | null; lastCommand?: string | null; lastWriteOk?: boolean | null }
+  state: CoreSessionState,
+  ctx: {
+    step: number
+    userQuestion: string
+    lastToolResult?: string | null
+    lastCommand?: string | null
+    lastWriteOk?: boolean | null
+    plannerHint?: string | null
+  }
 ): string {
+  const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : '（暂无）'
+  const recentCmdSection = state.recentCommands.length > 0 ? state.recentCommands.map((c) => `- ${c}`).join('\n') : '（暂无）'
+  const obsSection =
+    state.observations.length > 0 ? state.observations.map((o, i) => `${i + 1}. ${o}`).join('\n') : '（暂无）'
+  const taskGraphSection = summarizeTaskGraph(state)
+  const lastScoreSection = state.lastToolScore
+    ? `${Math.round(state.lastToolScore.score * 100)} 分 / 风险 ${state.lastToolScore.level} / ${state.lastToolScore.reason}`
+    : '（暂无）'
+
   const parts: string[] = [
-    '你是运维/开发助手，结合用户问题与终端上下文给出下一步（工具请求或命令），并用 JSON 返回给主进程。',
-    '强约束（必须遵守）：你只能输出一个单独的 JSON 对象（不要 Markdown、不要代码围栏、不要输出 JSON 以外的文字）。',
-    '强约束（动作显式）：你的 JSON 必须包含 action（tool_call / command / end）。',
-    '强约束（确认机制）：当 action=command 时，本应用会先把这一步展示给用户并等待用户同意后，才会真正执行命令；当 action=tool_call 且 toolName=get_terminal_snapshot 时，本应用会立即调用工具并继续下一步（不需要用户同意）。因此你必须在 description/note 里解释你的目标与预期结果。',
-    '可用工具：get_terminal_snapshot（读取当前关联 SSH 会话终端 ring buffer 最近若干行）。当需要最新证据时必须先 tool_call get_terminal_snapshot。',
-    '命令策略（强约束）：action=command 时必须给出 command，且 command 必须是单行、禁止换行；当风险较高或不确定时用 riskLevel=high 并在 notes 里强调为什么要确认。',
-    '上下文策略：不要虚构终端输出；若工具返回为空，你必须在 description 里说明并改用通用排查步骤。',
-    '防重复（强约束）：系统消息里若已包含「最近一次 get_terminal_snapshot 返回」且与上一轮相比没有新的有效信息，禁止再次 action=tool_call 读取快照；必须改为 action=command（给出具体单行排查命令）或 action=end。',
-    '何时必须终止 action=end（强约束）：满足任一条时本回合只能 end，且 completed=true，禁止再发 command 或 tool_call：',
-    '  (1) 用户问题已被「用户随消息附带的终端片段」或「最近一次 get_terminal_snapshot 返回」直接满足（例如已能看到目录列表、ls 结果、报错行、提示符与当前路径）。',
-    '  (2) 你拟给出的 command 与「上一条已由应用发送的命令」实质相同或仅换说法（如再次 ls -la、再次 “列出目录”），而终端里已有对应输出或无需再执行一遍：必须 end，在 description 里用一两句话总结已看到的要点与后续可选操作，不要让用户再点一次同意。',
-    '  (3) 当前信息已足够给出结论或排查方向，没有新的、非重复的单行命令值得代用户执行时。',
-    '  (4) 确实缺信息且多一次快照也不会更好：end，在 description 说明缺什么、请用户粘贴哪段输出或说明目标。',
-    '一轮一问原则：每个用户问题默认尽量少步结束；能一次快照或已有片段里回答就不要再链式重复读终端或重复同类命令。',
-    'JSON 字段约定（强约束）：description, action, completed(可选), toolName(仅 action=tool_call 时建议给出), toolInput(仅 action=tool_call 时建议给出 maxLines), command(仅 action=command 时), riskLevel, notes(可选)。'
+    buildBootstrapPrompt(ctx.userQuestion),
+    '---',
+    '你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。',
+    'action（必填）：tool_call | command | end。',
+    'command 需要用户确认后才执行；tool_call(get_terminal_snapshot) 会被系统立即执行。',
+    '若上一轮刚执行过命令，系统可能已自动附带终端观测结果，请优先阅读后再决策。',
+    `当前轮次：${ctx.step}`,
+    '工作区观测笔记（跨轮持久）：',
+    obsSection,
+    '最近核心记忆：',
+    memorySection,
+    '最近已执行命令：',
+    recentCmdSection,
+    '任务图（Task Graph）：',
+    taskGraphSection,
+    '最近工具结果评分：',
+    lastScoreSection,
+    `当前失败连续计数：${state.failureStreak}`,
+    'JSON 字段（description 与 action 必填）：description, action, completed, toolName, toolInput, command, riskLevel, notes。'
   ]
 
+  if (ctx.plannerHint) {
+    parts.push(`本轮策略提示：${ctx.plannerHint}`)
+  }
+
   if (payload.targetSessionId) {
-    parts.push(`当前关联的 SSH 会话 ID：${payload.targetSessionId}（仅作上下文，不是秘密）。`)
+    parts.push(`当前关联 SSH 会话：${payload.targetSessionId}。`)
   } else {
-    parts.push('当前未关联 SSH 会话：禁止请求 tool_call（get_terminal_snapshot）；只能给出 action=command 的安全自检命令让用户手动确认后再继续。')
+    parts.push('当前未关联 SSH 会话：禁止 tool_call；仅允许给出安全的本地自检命令，或直接 end。')
   }
 
   if (payload.terminalExcerpt?.trim()) {
-    parts.push('用户随消息附带的终端片段（可能含敏感信息）：\n```\n' + payload.terminalExcerpt.trim() + '\n```')
+    parts.push('用户附带终端片段：\n```\n' + payload.terminalExcerpt.trim() + '\n```')
   }
 
   if (ctx.lastToolResult != null) {
-    parts.push('最近一次 get_terminal_snapshot 返回（用于判断下一步）：\n```\n' + (ctx.lastToolResult.trim() ? ctx.lastToolResult.trim() : '（空）') + '\n```')
+    parts.push('最近一次终端快照：\n```\n' + (ctx.lastToolResult.trim() ? ctx.lastToolResult.trim() : '（空）') + '\n```')
   }
 
   if (ctx.lastCommand) {
-    parts.push(
-      `上一条命令已由应用发送到远端（writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}，是否成功需结合 get_terminal_snapshot 判断）：\n\`\`\`\n${ctx.lastCommand}\n\`\`\``
-    )
-    parts.push(
-      '若最近一次快照里已包含该命令的输出，或用户需求仅为「看目录/列文件」且输出已在快照中：你必须 action=end，不得再建议同义命令（例如再次 ls -la）。'
-    )
+    parts.push(`上一条命令已发送（writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}）：\n\`\`\`\n${ctx.lastCommand}\n\`\`\``)
   }
 
   return parts.join('\n')
 }
 
-async function callModelJson(params: {
+async function callCorePlannerJson(params: {
   apiKey: string
   baseURL: string
   model: string
@@ -263,7 +633,7 @@ async function callModelJson(params: {
   }
 }
 
-export async function runLangGraphAgentChat(
+export async function runOpenClawCoreAgentChat(
   wc: WebContents,
   settings: AiSettings,
   payload: AiChatPayload,
@@ -277,7 +647,10 @@ export async function runLangGraphAgentChat(
 
   const apiKey = provider.apiKey.trim()
   if (!apiKey) {
-    send(wc, { type: 'error', message: '请先在设置中填写 API Key（主进程存储，不进入渲染进程日志）。' })
+    send(wc, {
+      type: 'error',
+      message: '请先填写 API Key（OpenClaw 风格核心会直接使用当前 Provider）。'
+    })
     return
   }
 
@@ -305,7 +678,20 @@ export async function runLangGraphAgentChat(
     return Number.isFinite(n) && n >= 0 ? n : 1500
   })()
 
-  const conversation = payload.messages.map((m) => ({ role: m.role, content: m.content }))
+  let conversation: PlannerTurn[] = payload.messages.map((m) => ({
+    role: m.role,
+    content: m.content
+  }))
+  const userQuestion = lastUserQuestion(conversation)
+  const sessionState = getSessionState(payload.targetSessionId)
+  ensureSeedTask(sessionState, userQuestion || lastUserQuestionForDebug(payload.messages))
+  logAi('ai:engine core-a', { session: payload.targetSessionId ?? 'global' })
+  const debugTurnId = payload.debugTurnId?.trim() ?? ''
+  const debugUserQuestion = lastUserQuestionForDebug(payload.messages)
+  const emitDebug = (entry: AiDebugEntry): void => {
+    if (!debugTurnId) return
+    send(wc, { type: 'debug', payload: { debugTurnId, userQuestion: debugUserQuestion, entry } })
+  }
 
   let lastToolResult: string | null = null
   let lastCommand: string | null = null
@@ -323,11 +709,23 @@ export async function runLangGraphAgentChat(
   let prevSnapFingerprint: string | null = null
   let sameSnapshotRepeat = 0
   let consecutiveSnapshotTools = 0
+  let evidenceGateUsed = false
   const MAX_SAME_SNAPSHOT_REPEAT = 2
   const MAX_CONSECUTIVE_SNAPSHOT_TOOLS = 6
 
+  if (targetSessionId && !payload.terminalExcerpt?.trim()) {
+    const bootSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
+    if (bootSnap) {
+      lastToolResult = bootSnap
+      sessionState.lastToolScore = scoreToolSnapshot(bootSnap, null)
+      appendObservation(sessionState, bootSnap, null)
+      rememberNote(sessionState, '会话启动时已自动读取终端上下文')
+    }
+  }
+
   try {
     for (let step = 1; step <= maxSteps; step++) {
+      conversation = compactConversation(conversation)
       if (runCtx.userAborted) {
         send(wc, { type: 'cancelled', message: '已停止生成' })
         send(wc, { type: 'done' })
@@ -335,11 +733,26 @@ export async function runLangGraphAgentChat(
       }
 
       send(wc, { type: 'status', text: `正在生成第 ${step} 步...` })
+      if (sessionState.failureStreak >= 2) {
+        rememberNote(sessionState, '检测到连续失败，下一步应优先选择低风险证据命令或直接结束并说明缺失信息。')
+      }
 
-      const sysPrompt = buildSystemPrompt(payload, {
+      let plannerHint: string | null = null
+      if (!lastToolResult && targetSessionId && step <= 2) {
+        plannerHint = '尚无终端证据，本轮应优先 tool_call(get_terminal_snapshot)，不要直接 command。'
+      } else if (lastCommand && lastToolResult) {
+        plannerHint = '上一条命令已执行且已有自动观测，请基于快照给出结论或下一步；证据充分时请 end。'
+      } else if (sessionState.failureStreak >= 2) {
+        plannerHint = '连续失败：优先只读快照或低风险 command，避免重复相同动作。'
+      }
+
+      const sysPrompt = buildCoreSystemPrompt(payload, sessionState, {
+        step,
+        userQuestion,
         lastToolResult: lastToolResult ? lastToolResult.slice(0, MAX_TOOL_RESULT_CHARS) : null,
         lastCommand,
-        lastWriteOk
+        lastWriteOk,
+        plannerHint
       })
 
       const messages: Array<{ role: string; content: string }> = [
@@ -355,7 +768,7 @@ export async function runLangGraphAgentChat(
         lastCommand: lastCommand ? trimForLog(lastCommand, 200) : null
       })
 
-      const content = await callModelJson({
+      const content = await callCorePlannerJson({
         apiKey,
         baseURL,
         model: settings.model,
@@ -365,18 +778,74 @@ export async function runLangGraphAgentChat(
         userAbortSignal: ac.signal
       })
 
-      const jsonText = extractJsonObject(content)
-      const parsed = assistantStepSchema.parse(JSON.parse(jsonText)) as unknown as AiAssistantReply
-      const completed = typeof parsed.completed === 'boolean' ? parsed.completed : parsed.action === 'end'
-      const structured: AiAssistantReply = { ...parsed, completed }
+      const { structured, parseError } = parseAssistantStep(content)
+
+      if (!structured) {
+        throw new Error(parseError ?? '模型返回 JSON 解析失败')
+      }
+
+      let parsed = structured
+      const actionFingerprint = `${parsed.action}|${parsed.toolName ?? ''}|${(parsed.command ?? '').replace(/\s+/g, ' ').trim()}`
+      if (sessionState.lastActionFingerprint === actionFingerprint) {
+        sessionState.repeatActionCount += 1
+      } else {
+        sessionState.repeatActionCount = 0
+      }
+      sessionState.lastActionFingerprint = actionFingerprint
+      if (sessionState.repeatActionCount >= 2) {
+        parsed = {
+          description: '检测到动作重复且没有新证据，已自动结束以避免无效循环。请补充关键终端输出后再继续。',
+          action: 'end',
+          completed: true,
+          riskLevel: 'low',
+          notes: '建议附带相关报错或执行结果，再发起下一轮。'
+        }
+      }
+
+      if (
+        parsed.action === 'end' &&
+        !evidenceGateUsed &&
+        targetSessionId &&
+        shouldEvidenceGateEnd(userQuestion, sessionState, Boolean(payload.terminalExcerpt?.trim()))
+      ) {
+        evidenceGateUsed = true
+        const gateSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
+        if (gateSnap && gateSnap.trim()) {
+          lastToolResult = gateSnap
+          sessionState.lastToolScore = scoreToolSnapshot(gateSnap, lastCommand)
+          appendObservation(sessionState, gateSnap, lastCommand)
+          rememberNote(sessionState, '结束前轮询：证据不足，已自动补充终端观测')
+          send(wc, { type: 'status', text: '证据不足，已自动读取终端后继续分析…' })
+          persistSessionState(targetSessionId, sessionState)
+          await new Promise<void>((r) => setTimeout(r, 300))
+          continue
+        }
+      }
+
+      emitDebug({
+        kind: 'model',
+        round: step,
+        model: `openclaw-core-a (${settings.model})`,
+        temperature,
+        requestMessages: cloneChatMessages(messages),
+        responseRaw: content,
+        structured: parsed,
+        parseError
+      })
 
       // Only `command` steps require user confirmation.
-      const toolName = parsed.toolName?.trim()
       const requestId = parsed.action === 'command' ? randomUUID() : undefined
 
-      send(wc, { type: 'step', requestId, structured })
+      send(wc, { type: 'step', requestId, structured: parsed })
+
+      // 让下一轮请求带上本步助手 JSON，避免模型「失忆」而在每步重复同一段 description。
+      conversation.push({ role: 'assistant' as const, content: content.trim() })
+      rememberNote(sessionState, parsed.description)
+      rememberAction(sessionState, parsed.action)
+      updateTaskGraphOnAction(sessionState, parsed)
 
       if (parsed.action === 'end') {
+        persistSessionState(targetSessionId, sessionState)
         send(wc, { type: 'done' })
         return
       }
@@ -396,6 +865,12 @@ export async function runLangGraphAgentChat(
           return
         }
         if (!ok) {
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: '用户未同意执行命令',
+            detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
+          })
           send(wc, { type: 'cancelled', message: '已取消：你未同意执行该命令' })
           return
         }
@@ -418,14 +893,18 @@ export async function runLangGraphAgentChat(
         } else {
           const maxLines =
             toolInput?.maxLines && Number.isFinite(toolInput.maxLines)
-              ? Math.min(500, Math.max(1, Math.floor(toolInput.maxLines)))
-              : 200
+              ? Math.min(2000, Math.max(1, Math.floor(toolInput.maxLines)))
+              : 800
+          const fromCurrentCommand = toolInput?.fromCurrentCommand === true
+          const includeCommandLine = toolInput?.includeCommandLine !== false
 
-          logAi('tool:get_terminal_snapshot exec', { maxLines, targetSessionId })
+          logAi('tool:get_terminal_snapshot exec', { maxLines, fromCurrentCommand, includeCommandLine, targetSessionId })
 
-          const snap = ssh.getRingSnapshot(targetSessionId, maxLines)
+          const captured = await captureTerminalSnapshot(ssh, targetSessionId, fromCurrentCommand)
           snapText =
-            snap == null || !snap.trim() ? '（该会话暂无缓冲输出或会话已断开。）' : snap.trimEnd()
+            captured == null || !captured.trim() ?
+              '（该会话暂无缓冲输出或会话已断开。）'
+            : captured
         }
 
         if (prevSnapFingerprint != null && snapText === prevSnapFingerprint) {
@@ -435,10 +914,35 @@ export async function runLangGraphAgentChat(
         }
         prevSnapFingerprint = snapText
 
+        const previousCommand = lastCommand
         lastToolResult = snapText
         lastCommand = null
         lastWriteOk = null
         consecutiveSnapshotTools++
+        const toolScore = scoreToolSnapshot(snapText, previousCommand)
+        sessionState.lastToolScore = toolScore
+        if (toolScore.score < 0.5) {
+          sessionState.failureStreak += 1
+          rememberNote(sessionState, `工具结果质量偏低：${toolScore.reason}`)
+        } else {
+          sessionState.failureStreak = 0
+        }
+        appendObservation(sessionState, snapText, previousCommand)
+
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: '工具：get_terminal_snapshot',
+          detail: capDebugDetail(
+            `maxLines=${toolInput?.maxLines && Number.isFinite(toolInput.maxLines) ? Math.min(2000, Math.max(1, Math.floor(toolInput.maxLines))) : 800}\nfromCurrentCommand=${String(toolInput?.fromCurrentCommand === true)}\nincludeCommandLine=${String(toolInput?.includeCommandLine !== false)}\n---\n${snapText}`
+          )
+        })
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: '工具结果评分',
+          detail: `score=${Math.round(toolScore.score * 100)} level=${toolScore.level}\n${toolScore.reason}`
+        })
 
         if (sameSnapshotRepeat >= MAX_SAME_SNAPSHOT_REPEAT || consecutiveSnapshotTools >= MAX_CONSECUTIVE_SNAPSHOT_TOOLS) {
           send(wc, {
@@ -473,8 +977,39 @@ export async function runLangGraphAgentChat(
         lastWriteOk = ssh.write(targetSessionId, `${oneLineCmd}\n`)
         lastCommand = oneLineCmd
         lastToolResult = null
+        rememberCommand(sessionState, oneLineCmd)
+        if (!lastWriteOk) {
+          sessionState.failureStreak += 1
+          rememberNote(sessionState, `命令发送失败：${oneLineCmd}`)
+        }
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: '命令已发送到 SSH（含换行）',
+          detail: `writeOk=${String(lastWriteOk)}\n${oneLineCmd}`
+        })
+
+        if (lastWriteOk && targetSessionId) {
+          await new Promise<void>((r) => setTimeout(r, settleMsAfterCommand()))
+          const postCmdSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
+          if (postCmdSnap?.trim()) {
+            lastToolResult = postCmdSnap
+            lastCommand = oneLineCmd
+            sessionState.lastToolScore = scoreToolSnapshot(postCmdSnap, oneLineCmd)
+            appendObservation(sessionState, postCmdSnap, oneLineCmd)
+            if (sessionState.lastToolScore.score >= 0.5) sessionState.failureStreak = 0
+            rememberNote(sessionState, '命令执行后已自动观测终端输出')
+            emitDebug({
+              kind: 'execution',
+              round: step,
+              label: 'Observe：命令后自动快照',
+              detail: capDebugDetail(postCmdSnap)
+            })
+          }
+        }
       }
 
+      persistSessionState(targetSessionId, sessionState)
       await new Promise<void>((resolve) => setTimeout(resolve, pollWaitMs))
     }
 
@@ -496,11 +1031,15 @@ export async function runLangGraphAgentChat(
       return
     }
     const msg = e instanceof Error ? e.message : String(e)
-    console.error('[ai] Interactive agent failed, fallback to legacy streaming JSON chat:', msg)
+    console.error('[ai] core-a failed:', msg)
     logAi('ai:interactive error', msg)
-    await streamOpenAICompatibleChat(wc, settings, payload)
+    send(wc, { type: 'error', message: msg })
+    send(wc, { type: 'done' })
   } finally {
     if (activeAiChat?.ac === ac) activeAiChat = null
   }
 }
+
+// Backward-compatible alias for older import sites.
+export const runLangGraphAgentChat = runOpenClawCoreAgentChat
 

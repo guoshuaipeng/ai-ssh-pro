@@ -1,13 +1,16 @@
-import { app, BrowserWindow, ipcMain, nativeImage } from 'electron'
-import { installApplicationMenu, setMainWindowForMenu } from './application-menu'
+import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
+import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
 import { existsSync, statSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
-import { appStore, getAiSettings, setAiSettings } from './app-store'
-import { abortAiChat, resolveAiConfirmStep, runLangGraphAgentChat } from './ai-interactive-agent'
+import { getAiSettings, setAiSettings, getSavedSessionsState, setSavedSessionsState } from './app-store'
+import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
+import { streamOpenAICompatibleChat } from './ai-stream'
+import { setDebugWindowWebContents } from './debug-window-broadcast'
 import { parseSshFormWithAi } from './ai-parse-ssh'
-import type { SavedSessionProfile, SshConnectOptions, AiChatPayload, AiSettings } from '../shared/ipc'
+import { importSessionFilesFromPaths } from './session-import'
+import type { SavedSessionsState, SshConnectOptions, AiChatPayload, AiSettings, SshSnapshotOptions } from '../shared/ipc'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -99,6 +102,16 @@ function attachWebContentsDiagnostics(win: BrowserWindow): void {
   }
 }
 
+/** 与浏览器一致：单独按 F12 切换当前窗口的开发者工具 */
+function attachF12ToggleDevTools(win: BrowserWindow): void {
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.key !== 'F12') return
+    if (input.control || input.alt || input.meta) return
+    event.preventDefault()
+    win.webContents.toggleDevTools()
+  })
+}
+
 function createWindow(): void {
   const resolvedPreload = preloadPath()
   logPreloadDiagnostics(resolvedPreload)
@@ -121,6 +134,7 @@ function createWindow(): void {
   })
 
   attachWebContentsDiagnostics(win)
+  attachF12ToggleDevTools(win)
 
   setMainWindowForMenu(win)
   win.on('closed', () => {
@@ -135,6 +149,67 @@ function createWindow(): void {
     const htmlPath = join(__dirname, '../renderer/index.html')
     console.log('[main] loadFile (prod) =', resolve(htmlPath))
     win.loadFile(htmlPath)
+  }
+}
+
+let debugWindow: BrowserWindow | null = null
+
+function openDebugWindow(): void {
+  if (debugWindow && !debugWindow.isDestroyed()) {
+    debugWindow.show()
+    debugWindow.focus()
+    return
+  }
+  const resolvedPreload = preloadPath()
+  const iconFile = appIconPath()
+  const w = new BrowserWindow({
+    width: 1000,
+    height: 700,
+    minWidth: 720,
+    minHeight: 440,
+    title: 'AI 助手调试',
+    show: false,
+    webPreferences: {
+      preload: resolvedPreload,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    },
+    ...(existsSync(iconFile) ? { icon: nativeImage.createFromPath(iconFile) } : {})
+  })
+  attachWebContentsDiagnostics(w)
+  attachF12ToggleDevTools(w)
+  setDebugWindowWebContents(w.webContents)
+  w.on('closed', () => {
+    setDebugWindowWebContents(null)
+    debugWindow = null
+  })
+  w.once('ready-to-show', () => {
+    w.show()
+    w.focus()
+  })
+  debugWindow = w
+
+  if (process.env.ELECTRON_RENDERER_URL) {
+    try {
+      const raw = process.env.ELECTRON_RENDERER_URL.trim()
+      const u = new URL(raw)
+      u.searchParams.set('ai-debug', '1')
+      const target = u.toString()
+      console.log('[main] debug window loadURL =', target)
+      void w.loadURL(target).catch((err) => {
+        console.error('[main] debug window loadURL failed:', err)
+      })
+    } catch (e) {
+      console.error('[main] debug window: invalid ELECTRON_RENDERER_URL', process.env.ELECTRON_RENDERER_URL, e)
+      const fallback = `${process.env.ELECTRON_RENDERER_URL.replace(/\/$/, '')}/?ai-debug=1`
+      void w.loadURL(fallback).catch((err) => console.error('[main] debug window fallback load failed:', err))
+    }
+  } else {
+    const htmlPath = join(__dirname, '../renderer/index.html')
+    void w
+      .loadFile(htmlPath, { query: { 'ai-debug': '1' } })
+      .catch((err) => console.error('[main] debug window loadFile failed:', err))
   }
 }
 
@@ -155,16 +230,33 @@ function registerIpc(): void {
     return sshManager.resize(sessionId, cols, rows)
   })
 
-  ipcMain.handle('ssh:getSnapshot', (_e, sessionId: string, maxLines?: number) => {
-    return sshManager.getRingSnapshot(sessionId, maxLines ?? 200)
+  ipcMain.handle('ssh:getSnapshot', (_e, sessionId: string, options?: number | SshSnapshotOptions) => {
+    return sshManager.getRingSnapshot(sessionId, options ?? 200)
   })
 
   ipcMain.handle('sessions:list', () => {
-    return appStore.get('savedSessions') as SavedSessionProfile[]
+    return getSavedSessionsState()
   })
 
-  ipcMain.handle('sessions:save', (_e, list: SavedSessionProfile[]) => {
-    appStore.set('savedSessions', list)
+  ipcMain.handle('sessions:save', (_e, state: SavedSessionsState) => {
+    setSavedSessionsState(state)
+  })
+
+  ipcMain.handle('sessions:importPick', async () => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const dlgOpts: Electron.OpenDialogOptions = {
+      title: '导入会话（Xshell .xsh / OpenSSH config）',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Xshell / SSH 配置', extensions: ['xsh', 'config'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    }
+    const { canceled, filePaths } = parent
+      ? await dialog.showOpenDialog(parent, dlgOpts)
+      : await dialog.showOpenDialog(dlgOpts)
+    if (canceled || !filePaths?.length) return null
+    return await importSessionFilesFromPaths(filePaths)
   })
 
   ipcMain.handle('ai:settings:get', () => getAiSettings())
@@ -173,7 +265,12 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('ai:chat', async (event, payload: AiChatPayload) => {
-    await runLangGraphAgentChat(event.sender, getAiSettings(), payload, sshManager)
+    const settings = getAiSettings()
+    if (settings.useOpenClaw === false) {
+      await streamOpenAICompatibleChat(event.sender, settings, payload)
+    } else {
+      await runOpenClawCoreAgentChat(event.sender, settings, payload, sshManager)
+    }
   })
 
   ipcMain.handle('ai:abortChat', () => {
@@ -186,6 +283,10 @@ function registerIpc(): void {
 
   ipcMain.handle('ai:parseSshForm', async (_e, rawText: string) => {
     return await parseSshFormWithAi(rawText, getAiSettings())
+  })
+
+  ipcMain.handle('debug:openWindow', () => {
+    openDebugWindow()
   })
 }
 
