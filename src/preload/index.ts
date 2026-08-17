@@ -22,8 +22,12 @@ import type {
   CommandSnippet,
   DockerTreeResult,
   DockerContainerAction,
+  DockerContainerDetail,
   DockerComposeAction,
-  DockerComposeService
+  DockerComposeService,
+  DockerSwarmAction,
+  DockerSwarmServiceDetail,
+  AppUpdateCheckResult
 } from '../shared/ipc'
 import type {
   HostInventoryIndexEntry,
@@ -44,7 +48,11 @@ const api = {
       const fn = (_e: IpcRendererEvent, kind: AppDialogKind) => cb(kind)
       ipcRenderer.on('app:open-dialog', fn)
       return () => ipcRenderer.removeListener('app:open-dialog', fn)
-    }
+    },
+    getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+    checkUpdate: (): Promise<AppUpdateCheckResult> => ipcRenderer.invoke('app:checkUpdate'),
+    openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('app:openExternal', url),
+    openGithub: (): Promise<boolean> => ipcRenderer.invoke('app:openGithub')
   },
   ssh: {
     connect: (opts: SshConnectOptions): Promise<SshConnectResult> => ipcRenderer.invoke('ssh:connect', opts),
@@ -128,8 +136,21 @@ const api = {
       containerId: string,
       action: DockerContainerAction
     ): Promise<boolean> => ipcRenderer.invoke('docker:containerAction', sessionId, containerId, action),
+    inspect: (sessionId: string, containerId: string): Promise<DockerContainerDetail> =>
+      ipcRenderer.invoke('docker:inspect', sessionId, containerId),
     logs: (sessionId: string, containerId: string, tail?: number): Promise<string> =>
       ipcRenderer.invoke('docker:logs', sessionId, containerId, tail),
+    swarmInspect: (sessionId: string, service: string): Promise<DockerSwarmServiceDetail> =>
+      ipcRenderer.invoke('docker:swarmInspect', sessionId, service),
+    swarmLogs: (sessionId: string, service: string, tail?: number): Promise<string> =>
+      ipcRenderer.invoke('docker:swarmLogs', sessionId, service, tail),
+    swarmAction: (
+      sessionId: string,
+      service: string,
+      action: DockerSwarmAction,
+      replicas?: number
+    ): Promise<boolean> =>
+      ipcRenderer.invoke('docker:swarmAction', sessionId, service, action, replicas),
     composePs: (
       sessionId: string,
       project: string

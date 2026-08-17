@@ -29,6 +29,12 @@ import { exportSessionsToJson, exportSessionsToOpenSsh } from './session-export'
 import { startRecording, stopRecording, stopAllRecordings } from './session-recorder'
 import { LocalShellManager, isLocalShellAvailable } from './local-shell'
 import { getInventoryStore } from './inventory-store'
+import {
+  checkForAppUpdate,
+  getAppVersion,
+  openExternalUrl,
+  openGithubRepo
+} from './app-updater'
 import type {
   SavedSessionsState,
   SshConnectOptions,
@@ -41,7 +47,8 @@ import type {
   CommandSnippet,
   AiChatMessage,
   DockerContainerAction,
-  DockerComposeAction
+  DockerComposeAction,
+  DockerSwarmAction
 } from '../shared/ipc'
 import type { HostInventoryUpsertInput, HostService } from '../shared/inventory'
 
@@ -487,9 +494,34 @@ function registerIpc(): void {
       return true
     }
   )
+  ipcMain.handle('docker:inspect', async (_e, sessionId: string, containerId: string) => {
+    return await dockerManager.inspectContainer(requireSshClient(sessionId), containerId)
+  })
   ipcMain.handle('docker:logs', async (_e, sessionId: string, containerId: string, tail?: number) => {
     return await dockerManager.containerLogs(requireSshClient(sessionId), containerId, tail)
   })
+  ipcMain.handle('docker:swarmInspect', async (_e, sessionId: string, service: string) => {
+    return await dockerManager.inspectSwarmService(requireSshClient(sessionId), service)
+  })
+  ipcMain.handle(
+    'docker:swarmLogs',
+    async (_e, sessionId: string, service: string, tail?: number) => {
+      return await dockerManager.swarmServiceLogs(requireSshClient(sessionId), service, tail)
+    }
+  )
+  ipcMain.handle(
+    'docker:swarmAction',
+    async (
+      _e,
+      sessionId: string,
+      service: string,
+      action: DockerSwarmAction,
+      replicas?: number
+    ) => {
+      await dockerManager.swarmServiceAction(requireSshClient(sessionId), service, action, replicas)
+      return true
+    }
+  )
   ipcMain.handle('docker:composePs', async (_e, sessionId: string, project: string) => {
     return await dockerManager.composePs(requireSshClient(sessionId), project)
   })
@@ -519,6 +551,11 @@ function registerIpc(): void {
     await writeFile(String(filePath || ''), buf)
     return true
   })
+
+  ipcMain.handle('app:getVersion', () => getAppVersion())
+  ipcMain.handle('app:checkUpdate', () => checkForAppUpdate())
+  ipcMain.handle('app:openExternal', (_e, url: string) => openExternalUrl(String(url || '')))
+  ipcMain.handle('app:openGithub', () => openGithubRepo())
 
   ipcMain.handle('sessions:list', () => getSavedSessionsState())
   ipcMain.handle('sessions:save', (_e, state: SavedSessionsState) => {

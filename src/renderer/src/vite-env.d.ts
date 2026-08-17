@@ -23,8 +23,12 @@ import type {
   CommandSnippet,
   DockerTreeResult,
   DockerContainerAction,
+  DockerContainerDetail,
   DockerComposeAction,
-  DockerComposeService
+  DockerComposeService,
+  DockerSwarmAction,
+  DockerSwarmServiceDetail,
+  AppUpdateCheckResult
 } from '@shared/ipc'
 import type {
   HostInventoryIndexEntry,
@@ -36,6 +40,10 @@ import type {
 export type AissPreload = {
   app: {
     onOpenDialog: (cb: (kind: AppDialogKind) => void) => () => void
+    getVersion: () => Promise<string>
+    checkUpdate: () => Promise<AppUpdateCheckResult>
+    openExternal: (url: string) => Promise<boolean>
+    openGithub: () => Promise<boolean>
   }
   ssh: {
     connect: (opts: SshConnectOptions) => Promise<SshConnectResult>
@@ -88,7 +96,16 @@ export type AissPreload = {
       containerId: string,
       action: DockerContainerAction
     ) => Promise<boolean>
+    inspect: (sessionId: string, containerId: string) => Promise<DockerContainerDetail>
     logs: (sessionId: string, containerId: string, tail?: number) => Promise<string>
+    swarmInspect: (sessionId: string, service: string) => Promise<DockerSwarmServiceDetail>
+    swarmLogs: (sessionId: string, service: string, tail?: number) => Promise<string>
+    swarmAction: (
+      sessionId: string,
+      service: string,
+      action: DockerSwarmAction,
+      replicas?: number
+    ) => Promise<boolean>
     composePs: (
       sessionId: string,
       project: string

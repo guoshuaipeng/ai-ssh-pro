@@ -361,6 +361,43 @@ body {
   app-region: no-drag;
 }
 
+.app-titlebar-corner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.titlebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.titlebar-icon-btn:hover:not(:disabled) {
+  background: var(--tab-active);
+  border-color: var(--border);
+}
+
+.titlebar-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.titlebar-icon-btn svg {
+  flex-shrink: 0;
+}
+
 .layout-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -1058,6 +1095,17 @@ label {
   overflow: hidden;
 }
 
+.sidebar-header {
+  flex-shrink: 0;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.sidebar-header h3 {
+  margin: 0 0 8px;
+}
+
 .sidebar-scroll {
   flex: 1;
   overflow: auto;
@@ -1654,15 +1702,15 @@ body.layout-resizing {
 }
 
 .session-folder-block {
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .session-folder-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 4px 6px;
+  border-radius: 5px;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
@@ -1705,20 +1753,22 @@ body.layout-resizing {
 
 .profile-row--in-folder {
   margin-left: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 1px;
 }
 
 .profile-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 6px;
+  padding: 3px 6px;
   border: 1px solid transparent;
-  border-radius: 8px;
-  margin-bottom: 4px;
+  border-radius: 5px;
+  margin-bottom: 1px;
   background: transparent;
   cursor: pointer;
   user-select: none;
+  line-height: 1.35;
+  font-size: 12px;
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -2234,14 +2284,14 @@ body:has(.debug-window-root) #root {
 .session-host-chevron,
 .session-host-refresh {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
   border-radius: 4px;
 }
@@ -2468,6 +2518,27 @@ body:has(.debug-window-root) #root {
   color: #58a6ff;
 }
 
+/* Swarm 服务的宿主机发布端口，便于一眼看到服务从哪个端口暴露 */
+.session-docker-port-badge {
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+.session-docker-chevron-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.session-docker-chevron-btn:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
 .session-docker-msg {
   padding: 4px 6px;
   font-size: 11px;
@@ -2519,18 +2590,38 @@ body:has(.debug-window-root) #root {
 
 .docker-meta-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
   margin-bottom: 10px;
   font-size: 12px;
   flex-shrink: 0;
+}
+
+.docker-meta-item {
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
 }
 
 .docker-meta-label {
   display: block;
   font-size: 10px;
   color: var(--muted);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  letter-spacing: 0.3px;
+}
+
+.docker-meta-value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-meta-value.is-mono {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
 }
 
 .docker-logs-header {
@@ -2580,7 +2671,8 @@ body:has(.debug-window-root) #root {
   white-space: nowrap;
 }
 
-.docker-follow-toggle {
+.docker-follow-toggle,
+.docker-config-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2588,9 +2680,11 @@ body:has(.debug-window-root) #root {
   color: var(--muted);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
 
-.docker-follow-toggle input {
+.docker-follow-toggle input,
+.docker-config-toggle input {
   margin: 0;
 }
 
@@ -2600,10 +2694,198 @@ body:has(.debug-window-root) #root {
   font-weight: 600;
 }
 
+.docker-config-block {
+  flex-shrink: 0;
+  max-height: 48%;
+  overflow: auto;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.docker-detail-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.docker-detail-group {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* 内容偏长的分组（环境变量 / 挂载卷 / 标签）独占整行 */
+.docker-detail-group--wide {
+  grid-column: 1 / -1;
+}
+
+.docker-detail-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.docker-detail-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.docker-group-count {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--border);
+  color: var(--fg);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.docker-group-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.docker-group-filter {
+  width: 140px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.docker-detail-group > .docker-panel-muted {
+  padding: 8px 10px;
+}
+
+.docker-secret-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.docker-kv-list {
+  margin: 0;
+  font-size: 12px;
+}
+
+.docker-kv-list.is-scroll,
+.docker-detail-list.is-scroll {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.docker-kv-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 32%) 1fr;
+  gap: 4px 12px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.14));
+}
+
+.docker-kv-row:last-child {
+  border-bottom: none;
+}
+
+.docker-kv-row:nth-child(even) {
+  background: rgba(128, 128, 128, 0.05);
+}
+
+.docker-kv-row dt {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-kv-row dd {
+  margin: 0;
+  word-break: break-all;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+.docker-kv-row dd.is-masked {
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+
+.docker-detail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.docker-detail-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.14));
+}
+
+.docker-detail-list li:last-child {
+  border-bottom: none;
+}
+
+.docker-detail-list li:nth-child(even) {
+  background: rgba(128, 128, 128, 0.05);
+}
+
+.docker-detail-list code {
+  word-break: break-all;
+}
+
+.docker-detail-arrow {
+  color: var(--muted);
+}
+
+.docker-detail-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.docker-task-state {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.docker-task-state.is-running {
+  color: var(--ok, #3fb950);
+}
+
+.docker-task-error {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--danger);
+  font-size: 11px;
+}
+
 .docker-logs {
   margin: 0;
   flex: 1;
-  min-height: 0;
+  min-height: 160px;
   max-height: none;
   padding: 10px 12px;
   background: var(--bg-panel);

@@ -156,16 +156,174 @@ export type DockerComposeService = {
   shortStatus: string
 }
 
+/**
+ * Swarm 服务的发布端口。ingress 模式下端口由 routing mesh 在服务层发布，
+ * 任务容器自身没有宿主机绑定，因此必须从 service 而非 container 读取。
+ */
+export type DockerSwarmPort = {
+  targetPort: number
+  publishedPort?: number
+  /** tcp / udp */
+  protocol: string
+  /** ingress / host */
+  publishMode: string
+}
+
+export type DockerSwarmService = {
+  id: string
+  name: string
+  image: string
+  /** replicated / global */
+  mode: string
+  /** 形如 "1/1" */
+  replicas: string
+  runningTasks: number
+  desiredTasks: number
+  shortStatus: string
+  ports: DockerSwarmPort[]
+  /** com.docker.stack.namespace；未用 stack deploy 时为空 */
+  stack?: string
+  /** 运行在本节点上的任务容器 */
+  containers: DockerContainer[]
+}
+
+/** 一个 stack；name 为空串表示「未归属 stack 的服务」 */
+export type DockerSwarmStack = {
+  name: string
+  services: DockerSwarmService[]
+}
+
+export type DockerSwarmInfo = {
+  /** 本节点是否加入了 swarm */
+  active: boolean
+  /** 本节点是否为 manager；worker 节点无法列出服务 */
+  manager: boolean
+  stacks: DockerSwarmStack[]
+  error?: string
+}
+
+export type DockerSwarmTask = {
+  id: string
+  name: string
+  node?: string
+  image?: string
+  currentState: string
+  desiredState: string
+  shortStatus: string
+  error?: string
+}
+
+export type DockerSwarmResources = {
+  limitCpu?: string
+  limitMemory?: string
+  reserveCpu?: string
+  reserveMemory?: string
+}
+
+/** docker service inspect 的精简结果，用于 Swarm 服务面板 */
+export type DockerSwarmServiceDetail = {
+  id: string
+  name: string
+  image: string
+  mode: string
+  replicas: string
+  stack?: string
+  createdAt?: string
+  updatedAt?: string
+  command?: string
+  user?: string
+  workingDir?: string
+  ports: DockerSwarmPort[]
+  env: DockerKeyValue[]
+  mounts: DockerMount[]
+  /** 网络名（无法解析出名字时回落为 ID） */
+  networks: string[]
+  /** 服务级标签 Spec.Labels */
+  labels: DockerKeyValue[]
+  /** 容器级标签 ContainerSpec.Labels */
+  containerLabels: DockerKeyValue[]
+  /** Placement.Constraints */
+  constraints: string[]
+  /** extra_hosts */
+  hosts: string[]
+  resources?: DockerSwarmResources
+  updatePolicy?: string
+  restartPolicy?: string
+  healthcheck?: string
+  tasks: DockerSwarmTask[]
+}
+
 export type DockerTreeResult = {
   /** 不属于任何 compose 项目的独立容器 */
   containers: DockerContainer[]
   composeProjects: DockerComposeProject[]
+  swarm: DockerSwarmInfo
   containersError?: string
   composeError?: string
 }
 
+export type DockerKeyValue = {
+  key: string
+  value: string
+}
+
+export type DockerPortBinding = {
+  /** 容器侧端口，如 8080/tcp */
+  container: string
+  hostIp?: string
+  hostPort?: string
+}
+
+export type DockerMount = {
+  /** bind / volume / tmpfs */
+  type: string
+  /** 宿主机路径或卷名；匿名卷为空 */
+  source: string
+  destination: string
+  readWrite: boolean
+}
+
+export type DockerNetworkInfo = {
+  name: string
+  ipAddress?: string
+}
+
+/** Swarm 任务容器的补充信息：端口发布在服务层，容器自身看不到映射 */
+export type DockerContainerSwarmInfo = {
+  service: string
+  taskName?: string
+  node?: string
+  publishedPorts: DockerSwarmPort[]
+  /** 读取服务信息失败时的说明（如本节点非 manager） */
+  error?: string
+}
+
+/** docker inspect 的精简结果，用于容器详情面板 */
+export type DockerContainerDetail = {
+  id: string
+  name: string
+  image: string
+  command?: string
+  workingDir?: string
+  user?: string
+  restartPolicy?: string
+  createdAt?: string
+  startedAt?: string
+  finishedAt?: string
+  exitCode?: number
+  health?: string
+  env: DockerKeyValue[]
+  ports: DockerPortBinding[]
+  mounts: DockerMount[]
+  networks: DockerNetworkInfo[]
+  labels: DockerKeyValue[]
+  swarm?: DockerContainerSwarmInfo
+}
+
 export type DockerContainerAction = 'start' | 'stop' | 'restart' | 'rm'
 export type DockerComposeAction = 'up' | 'down'
+/** Swarm 服务操作：强制重建任务 / 调整副本数 */
+export type DockerSwarmAction = 'restart' | 'scale'
 
 export type SftpListEntry = {
   name: string
@@ -493,4 +651,15 @@ export const TERMINAL_PREFS_DEFAULTS: TerminalPrefs = {
   fontFamily: 'Cascadia Code, Consolas, "Courier New", monospace',
   fontSize: 14,
   scrollback: 4000
+}
+
+/** 检查 GitHub Releases 的结果（由主进程返回） */
+export type AppUpdateCheckResult = {
+  currentVersion: string
+  status: 'upToDate' | 'available' | 'noRelease' | 'error'
+  latestVersion?: string
+  releaseUrl?: string
+  downloadUrl?: string
+  releaseName?: string
+  message: string
 }

@@ -111,7 +111,7 @@ type Tab = {
   /** 远端文件路径（remote-file） */
   remotePath?: string
   /** Docker 详情 */
-  dockerKind?: 'container' | 'compose'
+  dockerKind?: 'container' | 'compose' | 'swarm'
   dockerResourceId?: string
   dockerResourceName?: string
 }
@@ -970,7 +970,7 @@ export default function App() {
   const openDockerDetail = useCallback(
     (info: {
       profile: SavedSessionProfile
-      kind: 'container' | 'compose'
+      kind: 'container' | 'compose' | 'swarm'
       resourceId: string
       resourceName: string
     }) => {
@@ -996,7 +996,9 @@ export default function App() {
       const title =
         info.kind === 'container'
           ? `容器 · ${info.resourceName}`
-          : `Compose · ${info.resourceName}`
+          : info.kind === 'swarm'
+            ? `Swarm · ${info.resourceName}`
+            : `Compose · ${info.resourceName}`
       setTabs((prev) => [
         ...prev,
         {
@@ -1138,12 +1140,15 @@ export default function App() {
       profile={p}
       selected={highlightedProfileId === p.id}
       inFolder={inFolder}
+      searchQuery={sessionSearch}
       hostExpanded={Boolean(expandedHosts[p.id])}
       composeExpanded={expandedDockerGroups[`${p.id}:compose`] === true}
+      swarmExpanded={expandedDockerGroups[`${p.id}:swarm`] === true}
       containersExpanded={expandedDockerGroups[`${p.id}:containers`] === true}
       isComposeProjectExpanded={(projectName) =>
         expandedDockerGroups[`${p.id}:cp:${projectName}`] === true
       }
+      isSwarmNodeExpanded={(key) => expandedDockerGroups[`${p.id}:sw:${key}`] === true}
       tree={dockerTreeByProfileId[p.id]}
       onSelect={() => setSelectedProfileId(p.id)}
       onConnect={() => connectProfile(p)}
@@ -1159,6 +1164,12 @@ export default function App() {
           [`${p.id}:compose`]: !prev[`${p.id}:compose`]
         }))
       }
+      onToggleSwarm={() =>
+        setExpandedDockerGroups((prev) => ({
+          ...prev,
+          [`${p.id}:swarm`]: !prev[`${p.id}:swarm`]
+        }))
+      }
       onToggleContainers={() =>
         setExpandedDockerGroups((prev) => ({
           ...prev,
@@ -1171,12 +1182,21 @@ export default function App() {
           [`${p.id}:cp:${projectName}`]: !prev[`${p.id}:cp:${projectName}`]
         }))
       }
+      onToggleSwarmNode={(key) =>
+        setExpandedDockerGroups((prev) => ({
+          ...prev,
+          [`${p.id}:sw:${key}`]: !prev[`${p.id}:sw:${key}`]
+        }))
+      }
       onRefresh={() => void loadDockerTreeForProfile(p, true)}
       onOpenContainer={(id, name) =>
         openDockerDetail({ profile: p, kind: 'container', resourceId: id, resourceName: name })
       }
       onOpenCompose={(name) =>
         openDockerDetail({ profile: p, kind: 'compose', resourceId: name, resourceName: name })
+      }
+      onOpenSwarmService={(name) =>
+        openDockerDetail({ profile: p, kind: 'swarm', resourceId: name, resourceName: name })
       }
     />
   )
@@ -1262,9 +1282,14 @@ export default function App() {
     [profiles]
   )
 
+  const treeDataForProfile = useCallback(
+    (p: SavedSessionProfile) => dockerTreeByProfileId[p.id]?.data,
+    [dockerTreeByProfileId]
+  )
+
   const filteredRootProfiles = useMemo(
-    () => filterProfiles(rootProfiles, sessionSearch),
-    [rootProfiles, sessionSearch]
+    () => filterProfiles(rootProfiles, sessionSearch, treeDataForProfile),
+    [rootProfiles, sessionSearch, treeDataForProfile]
   )
 
   const toggleFolderExpanded = useCallback((id: string) => {
@@ -1657,72 +1682,79 @@ export default function App() {
         {layout.showSidebar ? (
           <>
             <aside className="sidebar" style={{ width: layout.sidebarWidth, minWidth: layout.sidebarWidth }}>
+              <div className="sidebar-header">
+                <h3>已保存会话</h3>
+                <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} />
+              </div>
               <div className="sidebar-scroll">
-            {error && activeTab?.view !== 'connection' && (
-              <div
-                style={{
-                  color: 'var(--danger)',
-                  fontSize: 11,
-                  marginBottom: 12,
-                  lineHeight: 1.4,
-                  padding: 8,
-                  background: 'var(--bg)',
-                  borderRadius: 6,
-                  border: '1px solid var(--border)'
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            {sideInfo && (
-              <div className="sidebar-info-banner" role="status">
-                {sideInfo}
-              </div>
-            )}
-
-            <h3>已保存会话</h3>
-            <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} />
-
-            {folders.length === 0 && profiles.length === 0 && (
-              <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>
-            )}
-
-            {folders.map((f) => {
-              const expanded = expandedFolders[f.id] === true
-              const inFolder = filterProfiles(profilesInFolder(f.id), sessionSearch)
-              return (
-                <div key={f.id} className="session-folder-block">
+                {error && activeTab?.view !== 'connection' && (
                   <div
-                    className="session-folder-row"
-                    role="button"
-                    tabIndex={0}
-                    title="单击展开/折叠，右键管理文件夹"
-                    onClick={() => toggleFolderExpanded(f.id)}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      setFolderMenu({ x: e.clientX, y: e.clientY, folderId: f.id, folderName: f.name })
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        toggleFolderExpanded(f.id)
-                      }
+                    style={{
+                      color: 'var(--danger)',
+                      fontSize: 11,
+                      marginBottom: 12,
+                      lineHeight: 1.4,
+                      padding: 8,
+                      background: 'var(--bg)',
+                      borderRadius: 6,
+                      border: '1px solid var(--border)'
                     }}
                   >
-                    <span className="session-folder-chevron" aria-hidden>
-                      {expanded ? '▼' : '▶'}
-                    </span>
-                    <span className="session-folder-name">{f.name}</span>
-                    <span className="session-folder-count">{inFolder.length}</span>
+                    {error}
                   </div>
-                  {expanded && inFolder.map((p) => renderProfileBranch(p, true))}
-                </div>
-              )
-            })}
+                )}
 
-            {filteredRootProfiles.map((p) => renderProfileBranch(p))}
-          </div>
+                {sideInfo && (
+                  <div className="sidebar-info-banner" role="status">
+                    {sideInfo}
+                  </div>
+                )}
+
+                {folders.length === 0 && profiles.length === 0 && (
+                  <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>
+                )}
+
+                {folders.map((f) => {
+                  const inFolder = filterProfiles(
+                    profilesInFolder(f.id),
+                    sessionSearch,
+                    treeDataForProfile
+                  )
+                  const expanded = sessionSearch.trim()
+                    ? inFolder.length > 0
+                    : expandedFolders[f.id] === true
+                  return (
+                    <div key={f.id} className="session-folder-block">
+                      <div
+                        className="session-folder-row"
+                        role="button"
+                        tabIndex={0}
+                        title="单击展开/折叠，右键管理文件夹"
+                        onClick={() => toggleFolderExpanded(f.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setFolderMenu({ x: e.clientX, y: e.clientY, folderId: f.id, folderName: f.name })
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleFolderExpanded(f.id)
+                          }
+                        }}
+                      >
+                        <span className="session-folder-chevron" aria-hidden>
+                          {expanded ? '▼' : '▶'}
+                        </span>
+                        <span className="session-folder-name">{f.name}</span>
+                        <span className="session-folder-count">{inFolder.length}</span>
+                      </div>
+                      {expanded && inFolder.map((p) => renderProfileBranch(p, true))}
+                    </div>
+                  )
+                })}
+
+                {filteredRootProfiles.map((p) => renderProfileBranch(p))}
+              </div>
             </aside>
             {layout.showMain ? (
               <LayoutResizer

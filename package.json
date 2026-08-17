@@ -74,6 +74,13 @@
       "target": [
         "dmg"
       ]
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "guoshuaipeng",
+        "repo": "ai-ssh-pro"
+      }
+    ]
   }
 }
