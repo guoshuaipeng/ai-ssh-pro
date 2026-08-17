@@ -1,6 +1,6 @@
 {
   "name": "ai-ssh-pro",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "类 Xshell 的多会话 SSH 客户端，集成 AI 对话（方案 B：Electron + TypeScript）",
   "main": "out/main/index.js",
   "type": "module",

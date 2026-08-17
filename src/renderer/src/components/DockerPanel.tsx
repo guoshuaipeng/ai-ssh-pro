@@ -486,6 +486,23 @@ export default function DockerPanel({
     </>
   )
 
+  // 配置显隐放在内容区标题行，不和启动/停止等操作按钮抢同一排
+  const configToggle = (
+    <button
+      type="button"
+      className={`docker-config-bar${showConfig ? ' is-open' : ''}`}
+      aria-expanded={showConfig}
+      title="记住选择，所有容器与 Swarm 服务共用"
+      onClick={() => toggleShowConfig(!showConfig)}
+    >
+      <span className="docker-config-bar-chevron" aria-hidden>
+        {showConfig ? '▼' : '▶'}
+      </span>
+      <span className="docker-config-bar-title">配置</span>
+      <span className="docker-config-bar-hint">{showConfig ? '点击收起' : '点击展开'}</span>
+    </button>
+  )
+
   return (
     <div className="workspace-panel workspace-panel--docker">
       <div className="workspace-panel-toolbar">
@@ -497,16 +514,6 @@ export default function DockerPanel({
           <button type="button" onClick={() => void refresh()} disabled={busy}>
             刷新
           </button>
-          {kind === 'container' || kind === 'swarm' ? (
-            <label className="docker-config-toggle" title="记住选择，所有容器与 Swarm 服务共用">
-              <input
-                type="checkbox"
-                checked={showConfig}
-                onChange={(e) => toggleShowConfig(e.target.checked)}
-              />
-              显示配置
-            </label>
-          ) : null}
           {kind === 'container' ? (
             <>
               <button type="button" className="primary" disabled={busy} onClick={() => onOpenShell?.()}>
@@ -586,6 +593,7 @@ export default function DockerPanel({
 
         {kind === 'container' ? (
           <>
+            {configToggle}
             {showConfig ? (
               <div className="docker-config-block">
                 <div className="docker-meta-grid">
@@ -761,6 +769,7 @@ export default function DockerPanel({
           </>
         ) : kind === 'swarm' ? (
           <>
+            {configToggle}
             {showConfig ? (
               <div className="docker-config-block">
                 <div className="docker-meta-grid">

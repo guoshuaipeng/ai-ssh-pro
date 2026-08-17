@@ -2671,8 +2671,7 @@ body:has(.debug-window-root) #root {
   white-space: nowrap;
 }
 
-.docker-follow-toggle,
-.docker-config-toggle {
+.docker-follow-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2680,12 +2679,56 @@ body:has(.debug-window-root) #root {
   color: var(--muted);
   cursor: pointer;
   user-select: none;
-  white-space: nowrap;
 }
 
-.docker-follow-toggle input,
-.docker-config-toggle input {
+.docker-follow-toggle input {
   margin: 0;
+}
+
+/* 配置折叠条：视图偏好，与工具栏操作按钮分离 */
+.docker-config-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.docker-config-bar:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-panel));
+}
+
+.docker-config-bar.is-open {
+  margin-bottom: 6px;
+}
+
+.docker-config-bar-chevron {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 9px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.docker-config-bar-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.docker-config-bar-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .docker-section-title {
