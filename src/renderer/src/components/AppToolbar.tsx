@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import TitlebarMenus, { type TitlebarMenuAction } from './TitlebarMenus'
+import {
+  isLightUiTheme,
+  isUiThemeId,
+  loadUiThemeId,
+  toggleLightDarkTheme,
+  type UiThemeId
+} from '../lib/ui-themes'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -69,7 +76,33 @@ function GithubIcon() {
   )
 }
 
-/** 合并标题栏：品牌 + 菜单 + 更新/GitHub + 布局开关 */
+/** 当前是深色时显示太阳（点一下切浅色）；浅色时显示月亮 */
+function ThemeToggleIcon({ light }: { light: boolean }) {
+  if (light) {
+    return (
+      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
+        <path
+          fill="currentColor"
+          d="M6.05 1.6a.75.75 0 0 1 .9-.1 5.5 5.5 0 1 0 7.55 7.55.75.75 0 0 1 1.05.9A7 7 0 1 1 5.15 1.5a.75.75 0 0 1 .9.1z"
+        />
+      </svg>
+    )
+  }
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
+      <circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.35" />
+      <path
+        d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+/** 合并标题栏：品牌 + 菜单 + 更新/GitHub/主题 + 布局开关 */
 export default function AppToolbar({
   onMenuAction,
   onToggleSidebar,
@@ -81,6 +114,8 @@ export default function AppToolbar({
 }: Props) {
   const [version, setVersion] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [themeId, setThemeId] = useState<UiThemeId>(() => loadUiThemeId())
+  const lightMode = isLightUiTheme(themeId)
 
   useEffect(() => {
     let cancelled = false
@@ -97,11 +132,24 @@ export default function AppToolbar({
     }
   }, [])
 
+  useEffect(() => {
+    const onTheme = (e: Event) => {
+      const id = (e as CustomEvent).detail
+      if (isUiThemeId(id)) setThemeId(id)
+    }
+    window.addEventListener('aiss-ui-theme', onTheme)
+    return () => window.removeEventListener('aiss-ui-theme', onTheme)
+  }, [])
+
   const onOpenGithub = useCallback(() => {
     void window.aiss.app.openGithub().catch((e) => {
       window.alert(e instanceof Error ? e.message : String(e))
     })
   }, [])
+
+  const onToggleTheme = useCallback(() => {
+    setThemeId(toggleLightDarkTheme(themeId))
+  }, [themeId])
 
   const onCheckUpdate = useCallback(async () => {
     if (checkingUpdate) return
@@ -164,6 +212,17 @@ export default function AppToolbar({
         >
           <GithubIcon />
           <span>GitHub</span>
+        </button>
+        <button
+          type="button"
+          className="titlebar-icon-btn"
+          title={lightMode ? '切换为深色模式' : '切换为浅色模式'}
+          aria-label={lightMode ? '切换为深色模式' : '切换为浅色模式'}
+          aria-pressed={lightMode}
+          onClick={onToggleTheme}
+        >
+          <ThemeToggleIcon light={lightMode} />
+          <span>{lightMode ? '深色' : '浅色'}</span>
         </button>
         <div className="app-toolbar-layout" role="group" aria-label="布局显隐">
           {onToggleSidebar ? (

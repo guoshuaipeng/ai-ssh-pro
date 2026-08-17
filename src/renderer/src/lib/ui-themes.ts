@@ -76,4 +76,16 @@ export function applyUiTheme(id: UiThemeId): void {
   const next = isUiThemeId(id) ? id : UI_THEME_DEFAULT
   document.documentElement.setAttribute('data-ui-theme', next)
   saveUiThemeId(next)
+  window.dispatchEvent(new CustomEvent('aiss-ui-theme', { detail: next }))
+}
+
+export function isLightUiTheme(id: UiThemeId): boolean {
+  return id === 'light' || id === 'sand'
+}
+
+/** 在浅色 / 深色之间切换（浅色 ↔ 默认深色） */
+export function toggleLightDarkTheme(current: UiThemeId = loadUiThemeId()): UiThemeId {
+  const next: UiThemeId = isLightUiTheme(current) ? 'github-dark' : 'light'
+  applyUiTheme(next)
+  return next
 }
