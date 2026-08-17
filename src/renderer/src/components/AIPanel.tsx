@@ -5,6 +5,10 @@ import { dispatchInjectTerminal } from '../lib/terminal-inject'
 
 type Props = {
   activeSessionId: string | null
+  /** Stable key for persisted chat history (e.g. saved profile id); falls back to session id */
+  historyKey?: string | null
+  hostInventoryId?: string | null
+  inventoryLookup?: { host?: string; port?: number; profileId?: string } | null
 }
 
 type UserLine = { role: 'user'; content: string }
@@ -16,6 +20,8 @@ type AssistantLine = {
   structured?: AiAssistantReply
   /** 新交互协议下：需要用户确认后才能继续的 requestId */
   requestId?: string
+  /** 低风险命令已由主进程自动执行 */
+  autoApproved?: boolean
 }
 
 type Line = UserLine | AssistantLine
@@ -27,7 +33,33 @@ function riskClass(level: string): string {
   return 'ai-risk-medium'
 }
 
-export default function AIPanel({ activeSessionId }: Props) {
+function resolveHistoryKey(historyKey: string | null | undefined, activeSessionId: string | null): string | null {
+  const k = historyKey?.trim() || activeSessionId?.trim() || ''
+  return k || null
+}
+
+function linesToHistoryMessages(lines: Line[]): AiChatMessage[] {
+  return lines
+    .filter((l) => !('streaming' in l && l.streaming))
+    .map((l) => ({ role: l.role, content: l.content }))
+}
+
+function historyToLines(messages: AiChatMessage[]): Line[] {
+  return messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) =>
+      m.role === 'user'
+        ? ({ role: 'user', content: m.content } satisfies UserLine)
+        : ({ role: 'assistant', content: m.content } satisfies AssistantLine)
+    )
+}
+
+export default function AIPanel({
+  activeSessionId,
+  historyKey = null,
+  hostInventoryId = null,
+  inventoryLookup = null
+}: Props) {
   const [lines, setLines] = useState<Line[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -41,6 +73,9 @@ export default function AIPanel({ activeSessionId }: Props) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
   const inputMenuRef = useRef<HTMLDivElement>(null)
+  const linesRef = useRef<Line[]>([])
+  linesRef.current = lines
+  const persistKey = resolveHistoryKey(historyKey, activeSessionId)
 
   const activeProvider = providers.find((p) => p.id === activeProviderId) ?? providers[0]
   const modelList = activeProvider?.modelList ?? []
@@ -59,6 +94,32 @@ export default function AIPanel({ activeSessionId }: Props) {
     window.addEventListener('aiss-ai-settings-saved', refresh)
     return () => window.removeEventListener('aiss-ai-settings-saved', refresh)
   }, [])
+
+  // Load persisted chat when history key / session changes
+  useEffect(() => {
+    let cancelled = false
+    setPendingConfirm(null)
+    if (!persistKey) {
+      setLines([])
+      return
+    }
+    setLines([])
+    void window.aiss.ai.getChatHistory(persistKey).then((msgs) => {
+      if (cancelled) return
+      setLines(historyToLines(msgs))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [persistKey])
+
+  const persistHistory = useCallback(
+    (nextLines: Line[]) => {
+      if (!persistKey) return
+      void window.aiss.ai.setChatHistory(persistKey, linesToHistoryMessages(nextLines))
+    },
+    [persistKey]
+  )
 
   const onProviderChange = useCallback((value: string) => {
     setActiveProviderId(value)
@@ -125,10 +186,18 @@ export default function AIPanel({ activeSessionId }: Props) {
         setLines((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
+          const row: AssistantLine = {
+            role: 'assistant',
+            content: s.description,
+            streaming: false,
+            structured: s,
+            requestId: ev.requestId,
+            autoApproved: ev.autoApproved === true
+          }
           if (last?.role === 'assistant' && last.streaming && !last.structured) {
-            next[next.length - 1] = { role: 'assistant', content: s.description, streaming: false, structured: s, requestId: ev.requestId }
+            next[next.length - 1] = row
           } else {
-            next.push({ role: 'assistant', content: s.description, structured: s, requestId: ev.requestId })
+            next.push(row)
           }
           return next
         })
@@ -182,7 +251,16 @@ export default function AIPanel({ activeSessionId }: Props) {
         messages: history,
         targetSessionId: activeSessionId ?? undefined,
         terminalExcerpt,
-        debugTurnId
+        debugTurnId,
+        historyKey: persistKey ?? undefined,
+        hostInventoryId: hostInventoryId?.trim() || undefined,
+        inventoryLookup: inventoryLookup
+          ? {
+              host: inventoryLookup.host,
+              port: inventoryLookup.port,
+              profileId: inventoryLookup.profileId
+            }
+          : undefined
       })
       if (!usedStepProtocol) {
         const raw = assistant.trim()
@@ -214,9 +292,13 @@ export default function AIPanel({ activeSessionId }: Props) {
       unsub()
       setBusy(false)
       setPendingConfirm(null)
+      // Persist user + assistant text after the turn completes (incl. auto-approved steps)
+      queueMicrotask(() => {
+        persistHistory(linesRef.current)
+      })
     }
   },
-    [activeSessionId, lines]
+    [activeSessionId, hostInventoryId, inventoryLookup, lines, persistHistory, persistKey]
   )
 
   const send = useCallback(async () => {
@@ -280,7 +362,8 @@ export default function AIPanel({ activeSessionId }: Props) {
     if (busy) return
     setLines([])
     setPendingConfirm(null)
-  }, [busy])
+    if (persistKey) void window.aiss.ai.setChatHistory(persistKey, [])
+  }, [busy, persistKey])
 
   const undoLastRound = useCallback(() => {
     if (busy) return
@@ -291,10 +374,11 @@ export default function AIPanel({ activeSessionId }: Props) {
         const u = next.pop() as UserLine
         setInput(u.content)
       }
+      persistHistory(next)
       return next
     })
     setPendingConfirm(null)
-  }, [busy])
+  }, [busy, persistHistory])
 
   useEffect(() => {
     if (!inputMenu) return
@@ -366,7 +450,7 @@ export default function AIPanel({ activeSessionId }: Props) {
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="msg assistant" style={{ opacity: 0.85 }}>
-            助手会以 JSON 返回说明（description）、可选命令（command）、风险等级（riskLevel）等；生成过程中先显示「正在生成…」。若有命令，可点「执行」写入当前 SSH 标签页并回车执行。
+            助手会分步给出说明；读取终端快照（tool_call）会自动执行，执行命令（command）需你确认后再写入当前 SSH 标签页。
           </div>
         )}
         {lines.map((l, i) => {
@@ -408,6 +492,16 @@ export default function AIPanel({ activeSessionId }: Props) {
                     </div>
                   </div>
                 ) : null}
+                {s.action === 'tool_call' && !l.requestId ? (
+                  <div className="ai-reply-cmd" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    已自动读取终端快照
+                    {s.toolName ? (
+                      <>
+                        ：<code>{s.toolName}</code>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
                 {s.action === 'command' && s.command?.trim() && l.requestId ? (
                   <div className="ai-reply-cmd">
                     <code className="ai-reply-cmd-code">{s.command}</code>
@@ -421,8 +515,14 @@ export default function AIPanel({ activeSessionId }: Props) {
                     </div>
                   </div>
                 ) : null}
-                {/* Legacy fallback：无 requestId 时，允许用户手动执行建议命令 */}
-                {(!l.requestId || l.requestId == null) && s.command?.trim() ? (
+                {s.action === 'command' && s.command?.trim() && l.autoApproved ? (
+                  <div className="ai-reply-cmd">
+                    <code className="ai-reply-cmd-code">{s.command}</code>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>已自动执行</div>
+                  </div>
+                ) : null}
+                {/* Legacy fallback：无 requestId 且非自动批准时，允许用户手动执行建议命令 */}
+                {!l.requestId && !l.autoApproved && s.command?.trim() ? (
                   <div className="ai-reply-cmd">
                     <code className="ai-reply-cmd-code">{s.command}</code>
                     <button

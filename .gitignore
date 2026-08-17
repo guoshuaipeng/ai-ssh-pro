@@ -4,5 +4,27 @@ release/
 dist/
 *.log
 .DS_Store
+
+# Local env / secrets (never commit)
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.ppk
+id_rsa
+id_ed25519
+id_ecdsa
+*_ed25519
+*_rsa
+
+# Local app data / inventory (credentials live outside the repo)
+tmp/
+.cursor/
+.autopilot.json
+scripts/__pycache__/
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+*.iml

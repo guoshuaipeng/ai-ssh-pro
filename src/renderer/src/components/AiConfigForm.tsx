@@ -24,6 +24,7 @@ export default function AiConfigForm() {
   const [temperature, setTemperature] = useState(0.1)
   const [sshParseInstructions, setSshParseInstructions] = useState('')
   const [useOpenClaw, setUseOpenClaw] = useState(true)
+  const [autoApproveLowRisk, setAutoApproveLowRisk] = useState(false)
   const [savedHint, setSavedHint] = useState<string | null>(null)
 
   const parsedModelList = useMemo(() => parseModelLines(modelListText), [modelListText])
@@ -35,6 +36,7 @@ export default function AiConfigForm() {
       setTemperature(typeof s.temperature === 'number' ? s.temperature : 0.1)
       setSshParseInstructions(s.sshParseInstructions ?? '')
       setUseOpenClaw(s.useOpenClaw !== false)
+      setAutoApproveLowRisk(s.autoApproveLowRisk === true)
 
       const p = s.providers.find((x) => x.id === s.activeProviderId) ?? s.providers[0]
       if (p) {
@@ -163,7 +165,8 @@ export default function AiConfigForm() {
       temperature:
         typeof temperature === 'number' && Number.isFinite(temperature) ? Math.min(2, Math.max(0, temperature)) : 0.1,
       sshParseInstructions: sshParseInstructions.trim(),
-      useOpenClaw
+      useOpenClaw,
+      autoApproveLowRisk
     }
 
     await window.aiss.ai.setSettings(partial)
@@ -171,7 +174,7 @@ export default function AiConfigForm() {
     setTimeout(() => setSavedHint(null), 2000)
     load()
     window.dispatchEvent(new CustomEvent('aiss-ai-settings-saved'))
-  }, [activeProviderId, baseURL, commitEditorToProviders, load, model, modelListText, sshParseInstructions, temperature, useOpenClaw])
+  }, [activeProviderId, autoApproveLowRisk, baseURL, commitEditorToProviders, load, model, modelListText, sshParseInstructions, temperature, useOpenClaw])
 
   return (
     <>
@@ -281,6 +284,22 @@ export default function AiConfigForm() {
             使用内置 OpenClaw 风格核心（Core-A）
             <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 4 }}>
               启用：分步 Observe→Plan→Act、Skills 注入、会话记忆持久化、命令后自动读终端。关闭则单次流式直连模型。
+            </span>
+          </span>
+        </label>
+      </div>
+      <div className="field" style={{ marginBottom: 12 }}>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={autoApproveLowRisk}
+            onChange={(e) => setAutoApproveLowRisk(e.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            低风险命令自动执行
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 4 }}>
+              当助手给出 riskLevel=low 的 command 时跳过确认并直接写入终端（仍会在对话中标注「已自动执行」）。
             </span>
           </span>
         </label>

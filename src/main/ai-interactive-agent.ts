@@ -13,6 +13,8 @@ import type { SshSessionManager } from './ssh-manager'
 import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
 import { buildBootstrapPrompt } from './core-a-bootstrap'
 import { loadPersistedCoreSession, savePersistedCoreSession } from './core-a-memory'
+import { getInventoryStore } from './inventory-store'
+import type { HostServiceKind } from '../shared/inventory'
 
 function send(wc: WebContents, ev: AiStreamEvent): void {
   if (!wc.isDestroyed()) wc.send('ai:stream', ev)
@@ -367,15 +369,24 @@ const assistantStepSchema = z
     description: z.string().describe('结论、步骤或原因；当 action 为 tool_call/command 时说明为何需要以及风险等级'),
     action: z.enum(['tool_call', 'command', 'end']).describe('下一步动作：tool_call/command/end'),
     completed: z.boolean().optional().describe('任务是否已完成；若 action=end 通常为 true'),
-    toolName: z.string().optional().describe('当 action=tool_call 时：工具名（仅允许 get_terminal_snapshot）'),
+    toolName: z.string().optional().describe(
+      'tool_call 时：get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note'
+    ),
     toolInput: z
       .object({
-        maxLines: z.number().int().min(1).max(2000).optional().describe('最多读取行数，建议 200-1200'),
-        fromCurrentCommand: z.boolean().optional().describe('是否从当前命令开始读取（命令+其后输出）'),
-        includeCommandLine: z.boolean().optional().describe('fromCurrentCommand=true 时，是否包含命令行')
+        maxLines: z.number().int().min(1).max(2000).optional(),
+        fromCurrentCommand: z.boolean().optional(),
+        includeCommandLine: z.boolean().optional(),
+        hostId: z.string().optional(),
+        query: z.string().optional(),
+        note: z.string().optional(),
+        serviceName: z.string().optional(),
+        serviceKind: z.string().optional(),
+        servicePorts: z.array(z.number()).optional(),
+        serviceNotes: z.string().optional()
       })
       .optional()
-      .describe('当 action=tool_call 时：工具输入'),
+      .describe('tool_call 输入'),
     command: z
       .string()
       .optional()
@@ -526,7 +537,8 @@ function buildCoreSystemPrompt(
     '---',
     '你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。',
     'action（必填）：tool_call | command | end。',
-    'command 需要用户确认后才执行；tool_call(get_terminal_snapshot) 会被系统立即执行。',
+    'command 需要用户确认后才执行（低风险可自动批准）；tool_call 会被系统立即执行。',
+    '可用 toolName：get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note。',
     '若上一轮刚执行过命令，系统可能已自动附带终端观测结果，请优先阅读后再决策。',
     `当前轮次：${ctx.step}`,
     '工作区观测笔记（跨轮持久）：',
@@ -550,7 +562,22 @@ function buildCoreSystemPrompt(
   if (payload.targetSessionId) {
     parts.push(`当前关联 SSH 会话：${payload.targetSessionId}。`)
   } else {
-    parts.push('当前未关联 SSH 会话：禁止 tool_call；仅允许给出安全的本地自检命令，或直接 end。')
+    parts.push('当前未关联 SSH 会话：禁止 get_terminal_snapshot；仍可读写主机知识库或给出本地自检建议，或直接 end。')
+  }
+
+  const inv = getInventoryStore()
+  const hostCtx = inv.formatContext({
+    hostId: payload.hostInventoryId,
+    host: payload.inventoryLookup?.host,
+    port: payload.inventoryLookup?.port,
+    profileId: payload.inventoryLookup?.profileId
+  })
+  if (hostCtx) {
+    parts.push('当前主机知识库档案（本地 Inventory，可信运维事实）：\n' + hostCtx)
+  } else {
+    parts.push(
+      '当前未命中主机知识库档案。若用户描述的是某台已知机器，可用 get_host_inventory 搜索；发现服务后可用 upsert_host_service / append_host_note 登记。'
+    )
   }
 
   if (payload.terminalExcerpt?.trim()) {
@@ -833,10 +860,21 @@ export async function runOpenClawCoreAgentChat(
         parseError
       })
 
-      // Only `command` steps require user confirmation.
-      const requestId = parsed.action === 'command' ? randomUUID() : undefined
+      // Only `command` steps require user confirmation (unless low-risk auto-approve).
+      const autoApproveLowRiskCommand =
+        parsed.action === 'command' &&
+        settings.autoApproveLowRisk === true &&
+        String(parsed.riskLevel ?? '').toLowerCase() === 'low'
 
-      send(wc, { type: 'step', requestId, structured: parsed })
+      const requestId =
+        parsed.action === 'command' && !autoApproveLowRiskCommand ? randomUUID() : undefined
+
+      send(wc, {
+        type: 'step',
+        requestId,
+        autoApproved: autoApproveLowRiskCommand ? true : undefined,
+        structured: parsed
+      })
 
       // 让下一轮请求带上本步助手 JSON，避免模型「失忆」而在每步重复同一段 description。
       conversation.push({ role: 'assistant' as const, content: content.trim() })
@@ -850,35 +888,155 @@ export async function runOpenClawCoreAgentChat(
         return
       }
 
-      // For command steps, wait for user confirmation before executing.
+      // For command steps, wait for user confirmation before executing (skip when auto-approved).
       if (parsed.action === 'command') {
         consecutiveSnapshotTools = 0
-        if (!requestId) {
-          send(wc, { type: 'error', message: '内部错误：command 缺少 requestId' })
-          return
-        }
-
-        const ok = await waitForAiConfirm(requestId)
-        if (runCtx.userAborted) {
-          send(wc, { type: 'cancelled', message: '已停止生成' })
-          send(wc, { type: 'done' })
-          return
-        }
-        if (!ok) {
+        if (autoApproveLowRiskCommand) {
           emitDebug({
             kind: 'execution',
             round: step,
-            label: '用户未同意执行命令',
+            label: '低风险命令已自动批准',
             detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
           })
-          send(wc, { type: 'cancelled', message: '已取消：你未同意执行该命令' })
-          return
+        } else {
+          if (!requestId) {
+            send(wc, { type: 'error', message: '内部错误：command 缺少 requestId' })
+            return
+          }
+
+          const ok = await waitForAiConfirm(requestId)
+          if (runCtx.userAborted) {
+            send(wc, { type: 'cancelled', message: '已停止生成' })
+            send(wc, { type: 'done' })
+            return
+          }
+          if (!ok) {
+            emitDebug({
+              kind: 'execution',
+              round: step,
+              label: '用户未同意执行命令',
+              detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
+            })
+            send(wc, { type: 'cancelled', message: '已取消：你未同意执行该命令' })
+            return
+          }
         }
       }
 
       if (parsed.action === 'tool_call') {
         const toolName = parsed.toolName?.trim()
         const toolInput = parsed.toolInput
+        const invStore = getInventoryStore()
+
+        const resolveHostId = (): string | null => {
+          if (toolInput?.hostId?.trim()) return toolInput.hostId.trim()
+          if (payload.hostInventoryId?.trim()) return payload.hostInventoryId.trim()
+          if (payload.inventoryLookup?.profileId) {
+            const hit = invStore.findByProfileId(payload.inventoryLookup.profileId)
+            if (hit) return hit.meta.id
+          }
+          if (payload.inventoryLookup?.host) {
+            const hit = invStore.findByHostPort(
+              payload.inventoryLookup.host,
+              payload.inventoryLookup.port ?? 22
+            )
+            if (hit) return hit.meta.id
+          }
+          return null
+        }
+
+        if (toolName === 'get_host_inventory') {
+          let text: string
+          if (toolInput?.query?.trim()) {
+            const hits = invStore.search(toolInput.query.trim())
+            text =
+              hits.length === 0
+                ? `（搜索「${toolInput.query.trim()}」无结果）`
+                : hits
+                    .map((h) => {
+                      const body = invStore.formatContext({ hostId: h.id })
+                      return body || `- ${h.id} ${h.title}`
+                    })
+                    .join('\n---\n')
+          } else {
+            const hid = resolveHostId()
+            text = hid
+              ? invStore.formatContext({ hostId: hid }) || `（档案 ${hid} 为空）`
+              : '（未指定 hostId/query，且当前会话未关联档案。可用 query 搜索。）'
+          }
+          lastToolResult = text
+          consecutiveSnapshotTools = 0
+          appendObservation(sessionState, text, 'get_host_inventory')
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: '工具：get_host_inventory',
+            detail: capDebugDetail(text)
+          })
+          continue
+        }
+
+        if (toolName === 'upsert_host_service') {
+          const hid = resolveHostId()
+          const serviceName = toolInput?.serviceName?.trim()
+          if (!hid || !serviceName) {
+            send(wc, {
+              type: 'error',
+              message: 'upsert_host_service 需要 hostId（或当前会话已关联档案）以及 serviceName'
+            })
+            return
+          }
+          const kindRaw = (toolInput?.serviceKind || 'unknown').toLowerCase()
+          const kind: HostServiceKind =
+            kindRaw === 'systemd' || kindRaw === 'docker' || kindRaw === 'k8s' || kindRaw === 'binary'
+              ? kindRaw
+              : 'unknown'
+          const updated = invStore.upsertService(hid, {
+            name: serviceName,
+            kind,
+            ports: toolInput?.servicePorts,
+            notes: toolInput?.serviceNotes
+          })
+          const text = updated
+            ? `已更新档案 ${hid} 的服务 ${serviceName}。\n` + invStore.formatContext({ hostId: hid })
+            : `（无法更新：档案 ${hid} 不存在）`
+          lastToolResult = text
+          consecutiveSnapshotTools = 0
+          rememberNote(sessionState, `已登记服务 ${serviceName} → ${hid}`)
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: '工具：upsert_host_service',
+            detail: capDebugDetail(text)
+          })
+          continue
+        }
+
+        if (toolName === 'append_host_note') {
+          const hid = resolveHostId()
+          const note = toolInput?.note?.trim()
+          if (!hid || !note) {
+            send(wc, {
+              type: 'error',
+              message: 'append_host_note 需要 hostId（或关联档案）以及 note'
+            })
+            return
+          }
+          const updated = invStore.appendNote(hid, note)
+          const text = updated
+            ? `已追加备注到 ${hid}。\n` + invStore.formatContext({ hostId: hid })
+            : `（无法追加：档案 ${hid} 不存在）`
+          lastToolResult = text
+          consecutiveSnapshotTools = 0
+          rememberNote(sessionState, `已写主机备注 → ${hid}`)
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: '工具：append_host_note',
+            detail: capDebugDetail(text)
+          })
+          continue
+        }
 
         if (toolName !== 'get_terminal_snapshot') {
           send(wc, { type: 'error', message: `不支持的工具：${toolName ?? '(空)'}` })

@@ -144,34 +144,238 @@ function mergeDraftsUnique(drafts: ImportedSessionDraft[]): ImportedSessionDraft
   return out
 }
 
+function decodePuttySessionName(encoded: string): string {
+  try {
+    return decodeURIComponent(encoded.replace(/\+/g, '%20'))
+  } catch {
+    return encoded
+  }
+}
+
+function parseRegQuotedString(raw: string): string {
+  const t = raw.trim()
+  if (t.startsWith('"') && t.endsWith('"') && t.length >= 2) {
+    return t
+      .slice(1, -1)
+      .replace(/\\([\\"])/g, '$1')
+      .replace(/\\r/g, '\r')
+      .replace(/\\n/g, '\n')
+  }
+  return t
+}
+
+function parseRegDword(raw: string): number | null {
+  const t = raw.trim()
+  const hex = t.match(/^dword:([0-9a-fA-F]+)$/i)
+  if (hex) {
+    const n = parseInt(hex[1]!, 16)
+    return Number.isFinite(n) ? n : null
+  }
+  const n = parseInt(t.replace(/^"|"$/g, ''), 10)
+  return Number.isFinite(n) ? n : null
+}
+
+function unwrapQuoted(v: string): string {
+  const t = v.trim()
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    return t.slice(1, -1)
+  }
+  return t
+}
+
+function draftFromPuttyFields(
+  label: string,
+  fields: Record<string, string>,
+  notes: string[],
+  sourceHint: string
+): ImportedSessionDraft | null {
+  const protocol = unwrapQuoted(fields.Protocol || fields.protocol || '').trim().toLowerCase()
+  if (protocol && protocol !== 'ssh') {
+    notes.push(`${sourceHint}「${label}」：跳过非 SSH 协议（${protocol}）`)
+    return null
+  }
+
+  const host = unwrapQuoted(fields.HostName || fields.hostname || fields.Host || '').trim()
+  if (!host) {
+    notes.push(`${sourceHint}「${label}」：缺少 HostName`)
+    return null
+  }
+
+  const username = unwrapQuoted(fields.UserName || fields.username || fields.User || '').trim() || 'root'
+  let port = 22
+  const portRaw = fields.PortNumber || fields.Port || fields.port
+  if (portRaw != null && String(portRaw).trim() !== '') {
+    const dword = parseRegDword(String(portRaw))
+    if (dword != null && dword > 0 && dword < 65536) port = dword
+    else port = parsePort(unwrapQuoted(String(portRaw)))
+  }
+
+  const draft: ImportedSessionDraft = {
+    label: label.trim() || host,
+    host,
+    port,
+    username
+  }
+
+  const publicKey = unwrapQuoted(
+    fields.PublicKeyFile || fields.publickeyfile || fields.IdentityFile || ''
+  ).trim()
+  if (publicKey) {
+    if (/\.ppk$/i.test(publicKey)) {
+      notes.push(
+        `${sourceHint}「${label}」：检测到 .ppk 私钥路径，未导入（请转换为 OpenSSH 格式后手动指定）`
+      )
+    } else {
+      draft.privateKeyPath = publicKey
+    }
+  }
+
+  return draft
+}
+
+/** 解析 PuTTY .reg 导出（Sessions 下各会话键） */
+function parsePuttyReg(text: string, sourceHint: string): {
+  drafts: ImportedSessionDraft[]
+  notes: string[]
+} {
+  const drafts: ImportedSessionDraft[] = []
+  const notes: string[] = []
+  let label: string | null = null
+  let fields: Record<string, string> = {}
+
+  const flush = (): void => {
+    if (label == null) return
+    const draft = draftFromPuttyFields(label, fields, notes, sourceHint)
+    if (draft) drafts.push(draft)
+    label = null
+    fields = {}
+  }
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith(';')) continue
+
+    const keyM = line.match(/^\[(?:-|)?HKEY_[^\]]*\\PuTTY\\Sessions\\([^\]]+)\]$/i)
+    if (keyM) {
+      flush()
+      const encoded = keyM[1]!.trim()
+      const decoded = decodePuttySessionName(encoded)
+      if (/^Default Settings$/i.test(decoded)) {
+        label = null
+        fields = {}
+        continue
+      }
+      label = decoded
+      fields = {}
+      continue
+    }
+
+    if (label == null) continue
+    const vm = line.match(/^"([^"]+)"\s*=\s*(.*)$/)
+    if (!vm) continue
+    const name = vm[1]!
+    const rawVal = vm[2]!.trim()
+    if (/^dword:/i.test(rawVal)) {
+      fields[name] = rawVal
+    } else {
+      fields[name] = parseRegQuotedString(rawVal)
+    }
+  }
+  flush()
+  return { drafts, notes }
+}
+
+/** 单文件 PuTTY 会话（INI / key=value，含 HostName + Protocol） */
+function parsePuttySessionFile(
+  filePath: string,
+  text: string,
+  notes: string[]
+): ImportedSessionDraft | null {
+  const kv = parseIniLikeLines(text)
+  const label = basename(filePath, extname(filePath))
+  return draftFromPuttyFields(label, kv, notes, basename(filePath))
+}
+
+function looksLikePuttyReg(text: string): boolean {
+  return /\\PuTTY\\Sessions\\/i.test(text) || (/Windows Registry Editor/i.test(text) && /PuTTY/i.test(text))
+}
+
+function looksLikePuttySessionText(text: string): boolean {
+  const hasHost = /^\s*(?:"HostName"|HostName)\s*=/im.test(text)
+  const hasProto = /^\s*(?:"Protocol"|Protocol)\s*=/im.test(text)
+  return hasHost && hasProto
+}
+
+function isLikelyPuttySessionFilename(filePath: string): boolean {
+  const name = basename(filePath).toLowerCase()
+  const ext = extname(filePath).toLowerCase()
+  if (ext === '.reg') return true
+  if (name.includes('putty')) return true
+  return false
+}
+
 export async function importSessionFilesFromPaths(filePaths: string[]): Promise<SessionImportPickResult> {
   const notes: string[] = []
   const items: ImportedSessionDraft[] = []
 
   for (const fp of filePaths) {
     const ext = extname(fp).toLowerCase()
+    const base = basename(fp)
     try {
       const buf = await readFile(fp)
       const text = decodeTextFile(buf)
+
       if (ext === '.xsh') {
         const one = parseXshFile(fp, text)
         if (one) items.push(one)
-        else notes.push(`${basename(fp)}：未识别到 Host / 用户名`)
+        else notes.push(`${base}：未识别到 Host / 用户名`)
         continue
       }
+
+      if (ext === '.reg' || looksLikePuttyReg(text)) {
+        const { drafts, notes: puttyNotes } = parsePuttyReg(text, base)
+        notes.push(...puttyNotes)
+        if (drafts.length > 0) {
+          items.push(...drafts)
+          notes.push(`${base}：自 PuTTY 注册表导出解析 ${drafts.length} 条`)
+        } else {
+          notes.push(`${base}：未解析到有效 PuTTY SSH 会话`)
+        }
+        continue
+      }
+
+      if (looksLikePuttySessionText(text) || (isLikelyPuttySessionFilename(fp) && /\bHostName\s*=/i.test(text))) {
+        const one = parsePuttySessionFile(fp, text, notes)
+        if (one) {
+          items.push(one)
+          notes.push(`${base}：自 PuTTY 会话文件解析 1 条`)
+          continue
+        }
+        // 明确像 PuTTY（含 Protocol）则不再回退；仅文件名启发式失败时继续试 SSH config
+        if (looksLikePuttySessionText(text)) {
+          if (!notes.some((n) => n.includes(base))) {
+            notes.push(`${base}：PuTTY 会话未识别到有效 SSH HostName`)
+          }
+          continue
+        }
+      }
+
       const fromSsh = parseSshConfig(text)
       if (fromSsh.length > 0) {
         items.push(...fromSsh)
-        notes.push(`${basename(fp)}：自 OpenSSH 配置解析 ${fromSsh.length} 条`)
+        notes.push(`${base}：自 OpenSSH 配置解析 ${fromSsh.length} 条`)
         continue
       }
-      if (ext === '.config' || basename(fp).toLowerCase() === 'config') {
-        notes.push(`${basename(fp)}：未解析到有效 Host 块`)
+      if (ext === '.config' || base.toLowerCase() === 'config') {
+        notes.push(`${base}：未解析到有效 Host 块`)
         continue
       }
-      notes.push(`${basename(fp)}：非 .xsh 且未识别为 SSH config（需含 Host … 块）`)
+      notes.push(`${base}：非 .xsh / PuTTY，且未识别为 SSH config（需含 Host … 块）`)
     } catch (e) {
-      notes.push(`${basename(fp)}：读取失败 ${e instanceof Error ? e.message : String(e)}`)
+      notes.push(`${base}：读取失败 ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 

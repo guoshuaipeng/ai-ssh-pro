@@ -1,9 +1,27 @@
 import Store from 'electron-store'
-import type { SavedSessionProfile, SavedSessionFolder, SavedSessionsState, AiProvider, AiSettings } from '../shared/ipc'
+import type {
+  SavedSessionProfile,
+  SavedSessionFolder,
+  SavedSessionsState,
+  AiProvider,
+  AiSettings,
+  TerminalPrefs,
+  CommandSnippet,
+  AiChatMessage,
+  SshJumpHostOptions,
+  LocalPortForward
+} from '../shared/ipc'
+import { TERMINAL_PREFS_DEFAULTS } from '../shared/ipc'
+import { decryptOptional, encryptOptional, encryptSecret, decryptSecret, isEncryptedSecret } from './secret-crypto'
+
+type AiChatHistoryStore = Record<string, AiChatMessage[]>
 
 type StoreSchema = {
   savedSessions: SavedSessionsState
   ai: AiSettings
+  terminalPrefs: TerminalPrefs
+  snippets: CommandSnippet[]
+  aiChatHistory: AiChatHistoryStore
 }
 
 /** 未配置过或缺字段时合并用；API Key 始终由用户在「AI 配置」中填写 */
@@ -32,7 +50,110 @@ export const AI_SETTINGS_DEFAULTS: AiSettings = {
   model: defaultModel,
   temperature: 0.1,
   sshParseInstructions: '',
-  useOpenClaw: true
+  useOpenClaw: true,
+  autoApproveLowRisk: false
+}
+
+function encryptJump(j: SshJumpHostOptions | undefined): SshJumpHostOptions | undefined {
+  if (!j) return undefined
+  const out: SshJumpHostOptions = {
+    host: j.host,
+    port: j.port,
+    username: j.username,
+    privateKeyPath: j.privateKeyPath
+  }
+  if (j.password) out.password = encryptOptional(j.password)
+  if (j.passphrase) out.passphrase = encryptOptional(j.passphrase)
+  return out
+}
+
+function decryptJump(j: SshJumpHostOptions | undefined): SshJumpHostOptions | undefined {
+  if (!j) return undefined
+  const out: SshJumpHostOptions = { ...j }
+  try {
+    if (out.password) out.password = decryptOptional(out.password)
+    if (out.passphrase) out.passphrase = decryptOptional(out.passphrase)
+  } catch (e) {
+    console.error('[app-store] failed to decrypt jump secrets:', e)
+    delete out.password
+    delete out.passphrase
+  }
+  return out
+}
+
+function encryptProfileSecrets(profile: SavedSessionProfile): SavedSessionProfile {
+  const row: SavedSessionProfile = { ...profile }
+  if (row.password) row.password = encryptOptional(row.password)
+  if (row.passphrase) row.passphrase = encryptOptional(row.passphrase)
+  if (row.jumpHost) row.jumpHost = encryptJump(row.jumpHost)
+  return row
+}
+
+function decryptProfileSecrets(profile: SavedSessionProfile): SavedSessionProfile {
+  const row: SavedSessionProfile = { ...profile }
+  try {
+    if (row.password) row.password = decryptOptional(row.password)
+    if (row.passphrase) row.passphrase = decryptOptional(row.passphrase)
+  } catch (e) {
+    console.error('[app-store] failed to decrypt session secrets:', e)
+    delete row.password
+    delete row.passphrase
+  }
+  if (row.jumpHost) row.jumpHost = decryptJump(row.jumpHost)
+  return row
+}
+
+function encryptAiSettings(settings: AiSettings): AiSettings {
+  return {
+    ...settings,
+    providers: settings.providers.map((p) => ({
+      ...p,
+      apiKey: p.apiKey ? encryptSecret(p.apiKey) : ''
+    }))
+  }
+}
+
+function decryptAiSettings(settings: AiSettings): AiSettings {
+  return {
+    ...settings,
+    providers: settings.providers.map((p) => {
+      try {
+        return { ...p, apiKey: p.apiKey ? decryptSecret(p.apiKey) : '' }
+      } catch (e) {
+        console.error('[app-store] failed to decrypt apiKey for provider', p.id, e)
+        return { ...p, apiKey: '' }
+      }
+    })
+  }
+}
+
+function normalizeForwards(raw: unknown): LocalPortForward[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined
+  const out: LocalPortForward[] = []
+  for (const x of raw) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    const localPort = typeof o.localPort === 'number' ? Math.floor(o.localPort) : NaN
+    const remotePort = typeof o.remotePort === 'number' ? Math.floor(o.remotePort) : NaN
+    const remoteHost = typeof o.remoteHost === 'string' ? o.remoteHost.trim() : ''
+    if (!remoteHost || !(localPort > 0 && localPort < 65536) || !(remotePort > 0 && remotePort < 65536)) continue
+    out.push({ localPort, remoteHost, remotePort })
+  }
+  return out.length ? out : undefined
+}
+
+function normalizeJump(raw: unknown): SshJumpHostOptions | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const o = raw as Record<string, unknown>
+  const host = typeof o.host === 'string' ? o.host.trim() : ''
+  const username = typeof o.username === 'string' ? o.username.trim() : ''
+  if (!host || !username) return undefined
+  const port = typeof o.port === 'number' && Number.isFinite(o.port) ? Math.floor(o.port) : 22
+  const jump: SshJumpHostOptions = { host, port: port > 0 ? port : 22, username }
+  if (typeof o.password === 'string' && o.password) jump.password = o.password
+  if (typeof o.privateKeyPath === 'string' && o.privateKeyPath.trim()) jump.privateKeyPath = o.privateKeyPath.trim()
+  if (typeof o.passphrase === 'string' && o.passphrase) jump.passphrase = o.passphrase
+  return jump
 }
 
 function normalizeAi(merged: AiSettings): AiSettings {
@@ -73,8 +194,6 @@ function normalizeAi(merged: AiSettings): AiSettings {
     ]
   }
 
-  // If legacy fields exist but we still have default providers injected from defaults,
-  // attempt a best-effort override for the default provider.
   if (legacyBaseURL && providers.length > 0) {
     const defaultProv = AI_SETTINGS_DEFAULTS.providers[0]
     const activeProvIdx = providers.findIndex((p) => p.id === defaultProv.id)
@@ -82,7 +201,6 @@ function normalizeAi(merged: AiSettings): AiSettings {
       const p0 = providers[activeProvIdx]!
       const isStillDefault =
         p0.baseURL === defaultProv.baseURL &&
-        // 典型情况下旧版首次升级时默认 Provider 的 apiKey 仍是空
         String(p0.apiKey ?? '') === String(defaultProv.apiKey ?? '')
       if (isStillDefault) {
         const legacyList = normalizeModelList(legacyModelList)
@@ -98,7 +216,6 @@ function normalizeAi(merged: AiSettings): AiSettings {
     }
   }
 
-  // Final fallback
   if (providers.length === 0) {
     providers = [...AI_SETTINGS_DEFAULTS.providers]
   }
@@ -140,15 +257,19 @@ function normalizeAi(merged: AiSettings): AiSettings {
     typeof anyMerged.useOpenClaw === 'boolean'
       ? anyMerged.useOpenClaw
       : (AI_SETTINGS_DEFAULTS.useOpenClaw ?? true)
+  const autoApproveLowRisk =
+    typeof anyMerged.autoApproveLowRisk === 'boolean'
+      ? anyMerged.autoApproveLowRisk
+      : (AI_SETTINGS_DEFAULTS.autoApproveLowRisk ?? false)
 
-  // Only return the new-shape fields to avoid keeping legacy keys around.
   return {
     providers,
     activeProviderId: normalizedActiveProviderId,
     model,
     temperature,
     sshParseInstructions,
-    useOpenClaw
+    useOpenClaw,
+    autoApproveLowRisk
   }
 }
 
@@ -177,6 +298,13 @@ function normalizeSavedSessionsRaw(raw: unknown): SavedSessionsState {
     if (typeof o.password === 'string' && o.password) row.password = o.password
     if (typeof o.privateKeyPath === 'string' && o.privateKeyPath.trim()) row.privateKeyPath = o.privateKeyPath.trim()
     if (typeof o.passphrase === 'string' && o.passphrase) row.passphrase = o.passphrase
+    const jump = normalizeJump(o.jumpHost)
+    if (jump) row.jumpHost = jump
+    const forwards = normalizeForwards(o.forwards)
+    if (forwards) row.forwards = forwards
+    if (typeof o.hostInventoryId === 'string' && o.hostInventoryId.trim()) {
+      row.hostInventoryId = o.hostInventoryId.trim()
+    }
     return row
   }
 
@@ -197,9 +325,47 @@ function normalizeSavedSessionsRaw(raw: unknown): SavedSessionsState {
   return { folders: [], profiles: [] }
 }
 
+function normalizeTerminalPrefs(raw: unknown): TerminalPrefs {
+  const d = TERMINAL_PREFS_DEFAULTS
+  if (!raw || typeof raw !== 'object') return { ...d }
+  const o = raw as Record<string, unknown>
+  const themeId =
+    o.themeId === 'github-dark' || o.themeId === 'solarized-dark' || o.themeId === 'monokai'
+      ? o.themeId
+      : d.themeId
+  const fontFamily = typeof o.fontFamily === 'string' && o.fontFamily.trim() ? o.fontFamily.trim() : d.fontFamily
+  const fontSize =
+    typeof o.fontSize === 'number' && Number.isFinite(o.fontSize)
+      ? Math.min(32, Math.max(10, Math.floor(o.fontSize)))
+      : d.fontSize
+  const scrollback =
+    typeof o.scrollback === 'number' && Number.isFinite(o.scrollback)
+      ? Math.min(50000, Math.max(500, Math.floor(o.scrollback)))
+      : d.scrollback
+  return { themeId, fontFamily, fontSize, scrollback }
+}
+
+function normalizeSnippets(raw: unknown): CommandSnippet[] {
+  if (!Array.isArray(raw)) return []
+  const out: CommandSnippet[] = []
+  for (const x of raw) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    const id = typeof o.id === 'string' && o.id.trim() ? o.id.trim() : null
+    const title = typeof o.title === 'string' && o.title.trim() ? o.title.trim() : null
+    const body = typeof o.body === 'string' ? o.body : null
+    if (!id || !title || body == null) continue
+    out.push({ id, title, body })
+  }
+  return out
+}
+
 const defaults: StoreSchema = {
   savedSessions: { folders: [], profiles: [] },
-  ai: { ...AI_SETTINGS_DEFAULTS }
+  ai: { ...AI_SETTINGS_DEFAULTS },
+  terminalPrefs: { ...TERMINAL_PREFS_DEFAULTS },
+  snippets: [],
+  aiChatHistory: {}
 }
 
 export const appStore = new Store<StoreSchema>({
@@ -207,27 +373,108 @@ export const appStore = new Store<StoreSchema>({
   defaults
 })
 
-/** 读取并（必要时）从旧版「仅数组」迁移为含分组结构 */
+/** 读取并（必要时）从旧版「仅数组」迁移为含分组结构；解密敏感字段供 UI 使用 */
 export function getSavedSessionsState(): SavedSessionsState {
   const raw = appStore.get('savedSessions') as unknown
   const next = normalizeSavedSessionsRaw(raw)
   if (Array.isArray(raw)) {
-    appStore.set('savedSessions', next)
+    appStore.set('savedSessions', {
+      folders: next.folders,
+      profiles: next.profiles.map(encryptProfileSecrets)
+    })
   }
-  return next
+  return {
+    folders: next.folders,
+    profiles: next.profiles.map(decryptProfileSecrets)
+  }
 }
 
 export function setSavedSessionsState(state: SavedSessionsState): void {
-  appStore.set('savedSessions', state)
+  appStore.set('savedSessions', {
+    folders: state.folders,
+    profiles: state.profiles.map(encryptProfileSecrets)
+  })
 }
 
 export function getAiSettings(): AiSettings {
   const stored = appStore.get('ai')
-  return normalizeAi({ ...AI_SETTINGS_DEFAULTS, ...stored })
+  const normalized = normalizeAi({ ...AI_SETTINGS_DEFAULTS, ...stored })
+  return decryptAiSettings(normalized)
 }
 
 export function setAiSettings(partial: Partial<AiSettings>): void {
   const cur = getAiSettings()
   const next = normalizeAi({ ...cur, ...partial })
-  appStore.set('ai', next)
+  appStore.set('ai', encryptAiSettings(next))
+}
+
+export function getTerminalPrefs(): TerminalPrefs {
+  return normalizeTerminalPrefs(appStore.get('terminalPrefs'))
+}
+
+export function setTerminalPrefs(partial: Partial<TerminalPrefs>): TerminalPrefs {
+  const next = normalizeTerminalPrefs({ ...getTerminalPrefs(), ...partial })
+  appStore.set('terminalPrefs', next)
+  return next
+}
+
+export function getSnippets(): CommandSnippet[] {
+  return normalizeSnippets(appStore.get('snippets'))
+}
+
+export function setSnippets(list: CommandSnippet[]): void {
+  appStore.set('snippets', normalizeSnippets(list))
+}
+
+export function getAiChatHistory(key: string): AiChatMessage[] {
+  const k = key.trim()
+  if (!k) return []
+  const all = appStore.get('aiChatHistory') ?? {}
+  const rows = all[k]
+  if (!Array.isArray(rows)) return []
+  return rows
+    .filter((m) => m && typeof m === 'object' && (m.role === 'user' || m.role === 'assistant' || m.role === 'system'))
+    .map((m) => ({ role: m.role, content: String(m.content ?? '') }))
+    .slice(-200)
+}
+
+export function setAiChatHistory(key: string, messages: AiChatMessage[]): void {
+  const k = key.trim()
+  if (!k) return
+  const all = { ...(appStore.get('aiChatHistory') ?? {}) }
+  const cleaned = messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({ role: m.role, content: String(m.content ?? '').slice(0, 20000) }))
+    .slice(-200)
+  if (cleaned.length === 0) delete all[k]
+  else all[k] = cleaned
+  appStore.set('aiChatHistory', all)
+}
+
+/** 一次性把磁盘上的明文密码 / API Key 升级为加密存储（启动时调用） */
+export function migratePlaintextSecretsToEncrypted(): void {
+  try {
+    const rawSessions = normalizeSavedSessionsRaw(appStore.get('savedSessions') as unknown)
+    let sessionsDirty = false
+    const encryptedProfiles = rawSessions.profiles.map((p) => {
+      const needs =
+        (p.password && !isEncryptedSecret(p.password)) ||
+        (p.passphrase && !isEncryptedSecret(p.passphrase)) ||
+        (p.jumpHost?.password && !isEncryptedSecret(p.jumpHost.password)) ||
+        (p.jumpHost?.passphrase && !isEncryptedSecret(p.jumpHost.passphrase))
+      if (needs) sessionsDirty = true
+      return encryptProfileSecrets(decryptProfileSecrets(p))
+    })
+    if (sessionsDirty) {
+      appStore.set('savedSessions', { folders: rawSessions.folders, profiles: encryptedProfiles })
+    }
+
+    const rawAi = normalizeAi({ ...AI_SETTINGS_DEFAULTS, ...appStore.get('ai') })
+    const needsAi = rawAi.providers.some((p) => p.apiKey && !isEncryptedSecret(p.apiKey))
+    if (needsAi) {
+      appStore.set('ai', encryptAiSettings(decryptAiSettings(rawAi)))
+    }
+  } catch (e) {
+    console.error('[app-store] migratePlaintextSecretsToEncrypted failed:', e)
+  }
 }

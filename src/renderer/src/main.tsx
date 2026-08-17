@@ -2,7 +2,14 @@ import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import AiDebugWindowApp from './components/AiDebugWindowApp'
+import { applyUiTheme, loadUiThemeId } from './lib/ui-themes'
 import './styles.css'
+
+try {
+  applyUiTheme(loadUiThemeId())
+} catch {
+  /* ignore */
+}
 
 function isDebugWindow(): boolean {
   if (typeof window === 'undefined') return false
@@ -20,6 +27,9 @@ function AppGate(): React.ReactElement {
   const [diag, setDiag] = useState('')
 
   useEffect(() => {
+    const ua = navigator.userAgent
+    const plat = /Mac/i.test(ua) ? 'darwin' : /Win/i.test(ua) ? 'win32' : 'linux'
+    document.body.classList.add(`platform-${plat}`)
     const w = window as unknown as { aiss?: unknown }
     const href = typeof window !== 'undefined' ? window.location.href : ''
     const line = `[renderer] mount: window.aiss = ${w.aiss === undefined ? 'undefined' : typeof w.aiss}`

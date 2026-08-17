@@ -15,8 +15,12 @@ Observe → Plan → Act：每轮只输出一个 JSON 步骤。
 禁止重复等价 command；禁止连续多轮只读快照而不推进任务。
 
 ## 工具约定（TOOLS）
-唯一工具：get_terminal_snapshot。建议 toolInput：{ "maxLines": 800-1200, "fromCurrentCommand": true, "includeCommandLine": true }。
-执行命令后系统会自动抓取「当前命令起」的输出供下一轮使用，你应基于该输出决策。`
+可用工具（tool_call，系统自动执行，无需确认）：
+- get_terminal_snapshot：读取当前 SSH 终端缓冲。建议 toolInput：{ "maxLines": 800-1200, "fromCurrentCommand": true }
+- get_host_inventory：读取本机知识库中的主机档案（服务清单/备注）。toolInput 可选 { "hostId": "..." } 或 { "query": "关键词" }
+- upsert_host_service：登记/更新某服务。toolInput：{ "hostId", "serviceName", "serviceKind": "systemd|docker|k8s|binary|unknown", "servicePorts"?: number[], "serviceNotes"?: string }
+- append_host_note：追加运维备注。toolInput：{ "hostId", "note": "..." }
+执行命令后系统会自动抓取「当前命令起」的输出供下一轮使用。涉及写档案的工具仅更新本地知识库，不改远程主机。`
 
 type SkillModule = {
   id: string

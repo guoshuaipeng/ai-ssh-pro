@@ -1,5 +1,41 @@
-/** 主菜单 / 工具栏打开的对话框类型 */
-export type AppDialogKind = 'connection' | 'ai' | 'debug'
+/** 主菜单 / 工具栏打开的对话框或会话管理命令 */
+export type AppDialogKind =
+  | 'connection'
+  | 'ai'
+  | 'debug'
+  | 'terminalPrefs'
+  | 'uiTheme'
+  | 'snippets'
+  | 'inventory'
+  | 'newFolder'
+  | 'importSessions'
+  | 'exportJson'
+  | 'exportOpenssh'
+  | 'toggleSidebar'
+  | 'toggleMain'
+  | 'toggleAi'
+  | 'localShell'
+  | 'sftp'
+  | 'refreshDocker'
+  | 'toggleSplit'
+  | 'toggleBroadcast'
+  | 'toggleRecording'
+
+/** 跳板机认证（与目标主机字段同形，不含再嵌套 jump） */
+export type SshJumpHostOptions = {
+  host: string
+  port?: number
+  username: string
+  password?: string
+  privateKeyPath?: string
+  passphrase?: string
+}
+
+export type LocalPortForward = {
+  localPort: number
+  remoteHost: string
+  remotePort: number
+}
 
 export type SessionMeta = {
   host: string
@@ -9,6 +45,8 @@ export type SessionMeta = {
   connectedAt: number
   termCols: number
   termRows: number
+  /** 本地 Shell 标签 */
+  kind?: 'ssh' | 'local'
 }
 
 export type SshConnectOptions = {
@@ -21,6 +59,10 @@ export type SshConnectOptions = {
   label?: string
   termCols?: number
   termRows?: number
+  /** ProxyJump / bastion */
+  jumpHost?: SshJumpHostOptions
+  /** 本地端口转发（连接成功后建立） */
+  forwards?: LocalPortForward[]
 }
 
 export type SshConnectResult = {
@@ -30,13 +72,46 @@ export type SshConnectResult = {
 
 export type SshDataEvent = {
   sessionId: string
-  chunk: string
+  /**
+   * SSH 会话可能为二进制（Zmodem）；本机 shell 一般为 UTF-8 字符串。
+   * Electron IPC 会把 Buffer 编成 Uint8Array。
+   */
+  chunk: string | Uint8Array
+}
+
+export type SftpProgressEvent = {
+  transferId: string
+  sessionId: string
+  direction: 'upload' | 'download'
+  name: string
+  transferred: number
+  total: number
+  done?: boolean
+  error?: string
 }
 
 export type SshStatusEvent = {
   sessionId: string
   status: 'connected' | 'error' | 'closed'
   message?: string
+}
+
+/** 首次连接或主机密钥变更时，主进程推送给渲染进程的确认请求 */
+export type SshHostKeyPromptEvent = {
+  requestId: string
+  host: string
+  port: number
+  fingerprint: string
+  reason: 'unknown' | 'changed'
+  previousFingerprint?: string
+}
+
+export type SshHostKeyRespondPayload = {
+  requestId: string
+  /** 是否接受本次连接 */
+  accept: boolean
+  /** 接受时是否永久信任并写入 known_hosts */
+  alwaysTrust?: boolean
 }
 
 export type SshSnapshotOptions = {
@@ -46,6 +121,71 @@ export type SshSnapshotOptions = {
   fromCurrentCommand?: boolean
   /** fromCurrentCommand=true 时，是否包含命令行文本（默认 true） */
   includeCommandLine?: boolean
+}
+
+export type DockerContainer = {
+  id: string
+  name: string
+  image: string
+  state: string
+  status: string
+  shortStatus: string
+  ports: string
+  createdAt?: string
+  /** com.docker.compose.project */
+  composeProject?: string
+  /** com.docker.compose.service */
+  composeService?: string
+  /** com.docker.swarm.service.name — Swarm 任务容器 */
+  swarmService?: string
+}
+
+export type DockerComposeProject = {
+  name: string
+  status?: string
+  configFiles?: string
+  /** 属于该 compose 项目的容器 */
+  containers: DockerContainer[]
+}
+
+export type DockerComposeService = {
+  name: string
+  id?: string
+  state: string
+  status: string
+  shortStatus: string
+}
+
+export type DockerTreeResult = {
+  /** 不属于任何 compose 项目的独立容器 */
+  containers: DockerContainer[]
+  composeProjects: DockerComposeProject[]
+  containersError?: string
+  composeError?: string
+}
+
+export type DockerContainerAction = 'start' | 'stop' | 'restart' | 'rm'
+export type DockerComposeAction = 'up' | 'down'
+
+export type SftpListEntry = {
+  name: string
+  path: string
+  isDirectory: boolean
+  size: number
+  modifyTime?: number
+}
+
+export type SftpListResult = {
+  path: string
+  entries: SftpListEntry[]
+}
+
+export type SftpReadTextResult = {
+  path: string
+  content: string
+  size: number
+  truncated: boolean
+  encoding: 'utf-8'
 }
 
 export type SavedSessionFolder = {
@@ -65,6 +205,10 @@ export type SavedSessionProfile = {
   passphrase?: string
   /** 所属分组 id；缺省表示未分组（根目录） */
   folderId?: string
+  jumpHost?: SshJumpHostOptions
+  forwards?: LocalPortForward[]
+  /** 关联主机知识库档案 id */
+  hostInventoryId?: string
 }
 
 /** 侧栏已保存会话与分组（持久化） */
@@ -82,12 +226,31 @@ export type ImportedSessionDraft = {
   password?: string
   privateKeyPath?: string
   passphrase?: string
+  jumpHost?: SshJumpHostOptions
+  forwards?: LocalPortForward[]
 }
 
 export type SessionImportPickResult = {
   items: ImportedSessionDraft[]
   /** 人类可读提示，如跳过原因 */
   notes: string[]
+}
+
+export type SessionExportFormat = 'json' | 'openssh'
+
+export type CommandSnippet = {
+  id: string
+  title: string
+  body: string
+}
+
+export type TerminalThemeId = 'github-dark' | 'solarized-dark' | 'monokai'
+
+export type TerminalPrefs = {
+  themeId: TerminalThemeId
+  fontFamily: string
+  fontSize: number
+  scrollback: number
 }
 
 export type AiChatMessage = {
@@ -101,6 +264,12 @@ export type AiChatPayload = {
   terminalExcerpt?: string
   /** 渲染进程为本轮用户提问生成的 ID，用于调试面板聚合 request/response */
   debugTurnId?: string
+  /** 用于持久化历史的稳定键（如 saved profile id） */
+  historyKey?: string
+  /** 主机知识库 id（优先） */
+  hostInventoryId?: string
+  /** 用于查找档案的连接信息 */
+  inventoryLookup?: { host?: string; port?: number; profileId?: string }
 }
 
 export type AiStreamEvent =
@@ -109,10 +278,12 @@ export type AiStreamEvent =
   | {
       type: 'step'
       /**
-       * 当 action 为 tool_call / command 时，主进程会先把这一步展示给用户，
-       * 然后等待用户确认后继续；此 requestId 用于用户在 UI 点击后回传给主进程。
+       * 仅当 action=command 时由主进程生成：需用户确认后才执行。
+       * tool_call(get_terminal_snapshot) 由系统自动执行，不会带 requestId。
+       * 低风险自动批准时也可能不带 requestId，并带 autoApproved。
        */
       requestId?: string
+      autoApproved?: boolean
       structured: AiAssistantReply
     }
   | { type: 'done' }
@@ -152,6 +323,8 @@ export type AiSettings = {
    * 为 false 时仅用上方 Provider 直连模型。
    */
   useOpenClaw?: boolean
+  /** riskLevel=low 的 command 自动执行，无需确认 */
+  autoApproveLowRisk?: boolean
 }
 
 export type AiAssistantAction = 'tool_call' | 'command' | 'end'
@@ -165,32 +338,33 @@ export type AiGetTerminalSnapshotInput = {
   includeCommandLine?: boolean
 }
 
+/** tool_call 通用输入（终端快照 + 主机知识库工具） */
+export type AiToolInput = AiGetTerminalSnapshotInput & {
+  hostId?: string
+  query?: string
+  note?: string
+  serviceName?: string
+  serviceKind?: string
+  servicePorts?: number[]
+  serviceNotes?: string
+}
+
 /** AI 助手单轮回复（模型应仅输出 JSON，解析成功后用于展示与“下一步动作”） */
 export type AiAssistantReply = {
   /** 面向用户的说明与结论 */
   description: string
   /**
-   * 下一步要做什么（且都需要用户同意/确认后执行）：
-   * - tool_call：请求 UI 调用指定工具（本项目当前主要是 get_terminal_snapshot）
-   * - command：请求 UI 在终端执行指定命令
+   * 下一步要做什么：
+   * - tool_call：读取终端快照 / 主机档案等（多数自动执行）
+   * - command：在终端执行命令（必须用户确认，除非低风险自动批准）
    * - end：任务完成，无需再执行下一步
    */
   action: AiAssistantAction
-  /**
-   * 是否已完成当前任务。
-   * - true：action=end 的含义（或任务已满足，后续可停止）
-   * - false：需要继续执行/轮询
-   */
   completed?: boolean
-  /** 工具名；当 action=tool_call 时建议给出具体工具名，例如 get_terminal_snapshot */
   toolName?: string
-  /** 工具输入参数；当 action=tool_call 时建议给出可选的参数 */
-  toolInput?: AiGetTerminalSnapshotInput
-  /** 建议执行的完整命令；单行，勿含换行 */
+  toolInput?: AiToolInput
   command?: string
-  /** 风险等级，如 low / medium / high */
   riskLevel: string
-  /** 补充注意点、回滚或确认项 */
   notes?: string
 }
 
@@ -242,7 +416,7 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
           ? 'command'
           : 'end'
     const toolName = typeof obj.toolName === 'string' && obj.toolName.trim() ? obj.toolName.trim() : undefined
-    let toolInput: AiGetTerminalSnapshotInput | undefined
+    let toolInput: AiToolInput | undefined
     if (obj.toolInput && typeof obj.toolInput === 'object' && !Array.isArray(obj.toolInput)) {
       const o = obj.toolInput as Record<string, unknown>
       const mi = o.maxLines
@@ -254,6 +428,30 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
       }
       if (typeof o.includeCommandLine === 'boolean') {
         toolInput = { ...(toolInput ?? {}), includeCommandLine: o.includeCommandLine }
+      }
+      if (typeof o.hostId === 'string' && o.hostId.trim()) {
+        toolInput = { ...(toolInput ?? {}), hostId: o.hostId.trim() }
+      }
+      if (typeof o.query === 'string' && o.query.trim()) {
+        toolInput = { ...(toolInput ?? {}), query: o.query.trim() }
+      }
+      if (typeof o.note === 'string' && o.note.trim()) {
+        toolInput = { ...(toolInput ?? {}), note: o.note.trim() }
+      }
+      if (typeof o.serviceName === 'string' && o.serviceName.trim()) {
+        toolInput = { ...(toolInput ?? {}), serviceName: o.serviceName.trim() }
+      }
+      if (typeof o.serviceKind === 'string' && o.serviceKind.trim()) {
+        toolInput = { ...(toolInput ?? {}), serviceKind: o.serviceKind.trim() }
+      }
+      if (typeof o.serviceNotes === 'string' && o.serviceNotes.trim()) {
+        toolInput = { ...(toolInput ?? {}), serviceNotes: o.serviceNotes.trim() }
+      }
+      if (Array.isArray(o.servicePorts)) {
+        const ports = o.servicePorts
+          .map((p) => (typeof p === 'number' ? Math.floor(p) : NaN))
+          .filter((p) => p > 0 && p < 65536)
+        if (ports.length) toolInput = { ...(toolInput ?? {}), servicePorts: ports }
       }
     }
     let command: string | undefined
@@ -288,4 +486,11 @@ export type AiParsedSshForm = {
   passphrase?: string
   /** 未能归入字段的说明 */
   notes?: string
+}
+
+export const TERMINAL_PREFS_DEFAULTS: TerminalPrefs = {
+  themeId: 'github-dark',
+  fontFamily: 'Cascadia Code, Consolas, "Courier New", monospace',
+  fontSize: 14,
+  scrollback: 4000
 }

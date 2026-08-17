@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { WebContents } from 'electron'
-import { Client, type ClientChannel } from 'ssh2'
+import { Client, type ClientChannel, type ConnectConfig } from 'ssh2'
 import { randomUUID } from 'node:crypto'
 import type {
   SshConnectOptions,
@@ -11,13 +11,21 @@ import type {
   SessionMeta,
   SshDataEvent,
   SshStatusEvent,
-  SshSnapshotOptions
+  SshSnapshotOptions,
+  SshJumpHostOptions
 } from '../shared/ipc'
 import { RingBuffer } from './ring-buffer'
+import { checkHostKey, trustHostKey } from './known-hosts'
+import { promptHostKey } from './host-key-prompt'
+import { startLocalPortForwards } from './port-forward'
+import { appendRecording } from './session-recorder'
+import { assertSafeDockerId } from './docker-manager'
 
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
 const RING_MAX_LINES = 4000
+const KEEPALIVE_INTERVAL_MS = 15_000
+const KEEPALIVE_COUNT_MAX = 3
 
 /** 与 OpenSSH 类似：未指定私钥时尝试默认路径（仅在没有密码时） */
 const DEFAULT_PRIVATE_KEY_NAMES = ['id_ed25519', 'id_rsa', 'id_ecdsa'] as const
@@ -36,6 +44,124 @@ async function tryReadDefaultPrivateKey(): Promise<Buffer | null> {
   return null
 }
 
+type AuthFields = {
+  password?: string
+  privateKeyPath?: string
+  passphrase?: string
+}
+
+async function applyAuth(
+  connectConfig: ConnectConfig,
+  auth: AuthFields,
+  opts: { allowDefaultKey: boolean }
+): Promise<void> {
+  if (auth.password) {
+    connectConfig.password = auth.password
+  }
+  if (auth.privateKeyPath?.trim()) {
+    const keyPath = auth.privateKeyPath.trim()
+    connectConfig.privateKey = await readFile(keyPath)
+    if (auth.passphrase) {
+      connectConfig.passphrase = auth.passphrase
+    }
+  } else if (!auth.password && opts.allowDefaultKey) {
+    const fallbackKey = await tryReadDefaultPrivateKey()
+    if (fallbackKey) {
+      connectConfig.privateKey = fallbackKey
+      if (auth.passphrase) {
+        connectConfig.passphrase = auth.passphrase
+      }
+    }
+  }
+}
+
+function makeHostVerifier(
+  owner: WebContents,
+  host: string,
+  port: number
+): ConnectConfig['hostVerifier'] {
+  return (key: Buffer, verify: (ok: boolean) => void) => {
+    void (async () => {
+      try {
+        const result = checkHostKey(host, port, key)
+        if (result.status === 'trusted') {
+          verify(true)
+          return
+        }
+
+        const decision = await promptHostKey(owner, {
+          host,
+          port,
+          fingerprint: result.fingerprint,
+          reason: result.status,
+          previousFingerprint: result.status === 'changed' ? result.previousFingerprint : undefined
+        })
+
+        if (!decision.accept) {
+          verify(false)
+          return
+        }
+
+        if (decision.alwaysTrust) {
+          trustHostKey(host, port, key)
+        }
+        verify(true)
+      } catch (e) {
+        console.error('[ssh] hostVerifier error:', e)
+        verify(false)
+      }
+    })()
+  }
+}
+
+function connectClient(client: Client, config: ConnectConfig): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const fail = (err: Error) => {
+      if (settled) return
+      settled = true
+      reject(err)
+    }
+    const ok = () => {
+      if (settled) return
+      settled = true
+      resolve()
+    }
+
+    client.once('ready', ok)
+    client.once('error', (err) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/verification failed|host key/i.test(msg)) {
+        fail(new Error('主机密钥未通过验证（已取消连接或指纹不匹配）'))
+        return
+      }
+      fail(err instanceof Error ? err : new Error(String(err)))
+    })
+
+    try {
+      client.connect(config)
+    } catch (e) {
+      fail(e instanceof Error ? e : new Error(String(e)))
+    }
+  })
+}
+
+function forwardOutToTarget(
+  jumpClient: Client,
+  targetHost: string,
+  targetPort: number
+): Promise<import('stream').Duplex> {
+  return new Promise((resolve, reject) => {
+    jumpClient.forwardOut('127.0.0.1', 0, targetHost, targetPort, (err, stream) => {
+      if (err || !stream) {
+        reject(err ?? new Error('跳板机无法转发到目标主机'))
+        return
+      }
+      resolve(stream)
+    })
+  })
+}
+
 export type ManagedSession = {
   sessionId: string
   meta: SessionMeta
@@ -45,6 +171,12 @@ export type ManagedSession = {
   owner: WebContents
   commandMarkers: Array<{ command: string; at: number; lineCount: number }>
   pendingInput: string
+  /** 用于重连；含认证信息，仅存内存 */
+  connectOpts: SshConnectOptions
+  jumpClient?: Client
+  forwardCleanups: Array<() => void>
+  /** false：复用父会话 Client（如 docker exec），断开时不 end 父连接 */
+  ownsClient: boolean
 }
 
 export class SshSessionManager {
@@ -52,6 +184,11 @@ export class SshSessionManager {
 
   get(sessionId: string): ManagedSession | undefined {
     return this.sessions.get(sessionId)
+  }
+
+  /** 供 SFTP 等复用同一会话的 ssh2 Client（目标机） */
+  getClient(sessionId: string): Client | undefined {
+    return this.sessions.get(sessionId)?.client
   }
 
   listMeta(): SessionMeta[] {
@@ -70,8 +207,6 @@ export class SshSessionManager {
     if (!last) return s.ring.getSnapshot(maxLines)
     const body = s.ring.getSnapshotFromAbsoluteLine(last.lineCount, maxLines)
     if (!body.trim()) {
-      // Fallback: when command boundary has no newline-terminated output yet,
-      // return a broader latest snapshot to avoid false "empty" tool results.
       const fallback = s.ring.getSnapshot(maxLines)
       if (fallback.trim()) return fallback
     }
@@ -105,6 +240,38 @@ export class SshSessionManager {
     }
   }
 
+  private runForwardCleanups(s: ManagedSession): void {
+    const cleanups = s.forwardCleanups.splice(0, s.forwardCleanups.length)
+    for (const fn of cleanups) {
+      try {
+        fn()
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  private endClients(s: Pick<ManagedSession, 'client' | 'jumpClient'>): void {
+    try {
+      s.client.end()
+    } catch {
+      /* ignore */
+    }
+    if (s.jumpClient) {
+      try {
+        s.jumpClient.end()
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  private teardownSession(sessionId: string, s: ManagedSession): void {
+    this.runForwardCleanups(s)
+    if (s.ownsClient) this.endClients(s)
+    this.sessions.delete(sessionId)
+  }
+
   async connect(opts: SshConnectOptions, owner: WebContents): Promise<SshConnectResult> {
     const host = opts.host.trim()
     const port = opts.port ?? 22
@@ -118,7 +285,6 @@ export class SshSessionManager {
     const sessionId = randomUUID()
     const connectedAt = Date.now()
 
-    const client = new Client()
     const meta: SessionMeta = {
       host,
       port,
@@ -129,130 +295,201 @@ export class SshSessionManager {
       termRows: rows
     }
 
-    const connectConfig: Parameters<Client['connect']>[0] = {
-      host,
-      port,
-      username,
-      readyTimeout: 20000
-    }
+    const jump = opts.jumpHost
+    let jumpClient: Client | undefined
+    const targetClient = new Client()
 
-    if (opts.password) {
-      connectConfig.password = opts.password
-    }
-    if (opts.privateKeyPath?.trim()) {
-      const keyPath = opts.privateKeyPath.trim()
-      connectConfig.privateKey = await readFile(keyPath)
-      if (opts.passphrase) {
-        connectConfig.passphrase = opts.passphrase
+    const failCleanup = () => {
+      try {
+        targetClient.end()
+      } catch {
+        /* ignore */
       }
-    } else if (!opts.password) {
-      const fallbackKey = await tryReadDefaultPrivateKey()
-      if (fallbackKey) {
-        connectConfig.privateKey = fallbackKey
-        if (opts.passphrase) {
-          connectConfig.passphrase = opts.passphrase
-        }
-      }
-    }
-
-    if (!connectConfig.password && !connectConfig.privateKey) {
-      throw new Error(
-        '请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）'
-      )
-    }
-
-    return await new Promise<SshConnectResult>((resolve, reject) => {
-      const fail = (err: Error) => {
+      if (jumpClient) {
         try {
-          client.end()
+          jumpClient.end()
         } catch {
           /* ignore */
         }
+      }
+    }
+
+    try {
+      if (jump?.host?.trim() && jump.username?.trim()) {
+        const jHost = jump.host.trim()
+        const jPort = jump.port ?? 22
+        const jUser = jump.username.trim()
+        jumpClient = new Client()
+
+        const jumpConfig: ConnectConfig = {
+          host: jHost,
+          port: jPort,
+          username: jUser,
+          readyTimeout: 20000,
+          keepaliveInterval: KEEPALIVE_INTERVAL_MS,
+          keepaliveCountMax: KEEPALIVE_COUNT_MAX,
+          hostVerifier: makeHostVerifier(owner, jHost, jPort)
+        }
+        await applyAuth(jumpConfig, jump as SshJumpHostOptions, { allowDefaultKey: true })
+        if (!jumpConfig.password && !jumpConfig.privateKey) {
+          throw new Error(
+            '跳板机请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置默认私钥'
+          )
+        }
+        await connectClient(jumpClient, jumpConfig)
+
+        const sock = await forwardOutToTarget(jumpClient, host, port)
+
+        const targetConfig: ConnectConfig = {
+          sock,
+          username,
+          readyTimeout: 20000,
+          keepaliveInterval: KEEPALIVE_INTERVAL_MS,
+          keepaliveCountMax: KEEPALIVE_COUNT_MAX,
+          hostVerifier: makeHostVerifier(owner, host, port)
+        }
+        await applyAuth(targetConfig, opts, { allowDefaultKey: true })
+        if (!targetConfig.password && !targetConfig.privateKey) {
+          throw new Error(
+            '请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）'
+          )
+        }
+        await connectClient(targetClient, targetConfig)
+      } else {
+        const connectConfig: ConnectConfig = {
+          host,
+          port,
+          username,
+          readyTimeout: 20000,
+          keepaliveInterval: KEEPALIVE_INTERVAL_MS,
+          keepaliveCountMax: KEEPALIVE_COUNT_MAX,
+          hostVerifier: makeHostVerifier(owner, host, port)
+        }
+        await applyAuth(connectConfig, opts, { allowDefaultKey: true })
+        if (!connectConfig.password && !connectConfig.privateKey) {
+          throw new Error(
+            '请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）'
+          )
+        }
+        await connectClient(targetClient, connectConfig)
+      }
+    } catch (e) {
+      failCleanup()
+      throw e instanceof Error ? e : new Error(String(e))
+    }
+
+    const normalizedOpts: SshConnectOptions = {
+      ...opts,
+      host,
+      port,
+      username,
+      termCols: cols,
+      termRows: rows
+    }
+
+    return await new Promise<SshConnectResult>((resolve, reject) => {
+      let settled = false
+      const fail = (err: Error) => {
+        if (settled) return
+        settled = true
+        failCleanup()
         reject(err)
       }
 
-      client.on('error', (err) => {
-        fail(err instanceof Error ? err : new Error(String(err)))
-      })
+      targetClient.shell(
+        {
+          cols,
+          rows,
+          term: 'xterm-256color'
+        },
+        (err, stream) => {
+          if (err || !stream) {
+            fail(err ?? new Error('无法打开 shell'))
+            return
+          }
 
-      client.on('ready', () => {
-        client.shell(
-          {
-            cols,
-            rows,
-            term: 'xterm-256color'
-          },
-          (err, stream) => {
-            if (err || !stream) {
-              fail(err ?? new Error('无法打开 shell'))
-              return
-            }
+          const ring = new RingBuffer(RING_MAX_LINES)
+          const forwardCleanups: Array<() => void> = []
 
-            const ring = new RingBuffer(RING_MAX_LINES)
+          const session: ManagedSession = {
+            sessionId,
+            meta,
+            client: targetClient,
+            stream,
+            ring,
+            owner,
+            commandMarkers: [],
+            pendingInput: '',
+            connectOpts: normalizedOpts,
+            jumpClient,
+            forwardCleanups,
+            ownsClient: true
+          }
 
-            stream.on('data', (buf: Buffer) => {
-              const chunk = buf.toString('utf8')
-              ring.appendUtf8(chunk)
-              if (!owner.isDestroyed()) {
-                const payload: SshDataEvent = { sessionId, chunk }
-                owner.send('ssh:data', payload)
-              }
-            })
-
-            stream.on('close', () => {
-              ring.flushPartial()
-              if (!owner.isDestroyed()) {
-                const st: SshStatusEvent = { sessionId, status: 'closed' }
-                owner.send('ssh:status', st)
-              }
-              this.sessions.delete(sessionId)
-              try {
-                client.end()
-              } catch {
-                /* ignore */
-              }
-            })
-
-            stream.stderr?.on('data', (buf: Buffer) => {
-              const chunk = buf.toString('utf8')
-              ring.appendUtf8(chunk)
-              if (!owner.isDestroyed()) {
-                owner.send('ssh:data', { sessionId, chunk })
-              }
-            })
-
-            this.sessions.set(sessionId, {
-              sessionId,
-              meta,
-              client,
-              stream,
-              ring,
-              owner,
-              commandMarkers: [],
-              pendingInput: ''
-            })
-
+          stream.on('data', (buf: Buffer) => {
+            const asText = buf.toString('utf8')
+            ring.appendUtf8(asText)
+            appendRecording(sessionId, asText)
             if (!owner.isDestroyed()) {
-              owner.send('ssh:status', {
-                sessionId,
-                status: 'connected'
-              })
+              const payload: SshDataEvent = { sessionId, chunk: buf }
+              owner.send('ssh:data', payload)
             }
+          })
 
+          stream.on('close', () => {
+            ring.flushPartial()
+            if (!owner.isDestroyed()) {
+              const st: SshStatusEvent = { sessionId, status: 'closed', message: '连接已断开' }
+              owner.send('ssh:status', st)
+            }
+            this.teardownSession(sessionId, session)
+          })
+
+          stream.stderr?.on('data', (buf: Buffer) => {
+            const asText = buf.toString('utf8')
+            ring.appendUtf8(asText)
+            appendRecording(sessionId, asText)
+            if (!owner.isDestroyed()) {
+              owner.send('ssh:data', { sessionId, chunk: buf })
+            }
+          })
+
+          // 目标机 ready 后建立本地端口转发
+          if (opts.forwards?.length) {
+            try {
+              const cleanups = startLocalPortForwards(targetClient, opts.forwards)
+              forwardCleanups.push(...cleanups)
+            } catch (e) {
+              console.error('[ssh] port forwards failed:', e)
+            }
+          }
+
+          this.sessions.set(sessionId, session)
+
+          if (!owner.isDestroyed()) {
+            owner.send('ssh:status', {
+              sessionId,
+              status: 'connected'
+            })
+          }
+
+          if (!settled) {
+            settled = true
             resolve({ sessionId, meta })
           }
-        )
-      })
-
-      client.connect(connectConfig)
+        }
+      )
     })
   }
 
-  write(sessionId: string, data: string): boolean {
+  write(sessionId: string, data: string | Uint8Array): boolean {
     const s = this.sessions.get(sessionId)
     if (!s) return false
-    this.trackWriteCommand(s, data)
-    return s.stream.write(data)
+    if (typeof data === 'string') {
+      this.trackWriteCommand(s, data)
+      return s.stream.write(data)
+    }
+    return s.stream.write(Buffer.from(data))
   }
 
   resize(sessionId: string, cols: number, rows: number): boolean {
@@ -273,16 +510,134 @@ export class SshSessionManager {
   disconnect(sessionId: string): void {
     const s = this.sessions.get(sessionId)
     if (!s) return
+    this.runForwardCleanups(s)
     try {
       s.stream.close()
     } catch {
       /* ignore */
     }
-    try {
-      s.client.end()
-    } catch {
-      /* ignore */
-    }
+    if (s.ownsClient) this.endClients(s)
     this.sessions.delete(sessionId)
+  }
+
+  /**
+   * 在已连接 SSH 上打开 docker exec 交互终端（复用同一 Client，不新建 TCP）。
+   */
+  async openDockerExec(
+    parentSessionId: string,
+    containerId: string,
+    owner: WebContents,
+    opts?: { termCols?: number; termRows?: number; label?: string }
+  ): Promise<SshConnectResult> {
+    const parent = this.sessions.get(parentSessionId)
+    if (!parent) throw new Error('父 SSH 会话不存在或未连接')
+
+    const id = assertSafeDockerId(containerId, '容器')
+    const cols = opts?.termCols ?? parent.meta.termCols ?? DEFAULT_COLS
+    const rows = opts?.termRows ?? parent.meta.termRows ?? DEFAULT_ROWS
+    const sessionId = randomUUID()
+    const label =
+      opts?.label?.trim() ||
+      `docker exec ${id.slice(0, 12)}`
+    const meta: SessionMeta = {
+      host: parent.meta.host,
+      port: parent.meta.port,
+      username: parent.meta.username,
+      label,
+      connectedAt: Date.now(),
+      termCols: cols,
+      termRows: rows
+    }
+
+    // Prefer bash, fall back to sh; -i keeps a login-ish interactive shell.
+    const remoteCmd = `docker exec -it ${id} sh -lc 'if command -v bash >/dev/null 2>&1; then exec bash -i; else exec sh -i; fi'`
+
+    return await new Promise<SshConnectResult>((resolve, reject) => {
+      let settled = false
+      const fail = (err: Error) => {
+        if (settled) return
+        settled = true
+        reject(err)
+      }
+
+      parent.client.exec(
+        remoteCmd,
+        {
+          pty: {
+            term: 'xterm-256color',
+            cols,
+            rows
+          }
+        },
+        (err, stream) => {
+          if (err || !stream) {
+            fail(err ?? new Error('无法打开 docker exec'))
+            return
+          }
+
+          const ring = new RingBuffer(RING_MAX_LINES)
+          const session: ManagedSession = {
+            sessionId,
+            meta,
+            client: parent.client,
+            stream,
+            ring,
+            owner,
+            commandMarkers: [],
+            pendingInput: '',
+            connectOpts: parent.connectOpts,
+            jumpClient: undefined,
+            forwardCleanups: [],
+            ownsClient: false
+          }
+
+          stream.on('data', (buf: Buffer) => {
+            const asText = buf.toString('utf8')
+            ring.appendUtf8(asText)
+            appendRecording(sessionId, asText)
+            if (!owner.isDestroyed()) {
+              const payload: SshDataEvent = { sessionId, chunk: buf }
+              owner.send('ssh:data', payload)
+            }
+          })
+
+          stream.stderr?.on('data', (buf: Buffer) => {
+            const asText = buf.toString('utf8')
+            ring.appendUtf8(asText)
+            appendRecording(sessionId, asText)
+            if (!owner.isDestroyed()) {
+              owner.send('ssh:data', { sessionId, chunk: buf })
+            }
+          })
+
+          stream.on('close', () => {
+            ring.flushPartial()
+            if (!owner.isDestroyed()) {
+              const st: SshStatusEvent = { sessionId, status: 'closed', message: '容器终端已退出' }
+              owner.send('ssh:status', st)
+            }
+            this.teardownSession(sessionId, session)
+          })
+
+          this.sessions.set(sessionId, session)
+
+          if (!owner.isDestroyed()) {
+            owner.send('ssh:status', { sessionId, status: 'connected' })
+          }
+
+          if (!settled) {
+            settled = true
+            resolve({ sessionId, meta })
+          }
+        }
+      )
+    })
+  }
+
+  /** 退出应用前断开全部 SSH，避免进程挂起导致桌面图标要点两次 */
+  disconnectAll(): void {
+    for (const id of [...this.sessions.keys()]) {
+      this.disconnect(id)
+    }
   }
 }
