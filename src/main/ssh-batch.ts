@@ -1,5 +1,6 @@
 import type { Client, ClientChannel } from 'ssh2'
-import { BATCH_MAX_OUTPUT_BYTES } from '../shared/workspace-features'
+import { StringDecoder } from 'node:string_decoder'
+import { BATCH_MAX_OUTPUT_BYTES, stripAnsi } from '../shared/workspace-features'
 
 export type BoundedExecResult = {
   code: number | null
@@ -40,20 +41,26 @@ export function execBounded(
           return
         }
         stream = opened
-        let stdout = ''
-        let stderr = ''
         let truncated = false
-
-        const take = (current: string, chunk: Buffer): string => {
-          if (current.length >= maxBytes) {
+        // Collect raw bytes and decode once so multi-byte UTF-8 (e.g. Chinese) split across chunks stays intact.
+        const makeSink = () => ({ chunks: [] as Buffer[], bytes: 0 })
+        const out = makeSink()
+        const err2 = makeSink()
+        const take = (sink: ReturnType<typeof makeSink>, chunk: Buffer) => {
+          const room = maxBytes - sink.bytes
+          if (room <= 0) {
             truncated = true
-            return current
+            return
           }
-          const text = chunk.toString('utf8')
-          const next = current + text
-          if (next.length <= maxBytes) return next
-          truncated = true
-          return next.slice(0, maxBytes)
+          const part = chunk.length > room ? chunk.subarray(0, room) : chunk
+          if (part.length < chunk.length) truncated = true
+          sink.chunks.push(part)
+          sink.bytes += part.length
+        }
+        const text = (sink: ReturnType<typeof makeSink>) => {
+          const dec = new StringDecoder('utf8')
+          // end() would emit U+FFFD for a cut-off trailing sequence; drop it instead.
+          return stripAnsi(dec.write(Buffer.concat(sink.chunks)))
         }
 
         const stop = () => {
@@ -71,14 +78,14 @@ export function execBounded(
 
         const timer = setTimeout(() => {
           stop()
-          finish({ code: null, stdout, stderr, truncated, timedOut: true })
+          finish({ code: null, stdout: text(out), stderr: text(err2), truncated, timedOut: true })
         }, timeoutMs)
 
         opened.on('data', (chunk: Buffer) => {
-          stdout = take(stdout, chunk)
+          take(out, chunk)
         })
         opened.stderr?.on('data', (chunk: Buffer) => {
-          stderr = take(stderr, chunk)
+          take(err2, chunk)
         })
         opened.on('error', (streamErr: Error) => {
           clearTimeout(timer)
@@ -86,7 +93,7 @@ export function execBounded(
         })
         opened.on('close', (code: number | null) => {
           clearTimeout(timer)
-          finish({ code: code ?? 0, stdout, stderr, truncated, timedOut: false })
+          finish({ code: code ?? 0, stdout: text(out), stderr: text(err2), truncated, timedOut: false })
         })
       })
     } catch (e) {

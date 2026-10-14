@@ -3,6 +3,8 @@ import {
   COMMAND_HISTORY_CAP,
   RECENT_CONNECTIONS_CAP,
   filterCommandHistory,
+  isSensitiveCommand,
+  stripAnsi,
   mergeRecentConnection,
   normalizeBatchRequest,
   normalizeCommandLine,
@@ -86,5 +88,27 @@ if (!('error' in ok)) {
   assert.equal(ok.command, 'uptime')
   assert.deepEqual(ok.sessionIds, ['a', 'b'])
 }
+
+// Round 2: secrets never land in history
+for (const c of [
+  'mysql -uroot -pS3cret db',
+  'export GITHUB_TOKEN=ghp_abc',
+  'curl -H "Authorization: Bearer xyz" https://api.x',
+  'git clone https://user:pw@example.com/r.git',
+  'sshpass -p hunter2 ssh a@b',
+  'app --password hunter2',
+  'PASSWORD=abc ./run.sh'
+]) {
+  assert.equal(isSensitiveCommand(c), true, c)
+  assert.deepEqual(pushCommandHistory(['ls'], c), ['ls'], c)
+}
+for (const c of ['ls -la', 'mysql -u root -p', 'docker ps', 'cat /etc/passwd', 'git push origin master']) {
+  assert.equal(isSensitiveCommand(c), false, c)
+}
+assert.deepEqual(pushCommandHistory(['ls'], ' secret-cmd'), ['ls'])
+assert.deepEqual(normalizeHistory(['ls', 'export API_KEY=1']), ['ls'])
+
+assert.equal(stripAnsi('\u001b[1;32mok\u001b[0m \u001b]0;title\u0007done'), 'ok done')
+assert.equal(stripAnsi('中文输出'), '中文输出')
 
 console.log('workspace-features ok')

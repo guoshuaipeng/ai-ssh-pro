@@ -71,10 +71,36 @@ export function normalizeCommandLine(raw: string): string | null {
   return s
 }
 
+const SENSITIVE_PATTERNS: RegExp[] = [
+  /\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)\s*[=:]\s*\S+/i,
+  /--(?:password|passwd|token|secret|api-key|access-key)(?:=|\s+)\S+/i,
+  /\b(?:export|set)\s+\w*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_KEY|ACCESS_KEY)\w*\s*=/i,
+  /\bmysql(?:dump|admin)?\b.*\s-p\S+/,
+  /\bsshpass\s+-p\s*\S+/,
+  /\bAuthorization:\s*(?:Bearer|Basic)\s+\S+/i,
+  /:\/\/[^\s/:@]+:[^\s/@]+@/
+]
+
+/** True when a command line likely carries a credential and must not be stored in history. */
+export function isSensitiveCommand(command: string): boolean {
+  const s = String(command ?? '')
+  return SENSITIVE_PATTERNS.some((re) => re.test(s))
+}
+
+/** Remove ANSI/VT escape sequences (colors, cursor moves, OSC titles) from captured output. */
+export function stripAnsi(text: string): string {
+  return String(text ?? '')
+    .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, '')
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\u001b[@-Z\\-_]/g, '')
+}
+
 export function pushCommandHistory(list: string[], command: string): string[] {
-  const cmd = normalizeCommandLine(command)
   const base = normalizeHistory(list)
-  if (!cmd) return base
+  // Same convention as bash HISTCONTROL=ignorespace: a leading space means "do not record".
+  if (/^[ \t]/.test(String(command ?? ''))) return base
+  const cmd = normalizeCommandLine(command)
+  if (!cmd || isSensitiveCommand(cmd)) return base
   return [cmd, ...base.filter((row) => row !== cmd)].slice(0, COMMAND_HISTORY_CAP)
 }
 
@@ -85,7 +111,7 @@ export function normalizeHistory(raw: unknown): string[] {
   for (const item of raw) {
     if (typeof item !== 'string') continue
     const cmd = normalizeCommandLine(item)
-    if (!cmd || seen.has(cmd)) continue
+    if (!cmd || seen.has(cmd) || isSensitiveCommand(cmd)) continue
     seen.add(cmd)
     out.push(cmd)
     if (out.length >= COMMAND_HISTORY_CAP) break
