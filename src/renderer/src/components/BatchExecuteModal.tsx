@@ -152,9 +152,11 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
               </button>
             </>
           ) : null}
-          <button type="button" onClick={onClose} disabled={running}>
-            {t('batch.close')}
-          </button>
+          {!embedded ? (
+            <button type="button" onClick={onClose} disabled={running}>
+              {t('batch.close')}
+            </button>
+          ) : null}
           <button type="button" className="primary" disabled={running || sessions.length === 0} onClick={() => void run()}>
             {running ? t('batch.running') : t('batch.run')}
           </button>

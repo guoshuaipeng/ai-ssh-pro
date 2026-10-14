@@ -80,6 +80,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
         ) : (
           <>
             <div className="st-toolbar">
+              {!embedded ? (
               <label>
                 {t('rm.session')}{' '}
                 <select value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
@@ -90,6 +91,9 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
                   ))}
                 </select>
               </label>
+              ) : (
+                <span className="st-host-label">{sessions.find((s) => s.sessionId === sessionId)?.title || ''}</span>
+              )}
               <div className="st-tabs" role="tablist">
                 {TABS.map((id) => (
                   <button
@@ -208,13 +212,18 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
                   <td className="st-cmd" title={p.command}>
                     {p.command}
                   </td>
-                  <td className="st-actions">
-                    <button type="button" onClick={() => void kill(p, 'TERM')} disabled={busy} title={t('st.termHint')}>
-                      {t('st.term')}
+                  <td className="st-actions st-actions--hover">
+                    <button type="button" className="st-icon-btn" onClick={() => void kill(p, 'TERM')} disabled={busy} title={t('st.termHint')} aria-label={t('st.term')}>
+                      ⏹
                     </button>
-                    <button type="button" className="danger" onClick={() => void kill(p, 'KILL')} disabled={busy} title={t('st.killHint')}>
-                      {t('st.kill')}
-                    </button>
+                    <details className="st-more">
+                      <summary className="st-icon-btn" title="…" aria-label="…">⋯</summary>
+                      <div className="st-more-menu">
+                        <button type="button" className="danger" onClick={() => void kill(p, 'KILL')} disabled={busy} title={t('st.killHint')}>
+                          {t('st.kill')} (kill -9)
+                        </button>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               ))}
@@ -309,7 +318,7 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
                   <td className="st-cmd" title={s.description}>
                     {s.description}
                   </td>
-                  <td className="st-actions">
+                  <td className="st-actions st-actions--hover">
                     <button type="button" onClick={() => void act(s, 'status')} disabled={busy}>
                       {t('st.svc.status')}
                     </button>
@@ -443,6 +452,10 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
   }, [guard, sessionId, source, path, unit, lines, sudo])
 
   useEffect(() => {
+    void load() // UX-42: auto-read last N lines when opening Logs
+  }, [load])
+
+  useEffect(() => {
     if (!follow) return
     const timer = setInterval(() => void load(), 3000)
     return () => clearInterval(timer)
@@ -515,6 +528,8 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
             </div>
           ))}
         </pre>
+      ) : busy ? (
+        <p className="st-empty">{t('st.logReading')}</p>
       ) : (
         <p className="st-empty">{t('st.logIntro')}</p>
       )}

@@ -19,6 +19,25 @@ type Request =
   | ({ kind: 'confirm'; resolve: (v: boolean) => void } & ConfirmOptions)
 
 const listeners = new Set<(r: Request) => void>()
+let openCount = 0
+const openListeners = new Set<(n: number) => void>()
+
+/** UX-45: true while a Confirm/Prompt modal is visible. */
+export function isDialogOpen(): boolean {
+  return openCount > 0
+}
+
+export function subscribeDialogOpen(fn: (n: number) => void): () => void {
+  openListeners.add(fn)
+  return () => {
+    openListeners.delete(fn)
+  }
+}
+
+function setOpenCount(n: number): void {
+  openCount = n
+  for (const fn of openListeners) fn(n)
+}
 
 function emit(r: Request): boolean {
   if (listeners.size === 0) return false
@@ -70,6 +89,10 @@ export function DialogHost() {
       listeners.delete(fn)
     }
   }, [])
+
+  useEffect(() => {
+    setOpenCount(queue.length)
+  }, [queue.length])
 
   useEffect(() => {
     if (!current) return

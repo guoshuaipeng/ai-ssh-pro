@@ -242,11 +242,84 @@ export function demoExecOutput(command: string, tick = 0): { stdout: string; cod
   return { stdout: r.output ? r.output + '\n' : '', code: r.code }
 }
 
-/** Directory listing for the demo SFTP view (read-only). */
+/** Directory listing for the demo SFTP view (read-only). Kept for callers that only need home. */
 export const DEMO_FILES: ReadonlyArray<{ name: string; dir: boolean; size: number }> = [
   { name: 'app', dir: true, size: 4096 },
   { name: 'backups', dir: true, size: 4096 },
   { name: 'logs', dir: true, size: 4096 },
   { name: 'deploy.sh', dir: false, size: 78 },
-  { name: 'readme.txt', dir: false, size: 118 }
+  { name: 'readme.txt', dir: false, size: 118 },
+  { name: 'README.md', dir: false, size: 180 },
+  { name: 'notes.txt', dir: false, size: 64 }
 ]
+
+/** UX-34: multi-directory simulated tree for demo SFTP. Keys are absolute POSIX paths. */
+export type DemoFsEntry = { name: string; dir: boolean; size: number; content?: string }
+export const DEMO_TREE: Record<string, ReadonlyArray<DemoFsEntry>> = {
+  '/home/demo': [
+    { name: 'README.md', dir: false, size: 180, content: 'AI-SSH-Pro demo host\nSimulated files — read only.\n' },
+    { name: 'deploy.sh', dir: false, size: 78, content: '#!/usr/bin/env bash\nset -e\ngit pull\nnpm ci\nsystemctl restart app\n' },
+    { name: 'notes.txt', dir: false, size: 64, content: 'Try Monitor, Toolbox and SFTP from the toolbar.\n' },
+    { name: 'app', dir: true, size: 4096 },
+    { name: 'backups', dir: true, size: 4096 },
+    { name: 'logs', dir: true, size: 4096 }
+  ],
+  '/home/demo/app': [
+    { name: 'config.yaml', dir: false, size: 92, content: 'port: 8080\nredis: 127.0.0.1:6379\n' },
+    { name: 'app.log', dir: false, size: 120, content: 'listening on :8080\n' }
+  ],
+  '/home/demo/backups': [
+    { name: 'dump-2026-10-01.sql', dir: false, size: 2048, content: '-- demo dump\n' }
+  ],
+  '/home/demo/logs': [
+    { name: 'app.log', dir: false, size: 256, content: '2026-10-14 ERROR redis ECONNREFUSED\n' }
+  ],
+  '/etc/nginx': [
+    { name: 'nginx.conf', dir: false, size: 220, content: 'worker_processes auto;\nevents { worker_connections 1024; }\n' },
+    { name: 'sites-enabled', dir: true, size: 4096 }
+  ],
+  '/etc/nginx/sites-enabled': [
+    { name: 'default', dir: false, size: 80, content: 'server { listen 80; root /var/www; }\n' }
+  ],
+  '/var/log': [
+    { name: 'syslog', dir: false, size: 512, content: 'Oct 14 10:00:00 demo-host systemd[1]: Started.\n' },
+    { name: 'nginx', dir: true, size: 4096 },
+    { name: 'app.log', dir: false, size: 128, content: 'app started\n' }
+  ],
+  '/var/log/nginx': [
+    { name: 'access.log', dir: false, size: 96, content: '127.0.0.1 - GET / 200\n' }
+  ]
+}
+
+export function demoNormalizePath(path: string): string {
+  let p = String(path || '').replace(/\\/g, '/').trim()
+  if (!p || p === '~' || p === '.') return '/home/demo'
+  if (p.endsWith('/') && p !== '/') p = p.replace(/\/+$/, '')
+  return p
+}
+
+export function demoListDir(path: string): DemoFsEntry[] {
+  const key = demoNormalizePath(path)
+  return [...(DEMO_TREE[key] || [])]
+}
+
+export function demoReadFile(path: string): string | null {
+  const p = demoNormalizePath(path)
+  const idx = p.lastIndexOf('/')
+  const parent = idx <= 0 ? '/' : p.slice(0, idx)
+  const name = p.slice(idx + 1)
+  const list = DEMO_TREE[parent] || []
+  const hit = list.find((e) => e.name === name && !e.dir)
+  return hit?.content ?? null
+}
+
+export function demoStat(path: string): { isDirectory: boolean; size: number } | null {
+  const p = demoNormalizePath(path)
+  if (DEMO_TREE[p] || p === '/home/demo') return { isDirectory: true, size: 4096 }
+  const idx = p.lastIndexOf('/')
+  const parent = idx <= 0 ? '/' : p.slice(0, idx)
+  const name = p.slice(idx + 1)
+  const hit = (DEMO_TREE[parent] || []).find((e) => e.name === name)
+  if (!hit) return null
+  return { isDirectory: hit.dir, size: hit.size }
+}

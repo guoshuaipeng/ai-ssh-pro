@@ -4,13 +4,16 @@ import type { WebContents } from 'electron'
 import type { Client } from 'ssh2'
 import type { SessionMeta, SshConnectResult, SshDataEvent } from '../shared/ipc'
 import {
-  DEMO_FILES,
   DEMO_HOST,
   DEMO_PROMPT,
   DEMO_SESSION_PREFIX,
   DEMO_USER,
   demoCommandOutput,
   demoExecOutput,
+  demoListDir,
+  demoNormalizePath,
+  demoReadFile,
+  demoStat,
   demoWelcome,
   isDemoSessionId
 } from '../shared/demo-host'
@@ -23,22 +26,61 @@ type DemoSession = { sessionId: string; meta: SessionMeta; owner: WebContents; r
 
 const readOnly = () => new Error(mt('演示主机为只读，不支持此操作', 'The demo host is read-only'))
 
-/** Minimal SFTP stand-in for the demo host: lists a fake home directory, everything else is refused. */
+/** UX-34: simulated multi-dir SFTP for the demo host. Browse/read OK; writes return a friendly read-only error. */
 function demoSftp(): unknown {
+  const now = () => Math.floor(Date.now() / 1000)
+  const attrsOf = (dir: boolean, size: number) => ({
+    size,
+    mtime: now() - 3600,
+    mode: dir ? 0o40755 : 0o100644,
+    isDirectory: () => dir,
+    isFile: () => !dir
+  })
   const base: Record<string, unknown> = {
     readdir: (path: string, cb: (err: Error | undefined, list: unknown[]) => void) => {
-      const now = Math.floor(Date.now() / 1000)
-      const files = path === '/home/demo' || path === '~' ? DEMO_FILES : []
+      const files = demoListDir(path)
       cb(
         undefined,
         files.map((f) => ({
           filename: f.name,
-          longname: f.name,
-          attrs: { size: f.size, mtime: now - 3600, isDirectory: () => f.dir }
+          longname: (f.dir ? 'd' : '-') + 'rw-r--r-- 1 demo demo ' + f.size + ' ' + f.name,
+          attrs: attrsOf(f.dir, f.size)
         }))
       )
     },
-    realpath: (_p: string, cb: (err: Error | undefined, abs: string) => void) => cb(undefined, '/home/demo'),
+    realpath: (p: string, cb: (err: Error | undefined, abs: string) => void) => {
+      cb(undefined, demoNormalizePath(p === '.' || !p ? '/home/demo' : p))
+    },
+    stat: (path: string, cb: (err: Error | undefined, st: unknown) => void) => {
+      const st = demoStat(path)
+      if (!st) cb(new Error('ENOENT: ' + path), undefined)
+      else cb(undefined, attrsOf(st.isDirectory, st.size))
+    },
+    lstat: (path: string, cb: (err: Error | undefined, st: unknown) => void) => {
+      const st = demoStat(path)
+      if (!st) cb(new Error('ENOENT: ' + path), undefined)
+      else cb(undefined, attrsOf(st.isDirectory, st.size))
+    },
+    fastGet: (remote: string, local: string, a: unknown, b?: unknown) => {
+      const cb = (typeof a === 'function' ? a : b) as (err?: Error | null) => void
+      const content = demoReadFile(remote)
+      if (content == null) {
+        cb(new Error('ENOENT: ' + remote))
+        return
+      }
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('node:fs').writeFileSync(local, content, 'utf8')
+        cb(null)
+      } catch (e) {
+        cb(e instanceof Error ? e : new Error(String(e)))
+      }
+    },
+    createReadStream: (path: string) => {
+      const { Readable } = require('node:stream') as typeof import('node:stream')
+      const content = demoReadFile(path) ?? ''
+      return Readable.from([Buffer.from(content, 'utf8')])
+    },
     end: () => undefined
   }
   return new Proxy(base, {

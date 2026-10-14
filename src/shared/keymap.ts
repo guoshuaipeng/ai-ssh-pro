@@ -29,6 +29,7 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'sftp', keys: 'Ctrl+Alt+F', scope: 'global', group: 'session', label: { zh: 'SFTP 文件', en: 'SFTP files' } },
   { id: 'serverTools', keys: 'Ctrl+Alt+T', scope: 'global', group: 'session', label: { zh: '服务器工具箱', en: 'Server toolbox' } },
   { id: 'resourceMonitor', keys: 'Ctrl+Shift+M', scope: 'global', group: 'session', label: { zh: '资源监控', en: 'Resource monitor' } },
+  { id: 'dashboard', keys: 'Ctrl+Alt+M', scope: 'global', group: 'session', label: { zh: '多主机看板', en: 'Multi-host dashboard' } },
   { id: 'portForward', keys: 'Ctrl+Shift+O', scope: 'global', group: 'session', label: { zh: '端口转发', en: 'Port forwarding' } },
   { id: 'batchExec', keys: 'Ctrl+Shift+B', scope: 'global', group: 'session', label: { zh: '批量执行', en: 'Batch run' } },
   { id: 'snippets', keys: 'Ctrl+Shift+S', scope: 'global', group: 'session', label: { zh: '命令片段', en: 'Snippets' } },

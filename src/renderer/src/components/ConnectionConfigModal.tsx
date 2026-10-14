@@ -105,8 +105,7 @@ export default function ConnectionConfigModal({
     jumpHost.trim() ||
       forwardLocalPort.trim() ||
       forwardRemoteHost.trim() ||
-      forwardRemotePort.trim() ||
-      smartPaste.trim()
+      forwardRemotePort.trim()
   )
   const [advancedOpen, setAdvancedOpen] = useState(advancedOpenDefault)
 
@@ -120,6 +119,28 @@ export default function ConnectionConfigModal({
         {error ? <div className="ws-error">{error}</div> : null}
 
         <div className="conn-form-col">
+          <section className="conn-card conn-smart-fill">
+            <h3 className="conn-card-title">{tg('ui.34')}</h3>
+            <textarea
+              value={smartPaste}
+              onChange={(e) => setSmartPaste(e.target.value)}
+              placeholder={tg('ui.35')}
+              rows={3}
+              className="ws-textarea-compact"
+            />
+            <div className="ws-collapse-actions" style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                className="primary"
+                disabled={aiParsing || !smartPaste.trim()}
+                onClick={() => void onParseAndFill()}
+              >
+                {aiParsing ? tg('ui.36') : tg('ui.37')}
+              </button>
+            </div>
+            {parseNotes ? <div className="ws-parse-notes">{tg('ui.38')}{parseNotes}</div> : null}
+          </section>
+
           <section className="conn-card">
             <h3 className="conn-card-title">{tg('conn.groupBasic')}</h3>
             <div className="field-grid field-grid--single">
@@ -204,26 +225,6 @@ export default function ConnectionConfigModal({
           >
             <summary>{tg('conn.groupAdvanced')}</summary>
             <div className="ws-collapse-body">
-              <h4 className="conn-subhead">{tg('ui.34')}</h4>
-              <textarea
-                value={smartPaste}
-                onChange={(e) => setSmartPaste(e.target.value)}
-                placeholder={tg('ui.35')}
-                rows={3}
-                className="ws-textarea-compact"
-              />
-              <div className="ws-collapse-actions">
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={aiParsing || !smartPaste.trim()}
-                  onClick={() => void onParseAndFill()}
-                >
-                  {aiParsing ? tg('ui.36') : tg('ui.37')}
-                </button>
-              </div>
-              {parseNotes ? <div className="ws-parse-notes">{tg('ui.38')}{parseNotes}</div> : null}
-
               <h4 className="conn-subhead">{tg('ui.50')}</h4>
               <div className="field-grid field-grid--single">
                 <div className="field">

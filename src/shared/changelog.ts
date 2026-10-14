@@ -13,6 +13,55 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
 
+  '0.3.16': [
+    {
+      icon: '🔎',
+      text: { zh: '标题栏搜索框文字不再被竖直裁切', en: 'Titlebar search label no longer clipped vertically' },
+      where: { zh: '标题栏右侧「搜索功能… Ctrl+K」', en: 'Titlebar search button' }
+    },
+    {
+      icon: '➕',
+      text: { zh: '新建连接始终空白表单，不带入侧栏选中主机；智能填表置顶', en: 'New connection always blank; smart fill moved to top' },
+      where: { zh: '＋ 新建连接', en: '+ New connection' },
+      action: 'connection'
+    },
+    {
+      icon: '📋',
+      text: { zh: '主机档案页重设计：概览头、只读基本信息、紧凑服务列表、备注预览', en: 'Host profile redesign: overview header, read-only basics, compact services, notes preview' },
+      where: { zh: '主机右键 → 主机档案', en: 'Host right-click → Host profile' },
+      action: 'inventory'
+    },
+    {
+      icon: '🧰',
+      text: { zh: '工具箱危险操作默认隐藏，日志页自动读取', en: 'Toolbox dangerous actions hidden until hover; Logs auto-load' },
+      action: 'serverTools'
+    },
+    {
+      icon: '📈',
+      text: { zh: '监控趋势图更大更清晰，超 85% 标红警告', en: 'Larger monitor trend charts with 85% warning' },
+      action: 'resourceMonitor'
+    },
+    {
+      icon: '✨',
+      text: { zh: '命令栏默认收起，点右下角 ✨ 展开', en: 'Command bar collapsed by default; expand with the ✨ button' }
+    },
+    {
+      icon: '🗺',
+      text: { zh: '多主机监控看板：一屏看 CPU/内存/磁盘', en: 'Multi-host dashboard: CPU/mem/disk cards at a glance' },
+      where: { zh: '运维 → 多主机看板（Ctrl+Alt+M）', en: 'Ops → Multi-host dashboard (Ctrl+Alt+M)' },
+      action: 'dashboard'
+    },
+    {
+      icon: '🖱',
+      text: { zh: '输入框与终端统一右键菜单', en: 'Unified right-click menus for inputs and the terminal' }
+    },
+    {
+      icon: '📁',
+      text: { zh: '演示主机 SFTP 显示模拟文件树，写操作置灰', en: 'Demo host SFTP shows a simulated tree; writes disabled' },
+      action: 'demoHost'
+    }
+  ],
+
   '0.3.15': [
     {
       icon: '🧰',

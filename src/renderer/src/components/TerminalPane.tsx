@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { tg } from '../lib/i18n'
+import { openContextMenu, type ContextMenuItem } from './ContextMenu'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -87,9 +88,7 @@ export default function TerminalPane({
   onUserDataRef.current = onUserData
   const prefsRef = useRef(resolvePrefs(prefs))
   prefsRef.current = resolvePrefs(prefs)
-  const [termMenu, setTermMenu] = useState<{ x: number; y: number } | null>(null)
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
-  const termMenuRef = useRef<HTMLDivElement>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
   const [findMiss, setFindMiss] = useState(false)
@@ -140,15 +139,6 @@ export default function TerminalPane({
     term.scrollToLine(Math.max(0, hit.row - Math.floor(term.rows / 2)))
   }
 
-  useEffect(() => {
-    if (!termMenu) return
-    const close = (e: MouseEvent) => {
-      if (termMenuRef.current?.contains(e.target as Node)) return
-      setTermMenu(null)
-    }
-    window.addEventListener('mousedown', close, true)
-    return () => window.removeEventListener('mousedown', close, true)
-  }, [termMenu])
 
   useEffect(() => {
     const el = wrapRef.current
@@ -269,8 +259,62 @@ export default function TerminalPane({
       }
     }
     const onContextMenu = (ev: MouseEvent): void => {
-      ev.preventDefault()
-      setTermMenu({ x: ev.clientX, y: ev.clientY })
+      const term = apiRef.current?.term
+      const hasSel = Boolean(term?.hasSelection())
+      const items: ContextMenuItem[] = [
+        {
+          id: 'copy',
+          label: tg('common.copy'),
+          shortcut: 'Ctrl+Shift+C',
+          disabled: !hasSel,
+          onSelect: () => {
+            if (term?.hasSelection()) void navigator.clipboard.writeText(term.getSelection())
+          }
+        },
+        {
+          id: 'paste',
+          label: tg('common.paste'),
+          shortcut: 'Ctrl+Shift+V',
+          disabled: mirrorOnlyRef.current,
+          onSelect: () => {
+            void navigator.clipboard.readText().then((text) => {
+              if (text) apiRef.current?.term.paste(text)
+            })
+          }
+        },
+        {
+          id: 'pasteRun',
+          label: tg('ctx.pasteRun'),
+          disabled: mirrorOnlyRef.current,
+          onSelect: () => {
+            void navigator.clipboard.readText().then((text) => {
+              if (text) apiRef.current?.term.paste(text.endsWith('\r') || text.endsWith('\n') ? text : text + '\r')
+            })
+          }
+        },
+        'sep',
+        {
+          id: 'aiExplain',
+          label: '✨ ' + tg('a1.explainSelection'),
+          onSelect: () => explainWithAi('selection')
+        },
+        'sep',
+        {
+          id: 'find',
+          label: tg('term.find'),
+          shortcut: 'Ctrl+Shift+F',
+          onSelect: () => {
+            setFindOpen(true)
+            window.setTimeout(() => findInputRef.current?.select(), 0)
+          }
+        },
+        {
+          id: 'clear',
+          label: tg('term.clear'),
+          onSelect: () => apiRef.current?.term.clear()
+        }
+      ]
+      openContextMenu(ev, items)
     }
     el.addEventListener('mouseup', onMouseUp)
     el.addEventListener('contextmenu', onContextMenu)
@@ -399,73 +443,7 @@ export default function TerminalPane({
           </div>
         ) : null}
       </div>
-      {termMenu ? (
-        <div
-          ref={termMenuRef}
-          className="session-context-menu"
-          style={{ left: termMenu.x, top: termMenu.y }}
-          role="menu"
-          data-testid="terminal-menu"
-        >
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const t = apiRef.current?.term
-              if (t?.hasSelection()) void navigator.clipboard.writeText(t.getSelection())
-              setTermMenu(null)
-            }}
-          >
-            {tg('common.copy')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            disabled={mirrorOnly}
-            onClick={() => {
-              void navigator.clipboard.readText().then((text) => {
-                if (text) apiRef.current?.term.paste(text)
-              })
-              setTermMenu(null)
-            }}
-          >
-            {tg('common.paste')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            data-ctx="aiExplain"
-            onClick={() => {
-              setTermMenu(null)
-              explainWithAi('selection')
-            }}
-          >
-            ✨ {tg('a1.explainSelection')}
-          </button>
-          <div className="session-context-menu-sep" />
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              setTermMenu(null)
-              setFindOpen(true)
-              window.setTimeout(() => findInputRef.current?.select(), 0)
-            }}
-          >
-            {tg('term.find')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              setTermMenu(null)
-              apiRef.current?.term.clear()
-            }}
-          >
-            {tg('term.clear')}
-          </button>
-        </div>
-      ) : null}
+
     </>
   )
 }

@@ -179,8 +179,12 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
   padding: 0 8px;
+  box-sizing: border-box;
+  overflow: visible;
   /* Windows titleBarOverlay 窗控按钮约占右侧固定宽度（勿用 titlebar-area-width，那是可绘制区宽度） */
   padding-right: 138px;
   background: var(--bg-panel);
@@ -373,15 +377,20 @@ body {
 .titlebar-icon-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  height: 28px;
+  height: 30px;
+  min-height: 30px;
   padding: 0 8px;
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text);
   font-size: 12px;
+  line-height: 1.25;
   white-space: nowrap;
+  overflow: visible;
+  box-sizing: border-box;
 }
 
 .titlebar-icon-btn:hover:not(:disabled) {
@@ -2410,20 +2419,71 @@ body:has(.debug-window-root) #root {
   outline-offset: -4px;
 }
 
-.sftp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sftp-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
 .sftp-table th {
   position: sticky; top: 0; background: var(--bg-panel); color: var(--muted);
-  font-weight: 500; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+  font-weight: 500; text-align: left; padding: 0 10px; height: 32px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sftp-table td { padding: 6px 10px; border-top: 1px solid var(--border); vertical-align: middle; }
+.sftp-table td {
+  padding: 0 10px;
+  height: 32px;
+  max-height: 32px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 32px;
+}
+.sftp-table tbody tr { height: 32px; }
 .sftp-table tr.is-selected { background: var(--row-selected-bg); }
 
 .sftp-name-btn {
   background: none; border: none; padding: 0; font: inherit; color: inherit;
   cursor: default; text-align: left;
+  display: inline-block; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 32px; height: 32px; vertical-align: middle;
 }
 .sftp-name-btn.is-dir { color: var(--accent); cursor: pointer; }
-.sftp-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.sftp-row-actions {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  width: 100%;
+  height: 32px;
+  opacity: 0;
+}
+.sftp-table tbody tr:hover .sftp-row-actions,
+.sftp-table tbody tr.is-selected .sftp-row-actions,
+.sftp-table tbody tr:focus-within .sftp-row-actions {
+  opacity: 1;
+}
+.sftp-row-actions .sftp-icon-btn {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.sftp-toolbar-actions { justify-content: flex-start; flex-wrap: nowrap; }
+.sftp-toolbar-actions button { flex-shrink: 0; white-space: nowrap; }
 
 .sftp-transfers {
   border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel);
@@ -3347,6 +3407,12 @@ body.split-resizing {
   gap: 10px;
   font-size: 13px;
 }
+.rm-panel {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
 .rm-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -3490,7 +3556,9 @@ body.split-resizing {
   flex-direction: column;
   gap: 10px;
   font-size: 13px;
-  min-height: 420px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 .st-toolbar,
 .st-row {
@@ -3529,6 +3597,8 @@ body.split-resizing {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+  min-height: 0;
 }
 .st-search {
   flex: 1 1 220px;
@@ -3556,10 +3626,17 @@ body.split-resizing {
   color: #3fb950;
 }
 .st-table-wrap {
-  max-height: 52vh;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow: auto;
   border: 1px solid var(--border, #30363d);
   border-radius: 6px;
+}
+/* modal (non-embedded) still caps height */
+.modal-panel .st-table-wrap {
+  max-height: 52vh;
+  flex: 0 1 auto;
 }
 .st-table {
   width: 100%;
@@ -3803,7 +3880,43 @@ body.split-resizing {
 .toolbar-divider { width: 1px; height: 18px; background: var(--border); margin: 0 6px; }
 .titlebar-tool-btn.is-dim { opacity: 0.45; }
 .titlebar-tool-btn.is-dim:hover { opacity: 0.75; }
-.titlebar-search-btn kbd { font-size: 10px; opacity: 0.7; margin-left: 4px; }
+.titlebar-search-btn {
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  line-height: 1.2;
+  overflow: visible;
+  gap: 6px;
+  box-sizing: border-box;
+  align-items: center;
+}
+.titlebar-search-btn .tb-label,
+.titlebar-search-btn kbd {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.25;
+  font-size: 12px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+}
+.titlebar-search-btn kbd {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-left: 2px;
+}
+.titlebar-search-btn > span[aria-hidden] {
+  line-height: 1;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+}
 .titlebar-more-menu { right: 0; left: auto; min-width: 200px; display: flex; flex-direction: column; padding: 4px; }
 .titlebar-more-menu button {
   text-align: left;

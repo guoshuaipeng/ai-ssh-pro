@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.16
+
+- **Tool tabs fill the pane** — toolbox/monitor no longer leave a black empty band; table scrolls inside the tab.
+- **No duplicate page chrome** — SFTP (and similar tool tabs) drop the repeated title + Close; use the tab ✕.
+- **SFTP rows** — fixed 32px row height; action icons appear on hover only (UX-21).
+- **Titlebar search** — "搜索功能… Ctrl+K" no longer clipped vertically (titleBarOverlay 40px + search button line-height).
+- **New connection blank form** — New Connection always opens empty (placeholder 192.0.2.10); does not inherit sidebar selection.
+- **Smart fill on top** — "智能填表" sits at the top of the connection form, not buried under Advanced.
+
+- **Host profile redesign (UX-20)** — overview header with Connect / SFTP / Monitor / Toolbox; basic info read-only until Edit; compact hover-action service list; notes default to preview with readable width.
+- **Toolbox row actions (UX-42)** — End / Force-kill hidden until hover; Force-kill behind ⋯ with confirm; Logs tab auto-loads the last 200 lines.
+- **Monitor readability (UX-43)** — larger area trend charts (≥64px), 85% threshold warning icon, title unified as "Monitor · host", primary "Open toolbox".
+- **Command bar collapsed by default (UX-44)** — ✨ FAB expands it; Ctrl+Shift+Space / AI fill also opens it; terminal padding 8×12.
+- **Shortcut feedback (UX-45)** — ops shortcuts toast "Finish the current dialog first" while a Confirm/Prompt is open.
+- **Unified context menus (UX-22)** — text fields and the terminal share one ContextMenu (copy/paste/AI explain/find/clear).
+- **Multi-host dashboard (O1)** — Ops → Multi-host dashboard / Ctrl+Alt+M opens a card grid of CPU/mem/disk for connected hosts.
+- **Demo SFTP (UX-34)** — simulated multi-folder tree, write actions disabled with friendly copy, no raw IPC errors.
+
 ## v0.3.15
 
 - **Toolbox is a tab everywhere** — every entry (toolbar, Ops menu, Ctrl+Alt+T, Ctrl+K, host right-click, monitor's "Processes / services / logs…") opens the server toolbox as a center tab titled "Toolbox · host", one per host; no more modal dialog.

@@ -256,6 +256,23 @@ const noModal = async (label) => {
   assert((await page.locator('.modal-backdrop, [aria-modal="true"]').count()) === 0, label + ': opened as a modal dialog')
 }
 const cmdInput = () => page.locator('.session-command-bar input, .session-command-bar textarea').first()
+/** UX-44: command bar collapsed by default — expand FAB before interacting.
+ *  During reconnect the bar/FAB may be unmounted briefly; poll until either appears. */
+const ensureCmdBar = async (timeout = 15000) => {
+  const bar = page.locator('.session-command-bar')
+  const fab = page.getByTestId('cmd-bar-fab')
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (await bar.isVisible().catch(() => false)) return bar
+    if (await fab.isVisible().catch(() => false)) {
+      await fab.click()
+      await expectVisible(bar, Math.max(3000, deadline - Date.now()))
+      return bar
+    }
+    await page.waitForTimeout(250)
+  }
+  throw new Error('command bar / FAB not found within ' + timeout + 'ms')
+}
 const xtermHas = (s) => page.waitForFunction((x) => [...document.querySelectorAll('.xterm-rows')].some((r) => (r.textContent || '').includes(x)), s, { timeout: 8000 })
 
 console.log('== e2e (Playwright + Electron, isolated demo profile, ssh2 test server :' + sshPort + ') ==')
@@ -361,8 +378,8 @@ await step('SSH connect to local test server (host key prompt, shell echo, laten
   await trust.waitFor({ state: 'visible', timeout: 15000 })
   await cjkScan('host key dialog')
   await trust.click()
-  await expectVisible(page.locator('.session-command-bar'), 15000)
-  const input = page.locator('.session-command-bar input, .session-command-bar textarea').first()
+  await ensureCmdBar(15000)
+  const input = cmdInput()
   await input.fill('echo e2e-hello-42')
   await input.press('Enter')
   await xtermHas('e2e-hello-42')
@@ -400,10 +417,10 @@ await step('custom tab name survives auto-reconnect after network reset', async 
   await page.locator('.tab-bar .tab').filter({ hasText: 'Renamed SSH' }).click()
   for (const c of conns) c._sock?.resetAndDestroy?.()
   await expectVisible(page.locator('.session-autoretry'), 15000)
-  await expectVisible(page.locator('.session-command-bar'), 25000)
+  await ensureCmdBar(25000)
   const titles = await page.locator('.tab-bar .tab').allTextContents()
   assert(titles.some((t) => t.includes('Renamed SSH')), 'custom title lost: ' + titles.join(' | '))
-  const input2 = page.locator('.session-command-bar input, .session-command-bar textarea').first()
+  const input2 = cmdInput()
   await input2.fill('echo after-reconnect')
   await input2.press('Enter')
   await xtermHas('after-reconnect')
@@ -417,7 +434,8 @@ await step('Ctrl+1 / Ctrl+Tab switch tabs', async () => {
 })
 
 await step('dangerous command needs confirmation (cancel blocks it)', async () => {
-  const input = page.locator('.session-command-bar input, .session-command-bar textarea').first()
+  await ensureCmdBar()
+  const input = cmdInput()
   await input.fill('rm -rf /')
   await input.press('Enter')
   await expectVisible(page.getByText('Dangerous command', { exact: true }))
@@ -516,7 +534,8 @@ await step('port forwarding panel: add (auto local port), traffic through SSH, s
 
 await step('command bar explains commands offline (flags, pipes, risk)', async () => {
   await page.locator('.tab-bar .tab').filter({ hasText: 'Renamed SSH' }).first().click()
-  const input = page.locator('.session-command-bar input, .session-command-bar textarea').first()
+  await ensureCmdBar()
+  const input = cmdInput()
   await input.fill('sudo tail -f /var/log/syslog | grep -i error')
   const ex = page.getByTestId('cmd-explain')
   await expectVisible(ex)
@@ -551,7 +570,7 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
   await expectVisible(rm.getByTestId('rm-trend-cpu').getByText('50%', { exact: false }), 15000)
   assert((await rm.getByTestId('rm-trend-cpu').locator('polyline').count()) === 1, 'cpu sparkline drawn')
   assert((await rm.getByTestId('rm-trend-mem').getByText('25%', { exact: false }).count()) === 1, 'mem trend')
-  await rm.getByRole('button', { name: 'Processes / services / logs…' }).click()
+  await rm.getByRole('button', { name: 'Open toolbox' }).click()
   await expectHidden(rm)
   const st = page.locator('.st-panel')
   await expectVisible(st)
@@ -563,7 +582,9 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
   await expectHidden(nginx)
   await st.getByLabel('Filter by command, user or PID').fill('')
   await cjkScan('server toolbox: processes')
-  await nginx.getByRole('button', { name: 'Force kill' }).click()
+  await nginx.hover()
+  await nginx.locator('summary.st-icon-btn').click()
+  await nginx.getByRole('button', { name: /Force kill/ }).click()
   await expectVisible(page.getByText('Send SIGKILL?'))
   await page.getByTestId('dialog-ok').click()
   await expectVisible(st.locator('.st-notice', { hasText: 'Sent SIGKILL to process 4242' }), 10000)
@@ -574,9 +595,11 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
   await st.getByRole('button', { name: '1 failed' }).click()
   await expectHidden(st.locator('.st-svc').filter({ hasText: 'cron.service' }))
   const ng = st.locator('.st-svc').filter({ hasText: 'nginx.service' })
+  await ng.hover()
   await ng.getByRole('button', { name: 'Status', exact: true }).click()
   await expectVisible(st.locator('.st-status pre', { hasText: 'Active: failed' }), 10000)
   await st.getByLabel('Use sudo').check()
+  await ng.hover()
   await ng.getByRole('button', { name: 'Start', exact: true }).click()
   await page.getByTestId('dialog-ok').click()
   await expectVisible(st.locator('.st-notice', { hasText: 'nginx.service' }), 10000)
@@ -589,6 +612,7 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
   await expectVisible(mysqlRow, 15000)
   await expectVisible(mysqlRow.getByText('mysqld (812)'))
   const freePort = await new Promise((res) => { const srv = net.createServer(); srv.listen(0, '127.0.0.1', () => { const p = srv.address().port; srv.close(() => res(p)) }) })
+  await mysqlRow.hover()
   await mysqlRow.getByRole('button', { name: 'Forward locally' }).click()
   await page.locator('.dialog-text-input').fill(String(freePort))
   await page.getByTestId('dialog-ok').click()
@@ -1084,6 +1108,7 @@ await step('G1: Help → Try demo host: DEMO badge, yellow banner, simulated she
 })
 
 await step('A1: error → "Explain with AI" hint → needs-config state → mock AI cause/fix → Insert / Run confirm; palette entry', async () => {
+  await ensureCmdBar()
   await cmdInput().fill('cat /nope')
   await cmdInput().press('Enter')
   await xtermHas('No such file or directory')
@@ -1117,9 +1142,9 @@ await step('A1: error → "Explain with AI" hint → needs-config state → mock
   await expectVisible(page.getByText('Run on Demo host (demo)?'))
   await page.getByTestId('dialog-ok').click()
   await xtermHas('drwxr-xr-x')
-  // terminal right-click → Explain selection with AI
+  // terminal right-click → Explain selection with AI (UX-22 shared ContextMenu)
   await page.locator('.xterm:visible').first().click({ button: 'right' })
-  await expectVisible(page.getByTestId('terminal-menu').getByText('Explain selection with AI'))
+  await expectVisible(page.getByTestId('context-menu').getByText('Explain selection with AI'))
   await page.keyboard.press('Escape')
 })
 

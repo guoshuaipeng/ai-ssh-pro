@@ -37,6 +37,7 @@ export type MenuAction =
   | 'toggleBroadcast'
   | 'toggleRecording'
   | 'resourceMonitor'
+  | 'dashboard'
   | 'serverTools'
   | 'refreshDocker'
   | 'batchExec'
@@ -150,6 +151,7 @@ export const SHARED_MENUS: SharedMenu[] = [
     label: { zh: '运维', en: 'Ops' },
     items: [
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
+      it('dashboard', '多主机看板', 'Multi-host dashboard'),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
       it('refreshDocker', '刷新 Docker', 'Refresh Docker'),
       sep,

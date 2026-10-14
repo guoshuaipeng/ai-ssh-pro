@@ -20,16 +20,21 @@ type Sample = { cpu: number | null; mem: number | null; at: number }
 const HISTORY_MAX = 60
 
 function Sparkline({ label, values, testId, peakLabel }: { label: string; values: number[]; testId: string; peakLabel: string }) {
-  const w = 240
-  const h = 36
+  const w = 280
+  const h = 64
   const last = values.length ? values[values.length - 1] : null
   const peak = values.length ? Math.max(...values) : null
+  const line = values.length > 0 ? sparklinePoints(values, w, h) : ''
+  const area = line ? `0,${h} ${line} ${w},${h}` : ''
   return (
     <div className="rm-trend" data-testid={testId}>
       <span className="rm-label">{label}</span>
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rm-spark" role="img" aria-label={label}>
-        <line x1="0" y1={h * 0.3} x2={w} y2={h * 0.3} className="rm-spark-warn" />
-        {values.length > 0 ? <polyline points={sparklinePoints(values, w, h)} className="rm-spark-line" /> : null}
+        <line x1="0" y1={h * 0.15} x2={w} y2={h * 0.15} className="rm-spark-warn" />
+        <text x="2" y="12" className="rm-spark-scale">85%</text>
+        <text x="2" y={h - 2} className="rm-spark-scale">0</text>
+        {area ? <polygon points={area} className="rm-spark-area" /> : null}
+        {line ? <polyline points={line} className="rm-spark-line" /> : null}
       </svg>
       <span className="rm-detail">
         {last == null ? '—' : `${Math.round(last)}%`}
@@ -42,7 +47,7 @@ function Sparkline({ label, values, testId, peakLabel }: { label: string; values
 const REFRESH_MS = 5000
 
 function level(p: number): 'ok' | 'warn' | 'bad' {
-  return p >= 90 ? 'bad' : p >= 70 ? 'warn' : 'ok'
+  return p >= 85 ? 'bad' : p >= 70 ? 'warn' : 'ok'
 }
 
 function Bar({ label, percent, detail }: { label: string; percent: number | null; detail?: string }) {
@@ -70,7 +75,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
 
   const appliedPref = useRef<string | null>(null)
   useEffect(() => {
-    if (!open) {
+    if (!open && !embedded) {
       appliedPref.current = null
       return
     }
@@ -99,14 +104,15 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
     }
   }, [])
 
+  const active = open || !!embedded
   useEffect(() => {
-    if (!open || !sessionId) return
+    if (!active || !sessionId) return
     setSnap(null)
     void load(sessionId)
     if (paused) return
     const timer = setInterval(() => void load(sessionId), REFRESH_MS)
     return () => clearInterval(timer)
-  }, [open, sessionId, paused, load])
+  }, [active, sessionId, paused, load])
 
   useEffect(() => {
     setHistory([])
@@ -124,6 +130,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
           <p className="rm-empty">{t('rm.noSessions')}</p>
         ) : (
           <div className="rm-toolbar">
+            {!embedded ? (
             <label>
               {t('rm.session')}{' '}
               <select value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
@@ -134,6 +141,9 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
                 ))}
               </select>
             </label>
+            ) : (
+              <span className="rm-host-label">{sessions.find((s) => s.sessionId === sessionId)?.title || ''}</span>
+            )}
             <button type="button" onClick={() => void load(sessionId)}>
               {t('rm.refresh')}
             </button>
@@ -141,8 +151,8 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
               <input type="checkbox" checked={!paused} onChange={(e) => setPaused(!e.target.checked)} /> {t('rm.auto')}
             </label>
             {onOpenTools && sessionId ? (
-              <button type="button" onClick={() => onOpenTools(sessionId)}>
-                {t('rm.openTools')}
+              <button type="button" className="primary" onClick={() => onOpenTools(sessionId)}>
+                {t('rm.openToolbox')}
               </button>
             ) : null}
             {snap ? <span className="rm-time">{t('rm.updated', { time: new Date(snap.at).toLocaleTimeString() })}</span> : null}
@@ -189,10 +199,11 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
                     <td>{d.mount}</td>
                     <td>{d.fs}</td>
                     <td>{formatBytes(d.totalKb * 1024)}</td>
-                    <td>
+                    <td title={`${d.percent}%`}>
                       <div className="rm-bar rm-bar-sm">
                         <div className={`rm-fill rm-${level(d.percent)}`} style={{ width: `${d.percent}%` }} />
                       </div>{' '}
+                      {d.percent >= 85 ? '⚠ ' : ''}
                       {d.percent}%
                     </td>
                   </tr>

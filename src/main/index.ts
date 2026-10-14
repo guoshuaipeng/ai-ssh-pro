@@ -258,7 +258,7 @@ function createWindow(): void {
             titleBarOverlay: {
               color: '#161b22',
               symbolColor: '#e6edf3',
-              height: 36
+              height: 40
             },
             // 菜单改由 Alt 唤出，避免再占一行（类似 Cursor 合并标题栏）
             autoHideMenuBar: true
@@ -688,7 +688,7 @@ function registerIpc(): void {
             win.setTitleBarOverlay({
               color: overlay,
               symbolColor: symbol,
-              height: 36
+              height: 40
             })
           } catch {
             /* ignore older Electron */

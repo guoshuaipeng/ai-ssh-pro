@@ -20,8 +20,17 @@ type Props = {
 type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; result: AiAssistResult })
 
 /** Sends one line to the active terminal via the existing ssh.write path; "#" or Ctrl+Shift+Space switches to AI mode (A2). */
+const CMD_BAR_KEY = 'aiss.cmdBarOpen'
+
 export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettings }: Props) {
   const { t, locale } = useI18n()
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(CMD_BAR_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const [draft, setDraft] = useState('')
   const [aiMode, setAiMode] = useState(false)
   const [aiCard, setAiCard] = useState<AiCard | null>(null)
@@ -64,6 +73,10 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
     const onFill = (e: Event) => {
       const d = (e as CustomEvent<{ sessionId: string; command: string }>).detail
       if (!d || d.sessionId !== sessionId) return
+      setOpen(true)
+      try {
+        localStorage.setItem(CMD_BAR_KEY, '1')
+      } catch {}
       setAiMode(false)
       setDraft(d.command)
       if (d.command) window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -71,6 +84,10 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
     const onAi = (e: Event) => {
       const d = (e as CustomEvent<{ sessionId: string | null }>).detail
       if (d?.sessionId && d.sessionId !== sessionId) return
+      setOpen(true)
+      try {
+        localStorage.setItem(CMD_BAR_KEY, '1')
+      } catch {}
       const focused = document.activeElement === inputRef.current
       setAiMode((v) => (focused ? !v : true))
       window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -168,8 +185,34 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
   const riskLabel = (r: 'safe' | 'caution' | 'danger') => t(r === 'danger' ? 'a2.danger' : r === 'caution' ? 'a2.caution' : 'a2.safe')
   const effectiveRisk = aiResult ? (assessCommandRisk(aiResult.command) ? 'danger' : aiResult.risk) : 'safe'
 
+  const toggleOpen = (next: boolean) => {
+    setOpen(next)
+    try {
+      localStorage.setItem(CMD_BAR_KEY, next ? '1' : '0')
+    } catch {}
+    if (next) window.setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="session-command-fab"
+        data-testid="cmd-bar-fab"
+        title={t('ux44.expand')}
+        aria-label={t('ux44.expand')}
+        onClick={() => toggleOpen(true)}
+      >
+        ✨
+      </button>
+    )
+  }
+
   return (
-    <div className={`session-command-bar${inAi ? ' is-ai' : ''}`}>
+    <div className={`session-command-bar${inAi ? ' is-ai' : ''}`} data-testid="session-command-bar">
+      <button type="button" className="session-command-collapse" title={t('ux44.collapse')} onClick={() => toggleOpen(false)}>
+        ▾
+      </button>
       <CommandInput
         submitOnEnter
         disabled={busy}
@@ -213,9 +256,14 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
         }}
         onSubmit={(command) => void onSubmit(command)}
       />
-      <button type="button" className="session-command-clear" onClick={() => void clearHistory()}>
-        {t('history.clear')}
-      </button>
+      <details className="session-command-more">
+        <summary className="session-command-clear" title="…">⋯</summary>
+        <div className="session-command-more-menu">
+          <button type="button" onClick={() => void clearHistory()}>
+            {t('history.clear')}
+          </button>
+        </div>
+      </details>
       {latency !== undefined ? (
         <span className={`session-latency session-latency-${classifyLatency(latency)}`} title={t('latency.title')}>
           ● {latency === null ? t('latency.down') : `${latency} ms`}

@@ -40,6 +40,7 @@ import LayoutResizer from './components/LayoutResizer'
 import BatchExecuteModal, { type BatchSessionOption } from './components/BatchExecuteModal'
 import PortForwardModal from './components/PortForwardModal'
 import ResourceMonitorModal from './components/ResourceMonitorModal'
+import MultiHostDashboard from './components/MultiHostDashboard'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
@@ -70,7 +71,8 @@ import { confirmAndRunAiCommand } from './lib/ai-run'
 import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
-import { askConfirm, askText, confirmDialog, DialogHost } from './lib/dialogs'
+import { askConfirm, askText, confirmDialog, DialogHost , isDialogOpen, toast} from './lib/dialogs'
+import { ContextMenuHost, openContextMenu, textFieldContextItems } from './components/ContextMenu'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
 import { normalizeTags } from '@shared/workspace-features'
@@ -121,6 +123,7 @@ type TabView =
   | 'toolbox'
   | 'forward'
   | 'batch'
+  | 'dashboard'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide'
 
@@ -146,7 +149,8 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'monitor',
   'toolbox',
   'forward',
-  'batch'
+  'batch',
+  'dashboard'
 ])
 
 type Tab = {
@@ -267,6 +271,8 @@ export default function App() {
 
   /** 非空表示正在编辑侧栏已保存会话，保存时按 id 写回 */
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null)
+  /** 每次点「新建连接」递增，强制 ConnectionConfigModal 重挂载（重置认证模式等本地态） */
+  const [connectionFormNonce, setConnectionFormNonce] = useState(0)
 
   const [sessionMenu, setSessionMenu] = useState<{
     x: number
@@ -422,6 +428,7 @@ export default function App() {
   const [multiSelected, setMultiSelected] = useState<string[]>([])
   const lastClickedProfileRef = useRef<string | null>(null)
   const [backupOpen, setBackupOpen] = useState(false)
+  const openDashboardRef = useRef<() => void>(() => {})
   const openToolTabRef = useRef<(
     kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch',
     forSessionId?: string | null,
@@ -859,7 +866,8 @@ export default function App() {
       view === 'monitor' ||
       view === 'toolbox' ||
       view === 'forward' ||
-      view === 'batch'
+      view === 'batch' ||
+      view === 'dashboard'
     ) {
       // focus the host session the tool belonged to, else the neighbour tab
       const cur = tabsRef.current
@@ -981,6 +989,28 @@ export default function App() {
     username
   ])
 
+  const resetConnectionForm = useCallback(() => {
+    setHost('')
+    setPort('22')
+    setUsername('')
+    setPassword('')
+    setPrivateKeyPath('')
+    setPassphrase('')
+    setLabel('')
+    setJumpHost('')
+    setJumpPort('22')
+    setJumpUsername('')
+    setJumpPassword('')
+    setJumpPrivateKeyPath('')
+    setJumpPassphrase('')
+    setForwardLocalPort('')
+    setForwardRemoteHost('')
+    setForwardRemotePort('')
+    setSmartPaste('')
+    setParseNotes(null)
+    setError(null)
+  }, [])
+
   const applyProfileToForm = useCallback((profile: SavedSessionProfile) => {
     setHost(profile.host)
     setPort(String(profile.port))
@@ -1009,7 +1039,10 @@ export default function App() {
         applyProfileToForm(profile)
         setEditingSavedId(profile.id)
       } else {
+        // 新建：空白表单（占位 192.0.2.10），不带入侧栏选中 / 上次连接信息
+        resetConnectionForm()
         setEditingSavedId(null)
+        setConnectionFormNonce((n) => n + 1)
       }
       const title = profile ? tg('app.editProfile', { name: profileSidebarLabel(profile) }) : tg('app.newConnection')
       const existing = tabs.find((t) => t.view === 'connection')
@@ -1032,7 +1065,7 @@ export default function App() {
       ])
       setActiveTabId(tabId)
     },
-    [applyProfileToForm, ensureMainVisible, tabs]
+    [applyProfileToForm, ensureMainVisible, resetConnectionForm, tabs]
   )
 
   const openInventoryEditor = useCallback(
@@ -1225,6 +1258,30 @@ export default function App() {
     [activeTabId, ensureMainVisible, openSftpTransfer]
   )
   openToolTabRef.current = openToolTab
+
+  const openDashboard = useCallback(() => {
+    ensureMainVisible()
+    const tabsNow = tabsRef.current
+    const ex = tabsNow.find((t) => t.view === 'dashboard')
+    if (ex) {
+      setActiveTabId(ex.tabId)
+      return
+    }
+    const tabId = uuid()
+    setTabs((prev) => [
+      ...prev,
+      {
+        tabId,
+        sessionId: '',
+        title: tg('o1.title'),
+        connectOpts: PLACEHOLDER_CONNECT,
+        status: 'connected',
+        view: 'dashboard'
+      }
+    ])
+    setActiveTabId(tabId)
+  }, [ensureMainVisible])
+  openDashboardRef.current = openDashboard
 
   const openSettingsTab = useCallback(
     (view: SettingsTabView) => {
@@ -2327,6 +2384,10 @@ export default function App() {
         openToolTabRef.current('forward')
         return
       }
+      if (action === 'dashboard') {
+        openDashboardRef.current()
+        return
+      }
       if (action === 'resourceMonitor') {
         openToolTabRef.current('monitor')
         return
@@ -2618,6 +2679,22 @@ export default function App() {
       document.removeEventListener('visibilitychange', onVis)
     }
   }, [showHostStatus, profiles.length])
+
+  // UX-22: unified right-click on text fields
+  useEffect(() => {
+    const onCtx = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t) return
+      if (t.closest('.ctx-menu-root, .xterm, .tab-context-menu, .session-context-menu')) return
+      const field = t.closest('input, textarea') as HTMLInputElement | HTMLTextAreaElement | null
+      if (!field || field.disabled) return
+      if ((field as HTMLInputElement).type === 'button' || (field as HTMLInputElement).type === 'checkbox' || (field as HTMLInputElement).type === 'radio' || (field as HTMLInputElement).type === 'file') return
+      openContextMenu(e, textFieldContextItems(field, (k) => tg(k as 'ctx.copy')))
+    }
+    document.addEventListener('contextmenu', onCtx, true)
+    return () => document.removeEventListener('contextmenu', onCtx, true)
+  }, [])
+
   // UX-01/UX-02: every shortcut comes from the keymap registry; plain Ctrl+letter stays with a focused terminal
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -2627,6 +2704,19 @@ export default function App() {
       if (!action) return
       e.preventDefault()
       e.stopPropagation()
+      // UX-45: ops shortcuts toast instead of running while a Confirm/Prompt is open
+      const opsBlocked = new Set([
+        'resourceMonitor',
+        'serverTools',
+        'sftp',
+        'portForward',
+        'batchExec',
+        'dashboard'
+      ])
+      if (opsBlocked.has(action) && isDialogOpen()) {
+        toast({ text: tg('ux45.finishDialog') })
+        return
+      }
       handleTitlebarMenuActionRef.current(action as TitlebarMenuAction)
     }
     window.addEventListener('keydown', onKey, true)
@@ -3031,6 +3121,7 @@ export default function App() {
               <div key={t.tabId} className={`terminal-layer ${t.tabId === activeTabId ? 'active' : ''}`}>
                 {t.view === 'connection' ? (
                   <ConnectionConfigModal
+                    key={editingSavedId ? `edit-${editingSavedId}` : `new-${connectionFormNonce}`}
                     title={editingSavedId ? tg('app.editSaved') : tg('app.newConnection')}
                     saveProfileButtonLabel={editingSavedId ? tg('app.saveChanges') : tg('app.saveToList')}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
@@ -3085,6 +3176,22 @@ export default function App() {
                     }
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     link={inventoryLink}
+                    onConnect={(lnk) => {
+                      const pid = lnk.profileId
+                      const prof = pid
+                        ? profiles.find((p) => p.id === pid)
+                        : profiles.find((p) => p.host === lnk.host && (!lnk.username || p.username === lnk.username))
+                      if (prof) void connectProfile(prof)
+                      else openConnectionEditor()
+                    }}
+                    onOpenTool={(tool, lnk) => {
+                      const sid =
+                        tabsRef.current.find((x) => x.profileId && lnk.profileId && x.profileId === lnk.profileId && x.status === 'connected')?.sessionId ||
+                        tabsRef.current.find((x) => x.connectOpts?.host === lnk.host && x.status === 'connected' && (!x.view || x.view === 'session'))?.sessionId
+                      if (tool === 'sftp') openToolTabRef.current('sftp', sid)
+                      else if (tool === 'monitor') openToolTabRef.current('monitor', sid)
+                      else openToolTabRef.current('toolbox', sid)
+                    }}
                     onUpserted={(rec) => {
                       const pid = rec.meta.profileId
                       if (!pid) return
@@ -3324,6 +3431,7 @@ export default function App() {
         }}
       />
       {/* last so confirm/prompt dialogs stack above any open modal */}
+      <ContextMenuHost />
       <DialogHost />
       <ToastHost />
 

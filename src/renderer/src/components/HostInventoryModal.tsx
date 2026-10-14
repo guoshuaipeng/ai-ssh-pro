@@ -23,6 +23,8 @@ type Props = {
   link?: HostInventoryLink
   /** Called after successful upsert (e.g. sync profile.hostInventoryId) */
   onUpserted?: (rec: HostInventoryRecord) => void
+  onConnect?: (link: HostInventoryLink) => void
+  onOpenTool?: (tool: 'sftp' | 'monitor' | 'toolbox', link: HostInventoryLink) => void
 }
 
 type InventoryApi = {
@@ -72,7 +74,7 @@ function emptyForm(link?: HostInventoryLink): {
   }
 }
 
-export default function HostInventoryModal({ onClose, link, onUpserted }: Props) {
+export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool }: Props) {
   /** 从会话右键打开：只编辑该主机，不显示档案列表 */
   const focused = Boolean(
     link && (link.hostInventoryId?.trim() || link.profileId?.trim() || link.host?.trim())
@@ -91,7 +93,13 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
     notes: ''
   })
   const [editingSvcIdx, setEditingSvcIdx] = useState<number | null>(null)
-  const [notesMode, setNotesMode] = useState<'preview' | 'edit' | 'split'>('split')
+  const [notesMode, setNotesMode] = useState<'preview' | 'edit' | 'split'>('preview')
+  const [editingMeta, setEditingMeta] = useState(false)
+  const [svcFilter, setSvcFilter] = useState('')
+  const [svcKind, setSvcKind] = useState<'all' | HostServiceKind>('all')
+  const [svcCollapsed, setSvcCollapsed] = useState(false)
+  const [headerMenu, setHeaderMenu] = useState(false)
+  const [metaDirty, setMetaDirty] = useState(false)
 
   const notesChars = form.notesMarkdown.length
   const notesLines = form.notesMarkdown ? form.notesMarkdown.split(/\n/).length : 0
@@ -121,7 +129,9 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
     setEditingSvcIdx(null)
     setSvcDraft({ name: '', kind: 'unknown', notes: '' })
     const len = (rec.notesMarkdown || '').length
-    setNotesMode(len > 800 ? 'preview' : len > 0 ? 'split' : 'edit')
+    setNotesMode(len > 0 ? 'preview' : 'edit')
+    setEditingMeta(false)
+    setMetaDirty(false)
   }, [])
 
   const loadRecord = useCallback(
@@ -552,6 +562,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
     <div className="workspace-panel workspace-panel--inventory">
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{panelTitle}</h2>
+        {!focused ? (
         <div className="workspace-panel-actions">
           {rootHint ? (
             <span className="workspace-panel-hint" title={rootHint}>
@@ -572,6 +583,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
             {tg('ui.27')}
           </button>
         </div>
+        ) : null}
       </div>
 
       <div
@@ -583,9 +595,148 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
         {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.186')}</p> : null}
 
         {focused ? (
-          <div className="inventory-focus-split">
-            <aside className="inventory-meta-col">{metaFields}</aside>
-            {notesPane}
+          <div className="inv20" data-testid="host-profile">
+            <header className="inv20-head">
+              <div className="inv20-head-main">
+                <div className="inv20-title-row">
+                  <h3 className="inv20-title">{form.title.trim() || form.host.trim() || link?.label || '—'}</h3>
+                  {form.env ? <span className={`inv20-env inv20-env--${(form.env || 'other').toLowerCase()}`}>{form.env}</span> : null}
+                  {form.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean).map((tag) => (
+                    <span key={tag} className="inv20-tag">#{tag}</span>
+                  ))}
+                  {metaDirty ? <span className="inv20-unsaved">● {tg('ux20.unsaved')}</span> : null}
+                </div>
+                <div className="inv20-sub">
+                  <button
+                    type="button"
+                    className="inv20-copy"
+                    title={tg('ctx.copy')}
+                    onClick={() => void navigator.clipboard.writeText(`${form.username || 'root'}@${form.host}:${form.port || 22}`)}
+                  >
+                    {form.username || 'root'}@{form.host || '—'}{form.port ? `:${form.port}` : ''}
+                  </button>
+                  {form.privateKeyPath ? <span>· {tg('ux20.key')} {form.privateKeyPath.replace(/^.*[\\/]/, '…/')}</span> : null}
+                </div>
+              </div>
+              <div className="inv20-head-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => {
+                    window.dispatchEvent(
+                      new CustomEvent('aiss:inventory-connect', {
+                        detail: {
+                          host: form.host,
+                          port: Number(form.port) || 22,
+                          username: form.username,
+                          privateKeyPath: form.privateKeyPath,
+                          label: form.title
+                        }
+                      })
+                    )
+                  }}
+                >
+                  ▶ {tg('ux20.connect')}
+                </button>
+                <button type="button" onClick={() => onOpenTool?.('sftp', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.sftp')}</button>
+                <button type="button" onClick={() => onOpenTool?.('monitor', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.monitor')}</button>
+                <button type="button" onClick={() => onOpenTool?.('toolbox', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.toolbox')}</button>
+                <div className="inv20-more">
+                  <button type="button" aria-label="…" onClick={() => setHeaderMenu((v) => !v)}>⋯</button>
+                  {headerMenu ? (
+                    <div className="inv20-more-menu" role="menu">
+                      {rootHint ? <div className="inv20-more-hint" title={rootHint}>{tg('ui.184')}{rootHint}</div> : null}
+                      <button type="button" className="danger" disabled={saving || !(form.id || selectedId)} onClick={() => { setHeaderMenu(false); void onDelete() }}>{tg('ux20.deleteProfile')}</button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </header>
+            <div className="inv20-body">
+              <aside className="inv20-left">
+                <section className="inv20-card">
+                  <div className="inv20-card-head">
+                    <strong>{tg('ux20.basic')}</strong>
+                    {!editingMeta ? (
+                      <button type="button" onClick={() => setEditingMeta(true)}>{tg('ui.171')}</button>
+                    ) : (
+                      <span className="inv20-card-actions">
+                        <button type="button" onClick={() => { setEditingMeta(false); setMetaDirty(false); if (form.id) void loadRecord(form.id) }}>{tg('dlg.cancel')}</button>
+                        <button type="button" className="primary" disabled={saving} onClick={() => { void (async () => { await onSave(); setEditingMeta(false); setMetaDirty(false) })() }}>{tg('ui.25')}</button>
+                      </span>
+                    )}
+                  </div>
+                  {!editingMeta ? (
+                    <dl className="inv20-readonly">
+                      <div><dt>{tg('ui.43')}</dt><dd className="mono">{form.host || '—'}</dd></div>
+                      <div><dt>{tg('ui.44')}</dt><dd className="mono">{form.port || '—'}</dd></div>
+                      <div><dt>{tg('ui.125')}</dt><dd className="mono">{form.username || '—'}</dd></div>
+                      <div><dt>{tg('ui.165')}</dt><dd>{form.env || '—'}</dd></div>
+                      <div><dt>{tg('ui.166')}</dt><dd>{form.tags || '—'}</dd></div>
+                      <div><dt>{tg('ui.168')}</dt><dd className="mono" title={form.privateKeyPath}>{form.privateKeyPath ? form.privateKeyPath.replace(/^.*[\\/]/, '…/') : '—'}</dd></div>
+                    </dl>
+                  ) : (
+                    <div className="inv20-form" onChange={() => setMetaDirty(true)}>{metaFields}</div>
+                  )}
+                </section>
+                <section className="inv20-card">
+                  <div className="inv20-card-head">
+                    <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}>{svcCollapsed ? '▸' : '▾'} {tg('ux20.services')} ({form.services.length})</button>
+                    <span className="inv20-card-actions">
+                      <input className="inv20-svc-filter" placeholder={tg('ux20.filter')} value={svcFilter} onChange={(e) => setSvcFilter(e.target.value)} aria-label={tg('ux20.filter')} />
+                      <button type="button" onClick={() => { setEditingSvcIdx(-1); setSvcDraft({ name: '', kind: 'unknown', notes: '' }) }}>+ {tg('ux20.add')}</button>
+                    </span>
+                  </div>
+                  {!svcCollapsed ? (
+                    <>
+                      <div className="inv20-kind-chips">
+                        {(['all', ...SERVICE_KINDS] as const).map((k) => {
+                          const n = k === 'all' ? form.services.length : form.services.filter((s) => s.kind === k).length
+                          if (k !== 'all' && n === 0) return null
+                          return (
+                            <button key={k} type="button" className={svcKind === k ? 'active' : ''} onClick={() => setSvcKind(k as typeof svcKind)}>
+                              {k === 'all' ? tg('st.svcAll') : k} {n}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <ul className="inv20-svc-list">
+                        {form.services.length === 0 ? (
+                          <li className="inv20-empty">{tg('ux20.noServices')}</li>
+                        ) : (
+                          form.services
+                            .map((s, idx) => ({ s, idx }))
+                            .filter(({ s }) => (svcKind === 'all' || s.kind === svcKind) && (!svcFilter.trim() || (s.name + (s.notes || '')).toLowerCase().includes(svcFilter.trim().toLowerCase())))
+                            .map(({ s, idx }) => (
+                              <li key={`${s.name}-${idx}`} className="inv20-svc-row" title={s.notes || s.name}>
+                                <span className={`inv20-dot inv20-dot--${s.kind}`} />
+                                <span className="inv20-svc-name">{s.name}</span>
+                                <span className="inv20-svc-meta">{s.kind}</span>
+                                <span className="inv20-svc-actions">
+                                  <button type="button" onClick={() => editService(idx)}>{tg('ui.171')}</button>
+                                  <button type="button" className="danger" onClick={() => removeService(idx)}>{tg('ui.172')}</button>
+                                </span>
+                              </li>
+                            ))
+                        )}
+                      </ul>
+                      {editingSvcIdx != null ? (
+                        <div className="inv20-svc-editor">
+                          <input value={svcDraft.name} onChange={(e) => setSvcDraft((p) => ({ ...p, name: e.target.value }))} placeholder={tg('ui.173')} />
+                          <select value={svcDraft.kind} onChange={(e) => setSvcDraft((p) => ({ ...p, kind: e.target.value as HostServiceKind }))}>
+                            {SERVICE_KINDS.map((k) => (<option key={k} value={k}>{k}</option>))}
+                          </select>
+                          <input value={svcDraft.notes} onChange={(e) => setSvcDraft((p) => ({ ...p, notes: e.target.value }))} placeholder={tg('ui.174')} />
+                          <button type="button" className="primary" onClick={commitService}>{editingSvcIdx != null && editingSvcIdx >= 0 ? tg('ui.175') : tg('ui.176')}</button>
+                          <button type="button" onClick={() => { setEditingSvcIdx(null); setSvcDraft({ name: '', kind: 'unknown', notes: '' }) }}>{tg('dlg.cancel')}</button>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+                </section>
+              </aside>
+              <div className="inv20-notes">{notesPane}</div>
+            </div>
           </div>
         ) : (
           <div className="inventory-layout">

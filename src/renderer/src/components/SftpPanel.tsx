@@ -4,6 +4,7 @@ import { askConfirm, askText, confirmDialog } from '../lib/dialogs'
 import type { SftpListEntry, SftpListResult, SftpProgressEvent } from '@shared/ipc'
 import { isLikelyTextFile } from './RemoteTextEditor'
 import EmptyState from './EmptyState'
+import { isDemoSessionId } from '@shared/demo-host'
 
 type Props = {
   sessionId: string | null
@@ -69,6 +70,10 @@ function formatTime(ms?: number): string {
   }
 }
 
+function cleanSftpErr(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+}
+
 function pct(transferred: number, total: number): number {
   if (!total || total <= 0) return transferred > 0 ? 99 : 0
   return Math.min(100, Math.round((transferred / total) * 100))
@@ -90,6 +95,8 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     () => entries.filter((e) => selected[e.path]),
     [entries, selected]
   )
+  const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
+  const roTitle = readOnly ? tg('ux34.readOnly') : undefined
 
   const refresh = useCallback(
     async (path: string) => {
@@ -111,7 +118,7 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
         setEntries(res.entries)
         setSelected({})
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        setError(cleanSftpErr(e))
       } finally {
         setLoading(false)
       }
@@ -171,7 +178,7 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
       await fn()
       if (!skipRefresh) await refresh(cwd)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(cleanSftpErr(e))
     } finally {
       setBusy(false)
     }
@@ -312,6 +319,10 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     ev.preventDefault()
     setDragOver(false)
     if (!sessionId || busy) return
+    if (readOnly) {
+      setError(tg('ux34.noUpload'))
+      return
+    }
     const list = Array.from(ev.dataTransfer.files || [])
     const paths = list
       .map((f) => window.aiss.fs.pathForFile?.(f) || (f as File & { path?: string }).path)
@@ -324,19 +335,16 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
   }
 
   return (
-    <div className="workspace-panel workspace-panel--sftp">
-      <div className="workspace-panel-toolbar sftp-toolbar">
-        <h2 className="workspace-panel-title">
-          {tg('sftp.title')}{sessionTitle ? ` · ${sessionTitle}` : ''}
-        </h2>
-        <div className="workspace-panel-actions">
+    <div className="workspace-panel workspace-panel--sftp" role="region" aria-label={`${tg('sftp.title')}${sessionTitle ? ` · ${sessionTitle}` : ''}`}>
+      <div className="workspace-panel-toolbar sftp-toolbar" data-testid="sftp-toolbar">
+        <div className="workspace-panel-actions sftp-toolbar-actions">
           <button type="button" disabled={!sessionId || busy} onClick={() => void goHome()}>
             {tg('sftp.home')}
           </button>
           <button type="button" disabled={!sessionId || busy} onClick={() => void refresh(cwd)}>
             {tg('sftp.refresh')}
           </button>
-          <button type="button" disabled={!sessionId || busy} onClick={onMkdir}>
+          <button type="button" disabled={!sessionId || busy || readOnly} title={roTitle} onClick={onMkdir}>
             {tg('sftp.mkdir')}
           </button>
           <button
@@ -346,11 +354,8 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
           >
             {tg('sftp.downloadSel')}
           </button>
-          <button type="button" className="primary" disabled={!sessionId || busy} onClick={onUpload}>
+          <button type="button" className="primary" disabled={!sessionId || busy || readOnly} title={roTitle} onClick={onUpload}>
             {tg('sftp.upload')}
-          </button>
-          <button type="button" onClick={onClose} disabled={busy}>
-            {tg('common.close')}
           </button>
         </div>
       </div>
@@ -378,19 +383,23 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
               </button>
             </div>
 
-            <p className="sftp-hint">
-              {tg('sftp.hintA')} <code>sz</code> / <code>rz</code>{' '}
-              {tg('sftp.hintB')}
-            </p>
+            {readOnly ? (
+              <p className="sftp-hint sftp-demo-hint" data-testid="sftp-demo-readonly">{tg('ux34.banner')}</p>
+            ) : (
+              <p className="sftp-hint">
+                {tg('sftp.hintA')} <code>sz</code> / <code>rz</code>{' '}
+                {tg('sftp.hintB')}
+              </p>
+            )}
 
             {error ? <div className="sftp-error">{error}</div> : null}
             {hint ? <div className="sftp-ok">{hint}</div> : null}
 
             <div
-              className={`sftp-browser${dragOver ? ' is-dragover' : ''}`}
+              className={`sftp-browser${dragOver && !readOnly ? ' is-dragover' : ''}`}
               onDragEnter={(e) => {
                 e.preventDefault()
-                setDragOver(true)
+                if (!readOnly) setDragOver(true)
               }}
               onDragOver={(e) => {
                 e.preventDefault()
@@ -403,17 +412,23 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
                 <div className="sftp-empty">{tg('common.loading')}</div>
               ) : entries.length === 0 ? (
                 <div className="sftp-empty">
-                  <EmptyState compact testId="sftp-empty" icon="📂" title={tg('ux08.sftpTitle')} desc={tg('ux08.sftpDesc')} />
+                  <EmptyState
+                    compact
+                    testId="sftp-empty"
+                    icon={readOnly ? '🔒' : '📂'}
+                    title={readOnly ? tg('ux34.emptyTitle') : tg('ux08.sftpTitle')}
+                    desc={readOnly ? tg('ux34.emptyDesc') : tg('ux08.sftpDesc')}
+                  />
                 </div>
               ) : (
                 <table className="sftp-table">
                   <thead>
                     <tr>
-                      <th style={{ width: 36 }} />
+                      <th style={{ width: 32 }} />
                       <th>{tg('sftp.colName')}</th>
-                      <th style={{ width: 100 }}>{tg('sftp.colSize')}</th>
-                      <th style={{ width: 160 }}>{tg('sftp.colTime')}</th>
-                      <th style={{ width: 220 }}>{tg('sftp.colActions')}</th>
+                      <th style={{ width: 80 }}>{tg('sftp.colSize')}</th>
+                      <th style={{ width: 140 }}>{tg('sftp.colTime')}</th>
+                      <th style={{ width: 112 }}>{tg('sftp.colActions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -444,14 +459,16 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
                         </td>
                         <td>{e.isDirectory ? '—' : formatSize(e.size)}</td>
                         <td>{formatTime(e.modifyTime)}</td>
-                        <td>
+                        <td className="sftp-actions-cell">
                           <div className="sftp-row-actions">
                             {!e.isDirectory ? (
                               <>
                                 <button
                                   type="button"
-                                  className="primary"
+                                  className="sftp-icon-btn"
                                   disabled={busy || !onOpenRemoteFile}
+                                  title={isLikelyTextFile(e.name) ? tg('sftp.edit') : tg('sftp.preview')}
+                                  aria-label={isLikelyTextFile(e.name) ? tg('sftp.edit') : tg('sftp.preview')}
                                   onClick={() =>
                                     onOpenRemoteFile?.({
                                       remotePath: e.path,
@@ -460,18 +477,50 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
                                     })
                                   }
                                 >
-                                  {isLikelyTextFile(e.name) ? tg('sftp.edit') : tg('sftp.preview')}
+                                  ✎
                                 </button>
-                                <button type="button" disabled={busy} onClick={() => onDownloadOne(e)}>
-                                  {tg('sftp.download')}
+                                <button
+                                  type="button"
+                                  className="sftp-icon-btn"
+                                  disabled={busy}
+                                  title={tg('sftp.download')}
+                                  aria-label={tg('sftp.download')}
+                                  onClick={() => onDownloadOne(e)}
+                                >
+                                  ⬇
                                 </button>
                               </>
-                            ) : null}
-                            <button type="button" disabled={busy} onClick={() => onRename(e)}>
-                              {tg('sftp.rename')}
+                            ) : (
+                              <button
+                                type="button"
+                                className="sftp-icon-btn"
+                                disabled={busy}
+                                title={tg('sftp.download')}
+                                aria-label={tg('sftp.download')}
+                                onClick={() => onDownloadOne(e)}
+                              >
+                                ⬇
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="sftp-icon-btn"
+                              disabled={busy || readOnly}
+                              title={roTitle || tg('sftp.rename')}
+                              aria-label={tg('sftp.rename')}
+                              onClick={() => onRename(e)}
+                            >
+                              ✏
                             </button>
-                            <button type="button" disabled={busy} onClick={() => onRemove(e)}>
-                              {tg('sftp.delete')}
+                            <button
+                              type="button"
+                              className="sftp-icon-btn danger"
+                              disabled={busy || readOnly}
+                              title={roTitle || tg('sftp.delete')}
+                              aria-label={tg('sftp.delete')}
+                              onClick={() => onRemove(e)}
+                            >
+                              🗑
                             </button>
                           </div>
                         </td>
