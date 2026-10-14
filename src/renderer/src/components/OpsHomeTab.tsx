@@ -174,8 +174,15 @@ export default function OpsHomeTab({
       setMenu(null)
       setMore(false)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
     window.addEventListener('click', close)
-    return () => window.removeEventListener('click', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [menu, more])
 
   if (hosts.length === 0 && scope.mode === 'all') {
@@ -237,12 +244,15 @@ export default function OpsHomeTab({
               {t('l7.newConnection')}
             </button>
           )}
-          <button type="button" onClick={onOpenDashboard}>
-            {t('l7.openDashboard')}
-          </button>
+          {primaryIsAlerts ? (
+            <button type="button" data-testid="l7-open-dashboard" onClick={onOpenDashboard}>
+              {t('l7.openDashboard')}
+            </button>
+          ) : null}
           <button
             type="button"
             aria-label={t('l7.more')}
+            aria-expanded={more}
             onClick={(e) => {
               e.stopPropagation()
               setMore((v) => !v)
@@ -252,29 +262,34 @@ export default function OpsHomeTab({
           </button>
           {more ? (
             <div className="l7-more" role="menu" onClick={(e) => e.stopPropagation()}>
-              <button type="button" onClick={onRules}>
+              {!primaryIsAlerts ? (
+                <button type="button" onClick={() => { setMore(false); onOpenDashboard() }}>
+                  {t('l7.openDashboard')}
+                </button>
+              ) : null}
+              <button type="button" onClick={() => { setMore(false); onRules() }}>
                 {t('menu.alertRules')}
               </button>
-              <button type="button" onClick={onPlaybook}>
+              <button type="button" onClick={() => { setMore(false); onPlaybook() }}>
                 {t('l7.playbooks')}
               </button>
-              <button type="button" onClick={onInspect}>
+              <button type="button" onClick={() => { setMore(false); onInspect() }}>
                 {t('a3.short')}
               </button>
-              <button type="button" onClick={onStartup}>
+              <button type="button" onClick={() => { setMore(false); onStartup() }}>
                 {t('menu.startupSettings')}
               </button>
-              <button type="button" onClick={() => setRetryNonce((n) => n + 1)}>
+              <button type="button" onClick={() => { setMore(false); setRetryNonce((n) => n + 1) }}>
                 {t('l7.refresh')}
               </button>
               <div className="l7-rail-collapsed">
-                <button type="button" onClick={onNewConnection}>
+                <button type="button" onClick={() => { setMore(false); onNewConnection() }}>
                   {t('l7.newConnection')}
                 </button>
-                <button type="button" onClick={onImport}>
+                <button type="button" onClick={() => { setMore(false); onImport() }}>
                   {t('l7.import')}
                 </button>
-                <button type="button" onClick={onCheckUpdate}>
+                <button type="button" onClick={() => { setMore(false); onCheckUpdate() }}>
                   {t('menu.checkUpdate')}
                 </button>
               </div>
@@ -294,12 +309,15 @@ export default function OpsHomeTab({
             <div className="l7-cards">
               {ranked.shown.map((h) => {
                 const snap = h.sessionId ? snaps[h.sessionId] : undefined
+                const protBadge = h.protection === 'production' || h.protection === 'readonly' ? h.protection : null
+                const showDemoBadge = Boolean(h.demo) && protBadge == null
+                const cardTitle = h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title
                 return (
                   <article
                     key={h.profileId}
                     className={`l7-card${h.alerting ? ' is-alert' : ''}${snap?.error ? ' is-err' : ''}`}
                     data-testid="l7-card"
-                    title={h.title}
+                    title={cardTitle}
                     onClick={() => onOpenMonitor(h)}
                     onDoubleClick={(e) => {
                       e.preventDefault()
@@ -313,10 +331,11 @@ export default function OpsHomeTab({
                     <div className="l7-card-top">
                       <span className={`l7-dot${h.online ? ' is-on' : ''}`} aria-hidden />
                       <span className="l7-card-name">{h.title}</span>
-                      {h.protection !== 'normal' ? (
-                        <span className={`prot-badge prot-badge--${h.protection}`}>{t(h.protection === 'production' ? 'l4.production' : 'l4.readonly')}</span>
+                      {protBadge ? (
+                        <span className={`prot-badge prot-badge--${protBadge}`}>{t(protBadge === 'production' ? 'l4.production' : 'l4.readonly')}</span>
+                      ) : showDemoBadge ? (
+                        <span className="demo-badge">{t('l7.demo')}</span>
                       ) : null}
-                      {h.demo ? <span className="demo-badge">{t('l7.demo')}</span> : null}
                     </div>
                     <div className="l7-card-lat">{h.latencyMs != null ? `${h.latencyMs} ms` : h.online ? '—' : t('l7.offline')}</div>
                     {snap?.error ? (
@@ -419,9 +438,6 @@ export default function OpsHomeTab({
               ))}
             </div>
           )}
-          <p className="a4-privacy l7-privacy" data-testid="l7-privacy">
-            {t('a4.privacy')}
-          </p>
         </section>
 
         <aside className="l7-col l7-rail" aria-label={t('l7.shortcuts')}>
