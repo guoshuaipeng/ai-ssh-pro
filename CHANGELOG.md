@@ -2,12 +2,14 @@
 
 ## v0.4.0-m2
 
-Preview of the ops flagship. Do not tag `v0.4.0` until every M2 acceptance check is green.
+Preview of the ops flagship. Package version stays `0.4.0-m2`. Do not tag this build.
+
+**Formal v0.4.0 acceptance.** M2-L6 (jump hosts, OpenSSH certificates, sk-ed25519) is **Deferred → v0.4.1**. The v0.4.0 tag ships without a live certificate or sk-ed25519 hop proof. Jump-host UI and hop visualization stay in this preview. The M2 priority cut allows L5 and L6 to slip; L1, L3, and L4b stay. **L5 stays in v0.4.0** (already Pass). Tag v0.4.0 when the remaining M2 acceptance checks are green.
 
 - **Playbooks (L1)** — list, editor, and run wizard open as center tabs. Steps are commands or snippets (toolbox stays marked coming soon). Confirm, stop-on-error, and timeout are per step. Autosave waits 800ms. Ctrl+Alt+P opens the list. Runs pick hosts, then parallel or serial, then a preview. Read-only hosts cannot be selected. Production and dangerous steps still confirm. Results export, and the audit log records `playbook.run`.
 - **Cloud sync (L3)** — File → Cloud sync… talks to a private Gist or WebDAV. The vault is encrypted with the backup envelope. The passphrase stays on this device. Scope checkboxes default credentials off. Conflicts open in a center tab. The status bar shows ✓ / ⟳ / ! / ✕ while sync is on. Overwrite-local writes a backup first.
-- **Terminal blocks (L5)** — off by default. When on, command chunks fold and offer explain, copy, and save. Turning them off keeps the terminal scrollback.
-- **Jump hosts (L6)** — up to five hops, with the failed hop named in the error and a banner back to the editor. OpenSSH certificates attach to the key. sk-ed25519 connects through an SSH agent.
+- **Terminal blocks (L5)** — off by default. When on, command chunks fold and offer explain, copy, and save. Turning them off keeps the terminal scrollback. Stays in v0.4.0 (Pass).
+- **Jump hosts (L6) — Deferred → v0.4.1.** Jump visualization stays in this preview: up to five hops, the failed hop named in the error, and a banner back to the editor. OpenSSH certificates and sk-ed25519 stay in the UI as experimental. Live cert / sk-ed25519 hop proof is the v0.4.1 formal acceptance check, and is not required to tag v0.4.0.
 - **File workflow (L8)** — folder-sync preview can pin into a center tab, and pins itself above 50 changes. Starting the sync still passes the same remote write gate as upload and delete.
 - **Audit and recordings (L4b)** — the audit tab searches and exports CSV or JSONL, including `playbook.run`, `alert.execute`, and `danger`. Session recording writes asciicast v2. Auto-record is a real profile switch and does not open a save dialog.
 
