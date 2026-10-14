@@ -33,7 +33,7 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
     },
     {
       icon: '⇢',
-      text: { zh: '最多五跳跳板，失败定位到某一跳；证书或 sk-ed25519 经代理连接', en: 'Up to five jump hops, with the failed hop named. Certificates or sk-ed25519 connect through an agent' },
+      text: { zh: '最多五跳跳板，失败定位到某一跳。证书和 sk-ed25519 仍是实验能力，正式验收在 0.4.1', en: 'Up to five jump hops, with the failed hop named. Certificates and sk-ed25519 are experimental; formal acceptance is in 0.4.1' },
       where: { zh: '新建连接 → 高级', en: 'New connection → Advanced' },
       action: 'connection'
     },
