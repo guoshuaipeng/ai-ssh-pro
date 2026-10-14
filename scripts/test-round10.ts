@@ -32,10 +32,19 @@ assert.equal(empty.mem, null)
 assert.deepEqual(empty.disks, [])
 assert.ok(RESOURCE_PROBE_CMD.includes('/proc/loadavg') && !RESOURCE_PROBE_CMD.includes('\n'))
 
-const payload = { savedSessions: { folders: [], profiles: [{ id: 'p1', password: 's3cret-pass' }] }, snippets: [{ title: '中文 ok' }] }
+const profileId = 'profile-p1-7c4e9a1b'
+const secret = 's3cret-pass'
+const snippetTitle = '中文 ok'
+const payload = { savedSessions: { folders: [], profiles: [{ id: profileId, password: secret }] }, snippets: [{ title: snippetTitle }] }
 const env = encryptBackup(payload, 'correct horse battery')
 const text = JSON.stringify(env)
-assert.ok(!text.includes('s3cret-pass') && !text.includes('p1'), 'ciphertext leaks plaintext')
+// "p1" shows up inside base64 salt/iv/tag/data by chance (~7% of runs) and is not a leak.
+for (const needle of [secret, profileId, snippetTitle, 'savedSessions']) {
+  assert.ok(!text.includes(needle), `ciphertext leaks plaintext: ${needle}`)
+}
+const cipherBytes = Buffer.from(env.data, 'base64')
+assert.ok(!cipherBytes.includes(JSON.stringify(payload)), 'ciphertext is plaintext')
+assert.ok(!cipherBytes.includes(secret), 'ciphertext leaks secret bytes')
 assert.deepEqual(decryptBackup(text, 'correct horse battery'), payload)
 assert.throws(() => decryptBackup(text, 'wrong password!!'), /wrong-password/)
 assert.throws(() => decryptBackup('{"format":"nope"}', 'x'), /not-a-backup/)
