@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.19
+
+- **Domestic update channel (N1)** — Settings → Updates: Auto (Gitee then GitHub), Gitee, GitHub, or a custom mirror. The download link comes from the same source that reported the version. About and the update dialog show the active source. Each source times out at about 8s; auto gives up after 16s.
+- **Alert locate (O4)** — Dashboard badges and alert history rows have Locate. Disk opens toolbox disk usage, CPU/memory opens processes, a service alert opens systemd. A system notification click focuses the app and the host. With no session, the host picker connects first. The alert stays until the metric recovers or you ignore it.
+- **AI alert read (A4)** — Alert cards and history rows have AI read. The prompt is that host’s metrics plus a truncated journal snippet, with the same insert / run / danger confirm as error explain. Unconfigured AI shows only the setup card.
+- **Local ↔ remote diff (D5)** — SFTP context menu “Compare with local…” and a Compare action when each pane has one file selected. Read-only side-by-side or unified diff opens as a center tab, with a jump into the remote editor. Files over 2MB suggest an external tool.
+- **Compact dual pane (UX-46)** — At 1366px and narrower the SFTP dual pane uses shorter rows, icon toolbar buttons, and a collapsible path. View → SFTP comfort density restores the roomier layout. 1024 and 1366 do not scroll sideways.
+- **Competitor session import (N2)** — File → Import sessions… (and the empty host list) previews FinalShell, Xshell, MobaXterm, PuTTY, and SSH config: groups, host count, and skip / overwrite / copy. Passwords and keys are not written into notes or the preview.
+- **Getting-started cards (G3)** — After the welcome tour, small cards offer connect / monitor / AI / file transfer. They do not cover the command bar. Completion is remembered; Help → Getting started tasks reopens them; dismiss all can be permanent.
+- **已知限制** — Auto mode still needs a reachable Gitee or GitHub release API (or a custom mirror that returns the same JSON). Service locate is wired, but the built-in rules still cover CPU, memory, disk, and offline only. Diff is line-based and does not load files over 2MB. Import preview stores secrets only on the saved session, same as before.
+
 ## v0.3.18
 
 - **SFTP dual pane (D1)** — local and remote side by side, drag-and-drop, transfer queue with pause / resume / cancel, and chunked resume via `.aisshpart`.

@@ -394,6 +394,8 @@ export type ImportedSessionDraft = {
   port: number
   username: string
   password?: string
+  /** folder name from FinalShell / similar; not a secret */
+  group?: string
   privateKeyPath?: string
   passphrase?: string
   jumpHost?: SshJumpHostOptions
@@ -673,9 +675,13 @@ export type AppUpdateCheckResult = {
   releaseUrl?: string
   downloadUrl?: string
   releaseName?: string
-  /** release notes (markdown body of the GitHub release) */
+  /** release notes (markdown body of the release that was actually read) */
   notes?: string
   message: string
+  /** N1: source that produced this result (download URL belongs to it) */
+  source?: 'gitee' | 'github' | 'custom'
+  channel?: 'auto' | 'gitee' | 'github' | 'custom'
+  tried?: Array<'gitee' | 'github' | 'custom'>
 }
 
 /** A live local port forward (127.0.0.1:localPort → remoteHost:remotePort through an SSH session). */
@@ -703,14 +709,15 @@ export type BackupExportResult =
   | { ok: false; canceled?: boolean; error: string }
 export type BackupImportResult = { ok: true; counts: BackupCounts } | { ok: false; canceled?: boolean; error: string }
 
-/** A1 / A2: one-shot AI helpers (explain an error, natural language → command) */
+/** A1 / A2 / A4: one-shot AI helpers (explain an error, an alert, natural language → command) */
 export type AiAssistRequest =
   | { requestId: string; kind: 'explainError'; text: string; host?: string; locale: string }
+  | { requestId: string; kind: 'explainAlert'; text: string; host?: string; locale: string }
   | { requestId: string; kind: 'nlCommand'; text: string; host?: string; locale: string }
 
 export type AiAssistFix = { command: string; note?: string }
 
 export type AiAssistResult =
-  | { ok: true; kind: 'explainError'; cause: string; fixes: AiAssistFix[]; notes?: string }
+  | { ok: true; kind: 'explainError' | 'explainAlert'; cause: string; fixes: AiAssistFix[]; notes?: string }
   | { ok: true; kind: 'nlCommand'; command: string; explanation: string; risk: 'safe' | 'caution' | 'danger' }
   | { ok: false; code: 'not-configured' | 'aborted' | 'error'; message?: string }

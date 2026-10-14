@@ -31,6 +31,7 @@ import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
 import FolderSyncModal from './FolderSyncModal'
 import { isLikelyTextFile } from './RemoteTextEditor'
+import { loadSftpDensity, resolveSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT, type SftpDensityPref } from '@shared/sftp-density'
 
 type Props = {
   sessionId: string | null
@@ -43,6 +44,7 @@ type Props = {
   onClose: () => void
   onReconnect?: () => void
   onOpenRemoteFile?: (info: { remotePath: string; name: string; size: number }) => void
+  onCompare?: (info: { localPath: string; remotePath: string; localName: string; remoteName: string; localSize: number; remoteSize: number }) => void
 }
 
 type PaneId = 'local' | 'remote'
@@ -108,12 +110,18 @@ export default function SftpPanel({
   connected = true,
   onClose,
   onReconnect,
-  onOpenRemoteFile
+  onOpenRemoteFile,
+  onCompare
 }: Props) {
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
   const rootRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
+  const [winW, setWinW] = useState(() => (typeof window === 'undefined' ? 1400 : window.innerWidth))
+  const [densityPref, setDensityPref] = useState<SftpDensityPref>(() => loadSftpDensity())
+  const density = resolveSftpDensity(densityPref, winW)
+  const compact = density === 'compact'
+  const [crumbOpen, setCrumbOpen] = useState(false)
   const [pane, setPane] = useState<PaneId>('remote')
   const [activePane, setActivePane] = useState<PaneId>('remote')
   const [showHidden, setShowHidden] = useState(false)
@@ -219,6 +227,17 @@ export default function SftpPanel({
     const ro = new ResizeObserver(() => setNarrow(el.clientWidth < NARROW_PANE_PX))
     ro.observe(el)
     return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const onResize = () => setWinW(window.innerWidth)
+    const onPref = () => setDensityPref(loadSftpDensity())
+    window.addEventListener('resize', onResize)
+    window.addEventListener(SFTP_DENSITY_EVENT, onPref)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener(SFTP_DENSITY_EVENT, onPref)
+    }
   }, [])
 
   const persist = useCallback((next: TransferTask[]) => {
@@ -337,6 +356,7 @@ export default function SftpPanel({
       }
       setTasks((prev) => [task, ...prev])
       setQueueOpen(true)
+      window.dispatchEvent(new CustomEvent('aiss-task-transfer'))
       await runTransfer(task, offset)
     },
     [hostKey, runTransfer]
@@ -708,7 +728,15 @@ export default function SftpPanel({
         onDrop={isLocal ? onDropLocal : onDropRemote}
       >
         <div className="sftp-pane-head">
-          <div className="sftp-pane-title">{isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}</div>
+          <div className="sftp-pane-title">
+            {isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}
+            {compact ? (
+              <button type="button" className="sftp-crumb-toggle" onClick={() => setCrumbOpen((v) => !v)}>
+                {tg('ux46.crumb')}
+              </button>
+            ) : null}
+          </div>
+          {!compact || crumbOpen ? (
           <div className="sftp-pathbar">
             <button type="button" onClick={() => (isLocal ? void refreshLocal(parentLocal(cwd)) : void refreshRemote(parentPosix(cwd)))} disabled={!cwd || cwd === '/'}>
               {tg('sftp.up')}
@@ -733,9 +761,10 @@ export default function SftpPanel({
               {tg('sftp.mkdir')}
             </button>
             <button type="button" className={showHidden ? 'is-on' : ''} onClick={() => setShowHidden((v) => !v)} title={tg('d1.hidden')}>
-              {tg('d1.hidden')}
+              <span className="sftp-label">{tg('d1.hidden')}</span>
             </button>
           </div>
+          ) : null}
         </div>
         {error ? <div className="sftp-error">{error}</div> : null}
         <div className={`sftp-browser${disconnected ? ' is-disconnected' : ''}`}>
@@ -792,17 +821,41 @@ export default function SftpPanel({
                       } else if (!isLocal) onOpenRemoteFile?.({ remotePath: e.path, name: e.name, size: e.size })
                     }}
                     onContextMenu={(ev) => {
-                      if (!e.isDirectory) return
+                      if (e.isDirectory) {
+                        openContextMenu(ev, [
+                          {
+                            id: 'sync',
+                            label: isLocal ? tg('d2.toRemote') : tg('d2.toLocal'),
+                            onSelect: () => {
+                              if (isLocal) setLocalCwd(e.path)
+                              else setRemoteCwd(e.path)
+                              setSyncDirection(isLocal ? 'upload' : 'download')
+                              setSyncProfile(null)
+                              setSyncOpen(true)
+                            }
+                          }
+                        ])
+                        return
+                      }
+                      if (isLocal || !onCompare) return
                       openContextMenu(ev, [
                         {
-                          id: 'sync',
-                          label: isLocal ? tg('d2.toRemote') : tg('d2.toLocal'),
+                          id: 'compare-local',
+                          label: tg('d5.compareWithLocal'),
                           onSelect: () => {
-                            if (isLocal) setLocalCwd(e.path)
-                            else setRemoteCwd(e.path)
-                            setSyncDirection(isLocal ? 'upload' : 'download')
-                            setSyncProfile(null)
-                            setSyncOpen(true)
+                            const local = localShown.filter((x) => localSel[x.path] && !x.isDirectory)
+                            if (local.length !== 1) {
+                              showToast(tg('d5.needPair'))
+                              return
+                            }
+                            onCompare({
+                              localPath: local[0]!.path,
+                              remotePath: e.path,
+                              localName: local[0]!.name,
+                              remoteName: e.name,
+                              localSize: local[0]!.size,
+                              remoteSize: e.size
+                            })
                           }
                         }
                       ])
@@ -866,7 +919,7 @@ export default function SftpPanel({
 
   return (
     <div
-      className="workspace-panel workspace-panel--sftp sftp-dual"
+      className={`workspace-panel workspace-panel--sftp sftp-dual${compact ? ' is-compact' : ''}`}
       ref={rootRef}
       data-testid="sftp-dual"
       role="region"
@@ -884,8 +937,46 @@ export default function SftpPanel({
               </button>
             </div>
           ) : null}
-          <button type="button" disabled={!sessionId} onClick={() => { setSyncProfile(null); setSyncOpen(true) }}>
-            {tg('d2.title')}
+          <button type="button" disabled={!sessionId} title={tg('d2.title')} onClick={() => { setSyncProfile(null); setSyncOpen(true) }}>
+            <span className="sftp-ico" aria-hidden>↻</span>
+            <span className="sftp-label">{tg('d2.title')}</span>
+          </button>
+          <button
+            type="button"
+            data-testid="sftp-compare"
+            title={tg('d5.compare')}
+            disabled={!onCompare}
+            onClick={() => {
+              const local = localShown.filter((e) => localSel[e.path] && !e.isDirectory)
+              const remote = remoteShown.filter((e) => remoteSel[e.path] && !e.isDirectory)
+              if (local.length !== 1 || remote.length !== 1) {
+                showToast(tg('d5.needPair'))
+                return
+              }
+              onCompare?.({
+                localPath: local[0]!.path,
+                remotePath: remote[0]!.path,
+                localName: local[0]!.name,
+                remoteName: remote[0]!.name,
+                localSize: local[0]!.size,
+                remoteSize: remote[0]!.size
+              })
+            }}
+          >
+            <span className="sftp-ico" aria-hidden>⇄</span>
+            <span className="sftp-label">{tg('d5.compare')}</span>
+          </button>
+          <button
+            type="button"
+            title={compact ? tg('ux46.comfort') : tg('ux46.compact')}
+            onClick={() => {
+              const next: SftpDensityPref = densityPref === 'comfort' ? 'auto' : 'comfort'
+              saveSftpDensity(next)
+              setDensityPref(next)
+              window.dispatchEvent(new CustomEvent(SFTP_DENSITY_EVENT))
+            }}
+          >
+            <span className="sftp-label sftp-label-keep">{densityPref === 'comfort' ? tg('ux46.comfort') : tg('ux46.compact')}</span>
           </button>
           <label className="sftp-autoresume">
             <input

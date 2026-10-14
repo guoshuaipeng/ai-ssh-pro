@@ -32,7 +32,7 @@ export type FiredAlert = {
   value: number
   threshold: number
   at: number
-  status: 'active' | 'recovered'
+  status: 'active' | 'recovered' | 'ignored'
   recoveredAt?: number
 }
 

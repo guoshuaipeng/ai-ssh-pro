@@ -20,6 +20,9 @@ type Props = {
   onMute1h: () => void
   focusHostKey?: string | null
   initialTab?: 'rules' | 'history'
+  onLocate?: (alert: FiredAlert) => void
+  onInterpret?: (alert: FiredAlert) => void
+  onIgnore?: (alert: FiredAlert) => void
 }
 
 const METRIC_KEYS: Record<string, 'o2.metricCpu' | 'o2.metricMem' | 'o2.metricDisk' | 'o2.metricOffline'> = {
@@ -38,7 +41,10 @@ export default function AlertRulesModal({
   onClearHistory,
   onMute1h,
   focusHostKey,
-  initialTab = 'rules'
+  initialTab = 'rules',
+  onLocate,
+  onInterpret,
+  onIgnore
 }: Props) {
   const { t } = useI18n()
   const [tab, setTab] = useState<'rules' | 'history'>(initialTab)
@@ -203,7 +209,26 @@ export default function AlertRulesModal({
                     {h.ruleId} {Math.round(h.value)}
                     {h.ruleId === 'offline' ? '' : `% > ${h.threshold}%`}
                   </span>
-                  <em>{h.status === 'active' ? t('o2.active') : t('o2.recovered')}</em>
+                  <em>{h.status === 'active' ? t('o2.active') : h.status === 'ignored' ? t('o4.ignore') : t('o2.recovered')}</em>
+                  {h.status === 'active' ? (
+                    <span className="o2-row-actions">
+                      {onLocate ? (
+                        <button type="button" data-testid="o4-locate-row" onClick={() => onLocate(h)}>
+                          {t('o4.locate')}
+                        </button>
+                      ) : null}
+                      {onInterpret ? (
+                        <button type="button" data-testid="a4-interpret-row" onClick={() => onInterpret(h)}>
+                          {t('a4.interpret')}
+                        </button>
+                      ) : null}
+                      {onIgnore ? (
+                        <button type="button" onClick={() => onIgnore(h)}>
+                          {t('o4.ignore')}
+                        </button>
+                      ) : null}
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>

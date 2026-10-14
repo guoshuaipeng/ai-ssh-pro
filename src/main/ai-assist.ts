@@ -6,11 +6,15 @@ const inflight = new Map<string, AbortController>()
 function systemPrompt(req: AiAssistRequest): string {
   const zh = req.locale === 'zh-CN'
   const lang = zh ? '用简体中文回答。' : 'Answer in English.'
-  if (req.kind === 'explainError') {
+  if (req.kind === 'explainError' || req.kind === 'explainAlert') {
+    const role =
+      req.kind === 'explainAlert'
+        ? 'You are a senior Linux / DevOps engineer explaining one host alert using the metric snapshot and recent journal provided. Cover CPU, memory, disk, or a service as the text indicates.'
+        : 'You are a senior Linux / DevOps engineer helping a user who just hit an error in an SSH terminal.'
     return [
-      'You are a senior Linux / DevOps engineer helping a user who just hit an error in an SSH terminal.',
+      role,
       'Explain the most likely cause in 1-3 short sentences and give up to 3 shell commands that diagnose or fix it.',
-      'Prefer safe, read-only diagnostics first. Never invent hostnames or credentials.',
+      'Prefer safe, read-only diagnostics first. Never invent hostnames or credentials. Use only the host in the prompt.',
       'Reply with ONE JSON object only, no markdown: {"cause": string, "fixes": [{"command": string, "note": string}], "notes": string}.',
       lang
     ].join('\n')
@@ -38,7 +42,7 @@ function extractJson(text: string): Record<string, unknown> {
 const str = (v: unknown, max = 2000) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
 export function normalizeAssist(kind: AiAssistRequest['kind'], o: Record<string, unknown>): AiAssistResult {
-  if (kind === 'explainError') {
+  if (kind === 'explainError' || kind === 'explainAlert') {
     const fixes = (Array.isArray(o.fixes) ? o.fixes : [])
       .map((f): Record<string, unknown> => (f && typeof f === 'object' ? (f as Record<string, unknown>) : { command: f }))
       .map((f) => ({ command: str(f.command, 500).replace(/[\r\n]+/g, ' '), note: str(f.note, 300) || undefined }))
@@ -69,8 +73,8 @@ export async function runAiAssist(req: AiAssistRequest, settings: AiSettings): P
   try {
     const url = `${provider.baseURL.replace(/\/$/, '')}/chat/completions`
     const user =
-      req.kind === 'explainError'
-        ? `${req.host ? `Host: ${req.host}\n` : ''}Terminal output (most recent last):\n${text.slice(-6000)}`
+      req.kind === 'explainError' || req.kind === 'explainAlert'
+        ? `${req.host ? `Host: ${req.host}\n` : ''}${req.kind === 'explainAlert' ? 'Alert context' : 'Terminal output'} (most recent last):\n${text.slice(-6000)}`
         : `${req.host ? `Host: ${req.host}\n` : ''}Request: ${text.slice(0, 1000)}`
     const body = {
       model: settings.model,

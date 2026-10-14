@@ -671,6 +671,9 @@ function registerIpc(): void {
     return true
   })
   ipcMain.handle('localFs:hash', (_e, target: string) => localFs.hashLocal(String(target ?? '')))
+  ipcMain.handle('localFs:readText', (_e, target: string, maxBytes?: number) =>
+    localFs.readLocalText(String(target ?? ''), typeof maxBytes === 'number' ? maxBytes : undefined)
+  )
 
   ipcMain.handle('docker:listTree', async (_e, sessionId: string) => {
     return await dockerManager.listTree(requireSshClient(sessionId))
@@ -762,7 +765,19 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('app:getVersion', () => getAppVersion())
-  ipcMain.handle('app:checkUpdate', () => checkForAppUpdate())
+  ipcMain.handle('app:checkUpdate', (_e, opts?: { channel?: string; customUrl?: string }) => {
+    const channel = opts?.channel === 'gitee' || opts?.channel === 'github' || opts?.channel === 'custom' ? opts.channel : 'auto'
+    const customUrl = typeof opts?.customUrl === 'string' ? opts.customUrl : undefined
+    return checkForAppUpdate({ channel, customUrl })
+  })
+  ipcMain.handle('app:focus', () => {
+    const win = getMainBrowserWindow()
+    if (!win || win.isDestroyed()) return false
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+    return true
+  })
   ipcMain.handle('app:openExternal', (_e, url: string) => openExternalUrl(String(url || '')))
   ipcMain.handle('app:openGithub', () => openGithubRepo())
   ipcMain.handle('app:getMcpGuideInfo', () => resolveMcpGuideInfo())

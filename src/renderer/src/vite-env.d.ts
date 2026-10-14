@@ -51,7 +51,8 @@ export type AissPreload = {
   app: {
     onOpenDialog: (cb: (kind: AppDialogKind) => void) => () => void
     getVersion: () => Promise<string>
-    checkUpdate: () => Promise<AppUpdateCheckResult>
+    checkUpdate: (opts?: { channel?: 'auto' | 'gitee' | 'github' | 'custom'; customUrl?: string }) => Promise<AppUpdateCheckResult>
+    focus: () => Promise<boolean>
     openExternal: (url: string) => Promise<boolean>
     openGithub: () => Promise<boolean>
     getMcpGuideInfo: () => Promise<McpGuideInfo>
@@ -128,6 +129,7 @@ export type AissPreload = {
     restore: (token: string) => Promise<boolean>
     reveal: (target: string) => Promise<boolean>
     hash: (target: string) => Promise<string>
+    readText: (target: string, maxBytes?: number) => Promise<import('@shared/ipc').SftpReadTextResult>
   }
   docker: {
     listTree: (sessionId: string) => Promise<DockerTreeResult>
@@ -225,6 +227,7 @@ export type AissPreload = {
       sudo: boolean
     ) => Promise<import('../../shared/server-tools').ExecOutcome>
     ports: (sessionId: string) => Promise<import('../../shared/server-tools').ListenPort[]>
+    df: (sessionId: string) => Promise<import('../../shared/server-tools').DfRow[]>
     logs: (
       sessionId: string,
       req: import('../../shared/server-tools').LogRequest

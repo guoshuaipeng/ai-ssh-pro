@@ -4,6 +4,7 @@ import { execBounded } from './ssh-batch'
 import { mt } from './main-i18n'
 import type { SshSessionManager } from './ssh-manager'
 import {
+  DF_CMD,
   PORTS_CMD,
   PROCESS_LIST_CMD,
   SERVICE_LIST_CMD,
@@ -11,6 +12,7 @@ import {
   buildLogCommand,
   buildServiceCommand,
   classifyToolError,
+  parseDf,
   parseListenPorts,
   parseProcessList,
   parseServiceList,
@@ -88,6 +90,13 @@ export function registerServerToolsIpc(sshManager: SshSessionManager): void {
     // `systemctl status` exits 3 for inactive units; that is still a valid answer.
     if (action !== 'status' && r.code !== 0) throw new Error(reasonText(r.output) ?? (r.output || mt('操作失败', 'Failed')))
     return r
+  })
+
+  ipcMain.handle('tools:df', async (_e, sessionId: unknown) => {
+    const r = await run(clientOf(sshManager, sessionId), DF_CMD)
+    const list = parseDf(r.output)
+    if (!list.length) throw new Error(r.timedOut ? mt('读取超时', 'Timed out') : mt('无法读取磁盘用量', 'Could not read disk usage'))
+    return list
   })
 
   ipcMain.handle('tools:ports', async (_e, sessionId: unknown) => {

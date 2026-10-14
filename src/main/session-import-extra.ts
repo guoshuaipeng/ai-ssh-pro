@@ -73,3 +73,63 @@ export function looksLikeMobaXterm(text: string): boolean {
 export function looksLikeSecureCrt(text: string): boolean {
   return /^\s*S:"Hostname"=/im.test(text)
 }
+
+/**
+ * FinalShell connection export (one JSON object, an array, or { connections: [] }).
+ * Passwords are kept on the draft for the session store and must not be written into notes.
+ */
+export function looksLikeFinalShell(text: string): boolean {
+  const t = text.trim()
+  if (!t.startsWith('{') && !t.startsWith('[')) return false
+  return /"host"\s*:/.test(t) && /"(user_name|userName|username)"\s*:/.test(t)
+}
+
+function asFinalShellRecords(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data.filter((x) => x && typeof x === 'object') as Record<string, unknown>[]
+  if (!data || typeof data !== 'object') return []
+  const o = data as Record<string, unknown>
+  for (const key of ['connections', 'hosts', 'sessions', 'items']) {
+    if (Array.isArray(o[key])) return asFinalShellRecords(o[key])
+  }
+  if (typeof o.host === 'string') return [o]
+  return []
+}
+
+function strField(o: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = o[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+  }
+  return ''
+}
+
+export function parseFinalShell(text: string): ImportedSessionDraft[] {
+  let data: unknown
+  try {
+    data = JSON.parse(text)
+  } catch {
+    return []
+  }
+  const out: ImportedSessionDraft[] = []
+  for (const o of asFinalShellRecords(data)) {
+    const host = strField(o, ['host', 'hostname', 'Host'])
+    const username = strField(o, ['user_name', 'userName', 'username', 'user'])
+    if (!host || !username) continue
+    const portRaw = strField(o, ['port', 'Port'])
+    const portN = Number.parseInt(portRaw, 10)
+    const name = strField(o, ['name', 'label', 'sessionName']) || `${username}@${host}`
+    const group = strField(o, ['group', 'folder', 'parent', 'groupName']).replace(/\\/g, '/')
+    const password = strField(o, ['password', 'Password'])
+    const draft: ImportedSessionDraft = {
+      label: (group && !name.includes('/') ? name : name).slice(0, 80),
+      host,
+      port: portN > 0 && portN < 65536 ? portN : 22,
+      username
+    }
+    if (group) draft.group = group.slice(0, 80)
+    if (password) draft.password = password
+    out.push(draft)
+  }
+  return out
+}

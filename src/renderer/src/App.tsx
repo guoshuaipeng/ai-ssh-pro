@@ -44,6 +44,10 @@ import PortForwardModal from './components/PortForwardModal'
 import ResourceMonitorModal from './components/ResourceMonitorModal'
 import MultiHostDashboard from './components/MultiHostDashboard'
 import AlertRulesModal from './components/AlertRulesModal'
+import UpdateChannelPanel from './components/UpdateChannelPanel'
+import ImportPreviewPanel from './components/ImportPreviewPanel'
+import FileDiffView from './components/FileDiffView'
+import RetentionTasks from './components/RetentionTasks'
 import BroadcastTargetPicker from './components/BroadcastTargetPicker'
 import InspectWizard, { type InspectReport } from './components/InspectWizard'
 import {
@@ -62,6 +66,14 @@ import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
 import { ToastHost, showToast } from './lib/toast'
 import { isSkipped, markChecked, shouldAutoCheck, skipVersion } from './lib/update-check'
+import { loadUpdateChannelPrefs, rememberUpdateSource, sourceLabel } from '@shared/update-channel'
+import { alertHostIds, ignoreAlert, locateTargetFor, reconcileAlerts } from '@shared/alert-locate'
+import { buildAlertContext } from '@shared/alert-context'
+import { COMPARE_BYTE_LIMIT } from '@shared/file-diff'
+import { applyImportPolicy, buildImportPreview, type ImportPolicy, type ImportPreviewModel } from '@shared/import-preview'
+import { completeTask, dismissTasksForever, loadTaskState, reopenTasks, skipTask, type TaskId, type TaskState } from '@shared/retention-tasks'
+import { loadSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT } from '@shared/sftp-density'
+import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind } from './lib/terminal-find'
 import { matchKeymap } from '@shared/keymap'
 import { changelogFor } from '@shared/changelog'
@@ -143,15 +155,19 @@ type TabView =
   | 'batch'
   | 'dashboard'
   | 'inspect-report'
+  | 'updates'
+  | 'import-preview'
+  | 'file-diff'
 
-type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide'
+type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide' | 'updates'
 
 const SETTINGS_TAB_TITLES: Record<SettingsTabView, MessageKey> = {
   ai: 'app.tab.ai',
   terminalPrefs: 'app.tab.terminalPrefs',
   uiTheme: 'app.tab.uiTheme',
   snippets: 'app.tab.snippets',
-  mcpGuide: 'app.tab.mcpGuide'
+  mcpGuide: 'app.tab.mcpGuide',
+  updates: 'app.tab.updates'
 }
 
 const WORKSPACE_TAB_VIEWS = new Set<TabView>([
@@ -170,7 +186,10 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'forward',
   'batch',
   'dashboard',
-  'inspect-report'
+  'inspect-report',
+  'updates',
+  'import-preview',
+  'file-diff'
 ])
 
 type Tab = {
@@ -199,6 +218,18 @@ type Tab = {
   dockerResourceName?: string
   /** batch tab: sessions to tick */
   batchPreselect?: string[]
+  /** toolbox tab to focus (O4 locate) */
+  toolboxTab?: ServerToolsTab
+  /** D5 compare payload */
+  fileCompare?: {
+    leftName: string
+    rightName: string
+    leftText: string
+    rightText: string
+    tooLarge: boolean
+    remotePath?: string
+    sessionId?: string
+  }
 }
 
 const PLACEHOLDER_CONNECT: SshConnectOptions = {
@@ -425,7 +456,7 @@ export default function App() {
       .catch(() => {})
   }, [])
   // V2: update check (silent once a day 10 s after start; manual from Help / More)
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string; notes?: string } | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string; notes?: string; source?: string } | null>(null)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
   const checkingUpdateRef = useRef(false)
   const runUpdateCheck = useCallback(async (manual: boolean) => {
@@ -433,10 +464,17 @@ export default function App() {
     checkingUpdateRef.current = true
     if (manual) showToast(tg('upd.checking'))
     try {
-      const r = await window.aiss.app.checkUpdate()
+      const prefs = loadUpdateChannelPrefs()
+      const r = await window.aiss.app.checkUpdate({ channel: prefs.channel, customUrl: prefs.mirror })
       markChecked()
+      if (r.source) rememberUpdateSource({ source: r.source, channel: prefs.channel, at: Date.now() })
       if (r.status === 'available' && r.latestVersion) {
-        const info = { version: r.latestVersion, url: r.downloadUrl || r.releaseUrl || '', notes: r.notes }
+        const info = {
+          version: r.latestVersion,
+          url: r.downloadUrl || r.releaseUrl || '',
+          notes: r.notes,
+          source: r.source ? sourceLabel(r.source, locale) : undefined
+        }
         if (!manual && isSkipped(r.latestVersion)) return
         setUpdateInfo(info)
         if (manual) setUpdateModalOpen(true)
@@ -453,7 +491,7 @@ export default function App() {
     } finally {
       checkingUpdateRef.current = false
     }
-  }, [])
+  }, [locale])
   useEffect(() => {
     if (!shouldAutoCheck()) return
     const id = window.setTimeout(() => void runUpdateCheck(false), 10_000)
@@ -471,13 +509,19 @@ export default function App() {
     kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch',
     forSessionId?: string | null,
     preselect?: string[],
-    attempt?: number
+    attempt?: number,
+    toolboxTab?: ServerToolsTab
   ) => void>(() => undefined)
+  const [taskState, setTaskState] = useState<TaskState>(() => loadTaskState())
+  const [tasksOpen, setTasksOpen] = useState(false)
+  const [importPreview, setImportPreview] = useState<ImportPreviewModel | null>(null)
+  const [sftpComfort, setSftpComfort] = useState(() => loadSftpDensity() === 'comfort')
+  const pendingLocateRef = useRef<ServerToolsTab | 'terminal' | null>(null)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
   const [tourOpen, setTourOpen] = useState(false)
   const [hostPicker, setHostPicker] = useState<{ action: MenuAction; feature: string } | null>(null)
-  const [aiExplain, setAiExplain] = useState<{ id: number; sessionId: string; text: string; host?: string } | null>(null)
+  const [aiExplain, setAiExplain] = useState<{ id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert' } | null>(null)
   const aiExplainSeqRef = useRef(0)
   const [splitSecondary, setSplitSecondary] = useState('')
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null)
@@ -1209,7 +1253,7 @@ export default function App() {
 
 
   const openToolTab = useCallback(
-    (kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch', forSessionId?: string | null, preselect?: string[], attempt = 0) => {
+    (kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch', forSessionId?: string | null, preselect?: string[], attempt = 0, toolboxTab?: ServerToolsTab) => {
       ensureMainVisible()
       const tabsNow = tabsRef.current
       if (kind === 'sftp') {
@@ -1245,7 +1289,7 @@ export default function App() {
       // falling back to another host's session
       if (forSessionId && !tabsNow.some((t) => t.sessionId === forSessionId && t.status === 'connected')) {
         if (attempt < 20) {
-          window.setTimeout(() => openToolTabRef.current(kind, forSessionId, preselect, attempt + 1), 150)
+          window.setTimeout(() => openToolTabRef.current(kind, forSessionId, preselect, attempt + 1, toolboxTab), 150)
           return
         }
       }
@@ -1285,7 +1329,8 @@ export default function App() {
                   title,
                   boundSessionId: bound.sessionId,
                   connectOpts: bound.connectOpts,
-                  profileId: bound.profileId
+                  profileId: bound.profileId,
+                  toolboxTab: toolboxTab ?? t.toolboxTab
                 }
               : t
           )
@@ -1304,7 +1349,8 @@ export default function App() {
           status: 'connected',
           view,
           boundSessionId: bound.sessionId,
-          profileId: bound.profileId
+          profileId: bound.profileId,
+          toolboxTab
         }
       ])
       setActiveTabId(tabId)
@@ -1363,7 +1409,7 @@ export default function App() {
     let cancelled = false
     const tick = async () => {
       const newly: FiredAlert[] = []
-      const active = new Set<string>()
+      const breaching = new Set<string>()
       for (const s of connectedSshSessionsRef.current) {
         try {
           const snap = await window.aiss.workspace.resources(s.sessionId)
@@ -1377,42 +1423,46 @@ export default function App() {
             breachSince: alertBreachSinceRef.current,
             lastFiredAt: alertLastFiredRef.current
           })
-          for (const f of fired) {
-            newly.push(f)
-            active.add(s.sessionId)
-          }
-          // mark currently breaching for badge even inside cooldown
+          newly.push(...fired)
           for (const r of alertRules.rules) {
             if (!r.enabled) continue
             const val = readings.find((x) => x.metric === r.id)?.value
             if (r.id === 'offline') continue
-            if (val != null && val >= r.threshold) active.add(s.sessionId)
+            if (val != null && val >= r.threshold) breaching.add(`${s.sessionId}:${r.id}`)
           }
         } catch {
           /* ignore single host */
         }
       }
       if (cancelled) return
-      setActiveAlertIds(active)
-      if (newly.length && !muted) {
-        setAlertHistory((prev) => {
-          const next = [...newly, ...prev].slice(0, 200)
-          saveAlertHistory(next)
-          return next
-        })
+      setAlertHistory((prev) => {
+        const ignored = new Set(prev.filter((a) => a.status === 'ignored').map((a) => `${a.hostKey}:${a.ruleId}`))
+        const fresh = newly.filter((f) => !ignored.has(`${f.hostKey}:${f.ruleId}`))
+        const merged = reconcileAlerts(fresh.length ? [...fresh, ...prev].slice(0, 200) : prev, breaching)
+        saveAlertHistory(merged)
+        setActiveAlertIds(alertHostIds(merged, breaching))
+        return merged
+      })
+      const ignoredNow = new Set(loadAlertHistory().filter((a) => a.status === 'ignored').map((a) => `${a.hostKey}:${a.ruleId}`))
+      const audible = newly.filter((f) => !muted && !ignoredNow.has(`${f.hostKey}:${f.ruleId}`))
+      if (audible.length) {
         if (alertRules.notify.systemNotify && typeof Notification !== 'undefined') {
           try {
             if (Notification.permission === 'granted') {
-              const f = newly[0]!
-              new Notification(`⚠ ${f.hostTitle}`, {
+              const f = audible[0]!
+              const note = new Notification(`⚠ ${f.hostTitle}`, {
                 body: `${f.ruleId} ${Math.round(f.value)}${f.ruleId === 'offline' ? '' : '%'} · ${new Date(f.at).toLocaleTimeString()}`
               })
+              note.onclick = () => {
+                void window.aiss.app.focus().catch(() => undefined)
+                window.dispatchEvent(new CustomEvent('aiss-alert-locate', { detail: f }))
+              }
             } else if (Notification.permission === 'default') {
               void Notification.requestPermission()
             }
           } catch { /* */ }
         }
-        showToast(tg('o2.fired', { n: newly.length }), { kind: 'error' })
+        showToast(tg('o2.fired', { n: audible.length }), { kind: 'error' })
       }
     }
     void tick()
@@ -2288,43 +2338,66 @@ export default function App() {
     [folders, persistSessionState, profiles]
   )
 
+  const openImportPreview = useCallback(
+    (model: ImportPreviewModel) => {
+      setImportPreview(model)
+      ensureMainVisible()
+      const existing = tabsRef.current.find((t) => t.view === 'import-preview')
+      if (existing) {
+        setActiveTabId(existing.tabId)
+        return
+      }
+      const tabId = uuid()
+      setTabs((prev) => [
+        ...prev,
+        {
+          tabId,
+          sessionId: '',
+          title: tg('n2.title'),
+          connectOpts: PLACEHOLDER_CONNECT,
+          status: 'connected',
+          view: 'import-preview'
+        }
+      ])
+      setActiveTabId(tabId)
+    },
+    [ensureMainVisible]
+  )
+
   const importSessionsPick = useCallback(async () => {
     setError(null)
     setSideInfo(null)
     try {
       const res = await window.aiss.sessions.importPick()
       if (!res) return
-      const { items, notes } = res
-      const dupKey = (p: { host: string; port: number; username: string }) =>
-        `${p.host}|${p.port}|${p.username}`.toLowerCase()
-      const existingKeys = new Set(profiles.map(dupKey))
-      const additions: SavedSessionProfile[] = []
-      for (const d of items) {
-        const k = dupKey(d)
-        if (existingKeys.has(k)) continue
-        existingKeys.add(k)
-        additions.push({
-          id: uuid(),
-          label: d.label?.trim() || d.username,
-          host: d.host,
-          port: d.port,
-          username: d.username,
-          password: d.password,
-          privateKeyPath: d.privateKeyPath,
-          passphrase: d.passphrase,
-          ...(d.jumpHost ? { jumpHost: d.jumpHost } : {}),
-          ...(d.forwards?.length ? { forwards: d.forwards } : {})
-        })
+      const model = buildImportPreview(res.items, profiles, res.notes)
+      if (!model.rows.length) {
+        setSideInfo(model.notes.join(' ') || tg('n2.empty'))
+        return
       }
-      if (additions.length) {
-        void persistSessionState({ folders, profiles: [...profiles, ...additions] })
-      }
-      const tail = additions.length ? tg('app.importAdded', { n: additions.length }) : tg('app.importNone')
-      setSideInfo([...notes, tail].join(' '))
+      openImportPreview(model)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(friendlyErrorMessage(e))
     }
-  }, [folders, persistSessionState, profiles])
+  }, [openImportPreview, profiles])
+
+  const applyImport = useCallback(
+    (policy: ImportPolicy) => {
+      if (!importPreview) return
+      const applied = applyImportPolicy({
+        model: importPreview,
+        policy,
+        profiles,
+        folders,
+        newId: uuid
+      })
+      void persistSessionState({ folders: applied.folders, profiles: applied.profiles })
+      setSideInfo([tg('n2.added', { n: applied.added }), tg('n2.updated', { n: applied.updated }), tg('n2.skipped', { n: applied.skipped })].join(' · '))
+      setImportPreview(null)
+      setTabs((prev) => prev.filter((t) => t.view !== 'import-preview'))
+    },
+    [folders, importPreview, persistSessionState, profiles]
+  )
 
   // main-process menu clicks use the same handler as the titlebar menus (UX-03)
   useEffect(() => {
@@ -2402,11 +2475,29 @@ export default function App() {
       }
       // UX-09: features that need a session open the host picker when nothing is connected
       if (PICKER_ACTIONS.has(action) && connectedSshSessionsRef.current.length === 0) {
+        pendingLocateRef.current = null
         setHostPicker({ action, feature: featureLabel(action, locale) })
         return
       }
       if (action === 'tour') {
         setTourOpen(true)
+        return
+      }
+      if (action === 'taskCards') {
+        const next = reopenTasks()
+        setTaskState(next)
+        setTasksOpen(true)
+        return
+      }
+      if (action === 'sftpComfort') {
+        const next = sftpComfort ? 'auto' : 'comfort'
+        saveSftpDensity(next)
+        setSftpComfort(next === 'comfort')
+        window.dispatchEvent(new CustomEvent(SFTP_DENSITY_EVENT))
+        return
+      }
+      if (action === 'updateChannel') {
+        openSettingsTab('updates')
         return
       }
       if (action === 'demoHost') {
@@ -2673,6 +2764,7 @@ export default function App() {
       setLocale,
       layout.showAi,
       runUpdateCheck,
+      sftpComfort,
       reconnectTab,
       openSession
     ]
@@ -2775,7 +2867,9 @@ export default function App() {
     (action: MenuAction, sid: string) => {
       if (action === 'resourceMonitor') openMonitorForSession(sid)
       else if (action === 'serverTools') {
-        openToolTabRef.current('toolbox', sid)
+        const tab = pendingLocateRef.current
+        pendingLocateRef.current = null
+        openToolTabRef.current('toolbox', sid, undefined, 0, tab && tab !== 'terminal' ? tab : undefined)
       } else if (action === 'sftp') openSftpTransfer(sid)
       else if (action === 'folderSync') {
         const armed = takeArmedFolderSync()
@@ -2830,7 +2924,161 @@ export default function App() {
   const ensureAiVisible = useCallback(() => {
     updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
   }, [updateLayout])
-  const closeTour = useCallback(() => setTourOpen(false), [])
+  const closeTour = useCallback(() => {
+    setTourOpen(false)
+    const state = loadTaskState()
+    setTaskState(state)
+    if (!state.dismissedForever) setTasksOpen(true)
+  }, [])
+
+  const locateAlert = useCallback((alert: FiredAlert) => {
+    const target = locateTargetFor(alert.ruleId)
+    const live = tabsRef.current.find(
+      (t) => t.sessionId === alert.hostKey && t.status === 'connected' && (!t.view || t.view === 'session')
+    )
+    if (live) {
+      if (target.kind === 'toolbox') openToolTabRef.current('toolbox', live.sessionId, undefined, 0, target.tab)
+      else setActiveTabId(live.tabId)
+      showToast(tg('o4.focused', { host: alert.hostTitle }))
+      return
+    }
+    pendingLocateRef.current = target.kind === 'toolbox' ? target.tab : 'terminal'
+    setHostPicker({ action: 'serverTools', feature: featureLabel('serverTools', locale) })
+  }, [locale])
+
+  const interpretAlert = useCallback(async (alert: FiredAlert) => {
+    const ready = await aiHasKey()
+    if (!ready) {
+      flashAiConfig('alert')
+      return
+    }
+    const sid = alert.hostKey
+    let snapshot: { cpuPercent?: number | null; memPercent?: number | null; disks?: Array<{ mount?: string; percent?: number }> } | null = null
+    let journal = ''
+    try {
+      const snap = await window.aiss.workspace.resources(sid)
+      snapshot = {
+        cpuPercent: snap.cpuPercent,
+        memPercent: snap.mem?.percent ?? null,
+        disks: snap.disks?.map((d) => ({ mount: d.mount, percent: d.percent }))
+      }
+    } catch {
+      snapshot = null
+    }
+    try {
+      const logs = await window.aiss.tools.logs(sid, { source: 'journal', lines: 80 })
+      journal = logs.text
+    } catch {
+      journal = ''
+    }
+    const text = buildAlertContext({
+      host: alert.hostTitle,
+      ruleId: alert.ruleId,
+      value: alert.value,
+      threshold: alert.threshold,
+      snapshot,
+      journal
+    })
+    updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+    aiExplainSeqRef.current += 1
+    setAiExplain({
+      id: aiExplainSeqRef.current,
+      sessionId: sid,
+      text,
+      host: alert.hostTitle,
+      kind: 'explainAlert'
+    })
+  }, [updateLayout])
+
+  useEffect(() => {
+    const onLocate = (e: Event) => {
+      const alert = (e as CustomEvent<FiredAlert>).detail
+      if (alert?.hostKey) locateAlert(alert)
+    }
+    window.addEventListener('aiss-alert-locate', onLocate)
+    return () => window.removeEventListener('aiss-alert-locate', onLocate)
+  }, [locateAlert])
+
+  const markTask = useCallback((id: TaskId) => {
+    setTaskState((prev) => {
+      if (prev.done[id]) return prev
+      return completeTask(id)
+    })
+  }, [])
+
+  useEffect(() => {
+    const own = tabs.some(
+      (t) =>
+        (!t.view || t.view === 'session') &&
+        t.kind !== 'local' &&
+        t.status === 'connected' &&
+        t.sessionId &&
+        t.connectOpts.host !== DEMO_HOST &&
+        !profiles.find((p) => p.id === t.profileId)?.demo
+    )
+    if (own) markTask('connect')
+    if (tabs.some((t) => t.view === 'monitor')) markTask('monitor')
+  }, [tabs, profiles, markTask])
+
+  useEffect(() => {
+    if (aiConfigured) markTask('ai')
+  }, [aiConfigured, markTask])
+
+  useEffect(() => {
+    const onTransfer = () => markTask('transfer')
+    window.addEventListener('aiss-task-transfer', onTransfer)
+    return () => window.removeEventListener('aiss-task-transfer', onTransfer)
+  }, [markTask])
+
+  const openFileCompare = useCallback(
+    async (info: { sessionId: string; localPath: string; remotePath: string; localName: string; remoteName: string; localSize: number; remoteSize: number }) => {
+      ensureMainVisible()
+      const tooLarge = info.localSize > COMPARE_BYTE_LIMIT || info.remoteSize > COMPARE_BYTE_LIMIT
+      let leftText = ''
+      let rightText = ''
+      let large = tooLarge
+      if (!tooLarge) {
+        try {
+          const [local, remote] = await Promise.all([
+            window.aiss.localFs.readText(info.localPath, COMPARE_BYTE_LIMIT),
+            window.aiss.sftp.readText(info.sessionId, info.remotePath, COMPARE_BYTE_LIMIT)
+          ])
+          leftText = local.content
+          rightText = remote.content
+          large = local.truncated || remote.truncated
+        } catch (e) {
+          showToast(friendlyErrorMessage(e), { kind: 'error' })
+          return
+        }
+      }
+      const fileCompare = {
+        leftName: info.localName,
+        rightName: info.remoteName,
+        leftText,
+        rightText,
+        tooLarge: large,
+        remotePath: info.remotePath,
+        sessionId: info.sessionId
+      }
+      const tabId = uuid()
+      setTabs((prev) => [
+        ...prev,
+        {
+          tabId,
+          sessionId: '',
+          title: `${tg('d5.title')} · ${info.remoteName}`.slice(0, 28),
+          connectOpts: PLACEHOLDER_CONNECT,
+          status: 'connected',
+          view: 'file-diff',
+          boundSessionId: info.sessionId,
+          remotePath: info.remotePath,
+          fileCompare
+        }
+      ])
+      setActiveTabId(tabId)
+    },
+    [ensureMainVisible]
+  )
   const focusSessionTab = useCallback((sid: string) => {
     const tab = tabsRef.current.find((x) => x.sessionId === sid && (!x.view || x.view === 'session'))
     if (tab) setActiveTabId(tab.tabId)
@@ -2949,7 +3197,8 @@ export default function App() {
           toggleHostStatus: showHostStatus,
           toggleBroadcast: broadcastEnabled,
           toggleRecording: Boolean(recordingSessionId),
-          smartComplete: smartOn
+          smartComplete: smartOn,
+          sftpComfort
         }}
       />
 
@@ -3300,6 +3549,22 @@ export default function App() {
           ) : null}
 
           <div className="terminal-stack">
+            {tasksOpen ? (
+              <RetentionTasks
+                state={taskState}
+                onGo={(id) => {
+                  if (id === 'connect') openConnectionEditor()
+                  else if (id === 'monitor') handleTitlebarMenuAction('resourceMonitor')
+                  else if (id === 'ai') openSettingsTab('ai')
+                  else handleTitlebarMenuAction('sftp')
+                }}
+                onDismiss={(id) => setTaskState(skipTask(id))}
+                onDismissAll={() => {
+                  setTaskState(dismissTasksForever())
+                  setTasksOpen(false)
+                }}
+              />
+            ) : null}
             {tabs.length === 0 ? (
               <EmptyState
                 testId="terminal-empty"
@@ -3423,6 +3688,7 @@ export default function App() {
                     embedded
                     sessions={connectedSshSessions}
                     activeSessionId={t.boundSessionId}
+                    initialTab={t.toolboxTab}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'forward' ? (
@@ -3459,6 +3725,9 @@ export default function App() {
                       setAlertModalOpen(true)
                     }}
                     onOpenInspect={() => setInspectOpen(true)}
+                    alerts={alertHistory}
+                    onLocate={(alert) => locateAlert(alert)}
+                    onInterpret={(alert) => void interpretAlert(alert)}
                   />
                 ) : t.view === 'inspect-report' ? (
                   <div className="workspace-panel" data-testid="inspect-report">
@@ -3503,6 +3772,10 @@ export default function App() {
                         name: info.name,
                         connectOpts: t.connectOpts
                       })
+                    }}
+                    onCompare={(info) => {
+                      if (!t.boundSessionId) return
+                      void openFileCompare({ ...info, sessionId: t.boundSessionId })
                     }}
                   />
                 ) : t.view === 'remote-file' && t.boundSessionId && t.remotePath ? (
@@ -3561,6 +3834,37 @@ export default function App() {
                   />
                 ) : t.view === 'mcpGuide' ? (
                   <McpGuidePanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                ) : t.view === 'updates' ? (
+                  <UpdateChannelPanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                ) : t.view === 'import-preview' && importPreview ? (
+                  <ImportPreviewPanel
+                    model={importPreview}
+                    onClose={() => {
+                      setImportPreview(null)
+                      closeTab(t.tabId, t.sessionId, t.status, t.view)
+                    }}
+                    onApply={applyImport}
+                  />
+                ) : t.view === 'file-diff' && t.fileCompare ? (
+                  <FileDiffView
+                    leftName={t.fileCompare.leftName}
+                    rightName={t.fileCompare.rightName}
+                    leftText={t.fileCompare.leftText}
+                    rightText={t.fileCompare.rightText}
+                    tooLarge={t.fileCompare.tooLarge}
+                    onOpenRemote={
+                      t.fileCompare.sessionId && t.fileCompare.remotePath
+                        ? () =>
+                            openRemoteFileEditor({
+                              sessionId: t.fileCompare!.sessionId!,
+                              remotePath: t.fileCompare!.remotePath!,
+                              name: t.fileCompare!.rightName,
+                              connectOpts: t.connectOpts
+                            })
+                        : undefined
+                    }
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
                 ) : t.status === 'connecting' ? (
                   <div className="terminal-disconnected-placeholder">{tr('term.connecting')}</div>
                 ) : t.status === 'connected' ? (
@@ -3684,10 +3988,55 @@ export default function App() {
         onAction={handleTitlebarMenuAction}
       />
       <BackupModal open={backupOpen} onClose={() => setBackupOpen(false)} />
+      <AlertRulesModal
+        open={alertModalOpen}
+        initial={alertRules}
+        history={alertHistory}
+        initialTab={alertModalTab}
+        onClose={() => setAlertModalOpen(false)}
+        onSave={(next) => {
+          setAlertRules(next)
+          saveAlertRules(next)
+        }}
+        onClearHistory={() => {
+          setAlertHistory([])
+          saveAlertHistory([])
+          setActiveAlertIds(new Set())
+        }}
+        onMute1h={() => {
+          const next = { ...alertRules, mutedUntil: Date.now() + 60 * 60 * 1000 }
+          setAlertRules(next)
+          saveAlertRules(next)
+          showToast(tg('o2.mute1h'))
+        }}
+        onLocate={(alert) => {
+          setAlertModalOpen(false)
+          locateAlert(alert)
+        }}
+        onInterpret={(alert) => {
+          setAlertModalOpen(false)
+          void interpretAlert(alert)
+        }}
+        onIgnore={(alert) => {
+          setAlertHistory((prev) => {
+            const next = ignoreAlert(prev, alert.id)
+            saveAlertHistory(next)
+            setActiveAlertIds((ids) => {
+              const still = next.some((x) => x.hostKey === alert.hostKey && x.status === 'active')
+              if (still) return ids
+              const copy = new Set(ids)
+              copy.delete(alert.hostKey)
+              return copy
+            })
+            return next
+          })
+        }}
+      />
       <UpdateModal
         open={updateModalOpen && Boolean(updateInfo)}
         version={updateInfo?.version ?? ''}
         notes={updateInfo?.notes}
+        sourceLabel={updateInfo?.source}
         onDownload={() => {
           setUpdateModalOpen(false)
           if (updateInfo?.url) void window.aiss.app.openExternal(updateInfo.url)

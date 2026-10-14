@@ -17,6 +17,31 @@ export type LogLevel = 'error' | 'warn' | 'info'
 export const PROCESS_LIST_CMD = 'LC_ALL=C ps -eo pid=,user=,pcpu=,pmem=,rss=,etime=,args= --sort=-pcpu 2>/dev/null | head -n 300'
 export const SERVICE_LIST_CMD = 'LC_ALL=C systemctl list-units --type=service --all --no-pager --no-legend --plain 2>&1'
 export const PORTS_CMD = 'LC_ALL=C ss -Htulnp 2>/dev/null || LC_ALL=C netstat -tulnp 2>/dev/null'
+export const DF_CMD = 'LC_ALL=C df -hP 2>/dev/null | head -n 40'
+
+export type DfRow = { fs: string; size: string; used: string; avail: string; percent: number; mount: string }
+
+/** Parse `df -hP` (POSIX one-line rows). */
+export function parseDf(text: string): DfRow[] {
+  const out: DfRow[] = []
+  for (const raw of String(text ?? '').split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || /^Filesystem/i.test(line)) continue
+    const parts = line.split(/\s+/)
+    if (parts.length < 6) continue
+    const percent = Number.parseInt(parts[4]!.replace('%', ''), 10)
+    if (!Number.isFinite(percent)) continue
+    out.push({
+      fs: parts[0]!,
+      size: parts[1]!,
+      used: parts[2]!,
+      avail: parts[3]!,
+      percent,
+      mount: parts.slice(5).join(' ')
+    })
+  }
+  return out
+}
 export const LOG_PRESETS: ReadonlyArray<string> = [
   '/var/log/syslog',
   '/var/log/messages',

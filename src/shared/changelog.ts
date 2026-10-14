@@ -12,6 +12,50 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.3.19': [
+    {
+      icon: '⬇',
+      text: { zh: '更新通道：自动先 Gitee 再 GitHub，也可指定镜像；下载与检测同一来源', en: 'Update channel: Gitee then GitHub, or a mirror; download matches the source that was checked' },
+      where: { zh: '文件 → 更新…', en: 'File → Updates…' },
+      action: 'updateChannel'
+    },
+    {
+      icon: '📍',
+      text: { zh: '告警可定位到磁盘 / 进程 / 服务，通知点击会打开对应主机', en: 'Alerts locate disk, processes, or services; notification click focuses the host' },
+      where: { zh: '运维 → 多主机看板', en: 'Ops → Multi-host dashboard' },
+      action: 'dashboard'
+    },
+    {
+      icon: '✨',
+      text: { zh: 'AI 解读单台主机的告警和近期日志', en: 'AI reads one host’s alert plus recent logs' },
+      where: { zh: '告警卡片 → AI 解读', en: 'Alert card → AI read' },
+      action: 'dashboard'
+    },
+    {
+      icon: '≠',
+      text: { zh: '本机与远端文件只读对比，可跳到远端编辑器', en: 'Read-only local/remote diff, with a jump to the remote editor' },
+      where: { zh: '会话 → SFTP 文件', en: 'Session → SFTP files' },
+      action: 'sftp'
+    },
+    {
+      icon: '▣',
+      text: { zh: '1366 宽度下 SFTP 双栏默认紧凑，可改回舒适', en: 'SFTP dual pane is compact at 1366px; comfort density is available' },
+      where: { zh: '查看 → SFTP 舒适密度', en: 'View → SFTP comfort density' },
+      action: 'sftpComfort'
+    },
+    {
+      icon: '📥',
+      text: { zh: '导入 FinalShell / Xshell / MobaXterm / PuTTY / SSH config，先预览冲突', en: 'Import FinalShell, Xshell, MobaXterm, PuTTY, or SSH config with a conflict preview' },
+      where: { zh: '文件 → 导入会话…', en: 'File → Import sessions…' },
+      action: 'importSessions'
+    },
+    {
+      icon: '☑',
+      text: { zh: '引导结束后的入门任务卡，可关闭且不再显示', en: 'Getting-started cards after the tour; dismissible for good' },
+      where: { zh: '帮助 → 入门任务', en: 'Help → Getting started tasks' },
+      action: 'taskCards'
+    }
+  ],
   '0.3.18': [
     {
       icon: '⇄',

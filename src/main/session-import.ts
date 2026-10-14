@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
-import { looksLikeMobaXterm, looksLikeSecureCrt, parseMobaXtermSessions, parseSecureCrtSession } from './session-import-extra'
+import { looksLikeFinalShell, looksLikeMobaXterm, looksLikeSecureCrt, parseFinalShell, parseMobaXtermSessions, parseSecureCrtSession } from './session-import-extra'
+import { redactSecrets } from '../shared/import-preview'
 import type { ImportedSessionDraft, SessionImportPickResult } from '../shared/ipc'
 
 function decodeTextFile(buf: Buffer): string {
@@ -340,6 +341,19 @@ export async function importSessionFilesFromPaths(filePaths: string[]): Promise<
         continue
       }
 
+      if (ext === '.json' || looksLikeFinalShell(text)) {
+        const drafts = parseFinalShell(text)
+        if (drafts.length) {
+          items.push(...drafts)
+          notes.push(`${base}：自 FinalShell 解析 ${drafts.length} 条`)
+          continue
+        }
+        if (ext === '.json' || looksLikeFinalShell(text)) {
+          notes.push(`${base}：未解析到 FinalShell SSH 连接`)
+          continue
+        }
+      }
+
       if (looksLikeSecureCrt(text)) {
         const one = parseSecureCrtSession(basename(fp, extname(fp)), text)
         if (one) {
@@ -407,5 +421,5 @@ export async function importSessionFilesFromPaths(filePaths: string[]): Promise<
     notes.push(`已去除同主机/端口/用户/标签的重复项 ${items.length - merged.length} 条`)
   }
 
-  return { items: merged, notes }
+  return { items: merged, notes: notes.map((n) => redactSecrets(n)) }
 }
