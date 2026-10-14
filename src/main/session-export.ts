@@ -17,9 +17,12 @@ function stripJumpSecrets(jump: SshJumpHostOptions): JumpHostPublic {
 }
 
 function stripProfileSecrets(profile: SavedSessionProfile): ProfilePublic {
-  const { password: _password, passphrase: _passphrase, jumpHost, ...rest } = profile
+  const { password: _password, passphrase: _passphrase, jumpHost, jumpChain, ...rest } = profile
   const out: ProfilePublic = { ...rest }
   if (jumpHost) out.jumpHost = stripJumpSecrets(jumpHost)
+  if (jumpChain?.length) {
+    out.jumpChain = jumpChain.map(({ password: _password, passphrase: _passphrase, ...hop }) => hop)
+  }
   return out
 }
 
@@ -57,11 +60,6 @@ function formatIdentityFile(path: string): string {
   return path
 }
 
-function formatProxyJump(jump: SshJumpHostOptions): string {
-  const port = jump.port != null && jump.port > 0 && jump.port !== 22 ? `:${jump.port}` : ''
-  return `${jump.username}@${jump.host}${port}`
-}
-
 function formatLocalForward(f: LocalPortForward): string {
   return `${f.localPort} ${f.remoteHost}:${f.remotePort}`
 }
@@ -74,8 +72,20 @@ function profileToOpenSshBlock(profile: SavedSessionProfile, alias: string): str
   if (profile.privateKeyPath?.trim()) {
     lines.push(`  IdentityFile ${formatIdentityFile(profile.privateKeyPath.trim())}`)
   }
-  if (profile.jumpHost?.host?.trim() && profile.jumpHost.username?.trim()) {
-    lines.push(`  ProxyJump ${formatProxyJump(profile.jumpHost)}`)
+  const chain = profile.jumpChain?.length
+    ? profile.jumpChain
+    : profile.jumpHost?.host?.trim() && profile.jumpHost.username?.trim()
+      ? [{ id: 'j', host: profile.jumpHost.host, port: profile.jumpHost.port ?? 22, username: profile.jumpHost.username }]
+      : []
+  if (chain.length) {
+    lines.push(
+      `  ProxyJump ${chain
+        .map((hop) => {
+          const port = hop.port && hop.port !== 22 ? `:${hop.port}` : ''
+          return `${hop.username}@${hop.host}${port}`
+        })
+        .join(',')}`
+    )
   }
   for (const fwd of profile.forwards ?? []) {
     if (fwd.localPort > 0 && fwd.remoteHost && fwd.remotePort > 0) {

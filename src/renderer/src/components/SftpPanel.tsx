@@ -49,6 +49,8 @@ type Props = {
   beforeRemoteWrite?: () => Promise<boolean>
   /** S2: read-only and not temporarily unlocked. Remote write controls stay disabled. */
   remoteWritesBlocked?: boolean
+  /** L8: pin the current sync plan into a center tab. */
+  onPinPreview?: (plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => void
 }
 
 type PaneId = 'local' | 'remote'
@@ -117,11 +119,23 @@ export default function SftpPanel({
   onOpenRemoteFile,
   onCompare,
   beforeRemoteWrite,
-  remoteWritesBlocked = false
+  remoteWritesBlocked = false,
+  onPinPreview
 }: Props) {
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
   const rootRef = useRef<HTMLDivElement>(null)
+  const runSyncRef = useRef<(plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => void>(() => {})
+  useEffect(() => {
+    const onRun = (e: Event) => {
+      const plan = (e as CustomEvent<{ direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean; sessionId?: string }>).detail
+      if (!plan) return
+      if (plan.sessionId && plan.sessionId !== sessionId) return
+      runSyncRef.current(plan)
+    }
+    window.addEventListener('aiss-run-sync', onRun)
+    return () => window.removeEventListener('aiss-run-sync', onRun)
+  }, [sessionId])
   const [narrow, setNarrow] = useState(false)
   const [winW, setWinW] = useState(() => (typeof window === 'undefined' ? 1400 : window.innerWidth))
   const [densityPref, setDensityPref] = useState<SftpDensityPref>(() => loadSftpDensity())
@@ -924,6 +938,7 @@ export default function SftpPanel({
 
   const runSync = (plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => {
     void (async () => {
+      if (!(await allowRemoteWrite())) return
       for (const row of plan.rows) {
         if (row.kind === 'deleted') {
           if (!plan.deleteExtra) continue
@@ -944,6 +959,7 @@ export default function SftpPanel({
       void refreshRemote(remoteCwd)
     })()
   }
+  runSyncRef.current = runSync
 
   return (
     <div
@@ -1164,6 +1180,7 @@ export default function SftpPanel({
         hashLocal={(p) => window.aiss.localFs.hash(p)}
         hashRemote={(p) => (sessionId && window.aiss.sftp.hash ? window.aiss.sftp.hash(sessionId, p) : Promise.reject(new Error('hash')))}
         onRun={runSync}
+        onPin={onPinPreview}
         onSaveProfile={(p) => {
           const all = loadProfiles().filter((x) => x.id !== p.id)
           saveProfiles([p, ...all])

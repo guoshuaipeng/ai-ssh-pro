@@ -142,6 +142,7 @@ export function applyImportPolicy(opts: {
       ...(d.privateKeyPath ? { privateKeyPath: d.privateKeyPath } : {}),
       ...(d.passphrase ? { passphrase: d.passphrase } : {}),
       ...(d.jumpHost ? { jumpHost: d.jumpHost } : {}),
+      ...(d.jumpChain?.length ? { jumpChain: d.jumpChain } : {}),
       ...(d.forwards?.length ? { forwards: d.forwards } : {}),
       ...(folderId ? { folderId } : {})
     }

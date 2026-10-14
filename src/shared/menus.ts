@@ -12,6 +12,8 @@ export type MenuAction =
   | 'exportOpenssh'
   | 'exportJson'
   | 'backup'
+  | 'cloudSync'
+  | 'syncNow'
   | 'settings'
   | 'quit'
   | 'undo'
@@ -39,6 +41,7 @@ export type MenuAction =
   | 'portForward'
   | 'toggleBroadcast'
   | 'toggleRecording'
+  | 'toggleBlocks'
   | 'resourceMonitor'
   | 'dashboard'
   | 'opsHome'
@@ -46,6 +49,9 @@ export type MenuAction =
   | 'alertRules'
   | 'alertHistory'
   | 'auditLog'
+  | 'playbooks'
+  | 'runPlaybook'
+  | 'sessionRecordings'
   | 'startupSettings'
   | 'serverTools'
   | 'refreshDocker'
@@ -109,6 +115,8 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('exportOpenssh', '导出为 OpenSSH', 'Export as OpenSSH'),
       it('exportJson', '导出为 JSON', 'Export as JSON'),
       it('backup', '加密备份与恢复…', 'Encrypted backup & restore…'),
+      it('cloudSync', '云同步…', 'Cloud sync…'),
+      it('syncNow', '立即同步', 'Sync now'),
       sep,
       it('settings', '设置…', 'Settings…'),
       it('updateChannel', '更新…', 'Updates…'),
@@ -147,6 +155,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('terminalPrefs', '终端外观…', 'Terminal appearance…'),
       it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),
       it('sftpComfort', 'SFTP 舒适密度', 'SFTP comfort density', { toggle: true }),
+      it('toggleBlocks', '输出分块', 'Output blocks', { toggle: true }),
       it('clearHostHistory', '清除本主机命令历史…', 'Clear history for this host…'),
       it('startupSettings', '启动设置…', 'Startup settings…'),
       it('toggleLanguage', '切换语言（English）', 'Switch language (Chinese)')
@@ -184,6 +193,9 @@ export const SHARED_MENUS: SharedMenu[] = [
       sep,
       it('batchExec', '批量执行…', 'Batch run…'),
       it('snippets', '命令片段', 'Snippets'),
+      it('playbooks', '运维剧本', 'Playbooks'),
+      it('runPlaybook', '运行剧本…', 'Run playbook…'),
+      it('sessionRecordings', '会话录制', 'Session recordings'),
       it('inventory', '主机档案', 'Host inventory')
     ]
   },

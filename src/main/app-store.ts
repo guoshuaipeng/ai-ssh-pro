@@ -98,11 +98,37 @@ function decryptJump(j: SshJumpHostOptions | undefined): SshJumpHostOptions | un
   return out
 }
 
+function encryptChain(chain: SavedSessionProfile['jumpChain']): SavedSessionProfile['jumpChain'] {
+  if (!chain?.length) return chain
+  return chain.map((hop) => ({
+    ...hop,
+    password: hop.password ? encryptOptional(hop.password) : hop.password,
+    passphrase: hop.passphrase ? encryptOptional(hop.passphrase) : hop.passphrase
+  }))
+}
+
+function decryptChain(chain: SavedSessionProfile['jumpChain']): SavedSessionProfile['jumpChain'] {
+  if (!chain?.length) return chain
+  return chain.map((hop) => {
+    const next = { ...hop }
+    try {
+      if (next.password) next.password = decryptOptional(next.password)
+      if (next.passphrase) next.passphrase = decryptOptional(next.passphrase)
+    } catch (e) {
+      console.error('[app-store] failed to decrypt jump chain secrets:', e)
+      delete next.password
+      delete next.passphrase
+    }
+    return next
+  })
+}
+
 function encryptProfileSecrets(profile: SavedSessionProfile): SavedSessionProfile {
   const row: SavedSessionProfile = { ...profile }
   if (row.password) row.password = encryptOptional(row.password)
   if (row.passphrase) row.passphrase = encryptOptional(row.passphrase)
   if (row.jumpHost) row.jumpHost = encryptJump(row.jumpHost)
+  if (row.jumpChain) row.jumpChain = encryptChain(row.jumpChain)
   return row
 }
 
@@ -117,6 +143,7 @@ function decryptProfileSecrets(profile: SavedSessionProfile): SavedSessionProfil
     delete row.passphrase
   }
   if (row.jumpHost) row.jumpHost = decryptJump(row.jumpHost)
+  if (row.jumpChain) row.jumpChain = decryptChain(row.jumpChain)
   return row
 }
 
@@ -325,6 +352,38 @@ function normalizeSavedSessionsRaw(raw: unknown): SavedSessionsState {
     }
     const tags = normalizeTags(o.tags)
     if (Array.isArray(o.tags) && tags.length) row.tags = tags
+    if (o.protection === 'normal' || o.protection === 'production' || o.protection === 'readonly') row.protection = o.protection
+    if (o.authMode === 'password' || o.authMode === 'key' || o.authMode === 'agent') row.authMode = o.authMode
+    if (typeof o.certificatePath === 'string' && o.certificatePath.trim()) row.certificatePath = o.certificatePath.trim()
+    if (o.autoRecord === true) row.autoRecord = true
+    if (Array.isArray(o.jumpChain)) {
+      const hops = o.jumpChain
+        .map((rawHop) => {
+          if (!rawHop || typeof rawHop !== 'object') return null
+          const h = rawHop as Record<string, unknown>
+          const hostName = typeof h.host === 'string' ? h.host.trim() : ''
+          const userName = typeof h.username === 'string' ? h.username.trim() : ''
+          if (!hostName || !userName) return null
+          const portN = typeof h.port === 'number' && h.port > 0 ? Math.floor(h.port) : 22
+          const auth = h.auth === 'agent' || h.auth === 'password' || h.auth === 'key' ? h.auth : undefined
+          const hop: import('../shared/jump-chain').JumpHop = {
+            id: typeof h.id === 'string' && h.id ? h.id : `hop-${hostName}`,
+            profileId: typeof h.profileId === 'string' ? h.profileId : undefined,
+            label: typeof h.label === 'string' ? h.label : undefined,
+            host: hostName,
+            port: portN,
+            username: userName,
+            password: typeof h.password === 'string' ? h.password : undefined,
+            privateKeyPath: typeof h.privateKeyPath === 'string' ? h.privateKeyPath : undefined,
+            passphrase: typeof h.passphrase === 'string' ? h.passphrase : undefined,
+            auth
+          }
+          return hop
+        })
+        .filter((h): h is NonNullable<typeof h> => Boolean(h))
+        .slice(0, 5)
+      if (hops.length) row.jumpChain = hops
+    }
     return row
   }
 
@@ -539,7 +598,10 @@ export function migratePlaintextSecretsToEncrypted(): void {
         (p.password && !isEncryptedSecret(p.password)) ||
         (p.passphrase && !isEncryptedSecret(p.passphrase)) ||
         (p.jumpHost?.password && !isEncryptedSecret(p.jumpHost.password)) ||
-        (p.jumpHost?.passphrase && !isEncryptedSecret(p.jumpHost.passphrase))
+        (p.jumpHost?.passphrase && !isEncryptedSecret(p.jumpHost.passphrase)) ||
+        (p.jumpChain ?? []).some(
+          (h) => (h.password && !isEncryptedSecret(h.password)) || (h.passphrase && !isEncryptedSecret(h.passphrase))
+        )
       if (needs) sessionsDirty = true
       return encryptProfileSecrets(decryptProfileSecrets(p))
     })

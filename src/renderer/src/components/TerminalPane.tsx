@@ -260,6 +260,12 @@ export default function TerminalPane({
         }
       }
       term.write(u8)
+      try {
+        const text = new TextDecoder('utf-8', { fatal: false }).decode(u8)
+        window.dispatchEvent(new CustomEvent('aiss-term-chunk', { detail: { sessionId, text } }))
+      } catch {
+        /* overlay is optional */
+      }
     })
 
     if (broadcastRef) {

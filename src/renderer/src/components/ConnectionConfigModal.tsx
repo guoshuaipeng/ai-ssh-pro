@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { tg } from '../lib/i18n'
 import { ProtectionLevelField } from './ProtectionSection'
+import JumpChainEditor from './JumpChainEditor'
 
 export type ConnectionConfigModalProps = {
   /** 默认「新建连接」；编辑已保存会话时可传入更明确的标题 */
@@ -51,6 +52,15 @@ export type ConnectionConfigModalProps = {
   setForwardRemotePort?: (v: string) => void
   protection?: import('@shared/protection').ProtectionLevel
   setProtection?: (v: import('@shared/protection').ProtectionLevel) => void
+  authModeExternal?: 'password' | 'key' | 'agent'
+  setAuthModeExternal?: (v: 'password' | 'key' | 'agent') => void
+  certificatePath?: string
+  setCertificatePath?: (v: string) => void
+  autoRecord?: boolean
+  setAutoRecord?: (v: boolean) => void
+  jumpChain?: import('@shared/jump-chain').JumpHop[]
+  setJumpChain?: (v: import('@shared/jump-chain').JumpHop[]) => void
+  profiles?: import('@shared/ipc').SavedSessionProfile[]
 }
 
 /** UX-25: documentation-range placeholder only */
@@ -102,10 +112,23 @@ export default function ConnectionConfigModal({
   forwardRemotePort = '',
   setForwardRemotePort,
   protection = 'normal',
-  setProtection
+  setProtection,
+  authModeExternal,
+  setAuthModeExternal,
+  certificatePath = '',
+  setCertificatePath,
+  autoRecord = false,
+  setAutoRecord,
+  jumpChain,
+  setJumpChain,
+  profiles = []
 }: ConnectionConfigModalProps) {
-  const initialAuth: 'password' | 'key' = privateKeyPath.trim() ? 'key' : 'password'
-  const [authMode, setAuthMode] = useState<'password' | 'key'>(initialAuth)
+  const initialAuth: 'password' | 'key' | 'agent' = authModeExternal ?? (privateKeyPath.trim() ? 'key' : 'password')
+  const [authMode, setAuthModeState] = useState<'password' | 'key' | 'agent'>(initialAuth)
+  const setAuthMode = (v: 'password' | 'key' | 'agent') => {
+    setAuthModeState(v)
+    setAuthModeExternal?.(v)
+  }
   const advancedOpenDefault = Boolean(
     jumpHost.trim() ||
       forwardLocalPort.trim() ||
@@ -193,6 +216,10 @@ export default function ConnectionConfigModal({
                 <input type="radio" name="conn-auth" checked={authMode === 'key'} onChange={() => setAuthMode('key')} />
                 {tg('conn.authKey')}
               </label>
+              <label className={authMode === 'agent' ? 'active' : ''}>
+                <input type="radio" name="conn-auth" checked={authMode === 'agent'} onChange={() => setAuthMode('agent')} />
+                {tg('m2.authAgent')}
+              </label>
             </div>
             <div className="field-grid field-grid--single">
               {authMode === 'password' ? (
@@ -238,6 +265,10 @@ export default function ConnectionConfigModal({
             <summary>{tg('conn.groupAdvanced')}</summary>
             <div className="ws-collapse-body">
               <h4 className="conn-subhead">{tg('ui.50')}</h4>
+              {setJumpChain ? (
+                <JumpChainEditor hops={jumpChain ?? []} targetHost={host} profiles={profiles} onChange={setJumpChain} />
+              ) : null}
+              {setJumpChain ? null : (
               <div className="field-grid field-grid--single">
                 <div className="field">
                   <label>{tg('ui.51')}</label>
@@ -284,6 +315,20 @@ export default function ConnectionConfigModal({
                   />
                 </div>
               </div>
+              )}
+
+              {setCertificatePath ? (
+                <div className="field">
+                  <label>{tg('m2.cert')}</label>
+                  <input value={certificatePath} onChange={(e) => setCertificatePath(e.target.value)} placeholder="id_ed25519-cert.pub" />
+                </div>
+              ) : null}
+              {setAutoRecord ? (
+                <label className="l4-check">
+                  <input type="checkbox" checked={autoRecord} onChange={(e) => setAutoRecord(e.target.checked)} />
+                  {tg('l4.autoRecord')}
+                </label>
+              ) : null}
 
               <h4 className="conn-subhead">{tg('ui.52')}</h4>
               <p className="conn-card-hint">{tg('ui.53')}</p>

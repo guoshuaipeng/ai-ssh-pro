@@ -6,6 +6,7 @@ import { applyUiTheme, loadUiThemeId } from './lib/ui-themes'
 import { I18nProvider } from './lib/i18n'
 import './styles.css'
 import './features.css'
+import './styles-m2.css'
 
 try {
   applyUiTheme(loadUiThemeId())

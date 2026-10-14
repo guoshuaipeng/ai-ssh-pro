@@ -92,7 +92,7 @@ ok(KEYMAP.some((k) => k.id === 'opsHome' && k.keys === 'Ctrl+Alt+H'), 'home shor
 ok(KEYMAP.some((k) => k.id === 'alertWorkbench' && k.keys === 'Ctrl+Alt+A'), 'workbench shortcut')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-ok(pkg.version === '0.4.0-m1', 'package version')
+ok(pkg.version === '0.4.0-m2', 'package version')
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 ok(changelog.includes('## v0.4.0-m1'), 'changelog section')
 ok(!changelog.includes('## v0.4.0\n'), 'final tag section is not written yet')

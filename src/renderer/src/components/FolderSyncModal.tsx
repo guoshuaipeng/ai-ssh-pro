@@ -16,6 +16,7 @@ import {
   type SyncRow
 } from '@shared/folder-sync'
 import { formatBytes } from '@shared/sftp-queue'
+import { changeCount, shouldPinSyncPreview } from '@shared/file-workflow'
 import { tg } from '../lib/i18n'
 import { askText } from '../lib/dialogs'
 import Modal from './Modal'
@@ -44,6 +45,13 @@ type Props = {
     deleteExtra: boolean
   }) => void
   onSaveProfile: (profile: SyncProfile) => void
+  onPin?: (plan: {
+    direction: 'upload' | 'download'
+    localRoot: string
+    remoteRoot: string
+    rows: SyncRow[]
+    deleteExtra: boolean
+  }) => void
 }
 
 async function walk(
@@ -99,7 +107,8 @@ export default function FolderSyncModal({
   hashLocal,
   hashRemote,
   onRun,
-  onSaveProfile
+  onSaveProfile,
+  onPin
 }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [direction, setDirection] = useState<'upload' | 'download'>(initialDirection)
@@ -179,9 +188,17 @@ export default function FolderSyncModal({
       const init: Record<string, boolean> = {}
       for (const r of next) if (r.kind !== 'same') init[r.rel] = true
       setPicked(init)
+      if (onPin && shouldPinSyncPreview(changeCount(next), false)) {
+        onPin({ direction, localRoot, remoteRoot, rows: next.filter((r) => r.kind !== 'same'), deleteExtra })
+      }
     } finally {
       setComparing(false)
     }
+  }
+
+  const pinPlan = () => {
+    const chosen = rows.filter((r) => picked[r.rel] && r.kind !== 'same')
+    onPin?.({ direction, localRoot, remoteRoot, rows: chosen, deleteExtra })
   }
 
   const confirmRun = async () => {
@@ -249,6 +266,11 @@ export default function FolderSyncModal({
             <button type="button" onClick={() => setStep(1)} disabled={comparing}>
               {tg('g2.back')}
             </button>
+            {onPin ? (
+              <button type="button" onClick={pinPlan} disabled={comparing}>
+                {tg('m2.pinPreview')}
+              </button>
+            ) : null}
             <button
               type="button"
               className={deleteCount > 0 ? 'primary danger' : 'primary'}

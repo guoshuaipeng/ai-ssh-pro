@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import { looksLikeFinalShell, looksLikeMobaXterm, looksLikeSecureCrt, parseFinalShell, parseMobaXtermSessions, parseSecureCrtSession } from './session-import-extra'
 import { redactSecrets } from '../shared/import-preview'
+import { parseProxyJump } from '../shared/jump-chain'
 import type { ImportedSessionDraft, SessionImportPickResult } from '../shared/ipc'
 
 function decodeTextFile(buf: Buffer): string {
@@ -129,6 +130,14 @@ function parseSshConfig(text: string): ImportedSessionDraft[] {
       username
     }
     if (privateKeyPath) draft.privateKeyPath = privateKeyPath.replace(/^~(?=\/|\\)/, process.env.HOME ?? process.env.USERPROFILE ?? '~')
+    const proxy = (kv.proxyjump || '').trim()
+    if (proxy) {
+      const parsed = parseProxyJump(proxy)
+      if (parsed.hops.length) {
+        draft.jumpChain = parsed.hops
+        draft.jumpHost = { host: parsed.hops[0]!.host, port: parsed.hops[0]!.port, username: parsed.hops[0]!.username }
+      }
+    }
     out.push(draft)
   }
   return out
