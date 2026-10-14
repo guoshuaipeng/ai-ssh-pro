@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiAssistResult } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
 
-export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string }
+export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert' }
 
 type Props = {
   request: AiExplainRequest
@@ -23,7 +23,7 @@ export default function AiAssistCard({ request, onClose, onInsert, onRun }: Prop
     reqIdRef.current = requestId
     setState({ phase: 'loading' })
     void window.aiss.ai
-      .assist({ requestId, kind: 'explainError', text: request.text, host: request.host, locale })
+      .assist({ requestId, kind: request.kind ?? 'explainError', text: request.text, host: request.host, locale })
       .then((result) => {
         if (reqIdRef.current !== requestId) return
         if (!result.ok && result.code === 'not-configured') {
@@ -57,11 +57,16 @@ export default function AiAssistCard({ request, onClose, onInsert, onRun }: Prop
   return (
     <section className="ai-assist-card" data-testid="ai-explain-card" aria-live="polite">
       <header className="ai-assist-head">
-        <span>✨ {t('a1.title')}</span>
+        <span>✨ {request.kind === 'explainAlert' ? t('a4.title') : t('a1.title')}</span>
         <button type="button" className="modal-close" aria-label={t('common.close')} onClick={onClose}>
           ×
         </button>
       </header>
+      {request.kind === 'explainAlert' ? (
+        <p className="a4-privacy" data-testid="a4-privacy">
+          {t('a4.privacy')}
+        </p>
+      ) : null}
       {state.phase === 'loading' ? (
         <div className="ai-assist-loading" data-testid="ai-explain-loading">
           <div className="ai-skeleton" />
@@ -80,7 +85,7 @@ export default function AiAssistCard({ request, onClose, onInsert, onRun }: Prop
             {t('upd.retry')}
           </button>
         </div>
-      ) : r && r.ok && r.kind === 'explainError' ? (
+      ) : r && r.ok && (r.kind === 'explainError' || r.kind === 'explainAlert') ? (
         <div className="ai-assist-body">
           <h4>{t('a1.cause')}</h4>
           <p data-testid="ai-explain-cause">{r.cause}</p>

@@ -65,7 +65,7 @@ export async function aiHasKey(): Promise<boolean> {
 }
 
 /** UX-37: unconfigured AI lands on the single config card (no second explain card). */
-export function flashAiConfig(reason: 'explain' | 'command'): void {
+export function flashAiConfig(reason: 'explain' | 'command' | 'alert'): void {
   window.dispatchEvent(new CustomEvent('aiss-ai-need-config', { detail: { reason } }))
 }
 

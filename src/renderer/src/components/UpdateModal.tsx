@@ -6,13 +6,14 @@ type Props = {
   open: boolean
   version: string
   notes?: string
+  sourceLabel?: string
   onDownload: () => void
   onLater: () => void
   onSkip: () => void
 }
 
 /** V2: "New version vX" dialog — buttons right to left: Download (primary), Later, Skip this version. */
-export default function UpdateModal({ open, version, notes, onDownload, onLater, onSkip }: Props) {
+export default function UpdateModal({ open, version, notes, sourceLabel, onDownload, onLater, onSkip }: Props) {
   const { t } = useI18n()
   const lines = summarizeNotes(notes)
   return (
@@ -36,6 +37,7 @@ export default function UpdateModal({ open, version, notes, onDownload, onLater,
       }
     >
       <div className="update-modal" data-testid="update-modal">
+        {sourceLabel ? <p className="update-source" data-testid="update-source">{t('upd.source', { source: sourceLabel })}</p> : null}
         {lines.length ? (
           <ul>
             {lines.map((l, i) => (

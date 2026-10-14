@@ -61,6 +61,9 @@ export type MenuAction =
   | 'tour'
   | 'demoHost'
   | 'checkUpdate'
+  | 'updateChannel'
+  | 'taskCards'
+  | 'sftpComfort'
   | 'github'
   | 'about'
 
@@ -104,6 +107,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('backup', '加密备份与恢复…', 'Encrypted backup & restore…'),
       sep,
       it('settings', '设置…', 'Settings…'),
+      it('updateChannel', '更新…', 'Updates…'),
       it('quit', '退出', 'Quit', { shortcut: 'Alt+F4' })
     ]
   },
@@ -137,6 +141,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('uiTheme', '界面主题…', 'UI theme…'),
       it('terminalPrefs', '终端外观…', 'Terminal appearance…'),
       it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),
+      it('sftpComfort', 'SFTP 舒适密度', 'SFTP comfort density', { toggle: true }),
       it('clearHostHistory', '清除本主机命令历史…', 'Clear history for this host…'),
       it('toggleLanguage', '切换语言（English）', 'Switch language (Chinese)')
     ]
@@ -194,6 +199,7 @@ export const SHARED_MENUS: SharedMenu[] = [
     items: [
       it('shortcuts', '键盘快捷键', 'Keyboard shortcuts'),
       it('tour', '新手引导', 'Welcome tour'),
+      it('taskCards', '入门任务', 'Getting started tasks'),
       it('demoHost', '试用演示主机', 'Try demo host'),
       it('whatsNew', '更新内容', "What's new"),
       it('checkUpdate', '检查更新…', 'Check for updates…'),

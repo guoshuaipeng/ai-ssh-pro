@@ -1033,3 +1033,55 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .tour-bubble--bottom::before { top: -5px; left: 18px; transform: rotate(45deg); }
 .tour-bubble--top::before { bottom: -5px; left: 18px; transform: rotate(225deg); }
 .tour-hint { margin-top: 6px; font-size: 11px; color: var(--muted); }
+
+/* UX-46 compact dual-pane */
+.sftp-dual { overflow-x: hidden; }
+.sftp-table { table-layout: fixed; width: 100%; }
+.sftp-name-btn { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.sftp-ico { margin-right: 4px; }
+.sftp-dual.is-compact .sftp-label:not(.sftp-label-keep) {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;
+}
+.sftp-dual.is-compact .sftp-ico { margin-right: 0; }
+.sftp-dual.is-compact .sftp-table th,
+.sftp-dual.is-compact .sftp-table td,
+.sftp-dual.is-compact .sftp-table tbody tr,
+.sftp-dual.is-compact .sftp-name-btn {
+  height: 24px; max-height: 24px; line-height: 24px;
+}
+.sftp-dual.is-compact .sftp-table th:nth-child(4),
+.sftp-dual.is-compact .sftp-table td:nth-child(4),
+.sftp-dual.is-compact .sftp-table th:nth-child(5),
+.sftp-dual.is-compact .sftp-table td:nth-child(5) { display: none; }
+.sftp-dual.is-compact .sftp-mid { width: 56px; padding: 4px; }
+.sftp-dual.is-compact .sftp-toolbar-actions { gap: 4px; }
+.sftp-pane-title { display: flex; align-items: center; gap: 8px; }
+.sftp-crumb-toggle { font-size: 11px; padding: 0 6px; height: 22px; }
+.o1-card.is-alert .o1-card-actions { opacity: 1; flex-wrap: nowrap; }
+.a4-privacy { margin: 6px 0 0; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.45; }
+.ai-assist-card .a4-privacy { margin: 0 0 8px; }
+.o2-row-actions { display: inline-flex; gap: 4px; margin-left: 6px; }
+.o2-row-actions button, .n1-choice, .n2-policy label { white-space: nowrap; }
+.n1-sources, .n2-policy { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
+.n1-mirror { display: flex; flex-direction: column; gap: 4px; max-width: 480px; }
+.n1-mirror input { width: 100%; }
+.n2-stat { font-size: 12px; color: var(--muted); margin-right: 8px; }
+.d5-body { overflow: auto; min-height: 0; }
+.d5-side { min-width: 0; }
+.d5-colhead, .d5-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.d5-colhead { font-size: 12px; color: var(--muted); padding: 4px 8px; position: sticky; top: 0; background: var(--bg-panel, #161b22); }
+.d5-cell { margin: 0; font-size: 12px; line-height: 18px; white-space: pre-wrap; word-break: break-all; padding: 0 6px; }
+.d5-cell.is-add { background: rgba(46, 160, 67, 0.18); }
+.d5-cell.is-del { background: rgba(248, 81, 73, 0.18); }
+.d5-unified { margin: 0; padding: 8px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+.d5-large { padding: 16px; }
+.g3-stack {
+  position: absolute; left: 12px; bottom: 12px; z-index: 4; width: min(280px, calc(100% - 24px));
+  display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-height: 46%; overflow: auto;
+}
+.g3-head, .g3-card { pointer-events: auto; background: var(--bg-panel, #161b22); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.g3-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.g3-card p { margin: 2px 0 6px; font-size: 12px; color: var(--muted); }
+.g3-actions { display: flex; gap: 6px; }
+.g3-head button, .g3-actions button { white-space: nowrap; }
+.update-source { font-size: 12px; color: var(--muted); margin: 0 0 8px; }

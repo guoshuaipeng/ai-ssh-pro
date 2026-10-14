@@ -1,5 +1,5 @@
 import type { ResourceSnapshot } from '../shared/resource-monitor'
-import type { ExecOutcome, KillSignal, ListenPort, LogRequest, ProcInfo, ServiceAction, ServiceInfo } from '../shared/server-tools'
+import type { DfRow, ExecOutcome, KillSignal, ListenPort, LogRequest, ProcInfo, ServiceAction, ServiceInfo } from '../shared/server-tools'
 import type { BackupExportResult, BackupImportResult } from '../shared/ipc'
 import type { ActiveForward, AddForwardRequest } from '../shared/ipc'
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
@@ -64,7 +64,9 @@ const api = {
       return () => ipcRenderer.removeListener('app:open-dialog', fn)
     },
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
-    checkUpdate: (): Promise<AppUpdateCheckResult> => ipcRenderer.invoke('app:checkUpdate'),
+    checkUpdate: (opts?: { channel?: 'auto' | 'gitee' | 'github' | 'custom'; customUrl?: string }): Promise<AppUpdateCheckResult> =>
+      ipcRenderer.invoke('app:checkUpdate', opts),
+    focus: (): Promise<boolean> => ipcRenderer.invoke('app:focus'),
     openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('app:openExternal', url),
     openGithub: (): Promise<boolean> => ipcRenderer.invoke('app:openGithub'),
     getMcpGuideInfo: (): Promise<McpGuideInfo> => ipcRenderer.invoke('app:getMcpGuideInfo'),
@@ -170,7 +172,9 @@ const api = {
     trash: (target: string): Promise<{ token: string }> => ipcRenderer.invoke('localFs:trash', target),
     restore: (token: string): Promise<boolean> => ipcRenderer.invoke('localFs:restore', token),
     reveal: (target: string): Promise<boolean> => ipcRenderer.invoke('localFs:reveal', target),
-    hash: (target: string): Promise<string> => ipcRenderer.invoke('localFs:hash', target)
+    hash: (target: string): Promise<string> => ipcRenderer.invoke('localFs:hash', target),
+    readText: (target: string, maxBytes?: number): Promise<import('../shared/ipc').SftpReadTextResult> =>
+      ipcRenderer.invoke('localFs:readText', target, maxBytes)
   },
   docker: {
     listTree: (sessionId: string): Promise<DockerTreeResult> =>
@@ -301,6 +305,7 @@ const api = {
     service: (sessionId: string, unit: string, action: ServiceAction, sudo: boolean): Promise<ExecOutcome> =>
       ipcRenderer.invoke('tools:service', sessionId, unit, action, sudo),
     ports: (sessionId: string): Promise<ListenPort[]> => ipcRenderer.invoke('tools:ports', sessionId),
+    df: (sessionId: string): Promise<DfRow[]> => ipcRenderer.invoke('tools:df', sessionId),
     logs: (sessionId: string, req: LogRequest): Promise<{ text: string; code: number | null; at: number }> =>
       ipcRenderer.invoke('tools:logs', sessionId, req)
   },

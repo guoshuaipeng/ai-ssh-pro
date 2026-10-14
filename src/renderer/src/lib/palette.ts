@@ -36,7 +36,10 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   inventory: 'zhuji dang an profile',
   portForward: 'duankou zhuanfa forward',
   aiCommand: 'ziran yuyan nl command',
-  aiExplainError: 'jieshi baocuo explain'
+  aiExplainError: 'jieshi baocuo explain',
+  updateChannel: 'gengxin tongdao gitee github',
+  taskCards: 'renwu rukou onboarding',
+  sftpComfort: 'midu shushi compact sftp'
 }
 
 /** F4: every menu action becomes a palette entry; both languages and the action id are searchable. */

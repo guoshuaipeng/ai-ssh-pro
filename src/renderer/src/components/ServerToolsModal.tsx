@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { KillSignal, ListenPort, ProcInfo, ServiceAction, ServiceFilter, ServiceInfo, ProcSort } from '../../../shared/server-tools'
+import type { DfRow, KillSignal, ListenPort, ProcInfo, ServiceAction, ServiceFilter, ServiceInfo, ProcSort } from '../../../shared/server-tools'
 import {
   LOG_PRESETS,
   filterLogLines,
@@ -17,7 +17,7 @@ import { askConfirm, askText } from '../lib/dialogs'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
 
-export type ServerToolsTab = 'processes' | 'services' | 'ports' | 'logs'
+export type ServerToolsTab = 'processes' | 'services' | 'ports' | 'logs' | 'df'
 
 type Props = {
   open: boolean
@@ -31,7 +31,7 @@ type Props = {
 const cleanErr = (e: unknown) =>
   friendlyErrorMessage(e)
 
-const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs']
+const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs', 'df']
 
 /** Processes, systemd services, listening ports and log tail of one connected Linux host. */
 export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded }: Props) {
@@ -119,6 +119,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
             {sessionId && tab === 'services' ? <ServicesTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'ports' ? <PortsTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'logs' ? <LogsTab key={sessionId} {...common} /> : null}
+            {sessionId && tab === 'df' ? <DiskTab key={sessionId} {...common} /> : null}
           </>
         )}
       </div>
@@ -133,6 +134,48 @@ type TabProps = {
   guard: <T>(fn: () => Promise<T>) => Promise<T | undefined>
   setNotice: (s: string | null) => void
   t: ReturnType<typeof useI18n>['t']
+}
+
+function DiskTab({ sessionId, busy, guard, t }: TabProps) {
+  const [list, setList] = useState<DfRow[] | null>(null)
+  const load = useCallback(async () => {
+    const r = await guard(() => window.aiss.tools.df(sessionId))
+    if (r) setList(r)
+  }, [guard, sessionId])
+  useEffect(() => {
+    void load()
+  }, [load])
+  if (!list) return <p className="st-muted">{t('rm.loading')}</p>
+  if (!list.length) return <p className="st-muted">{t('st.dfEmpty')}</p>
+  return (
+    <div className="st-table-wrap" data-testid="toolbox-df">
+      <table className="st-table">
+        <thead>
+          <tr>
+            <th>{t('o1.disk')}</th>
+            <th>{t('st.df.size')}</th>
+            <th>{t('st.df.used')}</th>
+            <th>%</th>
+            <th>{t('st.df.mount')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((d) => (
+            <tr key={`${d.fs}:${d.mount}`} className={d.percent >= 85 ? 'is-alert' : ''}>
+              <td>{d.fs}</td>
+              <td>{d.size}</td>
+              <td>{d.used}</td>
+              <td className="num">{d.percent}%</td>
+              <td>{d.mount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button type="button" disabled={busy} onClick={() => void load()}>
+        {t('rm.refresh')}
+      </button>
+    </div>
+  )
 }
 
 function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {

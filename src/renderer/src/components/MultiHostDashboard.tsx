@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { FiredAlert } from '../../../shared/alert-rules'
+import { primaryAlert } from '../../../shared/alert-locate'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
@@ -17,6 +19,10 @@ type Props = {
   onOpenAlertRules?: () => void
   onOpenInspect?: () => void
   sortAlertsFirst?: boolean
+  /** active alerts used for 定位 / AI 解读 (O4 / A4) */
+  alerts?: FiredAlert[]
+  onLocate?: (alert: FiredAlert) => void
+  onInterpret?: (alert: FiredAlert) => void
 }
 
 type CardState = {
@@ -68,7 +74,7 @@ function Bar({ label, percent }: { label: string; percent: number | null }) {
 }
 
 /** O1: multi-host resource dashboard as a center tab. */
-export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal, alertSessionIds, onOpenAlertRules, onOpenInspect, sortAlertsFirst }: Props) {
+export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal, alertSessionIds, onOpenAlertRules, onOpenInspect, sortAlertsFirst, alerts, onLocate, onInterpret }: Props) {
   const { t } = useI18n()
   const [sort, setSort] = useState<'name' | 'cpu' | 'mem' | 'disk' | 'alert'>('name')
   const alertSet = alertSessionIds instanceof Set ? alertSessionIds : new Set(alertSessionIds ?? [])
@@ -262,7 +268,42 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
                           {t('tab.toolbox')}
                         </button>
                       ) : null}
+                      {alertSet.has(c.sessionId) && onLocate ? (
+                        <button
+                          type="button"
+                          data-testid="o4-locate"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const hit = primaryAlert(alerts ?? [], c.sessionId)
+                            if (hit) onLocate(hit)
+                          }}
+                        >
+                          {t('o4.locate')}
+                        </button>
+                      ) : null}
+                      {alertSet.has(c.sessionId) && onInterpret ? (
+                        <button
+                          type="button"
+                          data-testid="a4-interpret"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const hit = primaryAlert(alerts ?? [], c.sessionId)
+                            if (hit) onInterpret(hit)
+                          }}
+                        >
+                          {t('a4.interpret')}
+                        </button>
+                      ) : null}
                     </div>
+                    {alertSet.has(c.sessionId) && onInterpret ? (
+                      <p
+                        className="a4-privacy"
+                        data-testid="a4-privacy-action"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {t('a4.privacy')}
+                      </p>
+                    ) : null}
                   </article>
                 )
               })}

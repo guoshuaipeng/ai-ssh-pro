@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'node:fs'
+import { closeSync, createReadStream, existsSync, mkdirSync, openSync, readSync, readdirSync, renameSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { app, shell } from 'electron'
@@ -94,6 +94,28 @@ export function restoreTrash(token: string): boolean {
 
 export function revealLocal(target: string): void {
   shell.showItemInFolder(target)
+}
+
+/** Read up to maxBytes of a local text file. Does not follow into directories. */
+export function readLocalText(target: string, maxBytes = 2 * 1024 * 1024): {
+  path: string
+  content: string
+  size: number
+  truncated: boolean
+  encoding: 'utf-8'
+} {
+  const st = statSync(target)
+  if (st.isDirectory()) throw new Error('not a file')
+  const size = st.size
+  const take = Math.min(size, Math.max(0, maxBytes))
+  const buf = Buffer.alloc(take)
+  const fd = openSync(target, 'r')
+  try {
+    if (take > 0) readSync(fd, buf, 0, take, 0)
+  } finally {
+    closeSync(fd)
+  }
+  return { path: target, content: buf.toString('utf8'), size, truncated: size > maxBytes, encoding: 'utf-8' }
 }
 
 export function hashLocal(target: string, maxBytes = 32 * 1024 * 1024): Promise<string> {
