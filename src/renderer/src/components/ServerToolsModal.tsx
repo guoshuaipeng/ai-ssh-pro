@@ -24,6 +24,7 @@ type Props = {
   activeSessionId: string | null
   initialTab?: ServerToolsTab
   onClose: () => void
+  embedded?: boolean
 }
 
 const cleanErr = (e: unknown) =>
@@ -32,7 +33,7 @@ const cleanErr = (e: unknown) =>
 const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs']
 
 /** Processes, systemd services, listening ports and log tail of one connected Linux host. */
-export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose }: Props) {
+export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded }: Props) {
   const { t } = useI18n()
   const [sessionId, setSessionId] = useState('')
   const [tab, setTab] = useState<ServerToolsTab>('processes')
@@ -42,14 +43,14 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open && !embedded) return
     if (initialTab) setTab(initialTab)
     setSessionId((cur) =>
       cur && sessions.some((s) => s.sessionId === cur)
         ? cur
         : sessions.find((s) => s.sessionId === activeSessionId)?.sessionId ?? sessions[0]?.sessionId ?? ''
     )
-  }, [open, sessions, activeSessionId, initialTab])
+  }, [open, embedded, sessions, activeSessionId, initialTab])
 
   useEffect(() => {
     setError(null)
@@ -72,7 +73,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
   const common = { sessionId, sudo, busy, guard, setNotice, t }
 
   return (
-    <Modal open={open} title={t('st.title')} onClose={onClose} width={900}>
+    <Modal open={open || !!embedded} title={t('st.title')} onClose={onClose} width={900} embedded={embedded} testId="server-tools-panel">
       <div className="st-panel">
         {sessions.length === 0 ? (
           <p className="st-empty">{t('rm.noSessions')}</p>

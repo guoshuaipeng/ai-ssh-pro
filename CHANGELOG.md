@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.14
+
+- **Tool tabs** — Resource monitor and server toolbox open as center tabs (deduped per host) instead of modal dialogs.
+- **Minimal toolbar** — Default bar: New connection · Monitor · Toolbox · SFTP · Search (Ctrl+K); no More overflow.
+- **Connection form** — Placeholder host `192.0.2.10`; single-column grouped form; Cancel / Save / Save & Connect footer.
+- **AI panel** — Collapsed by default when unconfigured; empty-state with Configure AI; default width 320px; Stop only while generating.
+- **SFTP layout** — Toolbar and file rows use nowrap to avoid wrapping at 1366×768.
+
 ## v0.3.13
 
 - **Demo host** — try the terminal, resource monitor and server toolbox with simulated data, no server needed (sidebar empty state or Help → Try demo host). Dangerous commands are still intercepted.

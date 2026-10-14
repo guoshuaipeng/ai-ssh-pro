@@ -34,13 +34,11 @@ type Props = {
 }
 
 /** Ops group buttons (UX-04): icon, label key, needs a session */
+/** UX-15 minimal default ops: monitor / toolbox / SFTP */
 const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: string; label: MessageKey; title: MessageKey; needsSession: boolean }> = [
   { id: 'resourceMonitor', icon: '📊', label: 'toolbar.monitor', title: 'toolbar.monitorTitle', needsSession: true },
   { id: 'serverTools', icon: '🧰', label: 'toolbar.toolbox', title: 'toolbar.toolboxTitle', needsSession: true },
-  { id: 'sftp', icon: '📁', label: 'toolbar.sftp', title: 'toolbar.sftpTitle', needsSession: true },
-  { id: 'portForward', icon: '🔀', label: 'toolbar.forward', title: 'toolbar.forwardTitle', needsSession: true },
-  { id: 'batchExec', icon: '⚡', label: 'toolbar.batch', title: 'toolbar.batchTitle', needsSession: true },
-  { id: 'snippets', icon: '📋', label: 'toolbar.snippets', title: 'toolbar.snippetsTitle', needsSession: false }
+  { id: 'sftp', icon: '📁', label: 'toolbar.sftp', title: 'toolbar.sftpTitle', needsSession: true }
 ]
 
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
@@ -169,7 +167,7 @@ export default function AppToolbar({
           >
             <span aria-hidden>+</span> <span className="tb-label">{t('toolbar.newConn')}</span>
           </button>
-          {onQuickConnect ? (
+          {false && onQuickConnect ? ( /* UX-15 hide recent */
             <div className="titlebar-popover-wrap" ref={recentRef}>
               <button
                 type="button"
@@ -188,7 +186,7 @@ export default function AppToolbar({
                     variant="menu"
                     onQuickConnect={(row) => {
                       setRecentOpen(false)
-                      onQuickConnect(row)
+                      onQuickConnect?.(row)
                     }}
                   />
                 </div>
@@ -230,7 +228,7 @@ export default function AppToolbar({
             <span aria-hidden>🔍</span> <span className="tb-label">{t('toolbar.searchFeatures')}</span>
             <kbd className="tb-label">Ctrl+K</kbd>
           </button>
-          <div className="titlebar-popover-wrap" ref={moreRef}>
+          <div className="titlebar-popover-wrap" ref={moreRef} style={{ display: "none" }} /* UX-15 no more */>
             <button
               type="button"
               className="titlebar-icon-btn"
@@ -238,7 +236,7 @@ export default function AppToolbar({
               title={t('toolbar.more')}
               aria-label={t('toolbar.more')}
               aria-expanded={moreOpen}
-              onClick={() => setMoreOpen((v) => !v)}
+              onClick={() => setMoreOpen((v) => !v)} /* UX-15 no more button */ style={{ display: "none" }}
             >
               <span aria-hidden>⋯</span> <span className="tb-label">{t('toolbar.more')}</span> <span aria-hidden>▾</span>
             </button>

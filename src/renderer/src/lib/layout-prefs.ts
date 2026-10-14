@@ -11,15 +11,15 @@ export type LayoutPrefs = {
 const KEY = 'aiss-layout-v1'
 const SIDEBAR_MIN = 160
 const SIDEBAR_MAX = 520
-const AI_MIN = 260
+const AI_MIN = 280
 const AI_MAX = 640
 
 export const LAYOUT_DEFAULTS: LayoutPrefs = {
   showSidebar: true,
   showMain: true,
-  showAi: true,
+  showAi: false,
   sidebarWidth: 240,
-  aiWidth: 360
+  aiWidth: 320
 }
 
 export function clampSidebarWidth(n: number): number {

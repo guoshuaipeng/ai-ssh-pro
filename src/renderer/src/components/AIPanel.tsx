@@ -10,6 +10,7 @@ type Props = {
   historyKey?: string | null
   hostInventoryId?: string | null
   inventoryLookup?: { host?: string; port?: number; profileId?: string } | null
+  onOpenSettings?: () => void
 }
 
 type UserLine = { role: 'user'; content: string }
@@ -59,7 +60,8 @@ export default function AIPanel({
   activeSessionId,
   historyKey = null,
   hostInventoryId = null,
-  inventoryLookup = null
+  inventoryLookup = null,
+  onOpenSettings
 }: Props) {
   const [lines, setLines] = useState<Line[]>([])
   const [input, setInput] = useState('')
@@ -73,6 +75,8 @@ export default function AIPanel({
   const tailRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
   const inputMenuRef = useRef<HTMLDivElement>(null)
   const linesRef = useRef<Line[]>([])
   linesRef.current = lines
@@ -391,64 +395,77 @@ export default function AIPanel({
     return () => window.removeEventListener('mousedown', close, true)
   }, [inputMenu])
 
-  return (
-    <aside className="ai-panel">
-      <div className="ai-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <span>{tg('ai.title')}</span>
-        {providers.length > 0 && (
-          <label style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>{tg('ai.provider')}</span>
-            <select
-              value={providers.some((p) => p.id === activeProviderId) ? activeProviderId : providers[0]?.id ?? ''}
-              onChange={(e) => onProviderChange(e.target.value)}
-              disabled={busy || providers.length <= 1}
-              style={{ width: '100%', fontSize: 12 }}
-            >
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+  useEffect(() => {
+    if (!moreOpen) return
+    const close = (e: MouseEvent) => {
+      if (moreRef.current?.contains(e.target as Node)) return
+      setMoreOpen(false)
+    }
+    window.addEventListener('mousedown', close, true)
+    return () => window.removeEventListener('mousedown', close, true)
+  }, [moreOpen])
 
-        {modelList.length > 0 && (
-          <label style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>{tg('ai.model')}</span>
-            <select
-              value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
-              onChange={(e) => onModelChange(e.target.value)}
-              disabled={busy}
-              style={{ width: '100%', fontSize: 12 }}
-            >
-              {modelList.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <button type="button" className="ai-fill-cmd-btn" disabled={!busy} onClick={stopGeneration} title={tg('ai.stopTip')}>
+  return (
+    <aside className="ai-panel" style={{ minWidth: 280 }}>
+      {!hasApiKey ? (
+        <div className="ai-empty-state" data-testid="ai-empty-state" style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+          <div style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>{tg('ai.emptyTitle')}</div>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => onOpenSettings?.()}
+          >
+            {tg('ai.emptyAction')}
+          </button>
+        </div>
+      ) : (
+        <>
+      <div className="ai-header" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+        <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{tg('ai.title')}</span>
+        {modelList.length > 0 ? (
+          <select
+            value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
+            onChange={(e) => onModelChange(e.target.value)}
+            disabled={busy}
+            title={tg('ai.model')}
+            style={{ flex: 1, minWidth: 0, fontSize: 12 }}
+          >
+            {modelList.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        {busy ? (
+          <button type="button" className="ai-fill-cmd-btn" onClick={stopGeneration} title={tg('ai.stopTip')} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
             {tg('ai.stop')}
           </button>
-          <button type="button" className="ai-fill-cmd-btn" disabled={busy} onClick={clearConversation}>
-            {tg('ai.clear')}
+        ) : null}
+        <div className="titlebar-popover-wrap" ref={moreRef} style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            type="button"
+            className="ai-fill-cmd-btn"
+            aria-label={tg('ai.moreMenu')}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            …
           </button>
-          <button type="button" className="ai-fill-cmd-btn" disabled={busy || lines.length === 0} onClick={undoLastRound} title={tg('ai.undoTip')}>
-            {tg('ai.undo')}
-          </button>
+          {moreOpen ? (
+            <div className="titlebar-popover" style={{ right: 0, left: 'auto', minWidth: 140 }}>
+              <button type="button" role="menuitem" disabled={busy} onClick={() => { setMoreOpen(false); clearConversation() }}>
+                {tg('ai.clear')}
+              </button>
+              <button type="button" role="menuitem" disabled={busy || lines.length === 0} onClick={() => { setMoreOpen(false); undoLastRound() }} title={tg('ai.undoTip')}>
+                {tg('ai.undo')}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
-      {!hasApiKey && (
-        <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-          {tg('ai.needKey')}
-        </div>
-      )}
 
-      <div className="ai-messages">
+<div className="ai-messages">
         {lines.length === 0 && (
           <div className="msg assistant" style={{ opacity: 0.85 }}>
             {tg('ai.intro')}
@@ -659,6 +676,8 @@ export default function AIPanel({
           </button>
         </div>
       ) : null}
+            </>
+      )}
     </aside>
   )
 }

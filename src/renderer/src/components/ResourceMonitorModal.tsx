@@ -13,6 +13,7 @@ type Props = {
   onClose: () => void
   /** Opens the server toolbox (processes / services / ports / logs) for the same host. */
   onOpenTools?: (sessionId: string) => void
+  embedded?: boolean
 }
 
 type Sample = { cpu: number | null; mem: number | null; at: number }
@@ -59,7 +60,7 @@ function Bar({ label, percent, detail }: { label: string; percent: number | null
 }
 
 /** CPU / memory / swap / load / disks of a connected Linux host, refreshed every 5 s over an exec channel. */
-export default function ResourceMonitorModal({ open, sessions, activeSessionId, onClose, onOpenTools }: Props) {
+export default function ResourceMonitorModal({ open, sessions, activeSessionId, onClose, onOpenTools, embedded }: Props) {
   const { t } = useI18n()
   const [sessionId, setSessionId] = useState('')
   const [snap, setSnap] = useState<(ResourceSnapshot & { at: number }) | null>(null)
@@ -117,7 +118,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
   const loadPct = snap?.load && snap.cores ? (snap.load[0] / snap.cores) * 100 : null
 
   return (
-    <Modal open={open} title={t('rm.title')} onClose={onClose} width={680}>
+    <Modal open={open || !!embedded} title={t('rm.title')} onClose={onClose} width={680} embedded={embedded} testId="resource-monitor-panel">
       <div className="rm-panel">
         {sessions.length === 0 ? (
           <p className="rm-empty">{t('rm.noSessions')}</p>

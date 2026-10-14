@@ -117,6 +117,10 @@ type TabView =
   | 'snippets'
   | 'docker'
   | 'mcpGuide'
+  | 'monitor'
+  | 'toolbox'
+  | 'forward'
+  | 'batch'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide'
 
@@ -138,7 +142,11 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'uiTheme',
   'snippets',
   'docker',
-  'mcpGuide'
+  'mcpGuide',
+  'monitor',
+  'toolbox',
+  'forward',
+  'batch'
 ])
 
 type Tab = {
@@ -417,6 +425,10 @@ export default function App() {
   const [backupOpen, setBackupOpen] = useState(false)
   const [serverToolsOpen, setServerToolsOpen] = useState(false)
   const [serverToolsSession, setServerToolsSession] = useState<string | null>(null)
+  const openToolTabRef = useRef<(
+    kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch',
+    forSessionId?: string | null
+  ) => void>(() => undefined)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
   const [tourOpen, setTourOpen] = useState(false)
@@ -838,7 +850,11 @@ export default function App() {
       view === 'uiTheme' ||
       view === 'snippets' ||
       view === 'docker' ||
-      view === 'mcpGuide'
+      view === 'mcpGuide' ||
+      view === 'monitor' ||
+      view === 'toolbox' ||
+      view === 'forward' ||
+      view === 'batch'
     ) {
       setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
       setActiveTabId((cur) => (cur === tabId ? null : cur))
@@ -1091,6 +1107,79 @@ export default function App() {
     ])
     setActiveTabId(tabId)
   }, [activeTabId, ensureMainVisible, tabs])
+
+
+  const openToolTab = useCallback(
+    (kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch', forSessionId?: string | null) => {
+      ensureMainVisible()
+      const tabsNow = tabsRef.current
+      if (kind === 'sftp') {
+        openSftpTransfer(forSessionId || undefined)
+        return
+      }
+      const bound =
+        tabsNow.find(
+          (t) =>
+            (forSessionId ? t.sessionId === forSessionId : t.tabId === activeTabId) &&
+            (!t.view || t.view === 'session') &&
+            t.kind !== 'local' &&
+            t.status === 'connected' &&
+            t.sessionId
+        ) ||
+        tabsNow.find(
+          (t) =>
+            (!t.view || t.view === 'session') &&
+            t.kind !== 'local' &&
+            t.status === 'connected' &&
+            t.sessionId
+        )
+      if (!bound) {
+        setError(tg('app.needSshSftp'))
+        return
+      }
+      const hostLabel = bound.title
+      const titlePrefix = kind === 'monitor' ? tg('tab.monitor') : tg('tab.toolbox')
+      const title = `${titlePrefix} · ${hostLabel}`.slice(0, 24)
+      const view: TabView = kind === 'monitor' ? 'monitor' : 'toolbox'
+      const existing = tabsNow.find(
+        (t) => t.view === view && (t.boundSessionId === bound.sessionId || (!!bound.profileId && t.profileId === bound.profileId))
+      )
+      if (existing) {
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.tabId === existing.tabId
+              ? {
+                  ...t,
+                  title,
+                  boundSessionId: bound.sessionId,
+                  connectOpts: bound.connectOpts,
+                  profileId: bound.profileId
+                }
+              : t
+          )
+        )
+        setActiveTabId(existing.tabId)
+        return
+      }
+      const tabId = uuid()
+      setTabs((prev) => [
+        ...prev,
+        {
+          tabId,
+          sessionId: '',
+          title,
+          connectOpts: bound.connectOpts,
+          status: 'connected',
+          view,
+          boundSessionId: bound.sessionId,
+          profileId: bound.profileId
+        }
+      ])
+      setActiveTabId(tabId)
+    },
+    [activeTabId, ensureMainVisible, openSftpTransfer]
+  )
+  openToolTabRef.current = openToolTab
 
   const openSettingsTab = useCallback(
     (view: SettingsTabView) => {
@@ -2194,8 +2283,7 @@ export default function App() {
         return
       }
       if (action === 'resourceMonitor') {
-        setResourceTarget(null)
-        setResourceOpen(true)
+        openToolTabRef.current('monitor')
         return
       }
       if (action === 'commandPalette') {
@@ -2211,8 +2299,8 @@ export default function App() {
         return
       }
       if (action === 'serverTools') {
-        setServerToolsSession(null)
-        setServerToolsOpen(true)
+        openToolTabRef.current('toolbox')
+        return
         return
       }
       if (action === 'settings') {
@@ -2289,8 +2377,7 @@ export default function App() {
   handleTitlebarMenuActionRef.current = handleTitlebarMenuAction
 
   const openMonitorForSession = useCallback((sid: string | null) => {
-    setResourceTarget(sid)
-    setResourceOpen(true)
+    openToolTabRef.current('monitor', sid)
   }, [])
   const monitorProfile = useCallback(
     async (p: SavedSessionProfile) => {
@@ -2384,8 +2471,7 @@ export default function App() {
     (action: MenuAction, sid: string) => {
       if (action === 'resourceMonitor') openMonitorForSession(sid)
       else if (action === 'serverTools') {
-        setServerToolsSession(sid)
-        setServerToolsOpen(true)
+        openToolTabRef.current('toolbox', sid)
       } else if (action === 'sftp') openSftpTransfer(sid)
       else if (action === 'portForward') setPortForwardOpen(true)
       else if (action === 'batchExec') {
@@ -2661,7 +2747,7 @@ export default function App() {
               <button
                 key={t.tabId}
                 type="button"
-                className={`tab ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${isSession && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
+                className={`tab tab-kind-${t.view || 'session'} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${isSession && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
                 onDoubleClick={() => startRename(t.tabId)}
                 onContextMenu={(e) => {
@@ -2968,6 +3054,23 @@ export default function App() {
                       )
                     }}
                   />
+                ) : t.view === 'monitor' && t.boundSessionId ? (
+                  <ResourceMonitorModal
+                    open
+                    embedded
+                    sessions={connectedSshSessions}
+                    activeSessionId={t.boundSessionId}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    onOpenTools={(sid) => openToolTabRef.current('toolbox', sid)}
+                  />
+                ) : t.view === 'toolbox' && t.boundSessionId ? (
+                  <ServerToolsModal
+                    open
+                    embedded
+                    sessions={connectedSshSessions}
+                    activeSessionId={t.boundSessionId}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
                 ) : t.view === 'sftp' ? (
                   <SftpPanel
                     key={t.boundSessionId || t.tabId}
@@ -3093,6 +3196,7 @@ export default function App() {
               />
             ) : null}
             <AIPanel
+              onOpenSettings={() => openSettingsTab('ai')}
               activeSessionId={activeSessionId}
               historyKey={activeTab?.profileId ?? activeSessionId}
               hostInventoryId={activeTab?.hostInventoryId}

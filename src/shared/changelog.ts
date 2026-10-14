@@ -12,7 +12,29 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
-  '0.3.13': [
+
+  '0.3.14': [
+    {
+      icon: '📑',
+      text: { zh: '监控与工具箱改为中间标签页打开，同一主机不重复', en: 'Monitor and toolbox open as center tabs (deduped per host)' }
+    },
+    {
+      icon: '🧰',
+      text: { zh: '极简默认工具栏：新建连接 · 监控 · 工具箱 · SFTP · 搜索', en: 'Minimal default toolbar: New · Monitor · Toolbox · SFTP · Search' }
+    },
+    {
+      icon: '🔐',
+      text: { zh: '新建连接占位改用文档 IP 192.0.2.10，单列分组表单', en: 'Connection placeholder uses documentation IP 192.0.2.10; single-column form' }
+    },
+    {
+      icon: '🤖',
+      text: { zh: 'AI 面板未配置时默认收起并显示配置空状态；默认宽度 320px', en: 'AI panel collapses when unconfigured with empty-state; default width 320px' }
+    },
+    {
+      icon: '📁',
+      text: { zh: 'SFTP 工具条与文件行不换行', en: 'SFTP toolbar and file rows no longer wrap' }
+    }
+  ],  '0.3.13': [
     {
       icon: '🧪',
       text: { zh: '内置演示主机：不用服务器也能试终端、资源监控和工具箱（数据为模拟）', en: 'Built-in demo host: try the terminal, monitor and toolbox without a server (simulated data)' },

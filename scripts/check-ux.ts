@@ -77,4 +77,23 @@ for (const [lang, cat] of [['zh', zh], ['en', en]] as const) {
 }
 for (const m of SHARED_MENUS) for (const it of m.items) if (it.type === 'item') for (const term of RETIRED) if (it.label.zh.includes(term) || it.label.en.includes(term)) problems.push(`menu ${it.id}: retired term "${term}"`)
 assert.deepEqual(problems, [], problems.join('\n'))
+// UX-25: forbid non-documentation IPs in placeholders
+const DOC_IP = /^(?:192\.0\.2\.\d+|198\.51\.100\.\d+|203\.0\.113\.\d+|127\.0\.0\.\d+|0\.0\.0\.0)$/
+const RAW_IP = /\b(?:\d{1,3}\.){3}\d{1,3}\b/
+const ipHits: string[] = []
+for (const f of files) {
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      const m = /placeholder\s*=\s*(?:"([^"]+)"|'([^']+)'|\{["']([^"']+)["']\})/.exec(line)
+      if (!m) return
+      const val = m[1] || m[2] || m[3] || ''
+      const ipm = RAW_IP.exec(val)
+      if (!ipm) return
+      const ip = ipm[0]
+      if (!DOC_IP.test(ip)) ipHits.push(`${relative(root, f)}:${i + 1}: placeholder IP ${ip}`)
+    })
+}
+assert.deepEqual(ipHits, [], `UX-25 real IP in placeholder:\n${ipHits.join('\n')}`)
+
 console.log(`check-ux ok: ${files.length} files without native dialogs, ${Object.keys(zh).filter((x) => x.startsWith('menu.')).length} menu.* entries consistent`)

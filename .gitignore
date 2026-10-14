@@ -30,3 +30,5 @@ __pycache__/
 *.iml
 
 e2e-artifacts/
+
+.release-lock

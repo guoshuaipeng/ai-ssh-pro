@@ -325,7 +325,7 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
 
   return (
     <div className="workspace-panel workspace-panel--sftp">
-      <div className="workspace-panel-toolbar">
+      <div className="workspace-panel-toolbar sftp-toolbar">
         <h2 className="workspace-panel-title">
           {tg('sftp.title')}{sessionTitle ? ` · ${sessionTitle}` : ''}
         </h2>

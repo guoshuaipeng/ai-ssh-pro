@@ -9,19 +9,32 @@ type Props = {
   /** 内容区最大宽度（px） */
   width?: number
   footer?: React.ReactNode
+  /** UX-14: render as in-tab panel (no backdrop / chrome) */
+  embedded?: boolean
+  panelClassName?: string
+  testId?: string
 }
 
-export default function Modal({ open, title, onClose, children, width = 520, footer }: Props) {
+export default function Modal({ open, title, onClose, children, width = 520, footer, embedded, panelClassName, testId }: Props) {
   useEffect(() => {
-    if (!open) return
+    if (!open || embedded) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, onClose, embedded])
 
   if (!open) return null
+
+  if (embedded) {
+    return (
+      <div className={panelClassName || 'workspace-panel tool-tab-panel'} data-testid={testId} role="region" aria-label={title}>
+        <div className="modal-body tool-tab-body">{children}</div>
+        {footer ? <div className="modal-footer">{footer}</div> : null}
+      </div>
+    )
+  }
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
