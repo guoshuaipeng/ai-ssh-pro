@@ -14,6 +14,7 @@ export type TitlebarMenuAction =
   | 'batchExec'
   | 'portForward'
   | 'resourceMonitor'
+  | 'serverTools'
   | 'backup'
   | 'shortcuts'
 
@@ -36,6 +37,7 @@ const MENUS: MenuDef[] = [
       { type: 'item', id: 'batchExec', label: 'menu.batchExec' },
       { type: 'item', id: 'portForward', label: 'menu.portForward' },
       { type: 'item', id: 'resourceMonitor', label: 'menu.resourceMonitor' },
+      { type: 'item', id: 'serverTools', label: 'menu.serverTools', shortcut: 'Ctrl+Shift+T' },
       { type: 'sep' },
       { type: 'item', id: 'newFolder', label: 'menu.newFolder' },
       { type: 'item', id: 'importSessions', label: 'menu.importSessions' },

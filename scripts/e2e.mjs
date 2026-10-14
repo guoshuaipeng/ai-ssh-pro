@@ -86,6 +86,9 @@ const ssh = new Server({ hostKeys: [hostKey] }, (client) => {
         const ch = ok()
         if (info.command === 'uptime') ch.write(' 12:00:00 up 1 day, load average: 0.00\n')
         if (info.command.includes('/proc/loadavg')) ch.write(RESOURCE_FIXTURE)
+        const tool = toolReply(info.command)
+        if (tool != null) execLog.push(info.command)
+        if (tool) ch.write(tool)
         ch.exit(0)
         ch.end()
       })
@@ -171,6 +174,32 @@ const RESOURCE_FIXTURE = [
   '/dev/vdb1        103081248  92773123  10308125      90% /data', '@@',
   '93784.12 300000.00', ''
 ].join('\n')
+// server toolbox fixtures (fake host; nothing is executed)
+const execLog = []
+function toolReply(cmd) {
+  if (cmd.includes('ps -eo')) return [
+    '    1 root       0.0  0.1  11800 3-02:11:09 /sbin/init splash',
+    '  812 mysql     12.5  9.8 812340    02:11:09 /usr/sbin/mysqld --daemonize',
+    ' 4242 www-data  73.2  2.1  65432       11:09 nginx: worker process', ''
+  ].join('\n')
+  if (cmd.includes('systemctl list-units')) return [
+    'cron.service                 loaded active   running Regular background program processing daemon',
+    'nginx.service                loaded failed   failed  A high performance web server',
+    'mysql.service                loaded active   running MySQL Community Server', ''
+  ].join('\n')
+  if (cmd.includes('ss -Htulnp')) return [
+    'tcp   LISTEN 0      128          0.0.0.0:22        0.0.0.0:*    users:(("sshd",pid=900,fd=3))',
+    'tcp   LISTEN 0      80         127.0.0.1:3306      0.0.0.0:*    users:(("mysqld",pid=812,fd=21))', ''
+  ].join('\n')
+  if (cmd.includes('systemctl status')) return '● nginx.service - A high performance web server\n     Active: failed (Result: exit-code)\n'
+  if (cmd.includes('tail -n')) return [
+    '2026-10-14T10:00:01 web nginx[1]: started',
+    '2026-10-14T10:00:02 web nginx[1]: [warn] upstream response is buffered',
+    '2026-10-14T10:00:03 web nginx[1]: [error] connect() failed while connecting to upstream', ''
+  ].join('\n')
+  if (/^(sudo -n )?(kill -|systemctl (start|stop|restart|reload) )/.test(cmd)) return ''
+  return null
+}
 async function step(name, fn) {
   const t0 = Date.now()
   try {
@@ -471,6 +500,84 @@ await step('resource monitor: CPU / memory / disk / uptime from the SSH host', a
   await cjkScan('resource monitor')
   await page.keyboard.press('Escape')
   await expectHidden(panel)
+})
+
+await step('resource monitor trend + server toolbox: processes, services, ports, logs', async () => {
+  await menu('Session', 'Resource monitor…')
+  const rm = page.locator('.rm-panel')
+  await expectVisible(rm.getByTestId('rm-trend-cpu').getByText('50%', { exact: false }), 15000)
+  assert((await rm.getByTestId('rm-trend-cpu').locator('polyline').count()) === 1, 'cpu sparkline drawn')
+  assert((await rm.getByTestId('rm-trend-mem').getByText('25%', { exact: false }).count()) === 1, 'mem trend')
+  await rm.getByRole('button', { name: 'Processes / services / logs…' }).click()
+  await expectHidden(rm)
+  const st = page.locator('.st-panel')
+  await expectVisible(st)
+  // processes
+  const nginx = st.locator('.st-procs tbody tr').filter({ hasText: 'nginx: worker process' })
+  await expectVisible(nginx, 15000)
+  assert((await st.locator('.st-procs tbody tr').first().textContent()).includes('4242'), 'sorted by CPU')
+  await st.getByLabel('Filter by command, user or PID').fill('mysql')
+  await expectHidden(nginx)
+  await st.getByLabel('Filter by command, user or PID').fill('')
+  await cjkScan('server toolbox: processes')
+  await nginx.getByRole('button', { name: 'Force kill' }).click()
+  await expectVisible(page.getByText('Send SIGKILL?'))
+  await page.getByTestId('dialog-ok').click()
+  await expectVisible(st.locator('.st-notice', { hasText: 'Sent SIGKILL to process 4242' }), 10000)
+  assert(execLog.some((c) => c === 'kill -KILL 4242 2>&1'), 'kill command: ' + execLog.join(' | '))
+  // services
+  await st.getByRole('tab', { name: 'Services' }).click()
+  await expectVisible(st.locator('.st-svc').filter({ hasText: 'cron.service' }), 15000)
+  await st.getByRole('button', { name: '1 failed' }).click()
+  await expectHidden(st.locator('.st-svc').filter({ hasText: 'cron.service' }))
+  const ng = st.locator('.st-svc').filter({ hasText: 'nginx.service' })
+  await ng.getByRole('button', { name: 'Status', exact: true }).click()
+  await expectVisible(st.locator('.st-status pre', { hasText: 'Active: failed' }), 10000)
+  await st.getByLabel('Use sudo').check()
+  await ng.getByRole('button', { name: 'Start', exact: true }).click()
+  await page.getByTestId('dialog-ok').click()
+  await expectVisible(st.locator('.st-notice', { hasText: 'nginx.service' }), 10000)
+  assert(execLog.includes("sudo -n systemctl start -- 'nginx.service' 2>&1"), 'service command: ' + execLog.join(' | '))
+  await cjkScan('server toolbox: services')
+  await st.getByLabel('Use sudo').uncheck()
+  // ports -> forward
+  await st.getByRole('tab', { name: 'Listening ports' }).click()
+  const mysqlRow = st.locator('.st-port').filter({ hasText: '3306' })
+  await expectVisible(mysqlRow, 15000)
+  await expectVisible(mysqlRow.getByText('mysqld (812)'))
+  const freePort = await new Promise((res) => { const srv = net.createServer(); srv.listen(0, '127.0.0.1', () => { const p = srv.address().port; srv.close(() => res(p)) }) })
+  await mysqlRow.getByRole('button', { name: 'Forward locally' }).click()
+  await page.locator('.dialog-text-input').fill(String(freePort))
+  await page.getByTestId('dialog-ok').click()
+  await expectVisible(st.locator('.st-notice', { hasText: `localhost:${freePort}` }), 10000)
+  const reply = await new Promise((res, rej) => {
+    const sock = net.connect(freePort, '127.0.0.1', () => sock.write('hi'))
+    sock.setTimeout(8000, () => { sock.destroy(); rej(new Error('forward timeout')) })
+    sock.on('data', (d) => { res(String(d)); sock.end() })
+    sock.on('error', rej)
+  })
+  assert(reply === 'echo:3306:hi', 'forward reply: ' + reply)
+  await cjkScan('server toolbox: ports')
+  // logs
+  await st.getByRole('tab', { name: 'Logs' }).click()
+  await st.getByRole('button', { name: 'Load', exact: true }).click()
+  const log = st.getByTestId('st-log')
+  await expectVisible(log.locator('.st-log-error', { hasText: 'connect() failed' }), 10000)
+  await st.getByLabel('Filter and highlight').fill('upstream')
+  await expectVisible(log.locator('mark', { hasText: 'upstream' }))
+  assert((await log.locator('.st-log-line').count()) === 2, 'filtered to 2 lines')
+  await st.getByLabel('Level').selectOption('error')
+  assert((await log.locator('.st-log-line').count()) === 1, 'errors only')
+  assert(execLog.some((c) => c.startsWith("tail -n 200 -- '/var/log/syslog'")), 'tail command')
+  await cjkScan('server toolbox: logs')
+  await page.keyboard.press('Escape')
+  await expectHidden(st)
+  // clean up the forward we opened
+  await menu('Session', 'Port forwarding…')
+  const fr = page.locator('.pf-table tbody tr').filter({ hasText: '127.0.0.1:3306' })
+  await expectVisible(fr, 10000)
+  await fr.getByRole('button', { name: 'Stop', exact: true }).click()
+  await page.keyboard.press('Escape')
 })
 
 await step('split view: second session in pane 2, drag divider, swap, persisted ratio', async () => {

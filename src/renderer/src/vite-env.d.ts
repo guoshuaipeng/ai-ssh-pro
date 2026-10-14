@@ -181,6 +181,27 @@ export type AissPreload = {
     openWindow: () => Promise<void>
     onPush: (cb: (payload: AiDebugStreamPayload) => void) => () => void
   }
+  tools: {
+    processes: (sessionId: string) => Promise<import('../../shared/server-tools').ProcInfo[]>
+    kill: (
+      sessionId: string,
+      pid: number,
+      signal: import('../../shared/server-tools').KillSignal,
+      sudo: boolean
+    ) => Promise<import('../../shared/server-tools').ExecOutcome>
+    services: (sessionId: string) => Promise<import('../../shared/server-tools').ServiceInfo[]>
+    service: (
+      sessionId: string,
+      unit: string,
+      action: import('../../shared/server-tools').ServiceAction,
+      sudo: boolean
+    ) => Promise<import('../../shared/server-tools').ExecOutcome>
+    ports: (sessionId: string) => Promise<import('../../shared/server-tools').ListenPort[]>
+    logs: (
+      sessionId: string,
+      req: import('../../shared/server-tools').LogRequest
+    ) => Promise<{ text: string; code: number | null; at: number }>
+  }
   backup: {
     export: (opts: { password: string; includeAi?: boolean }) => Promise<import('@shared/ipc').BackupExportResult>
     import: (opts: { password: string }) => Promise<import('@shared/ipc').BackupImportResult>

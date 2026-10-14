@@ -40,6 +40,10 @@
 - **Command history** — recent commands (up to 200) stored locally; Up-arrow and suggestions in the command bar
 - **Recent connections** — successful connects (host, user, port, label, time) with bookmarks. Passwords and keys are not stored; quick-connect reuses a saved session when one matches
 - **Interface language** — Simplified Chinese (default) and English for the main chrome and these features; the choice is saved on this machine
+- **Server toolbox** (Session → Server toolbox…, `Ctrl+Shift+T`) — for a connected Linux host: top processes with filter/sort and End / Force kill; systemd services with failed-unit badge, status, start / stop / restart; listening ports (`ss`/`netstat`) with one-click *Forward locally*; log viewer for files or the journal with keyword highlight, level filter and 3 s follow. Every action asks first, and an optional *Use sudo* runs it through `sudo -n`
+- **Resource monitor** — CPU, memory, swap, load, disks and uptime refreshed every 5 s, with a 5-minute CPU / memory trend
+- **Port forwarding manager** — add and stop local forwards on a live session and see connections and traffic per forward
+- **Encrypted backup** — export sessions, folders and snippets into one password-protected file (AES-256-GCM) and restore it on another machine
 
 ## Development
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
+import { pushSample, sparklinePoints } from '../../../shared/server-tools'
 import { useI18n } from '../lib/i18n'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
@@ -10,6 +11,31 @@ type Props = {
   sessions: BatchSessionOption[]
   activeSessionId: string | null
   onClose: () => void
+  /** Opens the server toolbox (processes / services / ports / logs) for the same host. */
+  onOpenTools?: (sessionId: string) => void
+}
+
+type Sample = { cpu: number | null; mem: number | null; at: number }
+const HISTORY_MAX = 60
+
+function Sparkline({ label, values, testId, peakLabel }: { label: string; values: number[]; testId: string; peakLabel: string }) {
+  const w = 240
+  const h = 36
+  const last = values.length ? values[values.length - 1] : null
+  const peak = values.length ? Math.max(...values) : null
+  return (
+    <div className="rm-trend" data-testid={testId}>
+      <span className="rm-label">{label}</span>
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rm-spark" role="img" aria-label={label}>
+        <line x1="0" y1={h * 0.3} x2={w} y2={h * 0.3} className="rm-spark-warn" />
+        {values.length > 0 ? <polyline points={sparklinePoints(values, w, h)} className="rm-spark-line" /> : null}
+      </svg>
+      <span className="rm-detail">
+        {last == null ? '—' : `${Math.round(last)}%`}
+        {peak != null ? ` · ${peakLabel} ${Math.round(peak)}%` : ''}
+      </span>
+    </div>
+  )
 }
 
 const REFRESH_MS = 5000
@@ -33,12 +59,13 @@ function Bar({ label, percent, detail }: { label: string; percent: number | null
 }
 
 /** CPU / memory / swap / load / disks of a connected Linux host, refreshed every 5 s over an exec channel. */
-export default function ResourceMonitorModal({ open, sessions, activeSessionId, onClose }: Props) {
+export default function ResourceMonitorModal({ open, sessions, activeSessionId, onClose, onOpenTools }: Props) {
   const { t } = useI18n()
   const [sessionId, setSessionId] = useState('')
   const [snap, setSnap] = useState<(ResourceSnapshot & { at: number }) | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [paused, setPaused] = useState(false)
+  const [history, setHistory] = useState<Sample[]>([])
 
   useEffect(() => {
     if (!open) return
@@ -54,6 +81,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
     try {
       const r = await window.aiss.workspace.resources(sid)
       setSnap(r)
+      setHistory((h) => pushSample(h, { cpu: r.cpuPercent, mem: r.mem?.percent ?? null, at: r.at }, HISTORY_MAX))
       setError(null)
     } catch (e) {
       setError((e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
@@ -68,6 +96,13 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
     const timer = setInterval(() => void load(sessionId), REFRESH_MS)
     return () => clearInterval(timer)
   }, [open, sessionId, paused, load])
+
+  useEffect(() => {
+    setHistory([])
+  }, [sessionId])
+
+  const cpuTrend = history.map((x) => x.cpu).filter((v): v is number => v != null)
+  const memTrend = history.map((x) => x.mem).filter((v): v is number => v != null)
 
   const loadPct = snap?.load && snap.cores ? (snap.load[0] / snap.cores) * 100 : null
 
@@ -94,6 +129,11 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
             <label className="rm-pause">
               <input type="checkbox" checked={!paused} onChange={(e) => setPaused(!e.target.checked)} /> {t('rm.auto')}
             </label>
+            {onOpenTools && sessionId ? (
+              <button type="button" onClick={() => onOpenTools(sessionId)}>
+                {t('rm.openTools')}
+              </button>
+            ) : null}
             {snap ? <span className="rm-time">{t('rm.updated', { time: new Date(snap.at).toLocaleTimeString() })}</span> : null}
           </div>
         )}
@@ -113,6 +153,11 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
               detail={snap.swap && snap.swap.total > 0 ? `${formatBytes(snap.swap.used)} / ${formatBytes(snap.swap.total)}` : t('rm.none')}
             />
             <Bar label={t('rm.load')} percent={loadPct} detail={snap.load ? snap.load.join(' / ') : undefined} />
+            <div className="rm-trends">
+              <p className="rm-trends-title">{t('rm.trend', { min: Math.round((HISTORY_MAX * REFRESH_MS) / 60000) })}</p>
+              <Sparkline label={t('rm.cpu')} values={cpuTrend} testId="rm-trend-cpu" peakLabel={t('rm.peak')} />
+              <Sparkline label={t('rm.mem')} values={memTrend} testId="rm-trend-mem" peakLabel={t('rm.peak')} />
+            </div>
             {snap.uptimeSec != null ? (
               <p className="rm-uptime">
                 {t('rm.uptime')}: {formatUptime(snap.uptimeSec)}

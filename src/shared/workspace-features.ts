@@ -345,6 +345,7 @@ export const SHORTCUTS: ReadonlyArray<{ keys: string; group: ShortcutGroup; id: 
   { keys: 'Ctrl+Shift+F', group: 'session', id: 'sftp' },
   { keys: 'Ctrl+Shift+D', group: 'session', id: 'refreshDocker' },
   { keys: 'Ctrl+Shift+H', group: 'session', id: 'inventory' },
+  { keys: 'Ctrl+Shift+T', group: 'session', id: 'serverTools' },
   { keys: 'Ctrl+Shift+C', group: 'terminal', id: 'copy' },
   { keys: 'Ctrl+Shift+V', group: 'terminal', id: 'paste' },
   { keys: 'Shift+Insert', group: 'terminal', id: 'pasteAlt' },

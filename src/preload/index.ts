@@ -1,4 +1,5 @@
 import type { ResourceSnapshot } from '../shared/resource-monitor'
+import type { ExecOutcome, KillSignal, ListenPort, LogRequest, ProcInfo, ServiceAction, ServiceInfo } from '../shared/server-tools'
 import type { BackupExportResult, BackupImportResult } from '../shared/ipc'
 import type { ActiveForward, AddForwardRequest } from '../shared/ipc'
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
@@ -263,6 +264,17 @@ const api = {
   backup: {
     export: (opts: { password: string; includeAi?: boolean }): Promise<BackupExportResult> => ipcRenderer.invoke('backup:export', opts),
     import: (opts: { password: string }): Promise<BackupImportResult> => ipcRenderer.invoke('backup:import', opts)
+  },
+  tools: {
+    processes: (sessionId: string): Promise<ProcInfo[]> => ipcRenderer.invoke('tools:processes', sessionId),
+    kill: (sessionId: string, pid: number, signal: KillSignal, sudo: boolean): Promise<ExecOutcome> =>
+      ipcRenderer.invoke('tools:kill', sessionId, pid, signal, sudo),
+    services: (sessionId: string): Promise<ServiceInfo[]> => ipcRenderer.invoke('tools:services', sessionId),
+    service: (sessionId: string, unit: string, action: ServiceAction, sudo: boolean): Promise<ExecOutcome> =>
+      ipcRenderer.invoke('tools:service', sessionId, unit, action, sudo),
+    ports: (sessionId: string): Promise<ListenPort[]> => ipcRenderer.invoke('tools:ports', sessionId),
+    logs: (sessionId: string, req: LogRequest): Promise<{ text: string; code: number | null; at: number }> =>
+      ipcRenderer.invoke('tools:logs', sessionId, req)
   },
   workspace: {
     ping: (sessionId: string): Promise<number | null> => ipcRenderer.invoke('workspace:ping', sessionId),

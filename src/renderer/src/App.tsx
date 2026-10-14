@@ -41,6 +41,7 @@ import BatchExecuteModal, { type BatchSessionOption } from './components/BatchEx
 import PortForwardModal from './components/PortForwardModal'
 import ResourceMonitorModal from './components/ResourceMonitorModal'
 import BackupModal from './components/BackupModal'
+import ServerToolsModal from './components/ServerToolsModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
@@ -262,6 +263,13 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.ctrlKey || e.altKey || e.metaKey) return
+      if (e.shiftKey && (e.key === 'T' || e.key === 't')) {
+        setServerToolsSession(null)
+        setServerToolsOpen(true)
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
       const list = tabsRef.current
       if (!list.length) return
       let target: string | undefined
@@ -317,6 +325,8 @@ export default function App() {
   const [portForwardOpen, setPortForwardOpen] = useState(false)
   const [resourceOpen, setResourceOpen] = useState(false)
   const [backupOpen, setBackupOpen] = useState(false)
+  const [serverToolsOpen, setServerToolsOpen] = useState(false)
+  const [serverToolsSession, setServerToolsSession] = useState<string | null>(null)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
@@ -2070,6 +2080,11 @@ export default function App() {
         setBackupOpen(true)
         return
       }
+      if (action === 'serverTools') {
+        setServerToolsSession(null)
+        setServerToolsOpen(true)
+        return
+      }
       if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets' || action === 'mcpGuide') {
         openSettingsTab(action)
       }
@@ -2591,6 +2606,17 @@ export default function App() {
         sessions={connectedSshSessions}
         activeSessionId={activeSessionId ?? null}
         onClose={() => setResourceOpen(false)}
+        onOpenTools={(sid) => {
+          setResourceOpen(false)
+          setServerToolsSession(sid)
+          setServerToolsOpen(true)
+        }}
+      />
+      <ServerToolsModal
+        open={serverToolsOpen}
+        sessions={connectedSshSessions}
+        activeSessionId={serverToolsSession ?? activeSessionId ?? null}
+        onClose={() => setServerToolsOpen(false)}
       />
       <BackupModal open={backupOpen} onClose={() => setBackupOpen(false)} />
       {/* last so confirm/prompt dialogs stack above any open modal */}
