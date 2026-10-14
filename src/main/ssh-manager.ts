@@ -5,6 +5,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { WebContents } from 'electron'
 import { Client, type ClientChannel, type ConnectConfig } from 'ssh2'
+import { applyConnectAuth } from './ssh-auth'
+import { chainFromProfile, formatHopFailure } from '../shared/jump-chain'
 import { randomUUID } from 'node:crypto'
 import { StringDecoder } from 'node:string_decoder'
 import { attachClientGuards } from './ssh-guards'
@@ -14,8 +16,7 @@ import type {
   SessionMeta,
   SshDataEvent,
   SshStatusEvent,
-  SshSnapshotOptions,
-  SshJumpHostOptions
+  SshSnapshotOptions
 } from '../shared/ipc'
 import { RingBuffer } from './ring-buffer'
 import { checkHostKey, trustHostKey } from './known-hosts'
@@ -57,33 +58,24 @@ type AuthFields = {
 
 async function applyAuth(
   connectConfig: ConnectConfig,
-  auth: AuthFields,
+  auth: AuthFields & {
+    authMode?: 'password' | 'key' | 'agent'
+    certificatePath?: string
+    agentSocket?: string
+  },
   opts: { allowDefaultKey: boolean }
 ): Promise<void> {
-  if (auth.password) {
-    connectConfig.password = auth.password
-  }
-  if (auth.privateKeyPath?.trim()) {
-    const keyPath = auth.privateKeyPath.trim()
-    connectConfig.privateKey = await readFile(keyPath)
-    if (auth.passphrase) {
-      connectConfig.passphrase = auth.passphrase
-    }
-  } else if (!auth.password && opts.allowDefaultKey) {
-    const fallbackKey = await tryReadDefaultPrivateKey()
-    if (fallbackKey) {
-      connectConfig.privateKey = fallbackKey
-      if (auth.passphrase) {
-        connectConfig.passphrase = auth.passphrase
-      }
-    }
-  }
+  await applyConnectAuth(connectConfig, auth, {
+    allowDefaultKey: opts.allowDefaultKey && auth.authMode !== 'agent',
+    readDefaultKey: tryReadDefaultPrivateKey
+  })
 }
 
 function makeHostVerifier(
   owner: WebContents,
   host: string,
-  port: number
+  port: number,
+  hop?: { hopIndex: number; hopTotal: number }
 ): ConnectConfig['hostVerifier'] {
   return (key: Buffer, verify: (ok: boolean) => void) => {
     void (async () => {
@@ -99,7 +91,9 @@ function makeHostVerifier(
           port,
           fingerprint: result.fingerprint,
           reason: result.status,
-          previousFingerprint: result.status === 'changed' ? result.previousFingerprint : undefined
+          previousFingerprint: result.status === 'changed' ? result.previousFingerprint : undefined,
+          hopIndex: hop?.hopIndex,
+          hopTotal: hop?.hopTotal
         })
 
         if (!decision.accept) {
@@ -179,6 +173,7 @@ export type ManagedSession = {
   /** 用于重连；含认证信息，仅存内存 */
   connectOpts: SshConnectOptions
   jumpClient?: Client
+  jumpClients?: Client[]
   forwardCleanups: Array<() => void>
   /** false：复用父会话 Client（如 docker exec），断开时不 end 父连接 */
   ownsClient: boolean
@@ -260,15 +255,16 @@ export class SshSessionManager {
     }
   }
 
-  private endClients(s: Pick<ManagedSession, 'client' | 'jumpClient'>): void {
+  private endClients(s: Pick<ManagedSession, 'client' | 'jumpClient' | 'jumpClients'>): void {
     try {
       s.client.end()
     } catch {
       /* ignore */
     }
-    if (s.jumpClient) {
+    const jumps = s.jumpClients?.length ? s.jumpClients : s.jumpClient ? [s.jumpClient] : []
+    for (const jump of jumps) {
       try {
-        s.jumpClient.end()
+        jump.end()
       } catch {
         /* ignore */
       }
@@ -319,9 +315,13 @@ export class SshSessionManager {
       termRows: rows
     }
 
-    const jump = opts.jumpHost
-    let jumpClient: Client | undefined
+    const hops = chainFromProfile({ jumpChain: opts.jumpChain, jumpHost: opts.jumpHost })
+    const jumpClients: Client[] = []
     const targetClient = new Client()
+    const authMissing = mt(
+      '请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）',
+      'Provide a password or private key path, or put id_ed25519 / id_rsa / id_ecdsa in ~/.ssh (same as OpenSSH)'
+    )
 
     const failCleanup = () => {
       try {
@@ -329,74 +329,64 @@ export class SshSessionManager {
       } catch {
         /* ignore */
       }
-      if (jumpClient) {
+      for (const jump of jumpClients) {
         try {
-          jumpClient.end()
+          jump.end()
         } catch {
           /* ignore */
         }
       }
     }
 
+    const hasAuth = (cfg: ConnectConfig) => Boolean(cfg.password || cfg.privateKey || cfg.agent)
+
     try {
-      if (jump?.host?.trim() && jump.username?.trim()) {
-        const jHost = jump.host.trim()
-        const jPort = jump.port ?? 22
-        const jUser = jump.username.trim()
-        jumpClient = new Client()
-
-        const jumpConfig: ConnectConfig = {
-          host: jHost,
-          port: jPort,
-          username: jUser,
+      let sock: import('stream').Duplex | undefined
+      for (let i = 0; i < hops.length; i++) {
+        const hop = hops[i]!
+        const client = new Client()
+        jumpClients.push(client)
+        const hopConfig: ConnectConfig = {
+          host: hop.host,
+          port: hop.port || 22,
+          username: hop.username,
           readyTimeout: 20000,
           keepaliveInterval: KEEPALIVE_INTERVAL_MS,
           keepaliveCountMax: KEEPALIVE_COUNT_MAX,
-          hostVerifier: makeHostVerifier(owner, jHost, jPort)
+          hostVerifier: makeHostVerifier(owner, hop.host, hop.port || 22, { hopIndex: i + 1, hopTotal: hops.length }),
+          ...(sock ? { sock } : {})
         }
-        await applyAuth(jumpConfig, jump as SshJumpHostOptions, { allowDefaultKey: true })
-        if (!jumpConfig.password && !jumpConfig.privateKey) {
-          throw new Error(
-            mt('跳板机请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置默认私钥', 'Jump host needs a password or private key path; or put a default key in ~/.ssh')
+        try {
+          await applyAuth(
+            hopConfig,
+            { ...hop, authMode: hop.auth, agentSocket: opts.agentSocket },
+            { allowDefaultKey: hop.auth !== 'password' }
           )
+          if (!hasAuth(hopConfig)) {
+            throw new Error(
+              mt('跳板机请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置默认私钥', 'Jump host needs a password or private key path; or put a default key in ~/.ssh')
+            )
+          }
+          await connectClient(client, hopConfig)
+          const next = i + 1 < hops.length ? hops[i + 1]! : { host, port }
+          sock = await forwardOutToTarget(client, next.host, next.port || 22)
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err)
+          throw new Error(formatHopFailure(i + 1, hops.length, hop.label || hop.host, `${hop.host}:${hop.port || 22}`, reason))
         }
-        await connectClient(jumpClient, jumpConfig)
-
-        const sock = await forwardOutToTarget(jumpClient, host, port)
-
-        const targetConfig: ConnectConfig = {
-          sock,
-          username,
-          readyTimeout: 20000,
-          keepaliveInterval: KEEPALIVE_INTERVAL_MS,
-          keepaliveCountMax: KEEPALIVE_COUNT_MAX,
-          hostVerifier: makeHostVerifier(owner, host, port)
-        }
-        await applyAuth(targetConfig, opts, { allowDefaultKey: true })
-        if (!targetConfig.password && !targetConfig.privateKey) {
-          throw new Error(
-            mt('请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）', 'Provide a password or private key path, or put id_ed25519 / id_rsa / id_ecdsa in ~/.ssh (same as OpenSSH)')
-          )
-        }
-        await connectClient(targetClient, targetConfig)
-      } else {
-        const connectConfig: ConnectConfig = {
-          host,
-          port,
-          username,
-          readyTimeout: 20000,
-          keepaliveInterval: KEEPALIVE_INTERVAL_MS,
-          keepaliveCountMax: KEEPALIVE_COUNT_MAX,
-          hostVerifier: makeHostVerifier(owner, host, port)
-        }
-        await applyAuth(connectConfig, opts, { allowDefaultKey: true })
-        if (!connectConfig.password && !connectConfig.privateKey) {
-          throw new Error(
-            mt('请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）', 'Provide a password or private key path, or put id_ed25519 / id_rsa / id_ecdsa in ~/.ssh (same as OpenSSH)')
-          )
-        }
-        await connectClient(targetClient, connectConfig)
       }
+
+      const targetConfig: ConnectConfig = {
+        username,
+        readyTimeout: 20000,
+        keepaliveInterval: KEEPALIVE_INTERVAL_MS,
+        keepaliveCountMax: KEEPALIVE_COUNT_MAX,
+        hostVerifier: makeHostVerifier(owner, host, port),
+        ...(sock ? { sock } : { host, port })
+      }
+      await applyAuth(targetConfig, opts, { allowDefaultKey: opts.authMode !== 'agent' })
+      if (!hasAuth(targetConfig)) throw new Error(authMissing)
+      await connectClient(targetClient, targetConfig)
     } catch (e) {
       failCleanup()
       throw e instanceof Error ? e : new Error(String(e))
@@ -448,7 +438,8 @@ export class SshSessionManager {
             commandMarkers: [],
             pendingInput: '',
             connectOpts: normalizedOpts,
-            jumpClient,
+            jumpClient: jumpClients[0],
+            jumpClients,
             forwardCleanups,
             ownsClient: true
           }
@@ -513,7 +504,7 @@ export class SshSessionManager {
             this.teardownSession(sessionId, session)
           }
           attachClientGuards(targetClient, 'target', onLost)
-          if (jumpClient) attachClientGuards(jumpClient, 'jump', onLost)
+          for (const jump of jumpClients) attachClientGuards(jump, 'jump', onLost)
 
           if (!owner.isDestroyed()) {
             owner.send('ssh:status', {
@@ -556,6 +547,40 @@ export class SshSessionManager {
     } catch {
       return false
     }
+  }
+
+  execCommand(sessionId: string, command: string, timeoutMs: number): Promise<{ code: number | null; stdout: string; stderr: string }> {
+    const client = this.getClient(sessionId)
+    if (!client) return Promise.reject(new Error('no-session'))
+    const timeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 60_000
+    return new Promise((resolve, reject) => {
+      client.exec(command, (err, stream) => {
+        if (err || !stream) {
+          reject(err ?? new Error('exec'))
+          return
+        }
+        const out: Buffer[] = []
+        const errBuf: Buffer[] = []
+        const timer = setTimeout(() => {
+          try {
+            stream.close()
+          } catch {
+            /* ignore */
+          }
+          resolve({ code: null, stdout: Buffer.concat(out).toString('utf8'), stderr: 'timeout' })
+        }, timeout)
+        stream.on('data', (b: Buffer) => out.push(b))
+        stream.stderr?.on('data', (b: Buffer) => errBuf.push(b))
+        stream.on('close', (code: number | null) => {
+          clearTimeout(timer)
+          resolve({
+            code: typeof code === 'number' ? code : null,
+            stdout: Buffer.concat(out).toString('utf8'),
+            stderr: Buffer.concat(errBuf).toString('utf8')
+          })
+        })
+      })
+    })
   }
 
   disconnect(sessionId: string): void {

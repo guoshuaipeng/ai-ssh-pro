@@ -89,9 +89,11 @@ const api = {
       ipcRenderer.invoke('ssh:respondHostKey', payload),
     openLocalShell: (): Promise<SshConnectResult> => ipcRenderer.invoke('ssh:openLocalShell'),
     isLocalShellAvailable: (): Promise<boolean> => ipcRenderer.invoke('ssh:isLocalShellAvailable'),
-    startRecording: (sessionId: string): Promise<string | null> =>
-      ipcRenderer.invoke('ssh:startRecording', sessionId),
+    startRecording: (sessionId: string, opts?: { auto?: boolean; host?: string; cols?: number; rows?: number; title?: string }): Promise<string | null> =>
+      ipcRenderer.invoke('ssh:startRecording', sessionId, opts),
     stopRecording: (sessionId: string): Promise<boolean> => ipcRenderer.invoke('ssh:stopRecording', sessionId),
+    exec: (sessionId: string, command: string, timeoutMs?: number): Promise<{ code: number | null; stdout: string; stderr: string }> =>
+      ipcRenderer.invoke('ssh:exec', sessionId, command, timeoutMs),
     onData: (cb: (payload: SshDataEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as SshDataEvent)
       ipcRenderer.on('ssh:data', fn)
@@ -337,6 +339,24 @@ const api = {
       get: (): Promise<LocaleId> => ipcRenderer.invoke('workspace:locale:get'),
       set: (locale: LocaleId): Promise<LocaleId> => ipcRenderer.invoke('workspace:locale:set', locale)
     }
+  },
+  recordings: {
+    list: (): Promise<Array<{ file: string; host: string; bytes: number; mtime: number }>> => ipcRenderer.invoke('recordings:list'),
+    read: (file: string): Promise<string> => ipcRenderer.invoke('recordings:read', file),
+    delete: (file: string): Promise<boolean> => ipcRenderer.invoke('recordings:delete', file)
+  },
+  sync: {
+    getConfig: (): Promise<unknown> => ipcRenderer.invoke('sync:getConfig'),
+    setConfig: (patch: unknown): Promise<unknown> => ipcRenderer.invoke('sync:setConfig', patch),
+    test: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('sync:test'),
+    push: (payload: unknown, passphrase: string): Promise<{ ok: boolean; message?: string; id?: string }> =>
+      ipcRenderer.invoke('sync:push', payload, passphrase),
+    pull: (passphrase: string): Promise<{ ok: boolean; message?: string; empty?: boolean; payload?: unknown }> =>
+      ipcRenderer.invoke('sync:pull', passphrase),
+    backupLocal: (payload: unknown): Promise<{ ok: boolean; file?: string }> => ipcRenderer.invoke('sync:backupLocal', payload)
+  },
+  files: {
+    saveText: (defaultName: string, content: string): Promise<string | null> => ipcRenderer.invoke('fs:saveText', defaultName, content)
   }
 }
 

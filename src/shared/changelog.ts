@@ -12,6 +12,44 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.0-m2': [
+    {
+      icon: '▶',
+      text: { zh: '运维剧本：编辑步骤、并行或串行运行，生产主机仍要确认', en: 'Playbooks: edit steps, run in parallel or series, and production hosts still confirm' },
+      where: { zh: '运维 → 运维剧本', en: 'Ops → Playbooks' },
+      action: 'playbooks'
+    },
+    {
+      icon: '☁',
+      text: { zh: '云同步：私有 Gist 或 WebDAV，端到端加密，冲突在中心标签里处理', en: 'Cloud sync: private Gist or WebDAV, end-to-end encrypted, conflicts in a center tab' },
+      where: { zh: '文件 → 云同步…', en: 'File → Cloud sync…' },
+      action: 'cloudSync'
+    },
+    {
+      icon: '▣',
+      text: { zh: '终端输出分块默认关闭；开启后可折叠，关闭时滚动历史仍在', en: 'Terminal blocks are off by default. When on they fold; turning them off keeps scrollback' },
+      where: { zh: '查看 → 输出分块', en: 'View → Output blocks' },
+      action: 'toggleBlocks'
+    },
+    {
+      icon: '⇢',
+      text: { zh: '最多五跳跳板，失败定位到某一跳；证书或 sk-ed25519 经代理连接', en: 'Up to five jump hops, with the failed hop named. Certificates or sk-ed25519 connect through an agent' },
+      where: { zh: '新建连接 → 高级', en: 'New connection → Advanced' },
+      action: 'connection'
+    },
+    {
+      icon: '≠',
+      text: { zh: '文件夹同步预览可钉成中心标签，变更很多时自动钉住', en: 'Folder sync preview can pin as a center tab, and pins itself when there are many changes' },
+      where: { zh: '会话 → 文件夹同步…', en: 'Session → Folder sync…' },
+      action: 'folderSync'
+    },
+    {
+      icon: '●',
+      text: { zh: '审计日志可搜索导出；会话录制写成 asciicast，自动录制是真开关', en: 'The audit log is searchable and exportable. Recordings are asciicast, and auto-record is a real switch' },
+      where: { zh: '运维 → 审计日志', en: 'Ops → Audit log' },
+      action: 'auditLog'
+    }
+  ],
   '0.4.0-m1': [
     {
       icon: '▣',

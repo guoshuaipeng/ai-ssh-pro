@@ -54,8 +54,16 @@ export type SshConnectOptions = {
   label?: string
   termCols?: number
   termRows?: number
-  /** ProxyJump / bastion */
+  /** ProxyJump / bastion (first hop; kept for older profiles) */
   jumpHost?: SshJumpHostOptions
+  /** Up to five hops. When set, this replaces a single jumpHost. */
+  jumpChain?: import('./jump-chain').JumpHop[]
+  /** password | key | agent. Agent is required for sk-ed25519. */
+  authMode?: 'password' | 'key' | 'agent'
+  /** OpenSSH user certificate (-cert.pub). Sibling of the private key when omitted. */
+  certificatePath?: string
+  /** SSH agent socket. Defaults to SSH_AUTH_SOCK or the Windows OpenSSH pipe. */
+  agentSocket?: string
   /** 本地端口转发（连接成功后建立） */
   forwards?: LocalPortForward[]
   /** G1: simulated read-only demo host (no network) */
@@ -103,6 +111,9 @@ export type SshHostKeyPromptEvent = {
   fingerprint: string
   reason: 'unknown' | 'changed'
   previousFingerprint?: string
+  /** Which hop in a jump chain this prompt belongs to (1-based). */
+  hopIndex?: number
+  hopTotal?: number
 }
 
 export type SshHostKeyRespondPayload = {
@@ -381,6 +392,12 @@ export type SavedSessionProfile = {
   demo?: boolean
   /** S2: client-side protection. Demo hosts default to production when unset. */
   protection?: 'normal' | 'production' | 'readonly'
+  /** Multi-hop ProxyJump. jumpHost stays as the first hop for older readers. */
+  jumpChain?: import('./jump-chain').JumpHop[]
+  authMode?: 'password' | 'key' | 'agent'
+  certificatePath?: string
+  /** When true, a successful connect starts an asciicast without a save dialog. */
+  autoRecord?: boolean
 }
 
 /** 侧栏已保存会话与分组（持久化） */
@@ -401,6 +418,7 @@ export type ImportedSessionDraft = {
   privateKeyPath?: string
   passphrase?: string
   jumpHost?: SshJumpHostOptions
+  jumpChain?: import('./jump-chain').JumpHop[]
   forwards?: LocalPortForward[]
 }
 

@@ -46,6 +46,7 @@ export default function HostKeyConfirmModal({ prompt, onRespond }: Props) {
         <div>
           <div style={{ color: 'var(--muted)', fontSize: 12 }}>{tg('hk.host')}</div>
           <code>
+            {prompt.hopIndex ? `${tg('m2.hopN', { n: prompt.hopIndex })}/${prompt.hopTotal ?? ''} ` : ''}
             {prompt.host}:{prompt.port}
           </code>
         </div>

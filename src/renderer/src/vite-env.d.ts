@@ -71,8 +71,9 @@ export type AissPreload = {
     respondHostKey: (payload: SshHostKeyRespondPayload) => Promise<boolean>
     openLocalShell: () => Promise<SshConnectResult>
     isLocalShellAvailable: () => Promise<boolean>
-    startRecording: (sessionId: string) => Promise<string | null>
+    startRecording: (sessionId: string, opts?: { auto?: boolean; host?: string; cols?: number; rows?: number; title?: string }) => Promise<string | null>
     stopRecording: (sessionId: string) => Promise<boolean>
+    exec: (sessionId: string, command: string, timeoutMs?: number) => Promise<{ code: number | null; stdout: string; stderr: string }>
     onData: (cb: (payload: SshDataEvent) => void) => () => void
     onStatus: (cb: (payload: SshStatusEvent) => void) => () => void
     onHostKeyPrompt: (cb: (payload: SshHostKeyPromptEvent) => void) => () => void
@@ -263,6 +264,31 @@ export type AissPreload = {
       get: () => Promise<LocaleId>
       set: (locale: LocaleId) => Promise<LocaleId>
     }
+  }
+  recordings: {
+    list: () => Promise<Array<{ file: string; host: string; bytes: number; mtime: number }>>
+    read: (file: string) => Promise<string>
+    delete: (file: string) => Promise<boolean>
+  }
+  sync: {
+    getConfig: () => Promise<{
+      provider: 'gist' | 'webdav'
+      gistId: string
+      webdavUrl: string
+      username: string
+      hasToken: boolean
+      hasPassword: boolean
+      hasVaultPass: boolean
+      scope: import('../../shared/sync-vault').SyncScope
+    } | null>
+    setConfig: (patch: unknown) => Promise<unknown>
+    test: () => Promise<{ ok: boolean; message: string }>
+    push: (payload: unknown, passphrase: string) => Promise<{ ok: boolean; message?: string; id?: string }>
+    pull: (passphrase: string) => Promise<{ ok: boolean; message?: string; empty?: boolean; payload?: unknown }>
+    backupLocal: (payload: unknown) => Promise<{ ok: boolean; file?: string }>
+  }
+  files: {
+    saveText: (defaultName: string, content: string) => Promise<string | null>
   }
 }
 

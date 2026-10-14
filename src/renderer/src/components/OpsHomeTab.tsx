@@ -54,7 +54,10 @@ export default function OpsHomeTab({
   onTasks,
   onGuard,
   onCheckUpdate,
-  onPlaybook
+  onPlaybook,
+  onRestoreSync,
+  recentPlaybooks,
+  onOpenRecent
 }: {
   hosts: HomeHost[]
   alerts: FiredAlert[]
@@ -85,6 +88,9 @@ export default function OpsHomeTab({
   onGuard: (profileId: string) => void
   onCheckUpdate: () => void
   onPlaybook: () => void
+  onRestoreSync?: () => void
+  recentPlaybooks?: Array<{ id: string; name: string }>
+  onOpenRecent?: (id: string) => void
 }) {
   const { t } = useI18n()
   const [snaps, setSnaps] = useState<Record<string, Snap>>({})
@@ -197,6 +203,11 @@ export default function OpsHomeTab({
               <button type="button" onClick={onPlaybook}>
                 {t('l7.aboutPlaybooks')}
               </button>
+              {onRestoreSync ? (
+                <button type="button" onClick={onRestoreSync}>
+                  {t('l7.restoreSync')}
+                </button>
+              ) : null}
             </div>
           </EmptyState>
         </div>
@@ -432,14 +443,14 @@ export default function OpsHomeTab({
           </button>
           <div className="l7-rail-split" />
           <strong>{t('l7.recentPlaybooks')}</strong>
-          <button type="button" className="l7-soon-link" disabled title={t('l7.soon')}>
-            {t('l7.sampleRestart')}
-            <span>{t('l7.soon')}</span>
-          </button>
-          <button type="button" className="l7-soon-link" disabled title={t('l7.soon')}>
-            {t('l7.sampleDisk')}
-            <span>{t('l7.soon')}</span>
-          </button>
+          {(recentPlaybooks ?? [
+            { id: 'sample-disk', name: t('l7.sampleDisk') },
+            { id: 'sample-nginx', name: t('l7.sampleRestart') }
+          ]).map((p) => (
+            <button type="button" key={p.id} onClick={() => (onOpenRecent ? onOpenRecent(p.id) : onPlaybook())}>
+              {p.name}
+            </button>
+          ))}
           <button type="button" onClick={onPlaybook}>
             {t('l7.allPlaybooks')}
           </button>

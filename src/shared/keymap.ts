@@ -6,8 +6,9 @@
  *  - 'global'      fires everywhere, including while a terminal has focus
  *  - 'nonTerminal' only when focus is NOT inside a terminal (so Ctrl+letter reaches the shell)
  *  - 'display'     handled elsewhere (xterm / Electron role); listed for the F1 panel only
+ *  - 'terminalBlocks' only while a block is focused and blocks are on; not a global binding
  */
-export type KeymapScope = 'global' | 'nonTerminal' | 'display'
+export type KeymapScope = 'global' | 'nonTerminal' | 'display' | 'terminalBlocks'
 export type KeymapGroup = 'general' | 'session' | 'terminal' | 'view'
 
 export type KeymapEntry = {
@@ -31,6 +32,9 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'resourceMonitor', keys: 'Ctrl+Shift+M', scope: 'global', group: 'session', label: { zh: '资源监控', en: 'Resource monitor' } },
   { id: 'dashboard', keys: 'Ctrl+Alt+M', scope: 'global', group: 'session', label: { zh: '多主机看板', en: 'Multi-host dashboard' } },
   { id: 'opsHome', keys: 'Ctrl+Alt+H', scope: 'global', group: 'view', label: { zh: '运维首页', en: 'Ops home' } },
+  { id: 'playbooks', keys: 'Ctrl+Alt+P', scope: 'global', group: 'session', label: { zh: '运维剧本', en: 'Playbooks' } },
+  { id: 'toggleRecording', keys: 'Ctrl+Alt+R', scope: 'global', group: 'session', label: { zh: '录制', en: 'Recording' } },
+  { id: 'explainBlock', keys: 'Ctrl+Shift+E', scope: 'terminalBlocks', group: 'terminal', label: { zh: '解释此块', en: 'Explain this block' } },
   { id: 'alertWorkbench', keys: 'Ctrl+Alt+A', scope: 'global', group: 'session', label: { zh: '告警工作台', en: 'Alert workbench' } },
   { id: 'portForward', keys: 'Ctrl+Shift+O', scope: 'global', group: 'session', label: { zh: '端口转发', en: 'Port forwarding' } },
   { id: 'batchExec', keys: 'Ctrl+Shift+B', scope: 'global', group: 'session', label: { zh: '批量执行', en: 'Batch run' } },
@@ -79,7 +83,7 @@ export function matchKeymap(e: KeyLike, inTerminal: boolean): string | undefined
   if (e.metaKey) return undefined
   const name = eventKeyName(e)
   for (const k of KEYMAP) {
-    if (k.scope === 'display') continue
+    if (k.scope === 'display' || k.scope === 'terminalBlocks') continue
     if (k.scope === 'nonTerminal' && inTerminal) continue
     const c = parseCombo(k.keys)
     if (c.ctrl !== e.ctrlKey || c.shift !== e.shiftKey || c.alt !== e.altKey) continue

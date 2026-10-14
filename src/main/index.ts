@@ -3,7 +3,7 @@ import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
 import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +24,7 @@ import {
 } from './app-store'
 import { registerWorkspaceIpc, setLocaleChangedHandler } from './workspace-ipc'
 import { registerBackupIpc } from './backup-ipc'
+import { registerSyncIpc } from './sync-ipc'
 import { registerServerToolsIpc } from './server-tools-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
 import { streamOpenAICompatibleChat } from './ai-stream'
@@ -416,25 +417,76 @@ function registerIpc(): void {
     return resolveHostKeyPrompt(payload.requestId, Boolean(payload.accept), payload.alwaysTrust !== false)
   })
 
-  ipcMain.handle('ssh:startRecording', async (_e, sessionId: string) => {
+  ipcMain.handle('ssh:startRecording', async (_e, sessionId: string, opts?: { auto?: boolean; host?: string; cols?: number; rows?: number; title?: string }) => {
+    if (opts?.auto) {
+      const host = (opts.host || 'host').replace(/[^\w.-]+/g, '_').slice(0, 80) || 'host'
+      const dir = join(app.getPath('userData'), 'recordings', host)
+      mkdirSync(dir, { recursive: true })
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const filePath = join(dir, `${stamp}.cast`)
+      startRecording(sessionId, filePath, { cols: opts.cols, rows: opts.rows, title: opts.title || host })
+      return filePath
+    }
     const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
-    const { canceled, filePath } = parent
-      ? await dialog.showSaveDialog(parent, {
-          title: '保存会话录制',
-          defaultPath: `session-${sessionId.slice(0, 8)}.log`,
-          filters: [{ name: 'Log', extensions: ['log', 'txt'] }]
-        })
-      : await dialog.showSaveDialog({
-          title: '保存会话录制',
-          defaultPath: `session-${sessionId.slice(0, 8)}.log`,
-          filters: [{ name: 'Log', extensions: ['log', 'txt'] }]
-        })
+    const dialogOpts = {
+      title: '保存会话录制',
+      defaultPath: `session-${sessionId.slice(0, 8)}.cast`,
+      filters: [{ name: 'asciicast', extensions: ['cast'] }]
+    }
+    const { canceled, filePath } = parent ? await dialog.showSaveDialog(parent, dialogOpts) : await dialog.showSaveDialog(dialogOpts)
     if (canceled || !filePath) return null
-    startRecording(sessionId, filePath)
+    startRecording(sessionId, filePath, { cols: opts?.cols, rows: opts?.rows, title: opts?.title })
     return filePath
   })
 
   ipcMain.handle('ssh:stopRecording', (_e, sessionId: string) => stopRecording(sessionId))
+
+  ipcMain.handle('ssh:exec', async (_e, sessionId: string, command: string, timeoutMs?: number) => {
+    return sshManager.execCommand(sessionId, String(command ?? ''), typeof timeoutMs === 'number' ? timeoutMs : 60_000)
+  })
+
+  const recordingsRoot = () => join(app.getPath('userData'), 'recordings')
+  const safeRecording = (file: string) => {
+    const root = resolve(recordingsRoot())
+    const abs = resolve(file)
+    if (!abs.startsWith(root)) throw new Error('path')
+    return abs
+  }
+  ipcMain.handle('recordings:list', () => {
+    const root = recordingsRoot()
+    if (!existsSync(root)) return []
+    const out: Array<{ file: string; host: string; bytes: number; mtime: number }> = []
+    for (const host of readdirSync(root)) {
+      const dir = join(root, host)
+      let st
+      try {
+        st = statSync(dir)
+      } catch {
+        continue
+      }
+      if (!st.isDirectory()) continue
+      for (const name of readdirSync(dir)) {
+        if (!name.endsWith('.cast')) continue
+        const file = join(dir, name)
+        const info = statSync(file)
+        out.push({ file, host, bytes: info.size, mtime: info.mtimeMs })
+      }
+    }
+    return out.sort((a, b) => b.mtime - a.mtime)
+  })
+  ipcMain.handle('recordings:read', (_e, file: string) => readFileSync(safeRecording(file), 'utf8'))
+  ipcMain.handle('recordings:delete', (_e, file: string) => {
+    unlinkSync(safeRecording(file))
+    return true
+  })
+  ipcMain.handle('fs:saveText', async (_e, defaultName: string, content: string) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const opts = { title: '保存', defaultPath: defaultName || 'export.txt' }
+    const { canceled, filePath } = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts)
+    if (canceled || !filePath) return null
+    writeFileSync(filePath, content, 'utf8')
+    return filePath
+  })
 
   const requireSshClient = (sessionId: string) => {
     const client = sshManager.getClient(sessionId)
@@ -909,6 +961,7 @@ function registerIpc(): void {
 
   registerWorkspaceIpc(sshManager)
   registerBackupIpc()
+  registerSyncIpc()
   registerServerToolsIpc(sshManager)
 }
 

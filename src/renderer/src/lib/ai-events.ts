@@ -21,8 +21,13 @@ export function stripAnsi(s: string): string {
 const lastSubmitted = new Map<string, string>()
 
 /** The command bar notes what it sent so its own echo ("grep error …") does not count as an error. */
+export const COMMAND_SUBMITTED_EVENT = 'aiss-command-submitted'
+
 export function noteSubmitted(sessionId: string, command: string): void {
   lastSubmitted.set(sessionId, command)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(COMMAND_SUBMITTED_EVENT, { detail: { sessionId, command } }))
+  }
 }
 
 /** True when a chunk of terminal output looks like a command error (ignores the echo of the last sent command). */

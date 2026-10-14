@@ -45,7 +45,9 @@ export default function ProtectionSection({
   onAudit,
   onOpenAudit,
   onRecordings,
-  onElevate
+  onElevate,
+  autoRecord = false,
+  onAutoRecord
 }: {
   level: ProtectionLevel
   auditOn: boolean
@@ -55,6 +57,8 @@ export default function ProtectionSection({
   onOpenAudit: () => void
   onRecordings: () => void
   onElevate: () => void
+  autoRecord?: boolean
+  onAutoRecord?: (on: boolean) => void
 }) {
   const { t } = useI18n()
   return (
@@ -80,16 +84,15 @@ export default function ProtectionSection({
           <input type="checkbox" checked={auditOn} onChange={(e) => onAudit(e.target.checked)} />
           {t('l4.audit')}
         </label>
-        <label className="l4-check is-disabled" title={t('l4.soon')}>
-          <input type="checkbox" disabled />
+        <label className="l4-check">
+          <input type="checkbox" checked={autoRecord} onChange={(e) => onAutoRecord?.(e.target.checked)} />
           {t('l4.autoRecord')}
-          <span className="l4-soon">{t('l4.soon')}</span>
         </label>
         <div className="l4-links">
           <button type="button" onClick={onOpenAudit}>
             {t('l4.openAudit')}
           </button>
-          <button type="button" disabled title={t('l4.soon')} onClick={onRecordings}>
+          <button type="button" onClick={onRecordings}>
             {t('l4.recordings')}
           </button>
           <button type="button" onClick={onElevate} disabled={level === 'normal'}>

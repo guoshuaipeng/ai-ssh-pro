@@ -102,6 +102,19 @@ import { runGuardedCommand } from './lib/protection-gate'
 import OpsHomeTab, { type HomeHost } from './components/OpsHomeTab'
 import AlertWorkbenchTab from './components/AlertWorkbenchTab'
 import AuditLogPanel from './components/AuditLogPanel'
+import { PlaybookEditor, PlaybookList, PlaybookResult, PlaybookRun } from './components/PlaybookTabs'
+import { SyncConflicts, SyncSettings, useSyncPhase } from './components/SyncCenter'
+import { RecordingPlayer, RecordingsList } from './components/RecordingsTab'
+import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
+import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTab'
+import { blocksEnabled } from '@shared/terminal-blocks'
+import { chainFromProfile, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
+import type { JumpHop } from '@shared/jump-chain'
+import { loadPlaybooks } from '@shared/playbook'
+import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
+import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
+import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
+import { connectOptsFromProfile } from './lib/connect-opts'
 import StartupSettingsModal from './components/StartupSettingsModal'
 import ProtectionSection, { ProtectionLevelField } from './components/ProtectionSection'
 import ScopePicker from './components/ScopePicker'
@@ -174,6 +187,15 @@ type TabView =
   | 'home'
   | 'alert-workbench'
   | 'audit'
+  | 'playbook-list'
+  | 'playbook-edit'
+  | 'playbook-run'
+  | 'playbook-result'
+  | 'sync-settings'
+  | 'sync-conflicts'
+  | 'recordings'
+  | 'recording-play'
+  | 'sync-preview'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide' | 'updates'
 
@@ -208,7 +230,16 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'file-diff',
   'home',
   'alert-workbench',
-  'audit'
+  'audit',
+  'playbook-list',
+  'playbook-edit',
+  'playbook-run',
+  'playbook-result',
+  'sync-settings',
+  'sync-conflicts',
+  'recordings',
+  'recording-play',
+  'sync-preview'
 ])
 
 type Tab = {
@@ -246,6 +277,9 @@ type Tab = {
   explainOnOpen?: boolean
   /** S1 host filter */
   auditHost?: string
+  playbookId?: string
+  recordingFile?: string
+  syncPlan?: SyncPreviewPlan
   /** D5 compare payload */
   fileCompare?: {
     leftName: string
@@ -291,6 +325,13 @@ function formatDuration(ms: number): string {
   const m = Math.floor(sec / 60)
   const s2 = sec % 60
   return `${m}:${String(s2).padStart(2, '0')}`
+}
+
+function syncPhaseKey(phase: SyncPhase): MessageKey {
+  if (phase === 'syncing') return 'm2.phase.syncing'
+  if (phase === 'conflict') return 'm2.phase.conflict'
+  if (phase === 'error') return 'm2.phase.error'
+  return 'm2.phase.synced'
 }
 
 export default function App() {
@@ -355,6 +396,32 @@ export default function App() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() => loadAudit())
   const [guardCollapsed, setGuardCollapsed] = useState<Record<string, boolean>>({})
   const [protection, setProtection] = useState<ProtectionLevel>('normal')
+  const [jumpChain, setJumpChain] = useState<JumpHop[]>([])
+  const [connAuth, setConnAuth] = useState<'password' | 'key' | 'agent'>('password')
+  const [certificatePath, setCertificatePath] = useState('')
+  const [formAutoRecord, setFormAutoRecord] = useState(false)
+  const [blocksOn, setBlocksOn] = useState(() => blocksEnabled())
+  const [jumpFail, setJumpFail] = useState<{ hop: number; total: number; name: string; profileId?: string } | null>(null)
+  const syncMeta = useSyncPhase()
+  const [syncReady, setSyncReady] = useState(false)
+  const [hasPlaybooks, setHasPlaybooks] = useState(() => loadPlaybooks().length > 0)
+  useEffect(() => {
+    const refreshSync = () => {
+      void window.aiss?.sync
+        ?.getConfig?.()
+        .then((cfg) => setSyncReady(syncIsConfigured(cfg)))
+        .catch(() => setSyncReady(false))
+    }
+    const refreshBooks = () => setHasPlaybooks(loadPlaybooks().length > 0)
+    refreshSync()
+    refreshBooks()
+    window.addEventListener('aiss-sync-meta', refreshSync)
+    window.addEventListener('aiss-playbooks', refreshBooks)
+    return () => {
+      window.removeEventListener('aiss-sync-meta', refreshSync)
+      window.removeEventListener('aiss-playbooks', refreshBooks)
+    }
+  }, [])
   const [sessionsReady, setSessionsReady] = useState(false)
   const [inventoryScroll, setInventoryScroll] = useState(false)
   const breachingRef = useRef(new Set<string>())
@@ -840,9 +907,26 @@ export default function App() {
           )
         })
         notifyRecentChanged()
+        const prof = extra?.profileId ? profilesRef.current.find((p) => p.id === extra.profileId) : undefined
+        if (prof?.autoRecord) {
+          const path = await window.aiss.ssh.startRecording(sessionId, {
+            auto: true,
+            host: meta.host,
+            cols: meta.termCols,
+            rows: meta.termRows,
+            title: meta.label
+          })
+          if (path) {
+            setRecordingSessionId(sessionId)
+            setRecordingStartedAt(Date.now())
+          }
+        }
+        setJumpFail(null)
         return sessionId
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
+        const hop = parseHopFailure(msg)
+        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: extra?.profileId } : null)
         setError(msg)
         lastConnectErrorRef.current = msg
         setTabs((prev) =>
@@ -987,6 +1071,9 @@ export default function App() {
         passphrase: passphrase || undefined,
         label: label.trim() || undefined,
         ...(jump ? { jumpHost: jump } : {}),
+        ...(jumpChain.length ? { jumpChain, jumpHost: jump ?? hopToJump(jumpChain[0]!) } : {}),
+        ...(connAuth ? { authMode: connAuth } : {}),
+        ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {}),
         ...(forwards ? { forwards } : {})
       },
       editingSavedId
@@ -1012,7 +1099,10 @@ export default function App() {
     port,
     privateKeyPath,
     profiles,
-    username
+    username,
+    jumpChain,
+    connAuth,
+    certificatePath
   ])
 
   const closeTabRef = useRef<(tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => void>(() => {})
@@ -1056,6 +1146,15 @@ export default function App() {
       view === 'home' ||
       view === 'alert-workbench' ||
       view === 'audit' ||
+      view === 'playbook-list' ||
+      view === 'playbook-edit' ||
+      view === 'playbook-run' ||
+      view === 'playbook-result' ||
+      view === 'sync-settings' ||
+      view === 'sync-conflicts' ||
+      view === 'recordings' ||
+      view === 'recording-play' ||
+      view === 'sync-preview' ||
       view === 'updates' ||
       view === 'import-preview' ||
       view === 'file-diff'
@@ -1148,6 +1247,10 @@ export default function App() {
       privateKeyPath: privateKeyPath.trim() || undefined,
       passphrase: passphrase.trim() || undefined,
       ...(jump ? { jumpHost: jump } : {}),
+      ...(jumpChain.length ? { jumpChain, jumpHost: jump ?? hopToJump(jumpChain[0]!) } : {}),
+      ...(connAuth ? { authMode: connAuth } : {}),
+      ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {}),
+      autoRecord: formAutoRecord,
       ...(forwards ? { forwards } : {}),
       protection
     }
@@ -1180,7 +1283,11 @@ export default function App() {
     privateKeyPath,
     profiles,
     protection,
-    username
+    username,
+    jumpChain,
+    connAuth,
+    certificatePath,
+    formAutoRecord
   ])
 
   const resetConnectionForm = useCallback(() => {
@@ -1201,6 +1308,10 @@ export default function App() {
     setForwardRemoteHost('')
     setForwardRemotePort('')
     setProtection('normal')
+    setJumpChain([])
+    setConnAuth('password')
+    setCertificatePath('')
+    setFormAutoRecord(false)
     setSmartPaste('')
     setParseNotes(null)
     setError(null)
@@ -1225,6 +1336,10 @@ export default function App() {
     setForwardRemoteHost(fwd?.remoteHost ?? '')
     setForwardRemotePort(fwd ? String(fwd.remotePort) : '')
     setProtection(effectiveLevel(profile))
+    setJumpChain(chainFromProfile(profile))
+    setConnAuth(profile.authMode ?? (profile.privateKeyPath ? 'key' : 'password'))
+    setCertificatePath(profile.certificatePath ?? '')
+    setFormAutoRecord(Boolean(profile.autoRecord))
   }, [])
 
   const openConnectionEditor = useCallback(
@@ -1577,6 +1692,35 @@ export default function App() {
     setActiveTabId(tabId)
   }, [ensureMainVisible])
 
+  const openM2 = useCallback((view: TabView, title: string, extra?: Partial<Tab>) => {
+    ensureMainVisible()
+    const ex = tabsRef.current.find(
+      (t) =>
+        t.view === view &&
+        (extra?.playbookId ? t.playbookId === extra.playbookId : !t.playbookId || view === 'playbook-list' || view === 'playbook-result' || view === 'sync-settings' || view === 'sync-conflicts' || view === 'recordings' || view === 'sync-preview') &&
+        (extra?.recordingFile ? t.recordingFile === extra.recordingFile : view !== 'recording-play')
+    )
+    if (ex && (view !== 'playbook-edit' || ex.playbookId === extra?.playbookId) && (view !== 'playbook-run' || ex.playbookId === extra?.playbookId)) {
+      setTabs((prev) => prev.map((t) => (t.tabId === ex.tabId ? { ...t, title, ...extra } : t)))
+      setActiveTabId(ex.tabId)
+      return
+    }
+    const tabId = uuid()
+    setTabs((prev) => [
+      ...prev,
+      { tabId, sessionId: '', title, connectOpts: PLACEHOLDER_CONNECT, status: 'connected', view, ...extra }
+    ])
+    setActiveTabId(tabId)
+  }, [ensureMainVisible])
+
+  const liveSessions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const t of tabs) {
+      if (t.profileId && t.sessionId && t.status === 'connected' && (!t.view || t.view === 'session')) map.set(t.profileId, t.sessionId)
+    }
+    return map
+  }, [tabs])
+
   const setProfileProtection = useCallback((ids: string[], level: ProtectionLevel) => {
     const next = profilesRef.current.map((p) => (ids.includes(p.id) ? { ...p, protection: level } : p))
     void persistSessionState({ folders, profiles: next })
@@ -1611,6 +1755,30 @@ export default function App() {
       hostLabel: profile?.label || profile?.host || ''
     }
   }, [elevateMap, profileForSession])
+
+  useEffect(() => {
+    const onRun = (e: Event) => {
+      const plan = (e as CustomEvent<FolderSyncPlan>).detail
+      if (!plan?.sessionId) return
+      const sid = plan.sessionId
+      void runFolderSyncDurable({ ...plan, sessionId: sid }, async () => {
+        const g = guardForSession(sid)
+        return runGuardedCommand({
+          level: g.level,
+          hostName: g.hostName,
+          hostLabel: g.hostLabel,
+          elevated: g.elevated,
+          profileId: g.profile?.id,
+          channel: 'sftp',
+          dangerous: false,
+          command: 'folder-sync',
+          source: 'user'
+        })
+      })
+    }
+    window.addEventListener('aiss-run-sync', onRun)
+    return () => window.removeEventListener('aiss-run-sync', onRun)
+  }, [guardForSession])
 
   const refreshAlerts = useCallback((next: FiredAlert[]) => {
     saveAlertHistory(next)
@@ -1981,22 +2149,7 @@ export default function App() {
         }))
         applyProfileToForm(profile)
         sessionId =
-          (await openSession(
-            {
-              host: profile.host,
-              port: profile.port,
-              username: profile.username,
-              privateKeyPath: profile.privateKeyPath,
-              password: profile.password?.trim() || undefined,
-              passphrase: profile.passphrase?.trim() || undefined,
-              label: profile.label,
-              ...(profile.jumpHost?.host?.trim() && profile.jumpHost.username?.trim()
-                ? { jumpHost: profile.jumpHost }
-                : {}),
-              ...(profile.forwards?.length ? { forwards: profile.forwards } : {})
-            },
-            { profileId: profile.id, hostInventoryId: profile.hostInventoryId }
-          )) || undefined
+          (await openSession(connectOptsFromProfile(profile), { profileId: profile.id, hostInventoryId: profile.hostInventoryId })) || undefined
         if (!sessionId) {
           setDockerTreeByProfileId((prev) => ({
             ...prev,
@@ -2316,23 +2469,7 @@ export default function App() {
   const connectProfile = useCallback(
     (p: SavedSessionProfile) => {
       applyProfileToForm(p)
-      return openSession(
-        {
-          host: p.host,
-          port: p.port,
-          username: p.username,
-          privateKeyPath: p.privateKeyPath,
-          password: p.password?.trim() || undefined,
-          passphrase: p.passphrase?.trim() || undefined,
-          label: p.label,
-          ...(p.demo ? { demo: true } : {}),
-          ...(p.jumpHost?.host?.trim() && p.jumpHost.username?.trim()
-            ? { jumpHost: p.jumpHost }
-            : {}),
-          ...(p.forwards?.length ? { forwards: p.forwards } : {})
-        },
-        { profileId: p.id, hostInventoryId: p.hostInventoryId }
-      )
+      return openSession(connectOptsFromProfile(p), { profileId: p.id, hostInventoryId: p.hostInventoryId })
     },
     [applyProfileToForm, openSession]
   )
@@ -3005,6 +3142,44 @@ export default function App() {
         openAudit()
         return
       }
+      if (action === 'playbooks') {
+        openM2('playbook-list', tg('m2.playbooks'))
+        return
+      }
+      if (action === 'runPlaybook') {
+        const books = loadPlaybooks()
+        if (!books.length) {
+          showToast(tg('m2.noPlaybooks'))
+          return
+        }
+        const latest = books.reduce((a, b) => ((b.updatedAt || 0) >= (a.updatedAt || 0) ? b : a))
+        openM2('playbook-run', tg('m2.run'), { playbookId: latest.id })
+        return
+      }
+      if (action === 'cloudSync') {
+        openM2('sync-settings', tg('m2.cloudSync'))
+        return
+      }
+      if (action === 'syncNow') {
+        void (async () => {
+          const cfg = await window.aiss.sync.getConfig()
+          if (!syncIsConfigured(cfg)) {
+            showToast(tg('m2.syncNeedSetup'))
+            return
+          }
+          const snippets = await window.aiss.snippets.list().catch(() => [])
+          await runCloudSync(profilesRef.current, snippets, () => openM2('sync-conflicts', tg('m2.conflicts')))
+        })()
+        return
+      }
+      if (action === 'sessionRecordings') {
+        openM2('recordings', tg('m2.recordings'))
+        return
+      }
+      if (action === 'toggleBlocks') {
+        setBlocksOn(turnBlocks(!blocksEnabled()))
+        return
+      }
       if (action === 'startupSettings') {
         setStartupOpen(true)
         return
@@ -3173,6 +3348,7 @@ export default function App() {
       openHome,
       openWorkbench,
       openAudit,
+      openM2,
       bellPrefs.mode
     ]
   )
@@ -3618,8 +3794,17 @@ export default function App() {
           toggleHostStatus: showHostStatus,
           toggleBroadcast: broadcastEnabled,
           toggleRecording: Boolean(recordingSessionId),
+          toggleBlocks: blocksOn,
           smartComplete: smartOn,
           sftpComfort
+        }}
+        disabled={{
+          syncNow: !syncReady,
+          runPlaybook: !hasPlaybooks
+        }}
+        hints={{
+          syncNow: syncReady ? undefined : tg('m2.syncNeedSetup'),
+          runPlaybook: hasPlaybooks ? undefined : tg('m2.noPlaybooks')
         }}
       />
 
@@ -4144,6 +4329,15 @@ export default function App() {
                     setForwardRemotePort={setForwardRemotePort}
                     protection={protection}
                     setProtection={setProtection}
+                    authModeExternal={connAuth}
+                    setAuthModeExternal={setConnAuth}
+                    certificatePath={certificatePath}
+                    setCertificatePath={setCertificatePath}
+                    autoRecord={formAutoRecord}
+                    setAutoRecord={setFormAutoRecord}
+                    jumpChain={jumpChain}
+                    setJumpChain={setJumpChain}
+                    profiles={profiles}
                   />
                 ) : t.view === 'inventory' ? (
                   <HostInventoryModal
@@ -4187,6 +4381,14 @@ export default function App() {
                       const p = profiles.find((x) => x.id === inventoryLink?.profileId)
                       if (p) void elevateProfile(p)
                     }}
+                    autoRecord={Boolean(profiles.find((p) => p.id === inventoryLink?.profileId)?.autoRecord)}
+                    onAutoRecord={(on) => {
+                      const id = inventoryLink?.profileId
+                      if (!id) return
+                      const next = profiles.map((p) => (p.id === id ? { ...p, autoRecord: on } : p))
+                      void persistSessionState({ folders, profiles: next })
+                    }}
+                    onRecordings={() => openM2('recordings', tg('m2.recordings'))}
                     onUpserted={(rec) => {
                       const pid = rec.meta.profileId
                       if (!pid) return
@@ -4290,7 +4492,10 @@ export default function App() {
                       }, true)
                     }}
                     onCheckUpdate={() => handleTitlebarMenuAction('checkUpdate')}
-                    onPlaybook={() => showToast(tg('l4.playbookSoon'))}
+                    onPlaybook={() => openM2('playbook-list', tg('m2.playbooks'))}
+                    onRestoreSync={() => openM2('sync-settings', tg('m2.cloudSync'))}
+                    recentPlaybooks={loadPlaybooks().slice(0, 3).map((p) => ({ id: p.id, name: p.name }))}
+                    onOpenRecent={(id) => openM2('playbook-run', tg('m2.run'), { playbookId: id })}
                   />
                 ) : t.view === 'alert-workbench' ? (
                   <AlertWorkbenchTab
@@ -4346,6 +4551,68 @@ export default function App() {
                     }}
                     buildContext={buildAlertExplain}
                     onOpenSettings={() => openSettingsTab('ai')}
+                  />
+                ) : t.view === 'playbook-list' ? (
+                  <PlaybookList
+                    profiles={profiles}
+                    onEdit={(id) => openM2('playbook-edit', tg('m2.edit'), { playbookId: id })}
+                    onRun={(id) => openM2('playbook-run', tg('m2.run'), { playbookId: id })}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
+                ) : t.view === 'playbook-edit' && t.playbookId ? (
+                  <PlaybookEditor
+                    playbookId={t.playbookId}
+                    onRun={(id) => openM2('playbook-run', tg('m2.run'), { playbookId: id })}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
+                ) : t.view === 'playbook-run' && t.playbookId ? (
+                  <PlaybookRun
+                    playbookId={t.playbookId}
+                    profiles={profiles}
+                    live={liveSessions}
+                    onResult={() => openM2('playbook-result', tg('m2.playbooks'))}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
+                ) : t.view === 'playbook-result' ? (
+                  <PlaybookResult onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                ) : t.view === 'sync-settings' ? (
+                  <SyncSettings
+                    profiles={profiles}
+                    snippets={[]}
+                    onConflicts={() => openM2('sync-conflicts', tg('m2.conflicts'))}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
+                ) : t.view === 'sync-conflicts' ? (
+                  <SyncConflicts onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                ) : t.view === 'recordings' ? (
+                  <RecordingsList
+                    onOpen={(file) => openM2('recording-play', tg('m2.play'), { recordingFile: file })}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
+                ) : t.view === 'recording-play' && t.recordingFile ? (
+                  <RecordingPlayer file={t.recordingFile} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                ) : t.view === 'sync-preview' && t.syncPlan ? (
+                  <SyncPreviewTab
+                    plan={t.syncPlan}
+                    onStart={(plan) => {
+                      const sid = plan.sessionId || t.boundSessionId
+                      void runFolderSyncDurable({ ...plan, sessionId: sid }, async () => {
+                        if (!sid) return false
+                        const g = guardForSession(sid)
+                        return runGuardedCommand({
+                          level: g.level,
+                          hostName: g.hostName || t.connectOpts.host,
+                          hostLabel: g.hostLabel,
+                          elevated: g.elevated,
+                          profileId: g.profile?.id,
+                          channel: 'sftp',
+                          dangerous: false,
+                          command: 'folder-sync',
+                          source: 'user'
+                        })
+                      })
+                    }}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'audit' ? (
                   <AuditLogPanel
@@ -4448,6 +4715,9 @@ export default function App() {
                       const g = guardForSession(t.boundSessionId)
                       return g.level === 'readonly' && !g.elevated
                     })()}
+                    onPinPreview={(plan) =>
+                      openM2('sync-preview', tg('m2.syncPreview'), { syncPlan: { ...plan, sessionId: t.boundSessionId }, boundSessionId: t.boundSessionId })
+                    }
                     beforeRemoteWrite={async () => {
                       if (!t.boundSessionId) return false
                       const g = guardForSession(t.boundSessionId)
@@ -4470,6 +4740,25 @@ export default function App() {
                     tabId={t.tabId}
                     sessionId={t.boundSessionId}
                     remotePath={t.remotePath}
+                    remoteWritesBlocked={(() => {
+                      const g = guardForSession(t.boundSessionId)
+                      return g.level === 'readonly' && !g.elevated
+                    })()}
+                    beforeRemoteWrite={async () => {
+                      if (!t.boundSessionId) return false
+                      const g = guardForSession(t.boundSessionId)
+                      return runGuardedCommand({
+                        level: g.level,
+                        hostName: g.hostName || t.connectOpts.host,
+                        hostLabel: g.hostLabel,
+                        elevated: g.elevated,
+                        profileId: g.profile?.id,
+                        channel: 'sftp',
+                        dangerous: false,
+                        command: 'remote-edit',
+                        source: 'user'
+                      })
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     onTitleChange={(title) => {
                       setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, title } : x)))
@@ -4572,6 +4861,7 @@ export default function App() {
                         .map((x) => ({ sessionId: x.sessionId, title: x.title }))}
                     />
                   ) : (
+                    <>
                     <TerminalPane
                       sessionId={t.sessionId}
                       active={t.tabId === activeTabId}
@@ -4590,6 +4880,8 @@ export default function App() {
                           : undefined
                       }
                     />
+                    <TerminalBlocks sessionId={t.sessionId} />
+                    </>
                   )
                 ) : (
                   <div className="terminal-disconnected-placeholder">{tr('term.disconnected')}</div>
@@ -4656,6 +4948,31 @@ export default function App() {
           </div>
         ) : null}
       </div>
+      {jumpFail ? (
+        <div className="sync-status" data-testid="jump-fail">
+          <span>{tg('m2.jumpFail', { hop: jumpFail.hop, total: jumpFail.total, name: jumpFail.name })}</span>
+          <button
+            type="button"
+            onClick={() => {
+              const p = profiles.find((x) => x.id === jumpFail.profileId)
+              if (p) openConnectionEditor(p)
+            }}
+          >
+            {tg('ctx.edit')}
+          </button>
+        </div>
+      ) : null}
+      {syncMeta.enabled ? (
+        <button type="button" className="sync-status" data-testid="sync-status" onClick={() => openM2(syncMeta.phase === 'conflict' ? 'sync-conflicts' : 'sync-settings', tg('m2.cloudSync'))}>
+          <span className="sync-cloud" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16">
+              <path fill="currentColor" d="M12.5 13H4.2A3.2 3.2 0 0 1 4 6.6 4 4 0 0 1 11.7 5.2 2.8 2.8 0 0 1 12.5 13z" />
+            </svg>
+          </span>
+          <span>{statusGlyph(syncMeta.phase) || '✓'}</span>
+          <span>{tg(syncPhaseKey(syncMeta.phase))}</span>
+        </button>
+      ) : null}
 
       <HostPicker
         open={Boolean(hostPicker)}
@@ -4971,6 +5288,25 @@ export default function App() {
             onClick={() => deleteFolder(folderMenu.folderId)}
           >
             {tg('app.deleteFolder')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item"
+            onClick={() => {
+              const folderId = folderMenu.folderId
+              setFolderMenu(null)
+              void askText(tg('m2.proxyJump'), '').then((text) => {
+                if (!text?.trim()) return
+                const parsed = parseProxyJump(text)
+                if (!parsed.hops.length) return
+                const hop = hopToJump(parsed.hops[0]!)
+                const next = profilesRef.current.map((p) => (p.folderId === folderId ? { ...p, jumpChain: parsed.hops, jumpHost: hop } : p))
+                void persistSessionState({ folders, profiles: next })
+              })
+            }}
+          >
+            {tg('m2.groupJump')}
           </button>
         </div>
       )}

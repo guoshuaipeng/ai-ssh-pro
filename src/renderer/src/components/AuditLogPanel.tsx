@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
+import { auditToCsv, auditToJsonl, filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
 
 export default function AuditLogPanel({
@@ -18,7 +18,19 @@ export default function AuditLogPanel({
   const { t } = useI18n()
   const [text, setText] = useState('')
   const [type, setType] = useState<AuditType | ''>('')
-  const rows = useMemo(() => filterAudit(events, { host, type, text }), [events, host, type, text])
+  const [since, setSince] = useState('')
+  const [until, setUntil] = useState('')
+  const rows = useMemo(
+    () =>
+      filterAudit(events, {
+        host,
+        type,
+        text,
+        since: since ? new Date(since).getTime() : undefined,
+        until: until ? new Date(until).getTime() : undefined
+      }),
+    [events, host, type, text, since, until]
+  )
   return (
     <div className="workspace-panel" data-testid="audit-log">
       <div className="workspace-panel-toolbar">
@@ -47,7 +59,11 @@ export default function AuditLogPanel({
           <option value="danger">danger</option>
           <option value="playbook.run">playbook.run</option>
         </select>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('l2.search')} aria-label={t('l2.search')} />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('m2.search')} aria-label={t('m2.search')} />
+        <input type="date" value={since} onChange={(e) => setSince(e.target.value)} aria-label={t('m2.since')} />
+        <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} aria-label={t('m2.until')} />
+        <button type="button" onClick={() => void window.aiss.files.saveText('audit.csv', auditToCsv(rows))}>{t('m2.exportCsv')}</button>
+        <button type="button" onClick={() => void window.aiss.files.saveText('audit.jsonl', auditToJsonl(rows))}>{t('m2.exportJsonl')}</button>
         <label className="l4-check">
           <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
           {t('l4.audit')}

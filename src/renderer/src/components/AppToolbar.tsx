@@ -23,6 +23,9 @@ type Props = {
   onQuickConnect?: (row: RecentConnection) => void
   /** ☑ state for toggle menu items */
   toggles?: Partial<Record<TitlebarMenuAction, boolean>>
+  /** greyed menu items (still show a tooltip) */
+  disabled?: Partial<Record<TitlebarMenuAction, boolean>>
+  hints?: Partial<Record<TitlebarMenuAction, string | undefined>>
   /** an SSH session is connected (ops buttons look disabled otherwise) */
   hasSession?: boolean
   /** app version (V1) */
@@ -77,6 +80,8 @@ export default function AppToolbar({
   showAi = true,
   onQuickConnect,
   toggles,
+  disabled,
+  hints,
   hasSession = false,
   version = '',
   isDev = false,
@@ -206,12 +211,14 @@ export default function AppToolbar({
                     onMenuAction(a)
                   }}
                   toggles={toggles}
+                  disabled={disabled}
+                  hints={hints}
                 />
               </div>
             ) : null}
           </div>
         ) : (
-          <TitlebarMenus onAction={onMenuAction} toggles={toggles} />
+          <TitlebarMenus onAction={onMenuAction} toggles={toggles} disabled={disabled} hints={hints} />
         )}
       </div>
       <div className="app-titlebar-spacer" />
