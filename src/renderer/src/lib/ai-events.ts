@@ -53,8 +53,30 @@ export function lastErrorSessionId(): string | null {
   return best?.[0] ?? null
 }
 
+export async function aiHasKey(): Promise<boolean> {
+  try {
+    const s = await window.aiss.ai.getSettings()
+    const providers = Array.isArray(s?.providers) ? s.providers : []
+    const p = providers.find((x) => x.id === s.activeProviderId) ?? providers[0]
+    return Boolean(p?.apiKey?.trim())
+  } catch {
+    return false
+  }
+}
+
+/** UX-37: unconfigured AI lands on the single config card (no second explain card). */
+export function flashAiConfig(reason: 'explain' | 'command'): void {
+  window.dispatchEvent(new CustomEvent('aiss-ai-need-config', { detail: { reason } }))
+}
+
 export function requestAiExplain(detail: AiExplainDetail): void {
-  window.dispatchEvent(new CustomEvent<AiExplainDetail>(AI_EXPLAIN_EVENT, { detail }))
+  void aiHasKey().then((ready) => {
+    if (!ready) {
+      flashAiConfig('explain')
+      return
+    }
+    window.dispatchEvent(new CustomEvent<AiExplainDetail>(AI_EXPLAIN_EVENT, { detail }))
+  })
 }
 
 /** Put a command into the session command bar (never executes it). */

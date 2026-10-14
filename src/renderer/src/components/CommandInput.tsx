@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from 'react'
 import { filterCommandHistory, normalizeCommandLine } from '@shared/workspace-features'
+import { highlightMatch, rankSuggestions, type HistoryEntry, type Suggestion } from '@shared/smart-complete'
 import { useI18n } from '../lib/i18n'
 import { HISTORY_CHANGED_EVENT, notifyHistoryChanged } from '../lib/workspace-events'
+import { loadSmartHistory, loadSmartPrefs } from '../lib/smart-history'
 
 type Props = {
   placeholder?: string
@@ -20,6 +22,13 @@ type Props = {
   /** history suggestions (off in AI mode) */
   suggest?: boolean
   className?: string
+  /** X1: ranked history + Tab accepts without running */
+  smart?: boolean
+  hostKey?: string
+  snippets?: { command: string }[]
+  submitLabel?: string
+  onStop?: () => void
+  stopping?: boolean
 }
 
 export default function CommandInput({
@@ -34,11 +43,18 @@ export default function CommandInput({
   prefix,
   inputRef,
   suggest = true,
-  className
+  className,
+  smart = false,
+  hostKey = '',
+  snippets = [],
+  submitLabel,
+  onStop,
+  stopping = false
 }: Props) {
   const { t } = useI18n()
   const listId = useId()
   const [history, setHistory] = useState<string[]>([])
+  const [smartRows, setSmartRows] = useState<HistoryEntry[]>([])
   const [inner, setInner] = useState('')
   const text = value ?? inner
   const setText = onValueChange ?? setInner
@@ -50,14 +66,16 @@ export default function CommandInput({
 
   const reload = useCallback(() => {
     const api = window.aiss?.workspace?.commandHistory
-    if (!api) return
-    void api
-      .list()
-      .then((rows) => setHistory(Array.isArray(rows) ? rows : []))
-      .catch(() => {
-        /* ignore */
-      })
-  }, [])
+    if (api) {
+      void api
+        .list()
+        .then((rows) => setHistory(Array.isArray(rows) ? rows : []))
+        .catch(() => {
+          /* ignore */
+        })
+    }
+    if (smart) setSmartRows(loadSmartHistory())
+  }, [smart])
 
   useEffect(() => {
     reload()
@@ -75,7 +93,20 @@ export default function CommandInput({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
-  const suggestions = suggest ? filterCommandHistory(history, text, 8) : []
+  const prefs = smart ? loadSmartPrefs() : null
+  const ranked: Suggestion[] =
+    smart && suggest && prefs?.enabled
+      ? rankSuggestions({
+          query: text,
+          hostKey,
+          entries: smartRows.length ? smartRows : history.map((command) => ({ command, hostKey: '', count: 1, lastUsed: 0 })),
+          snippets,
+          sources: { host: prefs.sourceHost, common: prefs.sourceCommon, snippets: prefs.sourceSnippets },
+          limit: 6,
+          minChars: 2
+        })
+      : []
+  const suggestions = smart ? ranked.map((s) => s.command) : suggest ? filterCommandHistory(history, text, 8) : []
 
   const fill = (command: string) => {
     setText(command)
@@ -160,10 +191,15 @@ export default function CommandInput({
             setText(next === -1 ? draftRef.current : history[next] ?? '')
             return
           }
+          if (e.key === 'Tab' && smart && open && suggestions.length > 0) {
+            e.preventDefault()
+            fill(suggestions[highlight >= 0 ? highlight : 0]!)
+            return
+          }
           if (e.key === 'Enter') {
             e.preventDefault()
-            if (highlight >= 0 && suggestions[highlight]) {
-              fill(suggestions[highlight])
+            if (open && suggestions.length > 0 && (highlight >= 0 || smart)) {
+              fill(suggestions[highlight >= 0 ? highlight : 0]!)
               return
             }
             submit()
@@ -171,29 +207,56 @@ export default function CommandInput({
         }}
       />
       {open && suggestions.length > 0 ? (
-        <ul className="command-input-suggest" id={listId} role="listbox" aria-label={t('history.suggestions')}>
-          {suggestions.map((cmd, index) => (
-            <li key={cmd}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={index === highlight}
-                className={index === highlight ? 'is-active' : ''}
-                onMouseDown={(ev) => {
-                  ev.preventDefault()
-                  fill(cmd)
-                }}
-              >
-                {cmd}
-              </button>
-            </li>
-          ))}
+        <ul className={`command-input-suggest${smart ? ' is-above' : ''}`} id={listId} role="listbox" aria-label={t('history.suggestions')} data-testid="cmd-suggest">
+          {suggestions.map((cmd, index) => {
+            const meta = ranked[index]
+            const parts = smart ? highlightMatch(cmd, text) : null
+            const sourceLabel = meta?.source === 'host' ? t('x1.host') : meta?.source === 'snippet' ? t('x1.snippet') : t('x1.common')
+            return (
+              <li key={`${cmd}-${index}`}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={index === highlight}
+                  className={index === highlight ? 'is-active' : ''}
+                  onMouseDown={(ev) => {
+                    ev.preventDefault()
+                    fill(cmd)
+                  }}
+                >
+                  {parts ? (
+                    <span className="cmd-suggest-text">
+                      {parts.before}
+                      <strong>{parts.match}</strong>
+                      {parts.after}
+                    </span>
+                  ) : (
+                    cmd
+                  )}
+                  {smart && meta ? (
+                    <span className="cmd-suggest-meta">
+                      <span className={`cmd-src cmd-src--${meta.source}`}>{sourceLabel}</span>
+                      {meta.count > 0 ? <span>{meta.count}</span> : null}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       ) : null}
       </div>
       {submitOnEnter ? (
-        <button type="button" disabled={disabled || !canSubmit} onClick={submit}>
-          {t('history.send')}
+        <button
+          type="button"
+          className="command-input-submit"
+          disabled={stopping ? false : disabled || !canSubmit}
+          onClick={() => {
+            if (stopping) onStop?.()
+            else submit()
+          }}
+        >
+          {stopping ? t('ux36.stop') : submitLabel || t('history.send')}
         </button>
       ) : null}
     </div>

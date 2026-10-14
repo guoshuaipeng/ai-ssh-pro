@@ -76,8 +76,11 @@ const SENSITIVE_PATTERNS: RegExp[] = [
   /\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)\s*[=:]\s*\S+/i,
   /--(?:password|passwd|token|secret|api-key|access-key)(?:=|\s+)\S+/i,
   /\b(?:export|set)\s+\w*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_KEY|ACCESS_KEY)\w*\s*=/i,
+  /\b(?:export|set)\s+[A-Za-z_][A-Za-z0-9_]*KEY\s*=/i,
   /\bmysql(?:dump|admin)?\b.*\s-p\S+/,
   /\bsshpass\s+-p\s*\S+/,
+  // -pPASSWORD (glued). ssh -p22 / mysql -p (flag only) stay recordable.
+  /(?:^|\s)-p(?!\d+\b)\S+/,
   /\bAuthorization:\s*(?:Bearer|Basic)\s+\S+/i,
   /:\/\/[^\s/:@]+:[^\s/@]+@/
 ]

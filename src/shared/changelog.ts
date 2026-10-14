@@ -12,6 +12,54 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.3.18': [
+    {
+      icon: '⇄',
+      text: { zh: 'SFTP 双栏：本机与远程并排，拖放传输，队列可暂停/续传', en: 'SFTP dual pane with drag-and-drop and a pausable transfer queue' },
+      where: { zh: '会话 → SFTP 文件', en: 'Session → SFTP files' },
+      action: 'sftp'
+    },
+    {
+      icon: '↻',
+      text: { zh: '文件夹同步：预览差异后加入传输队列，可保存同步方案', en: 'Folder sync: preview the diff, then queue it; save a profile to rerun' },
+      where: { zh: '会话 → 文件夹同步…', en: 'Session → Folder sync…' },
+      action: 'folderSync'
+    },
+    {
+      icon: '⌘',
+      text: { zh: '命令历史智能补全：输入栏 Tab 采纳；终端幽灵文字用 → 采纳，Tab 仍交给 shell', en: 'History completion: Tab in the command bar; terminal ghost text accepts with →, Tab stays with the shell' },
+      where: { zh: '查看 → 智能补全', en: 'View → Smart completion' },
+      action: 'smartComplete'
+    },
+    {
+      icon: '✨',
+      text: { zh: '命令栏 AI 模式改为行内前缀，高度保持 32px', en: 'Command-bar AI mode is an inline prefix and stays 32px tall' },
+      where: { zh: '终端上方命令栏', en: 'Command bar above the terminal' }
+    },
+    {
+      icon: '🤖',
+      text: { zh: '未配置 AI 时只显示一张配置卡', en: 'Unconfigured AI shows a single setup card' },
+      where: { zh: '查看 → AI 面板', en: 'View → AI panel' },
+      action: 'openAi'
+    },
+    {
+      icon: '👋',
+      text: { zh: '新手引导卡片避开按钮，优先出现在右侧', en: 'Welcome tour cards avoid buttons and prefer the right side' },
+      where: { zh: '帮助 → 新手引导', en: 'Help → Welcome tour' },
+      action: 'tour'
+    },
+    {
+      icon: 'Aa',
+      text: { zh: '所有标签标题统一为正体', en: 'Every tab title uses an upright font' }
+    },
+    {
+      icon: '●',
+      text: { zh: '主机选择器标题去掉多余空格，并显示在线点和延迟', en: 'Host picker title spacing fixed; rows show online dot and latency' },
+      where: { zh: '未连接时打开监控 / SFTP', en: 'Open Monitor or SFTP with nothing connected' },
+      action: 'resourceMonitor'
+    }
+  ],
+
   '0.3.17': [
     {
       icon: '🔔',

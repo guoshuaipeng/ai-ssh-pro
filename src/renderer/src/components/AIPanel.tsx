@@ -3,6 +3,8 @@ import { tg } from '../lib/i18n'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { parseAiAssistantReply } from '@shared/ipc'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
+import { showToast } from '../lib/toast'
+import AiConfigCard from './AiConfigCard'
 
 type Props = {
   activeSessionId: string | null
@@ -69,6 +71,10 @@ export default function AIPanel({
   const [includeTerminal, setIncludeTerminal] = useState(true)
   const [pendingConfirm, setPendingConfirm] = useState<{ requestId: string; action: AiAssistantReply['action'] } | null>(null)
   const [hasApiKey, setHasApiKey] = useState(false)
+  const [configContext, setConfigContext] = useState<string | null>(null)
+  const [configFlash, setConfigFlash] = useState(false)
+  const hadKey = useRef(false)
+  const sawSettings = useRef(false)
   const [providers, setProviders] = useState<AiProvider[]>([])
   const [activeProviderId, setActiveProviderId] = useState('')
   const [activeModel, setActiveModel] = useState('')
@@ -92,12 +98,28 @@ export default function AIPanel({
         setProviders(s.providers)
         setActiveProviderId(s.activeProviderId)
         setActiveModel(s.model)
-        setHasApiKey(Boolean(p?.apiKey?.trim()))
+        const ready = Boolean(p?.apiKey?.trim())
+        setHasApiKey(ready)
+        if (sawSettings.current && !hadKey.current && ready) showToast(tg('ux37.ready'))
+        hadKey.current = ready
+        sawSettings.current = true
       })
     }
     refresh()
     window.addEventListener('aiss-ai-settings-saved', refresh)
     return () => window.removeEventListener('aiss-ai-settings-saved', refresh)
+  }, [])
+
+  useEffect(() => {
+    const onNeed = (e: Event) => {
+      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason
+      const text = reason === 'explain' ? tg('ux37.needExplain') : reason === 'command' ? tg('ux37.needCommand') : null
+      setConfigContext(text)
+      setConfigFlash(true)
+      window.setTimeout(() => setConfigFlash(false), 1200)
+    }
+    window.addEventListener('aiss-ai-need-config', onNeed)
+    return () => window.removeEventListener('aiss-ai-need-config', onNeed)
   }, [])
 
   // Load persisted chat when history key / session changes
@@ -408,15 +430,9 @@ export default function AIPanel({
   return (
     <aside className="ai-panel" style={{ minWidth: 280 }}>
       {!hasApiKey ? (
-        <div className="ai-empty-state" data-testid="ai-empty-state" style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-          <div style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>{tg('ai.emptyTitle')}</div>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => onOpenSettings?.()}
-          >
-            {tg('ai.emptyAction')}
-          </button>
+        <div className="ai-empty-state" data-testid="ai-empty-state">
+          <div className="ai-config-head">{tg('ai.title')}</div>
+          <AiConfigCard context={configContext} flash={configFlash} onConfigure={() => onOpenSettings?.()} />
         </div>
       ) : (
         <>
@@ -424,6 +440,7 @@ export default function AIPanel({
         <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{tg('ai.title')}</span>
         {modelList.length > 0 ? (
           <select
+            data-testid="ai-provider-select"
             value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
             onChange={(e) => onModelChange(e.target.value)}
             disabled={busy}
@@ -618,7 +635,7 @@ export default function AIPanel({
             }
           }}
         />
-        <button type="button" className="primary" disabled={busy || !input.trim()} onClick={() => void send()}>
+        <button type="button" className="primary" data-testid="ai-send" disabled={busy || !input.trim()} onClick={() => void send()}>
           {busy ? tg('ai.busy') : tg('ai.send')}
         </button>
       </div>

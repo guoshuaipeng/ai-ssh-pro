@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-type Action = { label: string; onClick: () => void; testId?: string; /** G2 tour anchor */ tour?: string }
+type Action = { label: string; onClick: () => void; testId?: string; /** G2 tour anchor */ tour?: string; avoid?: boolean }
 
 /** UX-08: icon + one sentence + primary action (+ secondary actions). */
 export default function EmptyState({
@@ -32,12 +32,12 @@ export default function EmptyState({
       <div className="empty-state-title">{title}</div>
       {desc ? <div className="empty-state-desc">{desc}</div> : null}
       {primary ? (
-        <button type="button" className="primary empty-state-primary" data-testid={primary.testId} data-tour={primary.tour} onClick={primary.onClick}>
+        <button type="button" className="primary empty-state-primary" data-testid={primary.testId} data-tour={primary.tour} data-tour-avoid={primary.avoid ? '' : undefined} onClick={primary.onClick}>
           {primary.label}
         </button>
       ) : null}
       {secondary?.length ? (
-        <div className="empty-state-secondary">
+        <div className="empty-state-secondary" data-tour-avoid>
           {secondary.map((a, i) => (
             <span key={a.label}>
               {i > 0 ? <span className="empty-state-sep" aria-hidden> · </span> : null}

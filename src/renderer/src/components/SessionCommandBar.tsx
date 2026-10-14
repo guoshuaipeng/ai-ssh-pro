@@ -7,13 +7,17 @@ import CommandInput from './CommandInput'
 import { assessCommandRisk } from '../../../shared/command-risk'
 import { explainCommand } from '../../../shared/command-explain'
 import { askConfirm } from '../lib/dialogs'
-import { COMMAND_BAR_AI_MODE_EVENT, COMMAND_BAR_FILL_EVENT, noteSubmitted } from '../lib/ai-events'
+import { COMMAND_BAR_AI_MODE_EVENT, COMMAND_BAR_FILL_EVENT, aiHasKey, flashAiConfig, noteSubmitted } from '../lib/ai-events'
 import { confirmAndRunAiCommand } from '../lib/ai-run'
+import { loadSmartPrefs, recordSmartCommand, seedDemoHistory } from '../lib/smart-history'
+import { isDemoSessionId } from '@shared/demo-host'
+import type { CommandSnippet } from '@shared/ipc'
 
 type Props = {
   sessionId: string
   /** shown in "Run on {host}?" (A2) */
   hostLabel?: string
+  hostKey?: string
   onOpenAiSettings?: () => void
 }
 
@@ -22,7 +26,7 @@ type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; resu
 /** Sends one line to the active terminal via the existing ssh.write path; "#" or Ctrl+Shift+Space switches to AI mode (A2). */
 const CMD_BAR_KEY = 'aiss.cmdBarOpen'
 
-export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettings }: Props) {
+export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', onOpenAiSettings }: Props) {
   const { t, locale } = useI18n()
   const [open, setOpen] = useState(() => {
     try {
@@ -45,6 +49,12 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [latency, setLatency] = useState<number | null | undefined>(undefined)
+  const [snippets, setSnippets] = useState<CommandSnippet[]>([])
+
+  useEffect(() => {
+    if (isDemoSessionId(sessionId) && hostKey) seedDemoHistory(hostKey)
+    void window.aiss?.snippets?.list?.().then((rows) => setSnippets(Array.isArray(rows) ? rows : [])).catch(() => undefined)
+  }, [sessionId, hostKey])
 
   useEffect(() => {
     let alive = true
@@ -91,6 +101,9 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
       const focused = document.activeElement === inputRef.current
       setAiMode((v) => (focused ? !v : true))
       window.setTimeout(() => inputRef.current?.focus(), 0)
+      void aiHasKey().then((ready) => {
+        if (!ready) flashAiConfig('command')
+      })
     }
     window.addEventListener(COMMAND_BAR_FILL_EVENT, onFill)
     window.addEventListener(COMMAND_BAR_AI_MODE_EVENT, onAi)
@@ -107,17 +120,21 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
     []
   )
 
-  const generate = useCallback(
-    (prompt: string) => {
-      const text = prompt.replace(/^#\s*/, '').trim()
-      if (!text) return
+  const startGenerate = useCallback(
+    (text: string) => {
       const requestId = `a2-${Date.now()}`
       aiReqRef.current = requestId
       setAiCard({ prompt: text, phase: 'loading' })
       void window.aiss.ai
         .assist({ requestId, kind: 'nlCommand', text, host: hostLabel, locale })
         .then((result) => {
-          if (aiReqRef.current === requestId) setAiCard({ prompt: text, phase: 'done', result })
+          if (aiReqRef.current !== requestId) return
+          if (!result.ok && result.code === 'not-configured') {
+            setAiCard(null)
+            flashAiConfig('command')
+            return
+          }
+          setAiCard({ prompt: text, phase: 'done', result })
         })
         .catch((e) => {
           if (aiReqRef.current === requestId) {
@@ -126,6 +143,21 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
         })
     },
     [hostLabel, locale]
+  )
+  const generate = useCallback(
+    (prompt: string) => {
+      const text = prompt.replace(/^#\s*/, '').trim()
+      if (!text) return
+      void aiHasKey().then((ready) => {
+        if (!ready) {
+          setAiCard(null)
+          flashAiConfig('command')
+          return
+        }
+        startGenerate(text)
+      })
+    },
+    [startGenerate]
   )
 
   const aiResult = aiCard?.phase === 'done' && aiCard.result.ok && aiCard.result.kind === 'nlCommand' ? aiCard.result : null
@@ -166,6 +198,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
     setError(null)
     try {
       await window.aiss.workspace.commandHistory.push(command)
+      if (loadSmartPrefs().enabled) recordSmartCommand(hostKey, command)
       notifyHistoryChanged()
       noteSubmitted(sessionId, command)
       const ok = await window.aiss.ssh.write(sessionId, `${command}\r`)
@@ -220,15 +253,28 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
         onValueChange={setDraft}
         inputRef={inputRef}
         suggest={!inAi}
+        smart={!inAi}
+        hostKey={hostKey}
+        snippets={snippets.map((s) => ({ command: s.body }))}
         className={inAi ? 'command-input--ai' : undefined}
         placeholder={inAi ? t('a2.placeholder') : undefined}
         ariaLabel={inAi ? t('a2.placeholder') : undefined}
+        submitLabel={inAi ? t('ux36.generate') : undefined}
+        stopping={aiCard?.phase === 'loading'}
+        onStop={closeCard}
         prefix={
-          inAi ? (
-            <span className="ai-mode-mark" data-testid="ai-mode-mark" title={t('a2.modeTitle')}>
-              ✨
-            </span>
-          ) : null
+          <button
+            type="button"
+            className={`command-input-prefix${inAi ? ' is-ai' : ''}`}
+            data-testid={inAi ? 'ai-mode-mark' : 'cmd-prefix'}
+            title={t('ux36.toggle')}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setAiMode((v) => !v)
+            }}
+          >
+            {aiCard?.phase === 'loading' ? <span className="ai-spinner" aria-hidden /> : inAi ? '✨' : '>_'}
+          </button>
         }
         interceptKey={(e) => {
           if (e.key === ' ' && e.ctrlKey && e.shiftKey) {
@@ -275,13 +321,6 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
           {aiCard.phase === 'loading' ? (
             <div className="ai-cmd-row">
               <span className="ai-spinner" aria-hidden /> {t('a2.generating')}
-            </div>
-          ) : !aiCard.result.ok && aiCard.result.code === 'not-configured' ? (
-            <div className="ai-cmd-row">
-              <span>{t('a1.needAi')}</span>
-              <button type="button" className="primary" onClick={() => onOpenAiSettings?.()}>
-                {t('a2.goConfig')}
-              </button>
             </div>
           ) : !aiCard.result.ok ? (
             <div className="ai-cmd-row" data-testid="ai-cmd-error">

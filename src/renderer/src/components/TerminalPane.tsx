@@ -11,6 +11,10 @@ import { getXtermTheme } from '../lib/terminal-themes'
 import { attachZmodem, type ZmodemAttach } from '../lib/zmodem-attach'
 import { findInBuffer, AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
 import { looksLikeError, rememberError, requestAiExplain } from '../lib/ai-events'
+import { extractPromptCommand, ghostSuffix, rankSuggestions, terminalKeyAction } from '@shared/smart-complete'
+import { loadSmartHistory, loadSmartPrefs, seedDemoHistory } from '../lib/smart-history'
+import { isDemoSessionId } from '@shared/demo-host'
+import { HISTORY_CHANGED_EVENT } from '../lib/workspace-events'
 
 type Props = {
   sessionId: string
@@ -26,11 +30,13 @@ type Props = {
   onUserData?: (data: string) => void
   /** Optional ref updated with the latest write handler (for external broadcast fan-in). */
   broadcastRef?: MutableRefObject<((data: string) => void) | null>
+  hostKey?: string
 }
 
 /** Electron 中 xterm 会把 Ctrl+C / Ctrl+V 当控制字符发给 SSH；此处对接系统剪贴板。 */
-function attachTerminalClipboardKeys(term: Terminal): void {
+function attachTerminalClipboardKeys(term: Terminal, before?: (ev: KeyboardEvent) => boolean): void {
   term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
+    if (ev.type === 'keydown' && before && before(ev) === false) return false
     if (ev.type !== 'keydown') return true
 
     const mod = ev.ctrlKey || ev.metaKey
@@ -76,7 +82,8 @@ export default function TerminalPane({
   prefs,
   mirrorOnly = false,
   onUserData,
-  broadcastRef
+  broadcastRef,
+  hostKey = ''
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<{ term: Terminal; fit: FitAddon } | null>(null)
@@ -97,6 +104,10 @@ export default function TerminalPane({
   // A1: "Explain with AI" hint after output that looks like an error (auto-hides after 8 s)
   const [aiHint, setAiHint] = useState(false)
   const aiHintTimerRef = useRef<number | null>(null)
+  const ghostRef = useRef({ suffix: '', atEnd: true })
+  const [ghost, setGhost] = useState<{ suffix: string; x: number; y: number } | null>(null)
+  const hostKeyRef = useRef(hostKey)
+  hostKeyRef.current = hostKey
 
   /** Last N lines of the terminal buffer (plain text), used as context for "Explain with AI". */
   const recentText = (maxLines = 40): string => {
@@ -155,7 +166,25 @@ export default function TerminalPane({
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(el)
-    attachTerminalClipboardKeys(term)
+    const writeInput = (data: string) => {
+      if (onUserDataRef.current) {
+        onUserDataRef.current(data)
+        return
+      }
+      void window.aiss.ssh.write(sessionId, data)
+    }
+    attachTerminalClipboardKeys(term, (ev) => {
+      const action = terminalKeyAction(ev.key, { atEnd: ghostRef.current.atEnd, hasGhost: Boolean(ghostRef.current.suffix) })
+      if (action === 'accept-ghost') {
+        ev.preventDefault()
+        const suffix = ghostRef.current.suffix
+        ghostRef.current = { suffix: '', atEnd: true }
+        setGhost(null)
+        if (suffix) writeInput(suffix)
+        return false
+      }
+      return true
+    })
     apiRef.current = { term, fit }
 
     let zm: ZmodemAttach | null = null
@@ -219,14 +248,6 @@ export default function TerminalPane({
       }
       term.write(u8)
     })
-
-    const writeInput = (data: string) => {
-      if (onUserDataRef.current) {
-        onUserDataRef.current(data)
-        return
-      }
-      void window.aiss.ssh.write(sessionId, data)
-    }
 
     if (broadcastRef) {
       broadcastRef.current = writeInput
@@ -319,6 +340,49 @@ export default function TerminalPane({
     el.addEventListener('mouseup', onMouseUp)
     el.addEventListener('contextmenu', onContextMenu)
 
+    const refreshGhost = () => {
+      if (mirrorOnlyRef.current) return
+      const smart = loadSmartPrefs()
+      if (!smart.enabled || !smart.ghost) {
+        ghostRef.current = { suffix: '', atEnd: true }
+        setGhost(null)
+        return
+      }
+      const buf = term.buffer.active
+      const x = buf.cursorX
+      const y = buf.cursorY
+      const line = buf.getLine(buf.baseY + y)?.translateToString(true) ?? ''
+      const before = line.slice(0, Math.min(x, line.length))
+      const atEnd = line.slice(x).trim().length === 0
+      const query = extractPromptCommand(before)
+      if (!query || !query.trim()) {
+        ghostRef.current = { suffix: '', atEnd }
+        setGhost(null)
+        return
+      }
+      const hk = hostKeyRef.current
+      if (isDemoSessionId(sessionId) && hk) seedDemoHistory(hk)
+      const ranked = rankSuggestions({
+        query: query.trim(),
+        hostKey: hk,
+        entries: loadSmartHistory(),
+        limit: 4,
+        minChars: 1,
+        sources: { host: smart.sourceHost, common: smart.sourceCommon, snippets: smart.sourceSnippets }
+      })
+      const suffix = ghostSuffix(query.trim(), ranked.map((r) => r.command)) || ''
+      ghostRef.current = { suffix, atEnd }
+      if (!suffix) {
+        setGhost(null)
+        return
+      }
+      const font = term.options.fontSize || 14
+      setGhost({ suffix, x: 12 + x * font * 0.62, y: 8 + y * Math.round(font * 1.35) })
+    }
+    const ghostMove = term.onCursorMove(() => refreshGhost())
+    const onHist = () => refreshGhost()
+    window.addEventListener(HISTORY_CHANGED_EVENT, onHist)
+
     return () => {
       if (errCheckTimer != null) window.clearTimeout(errCheckTimer)
       if (aiHintTimerRef.current != null) window.clearTimeout(aiHintTimerRef.current)
@@ -329,6 +393,8 @@ export default function TerminalPane({
       el.removeEventListener('mouseup', onMouseUp)
       el.removeEventListener('contextmenu', onContextMenu)
       ro.disconnect()
+      ghostMove.dispose()
+      window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)
       subInput.dispose()
       unsubData()
       term.dispose()
@@ -391,6 +457,11 @@ export default function TerminalPane({
     <>
       <div className="terminal-pane-wrap">
         <div ref={wrapRef} className="terminal-pane-xterm" title={tg('term.tip')} />
+        {ghost && !mirrorOnly ? (
+          <span className="term-ghost" data-testid="term-ghost" style={{ left: ghost.x, top: ghost.y }} title={tg('x1.acceptHint')}>
+            {ghost.suffix}
+          </span>
+        ) : null}
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
         {aiHint && !mirrorOnly ? (
           <button type="button" className="ai-explain-hint" data-testid="ai-explain-hint" onClick={() => explainWithAi('auto')}>

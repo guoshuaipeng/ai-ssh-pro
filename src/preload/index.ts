@@ -146,7 +146,31 @@ const api = {
         cb(args[0] as import('../shared/ipc').SftpProgressEvent)
       ipcRenderer.on('sftp:progress', fn)
       return () => unsub('sftp:progress', fn)
-    }
+    },
+    stat: (sessionId: string, remotePath: string) => ipcRenderer.invoke('sftp:stat', sessionId, remotePath),
+    hash: (sessionId: string, remotePath: string): Promise<string> => ipcRenderer.invoke('sftp:hash', sessionId, remotePath),
+    cancel: (transferId: string): Promise<boolean> => ipcRenderer.invoke('sftp:cancel', transferId),
+    transfer: (payload: {
+      sessionId: string
+      direction: 'upload' | 'download'
+      localPath: string
+      remotePath: string
+      transferId?: string
+      offset?: number
+    }): Promise<void> => ipcRenderer.invoke('sftp:transfer', payload),
+    queueLoad: () => ipcRenderer.invoke('sftp:queueLoad'),
+    queueSave: (tasks: unknown) => ipcRenderer.invoke('sftp:queueSave', tasks)
+  },
+  localFs: {
+    home: (): Promise<string> => ipcRenderer.invoke('localFs:home'),
+    list: (dir: string): Promise<SftpListResult> => ipcRenderer.invoke('localFs:list', dir),
+    stat: (target: string) => ipcRenderer.invoke('localFs:stat', target),
+    mkdir: (target: string): Promise<boolean> => ipcRenderer.invoke('localFs:mkdir', target),
+    rename: (from: string, to: string): Promise<boolean> => ipcRenderer.invoke('localFs:rename', from, to),
+    trash: (target: string): Promise<{ token: string }> => ipcRenderer.invoke('localFs:trash', target),
+    restore: (token: string): Promise<boolean> => ipcRenderer.invoke('localFs:restore', token),
+    reveal: (target: string): Promise<boolean> => ipcRenderer.invoke('localFs:reveal', target),
+    hash: (target: string): Promise<string> => ipcRenderer.invoke('localFs:hash', target)
   },
   docker: {
     listTree: (sessionId: string): Promise<DockerTreeResult> =>

@@ -337,6 +337,8 @@ export type SftpListEntry = {
   isDirectory: boolean
   size: number
   modifyTime?: number
+  /** POSIX mode bits when the server provides them (remote pane). */
+  mode?: number
 }
 
 export type SftpListResult = {

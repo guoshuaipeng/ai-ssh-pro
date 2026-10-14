@@ -1,6 +1,16 @@
 import { menuLabel, type MenuAction, type SharedMenu } from '../../../shared/menus'
 
-export type PaletteEntry = { id: MenuAction; label: string; group: string; shortcut?: string; hay: string }
+export type PaletteEntry = {
+  id: MenuAction
+  label: string
+  group: string
+  shortcut?: string
+  hay: string
+  /** UX-37: shown when an AI action is unavailable */
+  note?: string
+  /** D2: saved sync profile id; id stays folderSync */
+  syncId?: string
+}
 
 /** clipboard items and the palette itself are not useful as palette entries */
 export const PALETTE_HIDDEN: ReadonlySet<MenuAction> = new Set<MenuAction>(['commandPalette', 'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll'])
@@ -9,6 +19,9 @@ export const PALETTE_HIDDEN: ReadonlySet<MenuAction> = new Set<MenuAction>(['com
 export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   connection: 'xinjianlianjie new conn',
   sftp: 'wenjian sftp chuanshu',
+  folderSync: 'tongbu wenjianjia sync folder',
+  smartComplete: 'zhineng buquan complete history',
+  clearHostHistory: 'qingchu lishi history clear',
   resourceMonitor: 'jiankong ziyuan monitor cpu',
   serverTools: 'gongjuxiang toolbox jincheng',
   dashboard: 'kanban duoji multihost',

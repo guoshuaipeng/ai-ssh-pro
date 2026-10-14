@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SavedSessionProfile } from '@shared/ipc'
+import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
 
@@ -10,6 +11,8 @@ type Props = {
   profiles: SavedSessionProfile[]
   /** recently used first: host|port|user keys from the recent list */
   recentKeys: string[]
+  statusById?: Record<string, HostProbeResult | null | undefined>
+  groupOf?: (p: SavedSessionProfile) => string | undefined
   /** connect; resolves to an error message, or null on success (the caller then opens the feature) */
   onPick: (p: SavedSessionProfile) => Promise<string | null>
   onNewConnection: () => void
@@ -19,7 +22,7 @@ type Props = {
 const keyOf = (p: { host: string; port?: number; username: string }) => `${p.host}|${p.port || 22}|${p.username}`.toLowerCase()
 
 /** UX-09: a session-needing feature was opened without a connection → pick a host, auto-connect, then open it. */
-export default function HostPicker({ open, feature, profiles, recentKeys, onPick, onNewConnection, onClose }: Props) {
+export default function HostPicker({ open, feature, profiles, recentKeys, statusById, groupOf, onPick, onNewConnection, onClose }: Props) {
   const { t } = useI18n()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
@@ -123,8 +126,17 @@ export default function HostPicker({ open, feature, profiles, recentKeys, onPick
               {list.map((p, i) => (
                 <div key={p.id} className={`cmdp-item host-picker-item${i === sel ? ' is-active' : ''}`} onMouseEnter={() => setSel(i)}>
                   <button type="button" role="option" aria-selected={i === sel} className="host-picker-main" onClick={() => void pick(p)}>
+                    {(() => {
+                      const st = statusById ? (statusById[p.id] ?? null) : undefined
+                      const level = st === undefined ? null : hostStatusLevel(st ?? undefined)
+                      return level ? <span className={`host-status-dot host-status-dot--${level}`} data-status={level} data-testid="host-picker-status" /> : null
+                    })()}
                     <span className="cmdp-label">{p.label}</span>
-                    <span className="cmdp-group">{p.demo ? 'DEMO' : `${p.username}@${p.host}`}</span>
+                    <span className="cmdp-group">
+                      {groupOf?.(p) ? `${groupOf(p)} · ` : ''}
+                      {p.demo ? 'DEMO' : `${p.username}@${p.host}`}
+                    </span>
+                    {statusById?.[p.id]?.latencyMs != null ? <span className="host-status-ms">{statusById[p.id]!.latencyMs} ms</span> : null}
                     {busyId === p.id ? <span className="ai-spinner" aria-label={t('ux09.connecting')} /> : null}
                   </button>
                   {errors[p.id] ? (

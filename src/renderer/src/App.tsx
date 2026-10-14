@@ -31,6 +31,8 @@ import SnippetsPanel from './components/SnippetsPanel'
 import TerminalPrefsModal from './components/TerminalPrefsModal'
 import UiThemeModal from './components/UiThemeModal'
 import SftpPanel from './components/SftpPanel'
+import { askSftpClose, clearArmedFolderSync, requestFolderSync, takeArmedFolderSync } from './lib/sftp-activity'
+import { clearHostHistory, countHostHistory, loadSmartPrefs, saveSmartPrefs, SMART_PREFS_EVENT } from './lib/smart-history'
 import RemoteTextEditor from './components/RemoteTextEditor'
 import DockerPanel from './components/DockerPanel'
 import SessionDockerBranch, { type DockerTreeCache } from './components/SessionDockerBranch'
@@ -74,8 +76,10 @@ import WelcomeTour, { TOUR_DONE_KEY } from './components/WelcomeTour'
 import AiAssistCard from './components/AiAssistCard'
 import {
   AI_EXPLAIN_EVENT,
+  aiHasKey,
   enterAiMode,
   fillCommandBar,
+  flashAiConfig,
   lastErrorFor,
   lastErrorSessionId,
   requestAiExplain,
@@ -208,7 +212,7 @@ function uuid(): string {
 }
 
 /** UX-09: actions that need a connected SSH session; with none connected they open the host picker. */
-const PICKER_ACTIONS = new Set<MenuAction>(['resourceMonitor', 'serverTools', 'sftp', 'portForward', 'batchExec', 'aiCommand'])
+const PICKER_ACTIONS = new Set<MenuAction>(['resourceMonitor', 'serverTools', 'sftp', 'folderSync', 'portForward', 'batchExec', 'aiCommand'])
 
 function featureLabel(action: MenuAction, locale: string): string {
   for (const m of SHARED_MENUS) {
@@ -217,6 +221,12 @@ function featureLabel(action: MenuAction, locale: string): string {
     }
   }
   return action
+}
+
+function sessionHostKey(tab: { profileId?: string; connectOpts: { username?: string; host?: string; port?: number } }): string {
+  if (tab.profileId) return `profile:${tab.profileId}`
+  const o = tab.connectOpts
+  return `${o.username || ''}@${o.host || ''}:${o.port || 22}`
 }
 
 function formatDuration(ms: number): string {
@@ -264,6 +274,7 @@ export default function App() {
   const [alertModalTab, setAlertModalTab] = useState<'rules' | 'history'>('rules')
   const [inspectOpen, setInspectOpen] = useState(false)
   const [aiConfigured, setAiConfigured] = useState(false)
+  const [smartOn, setSmartOn] = useState(() => loadSmartPrefs().enabled)
   const alertBreachSinceRef = useRef(new Map<string, number>())
   const alertLastFiredRef = useRef(new Map<string, number>())
   const [activeAlertIds, setActiveAlertIds] = useState<Set<string>>(() => new Set())
@@ -871,7 +882,18 @@ export default function App() {
     username
   ])
 
+  const closeTabRef = useRef<(tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => void>(() => {})
+  const sftpBypassRef = useRef(false)
   const closeTab = useCallback((tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => {
+    if (view === 'sftp' && !sftpBypassRef.current) {
+      void askSftpClose().then((answer) => {
+        if (answer === 'stay') return
+        sftpBypassRef.current = true
+        closeTabRef.current(tabId, sessionId, status, view)
+        sftpBypassRef.current = false
+      })
+      return
+    }
     if (view === 'connection') {
       setEditingSavedId(null)
       setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
@@ -933,6 +955,7 @@ export default function App() {
     setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
     setActiveTabId((cur) => (cur === tabId ? null : cur))
   }, [])
+  closeTabRef.current = closeTab
 
   const commitRename = useCallback(() => {
     const id = renamingTabId
@@ -1160,7 +1183,7 @@ export default function App() {
       setTabs((prev) =>
         prev.map((t) =>
           t.tabId === existing.tabId
-            ? { ...t, title, boundSessionId: bound.sessionId, connectOpts: bound.connectOpts }
+            ? { ...t, title, boundSessionId: bound.sessionId, connectOpts: bound.connectOpts, profileId: bound.profileId }
             : t
         )
       )
@@ -1177,7 +1200,8 @@ export default function App() {
         connectOpts: bound.connectOpts,
         status: 'connected',
         view: 'sftp',
-        boundSessionId: bound.sessionId
+        boundSessionId: bound.sessionId,
+        profileId: bound.profileId
       }
     ])
     setActiveTabId(tabId)
@@ -1320,6 +1344,17 @@ export default function App() {
       setAiConfigured(Boolean(p?.apiKey && p?.baseURL && s?.model))
     }).catch(() => setAiConfigured(false))
   }, [layout.showAi, inspectOpen])
+
+  useEffect(() => {
+    const sync = () => setSmartOn(loadSmartPrefs().enabled)
+    window.addEventListener(SMART_PREFS_EVENT, sync)
+    return () => window.removeEventListener(SMART_PREFS_EVENT, sync)
+  }, [])
+  useEffect(() => {
+    const onNeed = () => updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+    window.addEventListener('aiss-ai-need-config', onNeed)
+    return () => window.removeEventListener('aiss-ai-need-config', onNeed)
+  }, [updateLayout])
 
   // O2: evaluate thresholds from dashboard/monitor snapshots periodically
   useEffect(() => {
@@ -2327,6 +2362,44 @@ export default function App() {
 
   const handleTitlebarMenuAction = useCallback(
     (action: TitlebarMenuAction) => {
+      if (action === 'aiExplainError' || action === 'aiCommand' || action === 'aiInspect') {
+        void aiHasKey().then((ready) => {
+          if (!ready) {
+            flashAiConfig(action === 'aiCommand' ? 'command' : 'explain')
+            return
+          }
+          if (action === 'aiInspect') {
+            setInspectOpen(true)
+            return
+          }
+          if (action === 'aiExplainError') {
+            const sid = activeSessionIdRef.current
+            const text = lastErrorFor(sid) ?? lastErrorFor(null)
+            const target = lastErrorFor(sid) ? sid : lastErrorSessionId()
+            if (!text || !target) {
+              showToast(tg('a1.noError'))
+              return
+            }
+            requestAiExplain({ sessionId: target, text, source: 'palette' })
+            return
+          }
+          if (connectedSshSessionsRef.current.length === 0) {
+            setHostPicker({ action, feature: featureLabel(action, locale) })
+            return
+          }
+          const sid = activeSessionIdRef.current
+          if (sid) {
+            enterAiMode(sid)
+            return
+          }
+          const tab = tabsRef.current.find((x) => (!x.view || x.view === 'session') && x.status === 'connected' && x.sessionId)
+          if (tab) {
+            setActiveTabId(tab.tabId)
+            window.setTimeout(() => enterAiMode(tab.sessionId), 120)
+          }
+        })
+        return
+      }
       // UX-09: features that need a session open the host picker when nothing is connected
       if (PICKER_ACTIONS.has(action) && connectedSshSessionsRef.current.length === 0) {
         setHostPicker({ action, feature: featureLabel(action, locale) })
@@ -2338,30 +2411,6 @@ export default function App() {
       }
       if (action === 'demoHost') {
         void addDemoHostRef.current(true)
-        return
-      }
-      if (action === 'aiExplainError') {
-        const sid = activeSessionIdRef.current
-        const text = lastErrorFor(sid) ?? lastErrorFor(null)
-        const target = lastErrorFor(sid) ? sid : lastErrorSessionId()
-        if (!text || !target) {
-          showToast(tg('a1.noError'))
-          return
-        }
-        requestAiExplain({ sessionId: target, text, source: 'palette' })
-        return
-      }
-      if (action === 'aiCommand') {
-        const sid = activeSessionIdRef.current
-        if (sid) {
-          enterAiMode(sid)
-          return
-        }
-        const tab = tabsRef.current.find((x) => (!x.view || x.view === 'session') && x.status === 'connected' && x.sessionId)
-        if (tab) {
-          setActiveTabId(tab.tabId)
-          window.setTimeout(() => enterAiMode(tab.sessionId), 120)
-        }
         return
       }
       if (action === 'quit') {
@@ -2416,6 +2465,32 @@ export default function App() {
         openSftpTransfer()
         return
       }
+      if (action === 'folderSync') {
+        const armed = takeArmedFolderSync()
+        requestFolderSync(armed.set ? armed.profileId : undefined)
+        openSftpTransfer()
+        return
+      }
+      if (action === 'smartComplete') {
+        const cur = loadSmartPrefs()
+        const next = saveSmartPrefs({ ...cur, enabled: !cur.enabled })
+        showToast(next.enabled ? tg('x1.toggleOn') : tg('x1.toggleOff'))
+        return
+      }
+      if (action === 'clearHostHistory') {
+        const tab =
+          tabsRef.current.find((x) => x.tabId === activeTabId && (!x.view || x.view === 'session') && x.kind !== 'local') ||
+          tabsRef.current.find((x) => (!x.view || x.view === 'session') && x.kind !== 'local' && x.status === 'connected')
+        const hk = tab ? sessionHostKey(tab) : ''
+        const host = tab ? tab.connectOpts.label?.trim() || tab.title : ''
+        const n = countHostHistory(hk)
+        void askConfirm(tg('x1.clear'), tg('x1.clearConfirm', { host: host || '—', n }), { danger: true, okLabel: tg('x1.clear') }).then((ok) => {
+          if (!ok) return
+          const removed = clearHostHistory(hk).removed
+          showToast(tg('x1.cleared', { n: removed }))
+        })
+        return
+      }
       if (action === 'refreshDocker') {
         refreshDockerForActiveHost()
         return
@@ -2450,10 +2525,6 @@ export default function App() {
       if (action === 'alertHistory') {
         setAlertModalTab('history')
         setAlertModalOpen(true)
-        return
-      }
-      if (action === 'aiInspect') {
-        setInspectOpen(true)
         return
       }
       if (action === 'toggleRecording') {
@@ -2706,7 +2777,11 @@ export default function App() {
       else if (action === 'serverTools') {
         openToolTabRef.current('toolbox', sid)
       } else if (action === 'sftp') openSftpTransfer(sid)
-      else if (action === 'portForward') openToolTabRef.current('forward', sid)
+      else if (action === 'folderSync') {
+        const armed = takeArmedFolderSync()
+        requestFolderSync(armed.set ? armed.profileId : undefined)
+        openSftpTransfer(sid)
+      } else if (action === 'portForward') openToolTabRef.current('forward', sid)
       else if (action === 'batchExec') {
         openToolTabRef.current('batch', sid)
       } else if (action === 'aiCommand') window.setTimeout(() => enterAiMode(sid), 120)
@@ -2873,7 +2948,8 @@ export default function App() {
           toggleSplit: splitEnabled,
           toggleHostStatus: showHostStatus,
           toggleBroadcast: broadcastEnabled,
-          toggleRecording: Boolean(recordingSessionId)
+          toggleRecording: Boolean(recordingSessionId),
+          smartComplete: smartOn
         }}
       />
 
@@ -3218,6 +3294,7 @@ export default function App() {
             <SessionCommandBar
               sessionId={activeTab.sessionId}
               hostLabel={activeTab.connectOpts.label?.trim() || activeTab.title}
+              hostKey={sessionHostKey(activeTab)}
               onOpenAiSettings={() => openSettingsTab('ai')}
             />
           ) : null}
@@ -3229,7 +3306,7 @@ export default function App() {
                 icon="⌨"
                 title={tr('ux08.termTitle')}
                 desc={tr('ux08.termDesc')}
-                primary={{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor() }}
+                primary={{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor(), avoid: true }}
                 secondary={[{ label: tr('ux08.palette'), onClick: () => setPaletteOpen(true) }]}
               >
                 <RecentConnections variant="welcome" limit={5} hideWhenEmpty onQuickConnect={quickConnectRecent} />
@@ -3412,6 +3489,11 @@ export default function App() {
                     key={t.boundSessionId || t.tabId}
                     sessionId={t.boundSessionId || null}
                     sessionTitle={t.title.replace(/^[^·]+ · /, '')}
+                    hostKey={sessionHostKey(t)}
+                    hostLabel={t.connectOpts.label?.trim() || t.title}
+                    hostName={t.connectOpts.host}
+                    tags={profiles.find((p) => p.id === t.profileId)?.tags}
+                    connected={tabs.some((x) => x.sessionId === t.boundSessionId && x.status === 'connected')}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     onOpenRemoteFile={(info) => {
                       if (!t.boundSessionId) return
@@ -3488,6 +3570,7 @@ export default function App() {
                       active={t.tabId === activeTabId}
                       prefs={terminalPrefs}
                       broadcastEnabled={broadcastEnabled}
+                      hostKey={sessionHostKey(t)}
                       onSecondaryChange={setSplitSecondary}
                       peers={connectedSshSessions
                         .filter((x) => x.sessionId !== t.sessionId)
@@ -3498,6 +3581,7 @@ export default function App() {
                       sessionId={t.sessionId}
                       active={t.tabId === activeTabId}
                       prefs={terminalPrefs}
+                      hostKey={sessionHostKey(t)}
                       onUserData={
                         broadcastEnabled && broadcastSessions.length > 1
                           ? (data) => {
@@ -3566,9 +3650,14 @@ export default function App() {
         feature={hostPicker?.feature ?? ''}
         profiles={profiles}
         recentKeys={recentKeys}
+        statusById={showHostStatus ? hostStatus : undefined}
+        groupOf={(p) => (p.folderId ? folders.find((f) => f.id === p.folderId)?.name : undefined)}
         onPick={pickHostForFeature}
         onNewConnection={() => openConnectionEditor()}
-        onClose={() => setHostPicker(null)}
+        onClose={() => {
+          clearArmedFolderSync()
+          setHostPicker(null)
+        }}
       />
       <WelcomeTour open={tourOpen} onClose={closeTour} ensureAiVisible={ensureAiVisible} />
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
@@ -3587,7 +3676,7 @@ export default function App() {
           openToolTabRef.current('toolbox', sid)
         }}
       />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onAction={handleTitlebarMenuAction} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onAction={handleTitlebarMenuAction} aiReady={aiConfigured} />
       <WhatsNewModal
         open={whatsNewOpen}
         version={appVersion}
