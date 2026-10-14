@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { RecentConnection } from '@shared/workspace-features'
 import TitlebarMenus, { type TitlebarMenuAction } from './TitlebarMenus'
+import RecentConnections from './RecentConnections'
 import {
   isLightUiTheme,
   isUiThemeId,
@@ -7,6 +9,7 @@ import {
   toggleLightDarkTheme,
   type UiThemeId
 } from '../lib/ui-themes'
+import { useI18n } from '../lib/i18n'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -16,6 +19,8 @@ type Props = {
   showSidebar?: boolean
   showMain?: boolean
   showAi?: boolean
+  onOpenBatch?: () => void
+  onQuickConnect?: (row: RecentConnection) => void
 }
 
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
@@ -110,10 +115,15 @@ export default function AppToolbar({
   onToggleAi,
   showSidebar = true,
   showMain = true,
-  showAi = true
+  showAi = true,
+  onOpenBatch,
+  onQuickConnect
 }: Props) {
+  const { t, locale, setLocale } = useI18n()
   const [version, setVersion] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [recentOpen, setRecentOpen] = useState(false)
+  const recentRef = useRef<HTMLDivElement>(null)
   const [themeId, setThemeId] = useState<UiThemeId>(() => loadUiThemeId())
   const lightMode = isLightUiTheme(themeId)
 
@@ -141,6 +151,22 @@ export default function AppToolbar({
     return () => window.removeEventListener('aiss-ui-theme', onTheme)
   }, [])
 
+  useEffect(() => {
+    if (!recentOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (!recentRef.current?.contains(e.target as Node)) setRecentOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRecentOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [recentOpen])
+
   const onOpenGithub = useCallback(() => {
     void window.aiss.app.openGithub().catch((e) => {
       window.alert(e instanceof Error ? e.message : String(e))
@@ -157,9 +183,7 @@ export default function AppToolbar({
     try {
       const result = await window.aiss.app.checkUpdate()
       if (result.status === 'available') {
-        const openDownload = window.confirm(
-          `${result.message}\n\n点击「确定」打开下载页并安装新版本。`
-        )
+        const openDownload = window.confirm(t('update.available', { message: result.message }))
         if (openDownload) {
           const url = result.downloadUrl || result.releaseUrl
           if (url) await window.aiss.app.openExternal(url)
@@ -167,12 +191,12 @@ export default function AppToolbar({
         return
       }
       if (result.status === 'noRelease') {
-        const openRepo = window.confirm(`${result.message}\n\n是否打开 GitHub Releases 页面？`)
+        const openRepo = window.confirm(t('update.noRelease', { message: result.message }))
         if (openRepo && result.releaseUrl) await window.aiss.app.openExternal(result.releaseUrl)
         return
       }
       if (result.status === 'error') {
-        const openRepo = window.confirm(`检查更新失败：${result.message}\n\n是否打开 GitHub 仓库？`)
+        const openRepo = window.confirm(t('update.failed', { message: result.message }))
         if (openRepo) await window.aiss.app.openGithub()
         return
       }
@@ -182,7 +206,7 @@ export default function AppToolbar({
     } finally {
       setCheckingUpdate(false)
     }
-  }, [checkingUpdate])
+  }, [checkingUpdate, t])
 
   return (
     <header className="app-titlebar">
@@ -191,45 +215,90 @@ export default function AppToolbar({
         <TitlebarMenus onAction={onMenuAction} />
       </div>
       <div className="app-titlebar-spacer" />
-      <div className="app-titlebar-corner" role="group" aria-label="应用操作">
+      <div className="app-titlebar-corner" role="group" aria-label={t('toolbar.appActions')}>
+        {onOpenBatch ? (
+          <button
+            type="button"
+            className="titlebar-icon-btn"
+            title={t('toolbar.batchTitle')}
+            aria-label={t('toolbar.batchTitle')}
+            onClick={onOpenBatch}
+          >
+            <span>{t('toolbar.batch')}</span>
+          </button>
+        ) : null}
+        {onQuickConnect ? (
+          <div className="titlebar-popover-wrap" ref={recentRef}>
+            <button
+              type="button"
+              className="titlebar-icon-btn"
+              title={t('toolbar.recentTitle')}
+              aria-label={t('toolbar.recentTitle')}
+              aria-expanded={recentOpen}
+              onClick={() => setRecentOpen((v) => !v)}
+            >
+              <span>{t('toolbar.recent')}</span>
+            </button>
+            {recentOpen ? (
+              <div className="titlebar-popover">
+                <RecentConnections
+                  variant="menu"
+                  onQuickConnect={(row) => {
+                    setRecentOpen(false)
+                    onQuickConnect(row)
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="titlebar-icon-btn titlebar-locale-btn"
+          title={t('toolbar.localeTitle', { locale: locale === 'en' ? 'English' : '简体中文' })}
+          aria-label={t('toolbar.localeTitle', { locale: locale === 'en' ? 'English' : '简体中文' })}
+          onClick={() => setLocale(locale === 'en' ? 'zh-CN' : 'en')}
+        >
+          <span>{locale === 'en' ? 'EN' : '中文'}</span>
+        </button>
         <button
           type="button"
           className="titlebar-icon-btn"
-          title={version ? `检查更新（当前 v${version}）` : '检查更新'}
-          aria-label="检查更新"
+          title={version ? t('toolbar.checkUpdate', { version }) : t('toolbar.checkUpdatePlain')}
+          aria-label={t('toolbar.checkUpdatePlain')}
           disabled={checkingUpdate}
           onClick={() => void onCheckUpdate()}
         >
           <UpdateIcon />
-          <span>{checkingUpdate ? '检查中…' : '更新'}</span>
+          <span>{checkingUpdate ? t('toolbar.checking') : t('toolbar.update')}</span>
         </button>
         <button
           type="button"
           className="titlebar-icon-btn"
-          title="在浏览器打开 GitHub 仓库"
-          aria-label="打开 GitHub"
+          title={t('toolbar.openGithub')}
+          aria-label={t('toolbar.github')}
           onClick={onOpenGithub}
         >
           <GithubIcon />
-          <span>GitHub</span>
+          <span>{t('toolbar.github')}</span>
         </button>
         <button
           type="button"
           className="titlebar-icon-btn"
-          title={lightMode ? '切换为深色模式' : '切换为浅色模式'}
-          aria-label={lightMode ? '切换为深色模式' : '切换为浅色模式'}
+          title={lightMode ? t('toolbar.toDark') : t('toolbar.toLight')}
+          aria-label={lightMode ? t('toolbar.toDark') : t('toolbar.toLight')}
           aria-pressed={lightMode}
           onClick={onToggleTheme}
         >
           <ThemeToggleIcon light={lightMode} />
-          <span>{lightMode ? '深色' : '浅色'}</span>
+          <span>{lightMode ? t('toolbar.dark') : t('toolbar.light')}</span>
         </button>
-        <div className="app-toolbar-layout" role="group" aria-label="布局显隐">
+        <div className="app-toolbar-layout" role="group" aria-label={t('toolbar.layout')}>
           {onToggleSidebar ? (
             <button
               type="button"
               className={`layout-toggle-btn ${showSidebar ? 'is-on' : ''}`}
-              title={showSidebar ? '隐藏左侧会话栏' : '显示左侧会话栏'}
+              title={showSidebar ? t('toolbar.hideSidebar') : t('toolbar.showSidebar')}
               aria-pressed={showSidebar}
               onClick={onToggleSidebar}
             >
@@ -240,7 +309,7 @@ export default function AppToolbar({
             <button
               type="button"
               className={`layout-toggle-btn ${showMain ? 'is-on' : ''}`}
-              title={showMain ? '隐藏中间终端区' : '显示中间终端区'}
+              title={showMain ? t('toolbar.hideMain') : t('toolbar.showMain')}
               aria-pressed={showMain}
               onClick={onToggleMain}
             >
@@ -251,7 +320,7 @@ export default function AppToolbar({
             <button
               type="button"
               className={`layout-toggle-btn ${showAi ? 'is-on' : ''}`}
-              title={showAi ? '隐藏右侧 AI 面板' : '显示右侧 AI 面板'}
+              title={showAi ? t('toolbar.hideAi') : t('toolbar.showAi')}
               aria-pressed={showAi}
               onClick={onToggleAi}
             >

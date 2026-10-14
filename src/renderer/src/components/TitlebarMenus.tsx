@@ -1,75 +1,87 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppDialogKind } from '@shared/ipc'
+import { useI18n, type MessageKey } from '../lib/i18n'
 
-export type TitlebarMenuAction = AppDialogKind | 'quit' | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll'
+export type TitlebarMenuAction =
+  | AppDialogKind
+  | 'quit'
+  | 'undo'
+  | 'redo'
+  | 'cut'
+  | 'copy'
+  | 'paste'
+  | 'selectAll'
+  | 'batchExec'
 
 type MenuItem =
-  | { type: 'item'; id: TitlebarMenuAction; label: string; shortcut?: string }
+  | { type: 'item'; id: TitlebarMenuAction; label: MessageKey; shortcut?: string }
   | { type: 'sep' }
 
-type MenuDef = { id: string; label: string; items: MenuItem[] }
+type MenuDef = { id: string; label: MessageKey; items: MenuItem[] }
 
 const MENUS: MenuDef[] = [
   {
     id: 'session',
-    label: '会话',
+    label: 'menu.session',
     items: [
-      { type: 'item', id: 'connection', label: '新建连接', shortcut: 'Ctrl+Shift+N' },
-      { type: 'item', id: 'localShell', label: '本机 Shell' },
-      { type: 'item', id: 'sftp', label: '文件传输', shortcut: 'Ctrl+Shift+F' },
-      { type: 'item', id: 'refreshDocker', label: '刷新 Docker', shortcut: 'Ctrl+Shift+D' },
+      { type: 'item', id: 'connection', label: 'menu.newConnection', shortcut: 'Ctrl+Shift+N' },
+      { type: 'item', id: 'localShell', label: 'menu.localShell' },
+      { type: 'item', id: 'sftp', label: 'menu.sftp', shortcut: 'Ctrl+Shift+F' },
+      { type: 'item', id: 'refreshDocker', label: 'menu.refreshDocker', shortcut: 'Ctrl+Shift+D' },
       { type: 'sep' },
-      { type: 'item', id: 'newFolder', label: '新建文件夹' },
-      { type: 'item', id: 'importSessions', label: '导入会话…' },
-      { type: 'item', id: 'exportOpenssh', label: '导出 OpenSSH…' },
-      { type: 'item', id: 'exportJson', label: '导出 JSON…' },
+      { type: 'item', id: 'batchExec', label: 'menu.batchExec' },
       { type: 'sep' },
-      { type: 'item', id: 'toggleSplit', label: '分屏' },
-      { type: 'item', id: 'toggleBroadcast', label: '切换广播输入' },
-      { type: 'item', id: 'toggleRecording', label: '开始/停止录制' },
+      { type: 'item', id: 'newFolder', label: 'menu.newFolder' },
+      { type: 'item', id: 'importSessions', label: 'menu.importSessions' },
+      { type: 'item', id: 'exportOpenssh', label: 'menu.exportOpenssh' },
+      { type: 'item', id: 'exportJson', label: 'menu.exportJson' },
       { type: 'sep' },
-      { type: 'item', id: 'ai', label: 'AI 配置', shortcut: 'Ctrl+,' },
-      { type: 'item', id: 'debug', label: 'AI 助手调试…' },
+      { type: 'item', id: 'toggleSplit', label: 'menu.split' },
+      { type: 'item', id: 'toggleBroadcast', label: 'menu.broadcast' },
+      { type: 'item', id: 'toggleRecording', label: 'menu.recording' },
       { type: 'sep' },
-      { type: 'item', id: 'snippets', label: '命令片段' },
-      { type: 'item', id: 'inventory', label: '主机档案', shortcut: 'Ctrl+Shift+H' },
-      { type: 'item', id: 'mcpGuide', label: 'MCP 安装指南…' }
+      { type: 'item', id: 'ai', label: 'menu.ai', shortcut: 'Ctrl+,' },
+      { type: 'item', id: 'debug', label: 'menu.debug' },
+      { type: 'sep' },
+      { type: 'item', id: 'snippets', label: 'menu.snippets' },
+      { type: 'item', id: 'inventory', label: 'menu.inventory', shortcut: 'Ctrl+Shift+H' },
+      { type: 'item', id: 'mcpGuide', label: 'menu.mcpGuide' }
     ]
   },
   {
     id: 'edit',
-    label: '编辑',
+    label: 'menu.edit',
     items: [
-      { type: 'item', id: 'undo', label: '撤销', shortcut: 'Ctrl+Z' },
-      { type: 'item', id: 'redo', label: '重做', shortcut: 'Ctrl+Y' },
+      { type: 'item', id: 'undo', label: 'menu.undo', shortcut: 'Ctrl+Z' },
+      { type: 'item', id: 'redo', label: 'menu.redo', shortcut: 'Ctrl+Y' },
       { type: 'sep' },
-      { type: 'item', id: 'cut', label: '剪切', shortcut: 'Ctrl+X' },
-      { type: 'item', id: 'copy', label: '复制', shortcut: 'Ctrl+C' },
-      { type: 'item', id: 'paste', label: '粘贴', shortcut: 'Ctrl+V' },
-      { type: 'item', id: 'selectAll', label: '全选', shortcut: 'Ctrl+A' }
+      { type: 'item', id: 'cut', label: 'menu.cut', shortcut: 'Ctrl+X' },
+      { type: 'item', id: 'copy', label: 'menu.copy', shortcut: 'Ctrl+C' },
+      { type: 'item', id: 'paste', label: 'menu.paste', shortcut: 'Ctrl+V' },
+      { type: 'item', id: 'selectAll', label: 'menu.selectAll', shortcut: 'Ctrl+A' }
     ]
   },
   {
     id: 'view',
-    label: '查看',
+    label: 'menu.view',
     items: [
-      { type: 'item', id: 'toggleSidebar', label: '切换左侧会话栏', shortcut: 'Ctrl+B' },
-      { type: 'item', id: 'toggleMain', label: '切换中间终端区' },
-      { type: 'item', id: 'toggleAi', label: '切换右侧 AI 面板', shortcut: 'Ctrl+Alt+B' },
+      { type: 'item', id: 'toggleSidebar', label: 'menu.toggleSidebar', shortcut: 'Ctrl+B' },
+      { type: 'item', id: 'toggleMain', label: 'menu.toggleMain' },
+      { type: 'item', id: 'toggleAi', label: 'menu.toggleAi', shortcut: 'Ctrl+Alt+B' },
       { type: 'sep' },
-      { type: 'item', id: 'uiTheme', label: '界面主题' },
-      { type: 'item', id: 'terminalPrefs', label: '终端外观' }
+      { type: 'item', id: 'uiTheme', label: 'menu.uiTheme' },
+      { type: 'item', id: 'terminalPrefs', label: 'menu.terminalPrefs' }
     ]
   },
   {
     id: 'file',
-    label: '文件',
-    items: [{ type: 'item', id: 'quit', label: '退出', shortcut: 'Alt+F4' }]
+    label: 'menu.file',
+    items: [{ type: 'item', id: 'quit', label: 'menu.quit', shortcut: 'Alt+F4' }]
   },
   {
     id: 'help',
-    label: '帮助',
-    items: [{ type: 'item', id: 'about', label: '关于 AI-SSH-Pro' }]
+    label: 'menu.help',
+    items: [{ type: 'item', id: 'about', label: 'menu.about' }]
   }
 ]
 
@@ -79,6 +91,7 @@ type Props = {
 
 /** 标题栏内嵌菜单（替代被隐藏的系统菜单栏） */
 export default function TitlebarMenus({ onAction }: Props) {
+  const { t } = useI18n()
   const [openId, setOpenId] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -114,7 +127,7 @@ export default function TitlebarMenus({ onAction }: Props) {
                 if (openId) setOpenId(menu.id)
               }}
             >
-              {menu.label}
+              {t(menu.label)}
             </button>
             {open ? (
               <div className="titlebar-menu-dropdown" role="menu">
@@ -132,7 +145,7 @@ export default function TitlebarMenus({ onAction }: Props) {
                         onAction(item.id)
                       }}
                     >
-                      <span>{item.label}</span>
+                      <span>{t(item.label)}</span>
                       {item.shortcut ? <span className="titlebar-menu-shortcut">{item.shortcut}</span> : null}
                     </button>
                   )

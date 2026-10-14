@@ -16,8 +16,10 @@ import {
   getSnippets,
   setSnippets,
   getAiChatHistory,
-  setAiChatHistory
+  setAiChatHistory,
+  recordRecentConnection
 } from './app-store'
+import { registerWorkspaceIpc } from './workspace-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
 import { streamOpenAICompatibleChat } from './ai-stream'
 import { setDebugWindowWebContents } from './debug-window-broadcast'
@@ -344,7 +346,22 @@ function openDebugWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle('ssh:connect', async (event, opts: SshConnectOptions) => {
-    return await sshManager.connect(opts, event.sender)
+    const result = await sshManager.connect(opts, event.sender)
+    try {
+      recordRecentConnection({
+        host: result.meta.host,
+        port: result.meta.port,
+        username: result.meta.username,
+        label: result.meta.label,
+        lastConnectedAt: result.meta.connectedAt
+      })
+    } catch (err) {
+      console.error(
+        '[workspace] failed to record recent connection:',
+        err instanceof Error ? err.message : 'error'
+      )
+    }
+    return result
   })
 
   ipcMain.handle('ssh:openLocalShell', (event) => {
@@ -753,6 +770,8 @@ function registerIpc(): void {
   ipcMain.handle('debug:openWindow', () => {
     openDebugWindow()
   })
+
+  registerWorkspaceIpc(sshManager)
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()

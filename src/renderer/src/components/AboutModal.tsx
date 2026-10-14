@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
+import { useI18n } from '../lib/i18n'
 
 type Props = {
   open: boolean
@@ -7,6 +8,7 @@ type Props = {
 }
 
 export default function AboutModal({ open, onClose }: Props) {
+  const { t } = useI18n()
   const [version, setVersion] = useState('')
 
   useEffect(() => {
@@ -28,21 +30,20 @@ export default function AboutModal({ open, onClose }: Props) {
   return (
     <Modal
       open={open}
-      title="关于 AI-SSH-Pro"
+      title={t('about.title')}
       onClose={onClose}
       width={420}
       footer={
         <button type="button" className="primary" onClick={onClose}>
-          确定
+          {t('about.ok')}
         </button>
       }
     >
       <div className="about-modal">
         <div className="about-modal-brand">AI-SSH-Pro</div>
-        <p className="about-modal-desc">类 Xshell 的多会话 SSH 客户端，集成 AI 对话</p>
+        <p className="about-modal-desc">{t('about.desc')}</p>
         <p className="about-modal-version">
-          当前版本{' '}
-          <strong>{version ? `v${version}` : '…'}</strong>
+          {t('about.version')} <strong>{version ? `v${version}` : '…'}</strong>
         </p>
         <button
           type="button"
@@ -53,7 +54,7 @@ export default function AboutModal({ open, onClose }: Props) {
             })
           }}
         >
-          打开 GitHub 仓库
+          {t('about.github')}
         </button>
       </div>
     </Modal>

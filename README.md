@@ -26,6 +26,10 @@
 - **Recording** — capture terminal output
 - **Local shell** — optional local PTY (requires `node-pty`; may need rebuild — see below)
 - **Host inventory** — local host knowledge base (services, notes); AI + MCP share the same files
+- **Batch execute** — pick connected SSH sessions and run one command on all of them after an explicit click; each session shows its own result
+- **Command history** — recent commands (up to 200) stored locally; Up-arrow and suggestions in the command bar
+- **Recent connections** — successful connects (host, user, port, label, time) with bookmarks. Passwords and keys are not stored; quick-connect reuses a saved session when one matches
+- **Interface language** — Simplified Chinese (default) and English for the main chrome and these features; the choice is saved on this machine
 
 ## Development
 
@@ -112,6 +116,9 @@ Optional environment variables:
 - Host keys live in a separate store: `ai-ssh-pro-known-hosts`.
 - Do not save production credentials on untrusted machines.
 - **No cloud sync.** Back up with JSON session export/import; there is no remote account or sync service.
+- Recent connections store host, user, port, label, and time only. They do not store passwords, key paths, or passphrases.
+- Command history stores the commands you choose to send (capped at about 200) in the same local store. If you type a secret into a command, that text stays on this machine until you clear history.
+- There is no telemetry.
 
 ## Local shell (`node-pty`)
 
@@ -129,6 +136,12 @@ If `node-pty` fails to install or rebuild, SSH and the rest of the app still wor
 - `src/preload` — `window.aiss` bridge
 - `src/renderer` — React UI
 - `src/shared/ipc.ts` — shared types and IPC protocol
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Security reports: [SECURITY.md](./SECURITY.md).
+
+中文说明：[README.zh-CN.md](./README.zh-CN.md).
 
 ## License
 

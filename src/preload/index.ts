@@ -32,6 +32,12 @@ import type {
   McpGuideInfo
 } from '../shared/ipc'
 import type {
+  BatchExecRequest,
+  BatchExecResult,
+  LocaleId,
+  RecentConnection
+} from '../shared/workspace-features'
+import type {
   HostInventoryIndexEntry,
   HostInventoryRecord,
   HostInventoryUpsertInput,
@@ -241,6 +247,25 @@ const api = {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiDebugStreamPayload)
       ipcRenderer.on('ai-debug:push', fn)
       return () => unsub('ai-debug:push', fn)
+    }
+  },
+  workspace: {
+    batchExec: (payload: BatchExecRequest): Promise<BatchExecResult> =>
+      ipcRenderer.invoke('workspace:batchExec', payload),
+    commandHistory: {
+      list: (): Promise<string[]> => ipcRenderer.invoke('workspace:commandHistory:list'),
+      push: (command: string): Promise<string[]> => ipcRenderer.invoke('workspace:commandHistory:push', command),
+      clear: (): Promise<string[]> => ipcRenderer.invoke('workspace:commandHistory:clear')
+    },
+    recent: {
+      list: (): Promise<RecentConnection[]> => ipcRenderer.invoke('workspace:recent:list'),
+      remove: (id: string): Promise<RecentConnection[]> => ipcRenderer.invoke('workspace:recent:remove', id),
+      pin: (id: string, pinned: boolean): Promise<RecentConnection[]> =>
+        ipcRenderer.invoke('workspace:recent:pin', id, pinned)
+    },
+    locale: {
+      get: (): Promise<LocaleId> => ipcRenderer.invoke('workspace:locale:get'),
+      set: (locale: LocaleId): Promise<LocaleId> => ipcRenderer.invoke('workspace:locale:set', locale)
     }
   }
 }

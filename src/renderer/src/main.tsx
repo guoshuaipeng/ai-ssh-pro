@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import AiDebugWindowApp from './components/AiDebugWindowApp'
 import { applyUiTheme, loadUiThemeId } from './lib/ui-themes'
+import { I18nProvider } from './lib/i18n'
 import './styles.css'
+import './features.css'
 
 try {
   applyUiTheme(loadUiThemeId())
@@ -114,5 +116,7 @@ function DebugWindowGate(): React.ReactElement {
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>{isDebugWindow() ? <DebugWindowGate /> : <AppGate />}</React.StrictMode>
+  <React.StrictMode>
+    <I18nProvider>{isDebugWindow() ? <DebugWindowGate /> : <AppGate />}</I18nProvider>
+  </React.StrictMode>
 )

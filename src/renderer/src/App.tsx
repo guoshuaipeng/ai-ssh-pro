@@ -30,6 +30,12 @@ import SessionDockerBranch, { type DockerTreeCache } from './components/SessionD
 import HostInventoryModal, { type HostInventoryLink } from './components/HostInventoryModal'
 import McpGuidePanel from './components/McpGuidePanel'
 import LayoutResizer from './components/LayoutResizer'
+import BatchExecuteModal, { type BatchSessionOption } from './components/BatchExecuteModal'
+import RecentConnections from './components/RecentConnections'
+import SessionCommandBar from './components/SessionCommandBar'
+import { useI18n } from './lib/i18n'
+import { notifyRecentChanged } from './lib/workspace-events'
+import type { RecentConnection } from '@shared/workspace-features'
 import { filterProfiles } from './lib/session-filter'
 import { clearRemoteFileDirty, isRemoteFileDirty } from './lib/remote-file-dirty'
 import {
@@ -132,6 +138,7 @@ function uuid(): string {
 }
 
 export default function App() {
+  const { t: tr } = useI18n()
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
@@ -232,6 +239,7 @@ export default function App() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [hostKeyPrompt, setHostKeyPrompt] = useState<SshHostKeyPromptEvent | null>(null)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [batchOpen, setBatchOpen] = useState(false)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
@@ -240,6 +248,25 @@ export default function App() {
   const activeIsSession = !activeTab?.view || activeTab.view === 'session'
   const activeSessionId =
     activeIsSession && activeTab?.status === 'connected' ? activeTab.sessionId : null
+  const connectedSshSessions = useMemo<BatchSessionOption[]>(
+    () =>
+      tabs
+        .filter(
+          (tab) =>
+            (!tab.view || tab.view === 'session') &&
+            tab.kind !== 'local' &&
+            tab.status === 'connected' &&
+            Boolean(tab.sessionId)
+        )
+        .map((tab) => ({
+          sessionId: tab.sessionId,
+          title: tab.title,
+          host: tab.connectOpts.host,
+          port: tab.connectOpts.port || 22,
+          username: tab.connectOpts.username
+        })),
+    [tabs]
+  )
   const activeIsSsh = Boolean(activeSessionId && activeTab?.kind !== 'local')
   const isRecordingActive = Boolean(activeSessionId && recordingSessionId === activeSessionId)
   const highlightedProfileId = selectedProfileId || activeTab?.profileId || null
@@ -413,6 +440,7 @@ export default function App() {
               : t
           )
         })
+        notifyRecentChanged()
         return sessionId
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
@@ -479,6 +507,7 @@ export default function App() {
               : t
           )
         )
+        notifyRecentChanged()
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       } finally {
@@ -1296,6 +1325,41 @@ export default function App() {
     [applyProfileToForm, openSession]
   )
 
+  const quickConnectRecent = useCallback(
+    (row: RecentConnection) => {
+      const match = profiles.find(
+        (p) =>
+          p.host === row.host &&
+          p.username === row.username &&
+          (p.port || 22) === (row.port || 22)
+      )
+      if (match) {
+        connectProfile(match)
+        return
+      }
+      setEditingSavedId(null)
+      setError(null)
+      setHost(row.host)
+      setPort(String(row.port || 22))
+      setUsername(row.username)
+      setLabel(row.label ?? '')
+      setPassword('')
+      setPrivateKeyPath('')
+      setPassphrase('')
+      setJumpHost('')
+      setJumpPort('22')
+      setJumpUsername('')
+      setJumpPassword('')
+      setJumpPrivateKeyPath('')
+      setJumpPassphrase('')
+      setForwardLocalPort('')
+      setForwardRemoteHost('')
+      setForwardRemotePort('')
+      openConnectionEditor()
+    },
+    [connectProfile, openConnectionEditor, profiles]
+  )
+
   const renderProfileBranch = (p: SavedSessionProfile, inFolder?: boolean) => (
     <SessionDockerBranch
       key={p.id}
@@ -1812,6 +1876,10 @@ export default function App() {
         setAboutOpen(true)
         return
       }
+      if (action === 'batchExec') {
+        setBatchOpen(true)
+        return
+      }
       if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets' || action === 'mcpGuide') {
         openSettingsTab(action)
       }
@@ -1846,6 +1914,8 @@ export default function App() {
         showSidebar={layout.showSidebar}
         showMain={layout.showMain}
         showAi={layout.showAi}
+        onOpenBatch={() => setBatchOpen(true)}
+        onQuickConnect={quickConnectRecent}
       />
 
       <div className="app-shell">
@@ -1853,10 +1923,11 @@ export default function App() {
           <>
             <aside className="sidebar" style={{ width: layout.sidebarWidth, minWidth: layout.sidebarWidth }}>
               <div className="sidebar-header">
-                <h3>已保存会话</h3>
+                <h3>{tr('sidebar.saved')}</h3>
                 <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} />
               </div>
               <div className="sidebar-scroll">
+                <RecentConnections onQuickConnect={quickConnectRecent} />
                 {error && activeTab?.view !== 'connection' && (
                   <div
                     style={{
@@ -1881,7 +1952,7 @@ export default function App() {
                 )}
 
                 {folders.length === 0 && profiles.length === 0 && (
-                  <div style={{ color: 'var(--muted)', fontSize: 12 }}>暂无</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 12 }}>{tr('sidebar.empty')}</div>
                 )}
 
                 {folders.map((f) => {
@@ -1951,7 +2022,7 @@ export default function App() {
         {layout.showMain ? (
           <section className="main">
           <div className="tab-bar">
-            {tabs.length === 0 && <span style={{ padding: '8px 12px', color: 'var(--muted)' }}>未打开会话</span>}
+            {tabs.length === 0 && <span style={{ padding: '8px 12px', color: 'var(--muted)' }}>{tr('tab.none')}</span>}
             {tabs.map((t) => {
               const isSession = !t.view || t.view === 'session'
               return (
@@ -1963,17 +2034,17 @@ export default function App() {
               >
                 <span className="tab-title">
                   {isSession && t.status === 'connecting'
-                    ? `${t.title} (连接中…)`
+                    ? tr('tab.connecting', { title: t.title })
                     : isSession && t.status === 'disconnected'
-                      ? `${t.title} (已断开)`
+                      ? tr('tab.disconnected', { title: t.title })
                       : t.title}
                 </span>
                 <span
                   role="button"
                   tabIndex={0}
                   className="tab-close"
-                  title="关闭"
-                  aria-label="关闭标签"
+                  title={tr('tab.close')}
+                  aria-label={tr('tab.closeLabel')}
                   onClick={(e) => {
                     e.stopPropagation()
                     closeTab(t.tabId, t.sessionId, t.status, t.view)
@@ -1996,25 +2067,30 @@ export default function App() {
           {activeIsSession && activeTab?.status === 'connecting' && (
             <div className="session-disconnect-banner session-connecting-banner" role="status">
               <span>
-                正在连接 {activeTab.connectOpts.username}@{activeTab.connectOpts.host}:
-                {activeTab.connectOpts.port}…
+                {tr('banner.connecting', {
+                  target: `${activeTab.connectOpts.username}@${activeTab.connectOpts.host}:${activeTab.connectOpts.port}`
+                })}
               </span>
             </div>
           )}
 
           {activeIsSession && activeTab?.status === 'disconnected' && (
             <div className="session-disconnect-banner" role="status">
-              <span>会话已断开（连接失败、keepalive 超时或对端关闭）。</span>
+              <span>{tr('banner.disconnected')}</span>
               <button
                 type="button"
                 className="primary"
                 disabled={reconnectingTabId === activeTab.tabId}
                 onClick={() => void reconnectTab(activeTab.tabId)}
               >
-                {reconnectingTabId === activeTab.tabId ? '重连中…' : '重新连接'}
+                {reconnectingTabId === activeTab.tabId ? tr('banner.reconnecting') : tr('banner.reconnect')}
               </button>
             </div>
           )}
+
+          {activeIsSession && activeTab?.status === 'connected' && activeTab.sessionId ? (
+            <SessionCommandBar sessionId={activeTab.sessionId} />
+          ) : null}
 
           <div className="terminal-stack">
             {tabs.map((t) => {
@@ -2161,7 +2237,7 @@ export default function App() {
                 ) : t.view === 'mcpGuide' ? (
                   <McpGuidePanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.status === 'connecting' ? (
-                  <div className="terminal-disconnected-placeholder">正在建立 SSH 连接…</div>
+                  <div className="terminal-disconnected-placeholder">{tr('term.connecting')}</div>
                 ) : t.status === 'connected' ? (
                   splitEnabled && t.tabId === activeTabId ? (
                     <SplitTerminalView
@@ -2174,7 +2250,7 @@ export default function App() {
                     <TerminalPane sessionId={t.sessionId} active={t.tabId === activeTabId} prefs={terminalPrefs} />
                   )
                 ) : (
-                  <div className="terminal-disconnected-placeholder">连接已断开，可点击上方「重新连接」。</div>
+                  <div className="terminal-disconnected-placeholder">{tr('term.disconnected')}</div>
                 )}
               </div>
               )
@@ -2212,6 +2288,7 @@ export default function App() {
 
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <BatchExecuteModal open={batchOpen} sessions={connectedSshSessions} onClose={() => setBatchOpen(false)} />
 
       {sessionMenu && (
         <div

@@ -12,6 +12,16 @@ import type {
   LocalPortForward
 } from '../shared/ipc'
 import { TERMINAL_PREFS_DEFAULTS } from '../shared/ipc'
+import type { LocaleId, RecentConnection, RecentConnectionInput } from '../shared/workspace-features'
+import {
+  mergeRecentConnection,
+  normalizeHistory,
+  normalizeLocale,
+  normalizeRecentList,
+  pushCommandHistory as rememberCommand,
+  removeRecent,
+  setRecentPinned
+} from '../shared/workspace-features'
 import { decryptOptional, encryptOptional, encryptSecret, decryptSecret, isEncryptedSecret } from './secret-crypto'
 
 type AiChatHistoryStore = Record<string, AiChatMessage[]>
@@ -22,6 +32,12 @@ type StoreSchema = {
   terminalPrefs: TerminalPrefs
   snippets: CommandSnippet[]
   aiChatHistory: AiChatHistoryStore
+  /** Newest first, capped. Commands the user chose to run; local only. */
+  commandHistory: string[]
+  /** Successful connects without passwords, key paths, or passphrases. */
+  recentConnections: RecentConnection[]
+  /** UI language. Default zh-CN. */
+  locale: LocaleId
 }
 
 /** 未配置过或缺字段时合并用；API Key 始终由用户在「AI 配置」中填写 */
@@ -365,7 +381,10 @@ const defaults: StoreSchema = {
   ai: { ...AI_SETTINGS_DEFAULTS },
   terminalPrefs: { ...TERMINAL_PREFS_DEFAULTS },
   snippets: [],
-  aiChatHistory: {}
+  aiChatHistory: {},
+  commandHistory: [],
+  recentConnections: [],
+  locale: 'zh-CN'
 }
 
 export const appStore = new Store<StoreSchema>({
@@ -449,6 +468,61 @@ export function setAiChatHistory(key: string, messages: AiChatMessage[]): void {
   if (cleaned.length === 0) delete all[k]
   else all[k] = cleaned
   appStore.set('aiChatHistory', all)
+}
+
+export function getCommandHistory(): string[] {
+  return normalizeHistory(appStore.get('commandHistory'))
+}
+
+export function setCommandHistory(list: string[]): string[] {
+  const next = normalizeHistory(list)
+  appStore.set('commandHistory', next)
+  return next
+}
+
+export function pushCommandHistory(command: string): string[] {
+  const next = rememberCommand(getCommandHistory(), command)
+  appStore.set('commandHistory', next)
+  return next
+}
+
+export function getRecentConnections(): RecentConnection[] {
+  return normalizeRecentList(appStore.get('recentConnections'))
+}
+
+/** Persist host, user, port, label, and time. Secret fields on the input are ignored. */
+export function recordRecentConnection(input: RecentConnectionInput): RecentConnection[] {
+  const next = mergeRecentConnection(getRecentConnections(), {
+    host: input.host,
+    port: input.port,
+    username: input.username,
+    label: input.label,
+    lastConnectedAt: input.lastConnectedAt
+  })
+  appStore.set('recentConnections', next)
+  return next
+}
+
+export function removeRecentConnection(id: string): RecentConnection[] {
+  const next = removeRecent(getRecentConnections(), id)
+  appStore.set('recentConnections', next)
+  return next
+}
+
+export function pinRecentConnection(id: string, pinned: boolean): RecentConnection[] {
+  const next = setRecentPinned(getRecentConnections(), id, pinned)
+  appStore.set('recentConnections', next)
+  return next
+}
+
+export function getLocale(): LocaleId {
+  return normalizeLocale(appStore.get('locale'))
+}
+
+export function setLocale(locale: LocaleId): LocaleId {
+  const next = normalizeLocale(locale)
+  appStore.set('locale', next)
+  return next
 }
 
 /** 一次性把磁盘上的明文密码 / API Key 升级为加密存储（启动时调用） */

@@ -1,0 +1,227 @@
+/** Local workspace helpers shared by main and renderer. No secrets, no network. */
+
+export const COMMAND_HISTORY_CAP = 200
+export const RECENT_CONNECTIONS_CAP = 40
+export const BATCH_MAX_SESSIONS = 32
+export const BATCH_MAX_COMMAND_CHARS = 4000
+export const BATCH_DEFAULT_TIMEOUT_MS = 20_000
+export const BATCH_MAX_TIMEOUT_MS = 60_000
+export const BATCH_MAX_OUTPUT_BYTES = 32_768
+
+export type LocaleId = 'zh-CN' | 'en'
+
+export type BatchExecRequest = {
+  sessionIds: string[]
+  command: string
+  timeoutMs?: number
+}
+
+export type BatchExecSessionResult = {
+  sessionId: string
+  label: string
+  host: string
+  port: number
+  username: string
+  ok: boolean
+  code: number | null
+  stdout: string
+  stderr: string
+  /** Stable code: not-connected | child-session | timeout | exec-failed, or a short ssh2 message */
+  error?: string
+  elapsedMs: number
+  truncated?: boolean
+  timedOut?: boolean
+}
+
+export type BatchExecResult = {
+  command: string
+  startedAt: number
+  results: BatchExecSessionResult[]
+  /** Set when the request is rejected before any session runs */
+  error?: 'empty-command' | 'no-sessions'
+}
+
+/**
+ * A successful SSH connect, kept for quick reconnect.
+ * Passwords, key paths, and passphrases are never stored here.
+ */
+export type RecentConnection = {
+  id: string
+  host: string
+  port: number
+  username: string
+  label?: string
+  lastConnectedAt: number
+  pinned?: boolean
+}
+
+export type RecentConnectionInput = {
+  host: string
+  port?: number
+  username: string
+  label?: string
+  lastConnectedAt?: number
+}
+
+/** Single-line shell command, or null when empty / multiline / too long. */
+export function normalizeCommandLine(raw: string): string | null {
+  const s = String(raw ?? '').replace(/\r\n/g, '\n').trim()
+  if (!s || s.includes('\n') || s.includes('\r')) return null
+  if (s.length > BATCH_MAX_COMMAND_CHARS) return null
+  return s
+}
+
+export function pushCommandHistory(list: string[], command: string): string[] {
+  const cmd = normalizeCommandLine(command)
+  const base = normalizeHistory(list)
+  if (!cmd) return base
+  return [cmd, ...base.filter((row) => row !== cmd)].slice(0, COMMAND_HISTORY_CAP)
+}
+
+export function normalizeHistory(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const cmd = normalizeCommandLine(item)
+    if (!cmd || seen.has(cmd)) continue
+    seen.add(cmd)
+    out.push(cmd)
+    if (out.length >= COMMAND_HISTORY_CAP) break
+  }
+  return out
+}
+
+export function filterCommandHistory(list: string[], query: string, limit = 8): string[] {
+  const q = query.trim().toLowerCase()
+  const cap = Math.min(20, Math.max(1, limit))
+  if (!q) return list.slice(0, cap)
+  const starts: string[] = []
+  const includes: string[] = []
+  for (const cmd of list) {
+    const lower = cmd.toLowerCase()
+    if (lower === q) continue
+    if (lower.startsWith(q)) starts.push(cmd)
+    else if (lower.includes(q)) includes.push(cmd)
+  }
+  return [...starts, ...includes].slice(0, cap)
+}
+
+export function recentConnectionId(host: string, port: number, username: string): string {
+  return `${username.trim().toLowerCase()}@${host.trim().toLowerCase()}:${port}`
+}
+
+export function normalizeRecentInput(input: RecentConnectionInput): RecentConnection | null {
+  const host = typeof input?.host === 'string' ? input.host.trim() : ''
+  const username = typeof input?.username === 'string' ? input.username.trim() : ''
+  const port =
+    typeof input?.port === 'number' && Number.isFinite(input.port) ? Math.floor(input.port) : 22
+  if (!host || !username || !(port > 0 && port < 65536)) return null
+  const labelRaw = typeof input.label === 'string' ? input.label.trim() : ''
+  const fallback = `${username}@${host}`
+  const label = labelRaw && labelRaw !== fallback ? labelRaw.slice(0, 80) : undefined
+  const lastConnectedAt =
+    typeof input.lastConnectedAt === 'number' && Number.isFinite(input.lastConnectedAt)
+      ? input.lastConnectedAt
+      : Date.now()
+  const row: RecentConnection = {
+    id: recentConnectionId(host, port, username),
+    host,
+    port,
+    username,
+    lastConnectedAt
+  }
+  if (label) row.label = label
+  return row
+}
+
+export function normalizeRecentList(raw: unknown): RecentConnection[] {
+  if (!Array.isArray(raw)) return []
+  const out: RecentConnection[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const host = typeof o.host === 'string' ? o.host.trim() : ''
+    const username = typeof o.username === 'string' ? o.username.trim() : ''
+    const port = typeof o.port === 'number' && Number.isFinite(o.port) ? Math.floor(o.port) : 22
+    if (!host || !username || !(port > 0 && port < 65536)) continue
+    const id = recentConnectionId(host, port, username)
+    if (seen.has(id)) continue
+    seen.add(id)
+    const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim().slice(0, 80) : undefined
+    const lastConnectedAt =
+      typeof o.lastConnectedAt === 'number' && Number.isFinite(o.lastConnectedAt) ? o.lastConnectedAt : 0
+    const row: RecentConnection = {
+      id,
+      host,
+      port,
+      username,
+      lastConnectedAt
+    }
+    if (label && label !== `${username}@${host}`) row.label = label
+    if (o.pinned === true) row.pinned = true
+    out.push(row)
+  }
+  out.sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
+    return b.lastConnectedAt - a.lastConnectedAt
+  })
+  return out.slice(0, RECENT_CONNECTIONS_CAP)
+}
+
+export function mergeRecentConnection(list: RecentConnection[], input: RecentConnectionInput): RecentConnection[] {
+  const row = normalizeRecentInput(input)
+  const current = normalizeRecentList(list)
+  if (!row) return current
+  const prev = current.find((item) => item.id === row.id)
+  const merged: RecentConnection = {
+    ...row,
+    label: row.label ?? prev?.label
+  }
+  if (prev?.pinned) merged.pinned = true
+  return normalizeRecentList([merged, ...current.filter((item) => item.id !== row.id)])
+}
+
+export function setRecentPinned(list: RecentConnection[], id: string, pinned: boolean): RecentConnection[] {
+  const key = id.trim()
+  return normalizeRecentList(
+    normalizeRecentList(list).map((row) => {
+      if (row.id !== key) return row
+      if (pinned) return { ...row, pinned: true }
+      const next: RecentConnection = { ...row }
+      delete next.pinned
+      return next
+    })
+  )
+}
+
+export function removeRecent(list: RecentConnection[], id: string): RecentConnection[] {
+  const key = id.trim()
+  return normalizeRecentList(normalizeRecentList(list).filter((row) => row.id !== key))
+}
+
+export function normalizeLocale(raw: unknown): LocaleId {
+  return raw === 'en' ? 'en' : 'zh-CN'
+}
+
+export function clampBatchTimeout(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return BATCH_DEFAULT_TIMEOUT_MS
+  return Math.min(BATCH_MAX_TIMEOUT_MS, Math.max(1000, Math.floor(raw)))
+}
+
+export function normalizeBatchRequest(
+  raw: unknown
+): { command: string; sessionIds: string[]; timeoutMs: number } | { error: 'empty-command' | 'no-sessions' } {
+  if (!raw || typeof raw !== 'object') return { error: 'empty-command' }
+  const o = raw as Record<string, unknown>
+  const command = typeof o.command === 'string' ? normalizeCommandLine(o.command) : null
+  if (!command) return { error: 'empty-command' }
+  if (!Array.isArray(o.sessionIds)) return { error: 'no-sessions' }
+  const sessionIds = [
+    ...new Set(o.sessionIds.map((id) => (typeof id === 'string' ? id.trim() : '')).filter(Boolean))
+  ].slice(0, BATCH_MAX_SESSIONS)
+  if (sessionIds.length === 0) return { error: 'no-sessions' }
+  return { command, sessionIds, timeoutMs: clampBatchTimeout(o.timeoutMs) }
+}

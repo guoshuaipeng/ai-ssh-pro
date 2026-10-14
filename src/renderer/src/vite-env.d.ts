@@ -33,6 +33,12 @@ import type {
   McpGuideInfo
 } from '@shared/ipc'
 import type {
+  BatchExecRequest,
+  BatchExecResult,
+  LocaleId,
+  RecentConnection
+} from '@shared/workspace-features'
+import type {
   HostInventoryIndexEntry,
   HostInventoryRecord,
   HostInventoryUpsertInput,
@@ -173,6 +179,23 @@ export type AissPreload = {
   debug: {
     openWindow: () => Promise<void>
     onPush: (cb: (payload: AiDebugStreamPayload) => void) => () => void
+  }
+  workspace: {
+    batchExec: (payload: BatchExecRequest) => Promise<BatchExecResult>
+    commandHistory: {
+      list: () => Promise<string[]>
+      push: (command: string) => Promise<string[]>
+      clear: () => Promise<string[]>
+    }
+    recent: {
+      list: () => Promise<RecentConnection[]>
+      remove: (id: string) => Promise<RecentConnection[]>
+      pin: (id: string, pinned: boolean) => Promise<RecentConnection[]>
+    }
+    locale: {
+      get: () => Promise<LocaleId>
+      set: (locale: LocaleId) => Promise<LocaleId>
+    }
   }
 }
 
