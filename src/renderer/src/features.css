@@ -1099,8 +1099,9 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .l7-meta { margin-left: 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .l7-head-actions, .l2-head .workspace-panel-actions { position: relative; flex-wrap: nowrap; }
 .l7-head-actions button, .l2-head button, .l7-rail > button, .l2-actions button, .l4-links button { white-space: nowrap; }
-.l7-more, .l2-prefs { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--bg-panel, #161b22); border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
-.l2-prefs { position: static; margin: 0 12px 8px; }
+.l7-more, .l2-prefs { position: absolute; right: 0; top: 100%; z-index: 30; background: var(--bg-panel, #161b22); border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+.l2-prefs { min-width: 240px; }
+.l2-prefs label { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: normal; }
 .l7-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 280px; gap: 12px; padding: 12px; min-height: 0; flex: 1; overflow: hidden; }
 .l7-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .l7-col-head, .l7-card-top, .l7-filters, .l2-filters, .l2-actions, .l2-status-row, .l4-row, .l4-links { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
@@ -1110,7 +1111,8 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .l7-card.is-alert { border-color: #ef4444; }
 .l7-card.is-err { opacity: 0.75; }
 .l7-card-name, .alert-line-host, .alert-line-rule, .l2-detail-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.l7-card-name { font-weight: 600; font-size: 13px; min-width: 0; }
+.l7-card-name { font-weight: 600; font-size: 13px; min-width: 0; flex: 1; }
+.l7-card-top .demo-badge { flex: none; margin-left: 0; }
 .l7-card-top { gap: 6px; }
 .l7-dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; flex: none; }
 .l7-dot.is-on { background: #22c55e; }
@@ -1135,7 +1137,6 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .l7-filters button.is-on, .l2-filters button.is-on { border-color: var(--accent, #3b82f6); }
 .l7-rows, .l2-list { min-height: 0; overflow: auto; }
 .l7-expand { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; font-size: 12px; color: var(--muted); }
-.l7-privacy { font-size: 11px; }
 .l7-empty-links { display: flex; gap: 8px; justify-content: center; }
 .l7-startup { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .l7-startup label { display: flex; gap: 8px; align-items: center; white-space: nowrap; }

@@ -127,6 +127,20 @@ export default function AlertWorkbenchTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoExplain, focusNonce])
 
+  useEffect(() => {
+    if (!more) return
+    const close = () => setMore(false)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [more])
+
   const doLocate = (alert: FiredAlert) => {
     setLocating(true)
     setLocateError(null)
@@ -162,45 +176,49 @@ export default function AlertWorkbenchTab({
           <button
             type="button"
             aria-label={t('l7.more')}
-            onClick={() => setMore((v) => !v)}
+            aria-expanded={more}
+            onClick={(e) => {
+              e.stopPropagation()
+              setMore((v) => !v)
+            }}
           >
             ⋯
           </button>
+          {more ? (
+            <div className="l2-prefs" data-testid="l2-prefs" onClick={(e) => e.stopPropagation()}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={prefs.autoLocate}
+                  onChange={(e) => onPrefs({ ...prefs, autoLocate: e.target.checked })}
+                />
+                {t('l2.autoLocate')}
+              </label>
+              <label>
+                {t('l2.bellOpens')}
+                <select
+                  value={prefs.mode}
+                  onChange={(e) => onPrefs({ ...prefs, mode: e.target.value as BellPrefs['mode'] })}
+                >
+                  <option value="workbench">{t('l2.title')}</option>
+                  <option value="drawer">{t('l2.historyDrawer')}</option>
+                </select>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={prefs.mirrorAi}
+                  onChange={(e) => onPrefs({ ...prefs, mirrorAi: e.target.checked })}
+                />
+                {t('l2.mirrorAi')}
+              </label>
+            </div>
+          ) : null}
         </div>
       </div>
       {muted ? (
         <div className="l7-mute">
           {t('l7.mutedUntil', { time: new Date(mutedUntil!).toLocaleTimeString() })}
-        </div>
-      ) : null}
-      {more ? (
-        <div className="l2-prefs" data-testid="l2-prefs">
-          <label>
-            <input
-              type="checkbox"
-              checked={prefs.autoLocate}
-              onChange={(e) => onPrefs({ ...prefs, autoLocate: e.target.checked })}
-            />
-            {t('l2.autoLocate')}
-          </label>
-          <label>
-            {t('l2.bellOpens')}
-            <select
-              value={prefs.mode}
-              onChange={(e) => onPrefs({ ...prefs, mode: e.target.value as BellPrefs['mode'] })}
-            >
-              <option value="workbench">{t('l2.title')}</option>
-              <option value="drawer">{t('l2.historyDrawer')}</option>
-            </select>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={prefs.mirrorAi}
-              onChange={(e) => onPrefs({ ...prefs, mirrorAi: e.target.checked })}
-            />
-            {t('l2.mirrorAi')}
-          </label>
         </div>
       ) : null}
       <div className="l2-filters">
@@ -354,9 +372,6 @@ export default function AlertWorkbenchTab({
                   <input type="checkbox" checked={includeLogs} onChange={(e) => setIncludeLogs(e.target.checked)} />
                   {t('l2.includeLogs')}
                 </label>
-                <p className="a4-privacy" data-testid="l2-privacy">
-                  {t('a4.privacy')}
-                </p>
                 {explainAlertId === selected.id && !aiConfigured ? (
                   <AiConfigCard context={t('ux37.needAlert')} onConfigure={onOpenSettings} />
                 ) : null}

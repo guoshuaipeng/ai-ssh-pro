@@ -12,6 +12,7 @@ Preview of the ops flagship. Package version stays `0.4.0-m2`. Do not tag this b
 - **Jump hosts (L6) — Deferred → v0.4.1.** Jump visualization stays in this preview: up to five hops, the failed hop named in the error, and a banner back to the editor. OpenSSH certificates and sk-ed25519 stay in the UI as experimental. Live cert / sk-ed25519 hop proof is the v0.4.1 formal acceptance check, and is not required to tag v0.4.0.
 - **File workflow (L8)** — folder-sync preview can pin into a center tab, and pins itself above 50 changes. Starting the sync still passes the same remote write gate as upload and delete.
 - **Audit and recordings (L4b)** — the audit tab searches and exports CSV or JSONL, including `playbook.run`, `alert.execute`, and `danger`. Session recording writes asciicast v2. Auto-record is a real profile switch and does not open a save dialog.
+- **Density (UX-51 / UX-51b / UX-53)** — the privacy footnote appears on a successful alert explain. Alert preferences float from ⋯ and close on Esc or an outside click, leaving the filter bar on the first screen. With no alerts, Open dashboard lives in that menu. A health card shows one badge: production, otherwise read-only, otherwise demo.
 
 ## v0.4.0-m1
 

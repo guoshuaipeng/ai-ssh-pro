@@ -69,11 +69,6 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
           ×
         </button>
       </header>
-      {request.kind === 'explainAlert' ? (
-        <p className="a4-privacy" data-testid="a4-privacy">
-          {t('a4.privacy')}
-        </p>
-      ) : null}
       {state.phase === 'loading' ? (
         <div className="ai-assist-loading" data-testid="ai-explain-loading">
           <div className="ai-skeleton" />
@@ -124,6 +119,11 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
               <h4>{t('a1.notes')}</h4>
               <p className="ai-assist-note">{r.notes}</p>
             </>
+          ) : null}
+          {r.kind === 'explainAlert' ? (
+            <p className="a4-privacy" data-testid="a4-privacy">
+              {t('a4.privacy')}
+            </p>
           ) : null}
         </div>
       ) : null}
