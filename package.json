@@ -79,7 +79,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "build/icon.png",
+      "icon": "build/icon-1024.png",
       "category": "public.app-category.developer-tools",
       "identity": null
     },
@@ -96,9 +96,10 @@
         "AppImage",
         "tar.gz"
       ],
-      "icon": "build/icon.png",
+      "icon": "build/icon-1024.png",
       "category": "Network"
     },
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
-  }
+  },
+  "author": "guoshuaipeng"
 }

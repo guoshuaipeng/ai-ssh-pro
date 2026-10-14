@@ -21,5 +21,7 @@ const pngBuffers = await Promise.all(
 await mkdir(outDir, { recursive: true })
 await writeFile(join(outDir, 'icon.ico'), await toIco(pngBuffers))
 await writeFile(join(outDir, 'icon.png'), await sharp(svg).resize(256, 256).png().toBuffer())
+// macOS / Linux installers need >= 512x512
+await writeFile(join(outDir, 'icon-1024.png'), await sharp(svg).resize(1024, 1024).png().toBuffer())
 
-console.log('Wrote build/icon.ico and build/icon.png')
+console.log('Wrote build/icon.ico, build/icon.png and build/icon-1024.png')
