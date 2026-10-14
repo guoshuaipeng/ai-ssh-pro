@@ -1,7 +1,10 @@
 /** Agent sockets, sk-ed25519 refusal, and OpenSSH certificate attachment for ssh2. */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { utils, type ConnectConfig, type ParsedKey } from 'ssh2'
+// ssh2 attaches `utils` inside an object literal that contains a spread, so Node's
+// CJS named-export detector does not expose it. `import { utils } from 'ssh2'`
+// throws at load time in the Electron main process (asar). Default import works.
+import ssh2, { type ConnectConfig, type ParsedKey } from 'ssh2'
 import { detectKeyMaterial, siblingCertPath } from '../shared/ssh-cert'
 
 export class SshAuthError extends Error {
@@ -57,8 +60,8 @@ export async function applyConnectAuth(
   const certPath = (auth.certificatePath || (keyPath ? siblingCertPath(keyPath) : '')).trim()
   if (certPath && existsSync(certPath)) {
     const certBuf = await readFile(certPath)
-    const key = utils.parseKey(keyBuf, auth.passphrase)
-    const cert = utils.parseKey(certBuf)
+    const key = ssh2.utils.parseKey(keyBuf, auth.passphrase)
+    const cert = ssh2.utils.parseKey(certBuf)
     if (key instanceof Error) throw new SshAuthError('CERT', key.message)
     if (cert instanceof Error) throw new SshAuthError('CERT', cert.message)
     const blob = cert.getPublicSSH()
