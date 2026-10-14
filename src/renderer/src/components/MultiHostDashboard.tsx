@@ -4,6 +4,7 @@ import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
 import type { BatchSessionOption } from './BatchExecuteModal'
+import { friendlyErrorMessage } from '../lib/friendly-error'
 
 type Props = {
   sessions: BatchSessionOption[]
@@ -11,6 +12,11 @@ type Props = {
   onOpenMonitor: (sessionId: string) => void
   onOpenToolbox?: (sessionId: string) => void
   onConnectTerminal?: (sessionId: string) => void
+  /** sessionIds currently in alert */
+  alertSessionIds?: Set<string> | string[]
+  onOpenAlertRules?: () => void
+  onOpenInspect?: () => void
+  sortAlertsFirst?: boolean
 }
 
 type CardState = {
@@ -62,9 +68,10 @@ function Bar({ label, percent }: { label: string; percent: number | null }) {
 }
 
 /** O1: multi-host resource dashboard as a center tab. */
-export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal }: Props) {
+export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal, alertSessionIds, onOpenAlertRules, onOpenInspect, sortAlertsFirst }: Props) {
   const { t } = useI18n()
-  const [sort, setSort] = useState<'name' | 'cpu' | 'mem' | 'disk'>('name')
+  const [sort, setSort] = useState<'name' | 'cpu' | 'mem' | 'disk' | 'alert'>('name')
+  const alertSet = alertSessionIds instanceof Set ? alertSessionIds : new Set(alertSessionIds ?? [])
   const [cards, setCards] = useState<CardState[]>([])
 
   const targets = useMemo(() => sessions.slice(0, MAX_HOSTS), [sessions])
@@ -105,7 +112,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
         )
       )
     } catch (e) {
-      const msg = (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+      const msg = friendlyErrorMessage(e)
       setCards((prev) => prev.map((c) => (c.sessionId === sessionId ? { ...c, error: msg, loading: false } : c)))
     }
   }, [])
@@ -122,6 +129,12 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
   const shown = useMemo(() => {
     const list = [...cards]
     list.sort((a, b) => {
+      if (sort === 'alert' || sortAlertsFirst) {
+        const aa = alertSet.has(a.sessionId) ? 1 : 0
+        const bb = alertSet.has(b.sessionId) ? 1 : 0
+        if (aa !== bb) return bb - aa
+        if (sort === 'alert') return a.title.localeCompare(b.title)
+      }
       if (sort === 'name') return a.title.localeCompare(b.title)
       const av =
         sort === 'cpu'
@@ -138,7 +151,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
       return bv - av
     })
     return list
-  }, [cards, sort])
+  }, [cards, sort, alertSet, sortAlertsFirst])
 
   return (
     <div className="workspace-panel workspace-panel--o1" data-testid="multi-host-dashboard">
@@ -148,11 +161,18 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
             {t('o1.sort')}{' '}
             <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label={t('o1.sort')}>
               <option value="name">{t('o1.sortName')}</option>
+              <option value="alert">{t('o2.sortAlert')}</option>
               <option value="cpu">CPU</option>
               <option value="mem">{t('rm.mem')}</option>
               <option value="disk">{t('o1.disk')}</option>
             </select>
           </label>
+          {onOpenAlertRules ? (
+            <button type="button" onClick={onOpenAlertRules}>{t('o2.rulesTitle')}</button>
+          ) : null}
+          {onOpenInspect ? (
+            <button type="button" onClick={onOpenInspect}>{t('a3.short')}</button>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -180,7 +200,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
                 return (
                   <article
                     key={c.sessionId}
-                    className={`o1-card${c.error ? ' is-err' : ''}`}
+                    className={`o1-card${c.error ? ' is-err' : ''}${alertSet.has(c.sessionId) ? ' is-alert' : ''}`}
                     data-testid="o1-card"
                     onClick={() => onOpenMonitor(c.sessionId)}
                     onDoubleClick={() => onConnectTerminal?.(c.sessionId)}
@@ -189,6 +209,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
                       <strong className="o1-card-title" title={c.title}>
                         {c.title}
                       </strong>
+                      {alertSet.has(c.sessionId) ? <span className="o1-alert-badge" data-testid="o1-alert-badge">{t('o2.badge')}</span> : null}
                       <MiniSpark values={c.history} />
                     </header>
                     {c.loading && !c.snap ? <p className="o1-muted">{t('rm.loading')}</p> : null}

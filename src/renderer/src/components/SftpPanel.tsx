@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { tg } from '../lib/i18n'
+import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askConfirm, askText, confirmDialog } from '../lib/dialogs'
 import type { SftpListEntry, SftpListResult, SftpProgressEvent } from '@shared/ipc'
 import { isLikelyTextFile } from './RemoteTextEditor'
@@ -71,7 +72,7 @@ function formatTime(ms?: number): string {
 }
 
 function cleanSftpErr(e: unknown): string {
-  return (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+  return friendlyErrorMessage(e)
 }
 
 function pct(transferred: number, total: number): number {

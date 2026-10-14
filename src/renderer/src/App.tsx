@@ -41,6 +41,20 @@ import BatchExecuteModal, { type BatchSessionOption } from './components/BatchEx
 import PortForwardModal from './components/PortForwardModal'
 import ResourceMonitorModal from './components/ResourceMonitorModal'
 import MultiHostDashboard from './components/MultiHostDashboard'
+import AlertRulesModal from './components/AlertRulesModal'
+import BroadcastTargetPicker from './components/BroadcastTargetPicker'
+import InspectWizard, { type InspectReport } from './components/InspectWizard'
+import {
+  evaluateAlerts,
+  loadAlertHistory,
+  loadAlertRules,
+  readingsFromSnapshot,
+  saveAlertHistory,
+  saveAlertRules,
+  type AlertRulesState,
+  type FiredAlert
+} from '@shared/alert-rules'
+import { friendlyErrorMessage } from './lib/friendly-error'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
@@ -124,6 +138,7 @@ type TabView =
   | 'forward'
   | 'batch'
   | 'dashboard'
+  | 'inspect-report'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide'
 
@@ -150,7 +165,8 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'toolbox',
   'forward',
   'batch',
-  'dashboard'
+  'dashboard',
+  'inspect-report'
 ])
 
 type Tab = {
@@ -240,6 +256,17 @@ export default function App() {
   const [terminalPrefs, setTerminalPrefs] = useState<TerminalPrefs>(TERMINAL_PREFS_DEFAULTS)
   const [splitEnabled, setSplitEnabled] = useState(false)
   const [broadcastEnabled, setBroadcastEnabled] = useState(false)
+  const [broadcastTargets, setBroadcastTargets] = useState<string[]>([])
+  const [broadcastPickerOpen, setBroadcastPickerOpen] = useState(false)
+  const [alertRules, setAlertRules] = useState<AlertRulesState>(() => loadAlertRules())
+  const [alertHistory, setAlertHistory] = useState<FiredAlert[]>(() => loadAlertHistory())
+  const [alertModalOpen, setAlertModalOpen] = useState(false)
+  const [alertModalTab, setAlertModalTab] = useState<'rules' | 'history'>('rules')
+  const [inspectOpen, setInspectOpen] = useState(false)
+  const [aiConfigured, setAiConfigured] = useState(false)
+  const alertBreachSinceRef = useRef(new Map<string, number>())
+  const alertLastFiredRef = useRef(new Map<string, number>())
+  const [activeAlertIds, setActiveAlertIds] = useState<Set<string>>(() => new Set())
   const [recordingSessionId, setRecordingSessionId] = useState<string | null>(null)
   const [localShellAvailable, setLocalShellAvailable] = useState(false)
   const [layout, setLayout] = useState<LayoutPrefs>(() => loadLayoutPrefs())
@@ -479,11 +506,13 @@ export default function App() {
   activeSessionIdRef.current = activeSessionId
   const addDemoHostRef = useRef<(connect: boolean) => Promise<void>>(async () => undefined)
   const activeIsDemo = Boolean(activeIsSession && activeTab?.status === 'connected' && activeTab.connectOpts.demo)
-  // UX-10: which tabs take part in broadcast input
+  // X3 / UX-10: broadcast targets are explicit; fall back to split pair for legacy
   const broadcastSessions = useMemo(() => {
-    if (!broadcastEnabled || !splitEnabled || !activeSessionId) return [] as string[]
-    return [...new Set([activeSessionId, splitSecondary || activeSessionId])]
-  }, [broadcastEnabled, splitEnabled, activeSessionId, splitSecondary])
+    if (!broadcastEnabled) return [] as string[]
+    if (broadcastTargets.length >= 2) return broadcastTargets
+    if (splitEnabled && activeSessionId) return [...new Set([activeSessionId, splitSecondary || activeSessionId])]
+    return activeSessionId ? [activeSessionId] : []
+  }, [broadcastEnabled, broadcastTargets, splitEnabled, activeSessionId, splitSecondary])
   const [recordTick, setRecordTick] = useState(0)
   useEffect(() => {
     if (!recordingStartedAt) return
@@ -867,7 +896,8 @@ export default function App() {
       view === 'toolbox' ||
       view === 'forward' ||
       view === 'batch' ||
-      view === 'dashboard'
+      view === 'dashboard' ||
+      view === 'inspect-report'
     ) {
       // focus the host session the tool belonged to, else the neighbour tab
       const cur = tabsRef.current
@@ -1282,6 +1312,81 @@ export default function App() {
     setActiveTabId(tabId)
   }, [ensureMainVisible])
   openDashboardRef.current = openDashboard
+
+  useEffect(() => {
+    void window.aiss.ai.getSettings().then((s) => {
+      const providers = Array.isArray(s?.providers) ? s.providers : []
+      const p = providers.find((x) => x.id === s.activeProviderId) ?? providers[0]
+      setAiConfigured(Boolean(p?.apiKey && p?.baseURL && s?.model))
+    }).catch(() => setAiConfigured(false))
+  }, [layout.showAi, inspectOpen])
+
+  // O2: evaluate thresholds from dashboard/monitor snapshots periodically
+  useEffect(() => {
+    if (!connectedSshSessions.length) return
+    const muted = alertRules.mutedUntil && Date.now() < alertRules.mutedUntil
+    let cancelled = false
+    const tick = async () => {
+      const newly: FiredAlert[] = []
+      const active = new Set<string>()
+      for (const s of connectedSshSessionsRef.current) {
+        try {
+          const snap = await window.aiss.workspace.resources(s.sessionId)
+          if (cancelled) return
+          const readings = readingsFromSnapshot(snap, true)
+          const fired = evaluateAlerts({
+            hostKey: s.sessionId,
+            hostTitle: s.title,
+            rules: alertRules.rules,
+            readings,
+            breachSince: alertBreachSinceRef.current,
+            lastFiredAt: alertLastFiredRef.current
+          })
+          for (const f of fired) {
+            newly.push(f)
+            active.add(s.sessionId)
+          }
+          // mark currently breaching for badge even inside cooldown
+          for (const r of alertRules.rules) {
+            if (!r.enabled) continue
+            const val = readings.find((x) => x.metric === r.id)?.value
+            if (r.id === 'offline') continue
+            if (val != null && val >= r.threshold) active.add(s.sessionId)
+          }
+        } catch {
+          /* ignore single host */
+        }
+      }
+      if (cancelled) return
+      setActiveAlertIds(active)
+      if (newly.length && !muted) {
+        setAlertHistory((prev) => {
+          const next = [...newly, ...prev].slice(0, 200)
+          saveAlertHistory(next)
+          return next
+        })
+        if (alertRules.notify.systemNotify && typeof Notification !== 'undefined') {
+          try {
+            if (Notification.permission === 'granted') {
+              const f = newly[0]!
+              new Notification(`⚠ ${f.hostTitle}`, {
+                body: `${f.ruleId} ${Math.round(f.value)}${f.ruleId === 'offline' ? '' : '%'} · ${new Date(f.at).toLocaleTimeString()}`
+              })
+            } else if (Notification.permission === 'default') {
+              void Notification.requestPermission()
+            }
+          } catch { /* */ }
+        }
+        showToast(tg('o2.fired', { n: newly.length }), { kind: 'error' })
+      }
+    }
+    void tick()
+    const id = window.setInterval(() => void tick(), 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [connectedSshSessions.length, alertRules])
 
   const openSettingsTab = useCallback(
     (view: SettingsTabView) => {
@@ -2324,9 +2429,31 @@ export default function App() {
       }
       if (action === 'toggleBroadcast') {
         setBroadcastEnabled((v) => {
-          if (!v) setSplitEnabled(true)
-          return !v
+          if (v) {
+            setBroadcastTargets([])
+            return false
+          }
+          setBroadcastPickerOpen(true)
+          return v // stay off until picker confirms
         })
+        return
+      }
+      if (action === 'broadcastTargets') {
+        setBroadcastPickerOpen(true)
+        return
+      }
+      if (action === 'alertRules') {
+        setAlertModalTab('rules')
+        setAlertModalOpen(true)
+        return
+      }
+      if (action === 'alertHistory') {
+        setAlertModalTab('history')
+        setAlertModalOpen(true)
+        return
+      }
+      if (action === 'aiInspect') {
+        setInspectOpen(true)
         return
       }
       if (action === 'toggleRecording') {
@@ -3238,6 +3365,48 @@ export default function App() {
                     preselect={t.batchPreselect}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
+                ) : t.view === 'dashboard' ? (
+                  <MultiHostDashboard
+                    sessions={connectedSshSessions}
+                    alertSessionIds={activeAlertIds}
+                    sortAlertsFirst
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    onOpenMonitor={(sid) => openToolTabRef.current('monitor', sid)}
+                    onOpenToolbox={(sid) => openToolTabRef.current('toolbox', sid)}
+                    onConnectTerminal={(sid) => {
+                      const tab = tabsRef.current.find((x) => x.sessionId === sid)
+                      if (tab) setActiveTabId(tab.tabId)
+                    }}
+                    onOpenAlertRules={() => {
+                      setAlertModalTab('rules')
+                      setAlertModalOpen(true)
+                    }}
+                    onOpenInspect={() => setInspectOpen(true)}
+                  />
+                ) : t.view === 'inspect-report' ? (
+                  <div className="workspace-panel" data-testid="inspect-report">
+                    <div className="workspace-panel-toolbar">
+                      <h2 className="workspace-panel-title">{t.title}</h2>
+                      <div className="workspace-panel-actions">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const md = (t as { inspectMarkdown?: string }).inspectMarkdown || ''
+                            void navigator.clipboard.writeText(md)
+                            showToast(tg('a3.copied'), { kind: 'info' })
+                          }}
+                        >
+                          {tg('a3.copyMd')}
+                        </button>
+                        <button type="button" onClick={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}>
+                          {tg('common.close')}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="workspace-panel-body a3-report-body">
+                      <pre className="a3-report-pre">{(t as { inspectMarkdown?: string }).inspectMarkdown || ''}</pre>
+                    </div>
+                  </div>
                 ) : t.view === 'sftp' ? (
                   <SftpPanel
                     key={t.boundSessionId || t.tabId}
@@ -3325,7 +3494,18 @@ export default function App() {
                         .map((x) => ({ sessionId: x.sessionId, title: x.title }))}
                     />
                   ) : (
-                    <TerminalPane sessionId={t.sessionId} active={t.tabId === activeTabId} prefs={terminalPrefs} />
+                    <TerminalPane
+                      sessionId={t.sessionId}
+                      active={t.tabId === activeTabId}
+                      prefs={terminalPrefs}
+                      onUserData={
+                        broadcastEnabled && broadcastSessions.length > 1
+                          ? (data) => {
+                              for (const sid of broadcastSessions) void window.aiss.ssh.write(sid, data)
+                            }
+                          : undefined
+                      }
+                    />
                   )
                 ) : (
                   <div className="terminal-disconnected-placeholder">{tr('term.disconnected')}</div>

@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.17
+
+- **Threshold alerts (O2)** — configurable CPU/mem/disk/offline rules; dashboard red badge + optional system notifications; Ops → Alert rules… / Alert history; mute 1 hour.
+- **Broadcast targets (X3)** — Session → Broadcast input (Ctrl+Alt+I) opens a target picker; keystrokes fan out to selected terminal tabs (no longer limited to split view).
+- **AI inspection (A3)** — AI → Multi-host AI inspection… runs read-only checks, builds a Markdown report tab (local heuristics + optional AI assist).
+- **Remote editor (D4)** — syntax highlighting by language; optional diff view before save; optional `.bak` on save.
+- **Narrow titlebar (UX-17 / UX-23a)** — progressive compaction (hide version → icon-only tools → icon search → ☰ menus); "New connection" label always kept.
+- **Friendly IPC errors (UX-35)** — strip `Error invoking remote method…` and map common errno/auth failures.
+- **Palette pinyin (UX-11)** — Ctrl+K matches aliases like `xunjian`, `gaojing`, `kanban`.
+- **ux-audit gate (UX-33)** — `npm run ux-audit` static checks in `npm test`.
+- **Fix** — Multi-host dashboard tab now actually renders the O1 grid (was imported but not mounted).
+
+
 ## v0.3.16
 
 - **Tool tabs fill the pane** — toolbox/monitor no longer leave a black empty band; table scrolls inside the tab.

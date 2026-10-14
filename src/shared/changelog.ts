@@ -12,6 +12,54 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.3.17': [
+    {
+      icon: '🔔',
+      text: { zh: '阈值告警：看板标红 + 系统通知 + 规则/历史', en: 'Threshold alerts with dashboard badges and notifications' },
+      where: { zh: '运维 → 告警规则… / 多主机看板', en: 'Ops → Alert rules… / Multi-host dashboard' },
+      action: 'alertRules'
+    },
+    {
+      icon: '📡',
+      text: { zh: '多会话广播输入：选择目标标签同步键入', en: 'Multi-tab broadcast input with target picker' },
+      where: { zh: '会话 → 广播输入（Ctrl+Alt+I）', en: 'Session → Broadcast input (Ctrl+Alt+I)' },
+      action: 'toggleBroadcast'
+    },
+    {
+      icon: '🩺',
+      text: { zh: '多主机 AI 巡检报告（只读采集 + Markdown 报告）', en: 'Multi-host AI inspection report (read-only + Markdown)' },
+      where: { zh: 'AI → 多主机巡检报告…', en: 'AI → Multi-host AI inspection…' },
+      action: 'aiInspect'
+    },
+    {
+      icon: '📝',
+      text: { zh: '远程编辑语法高亮，保存前可看 diff', en: 'Remote editor syntax highlight + diff before save' },
+      where: { zh: 'SFTP 双击文本文件', en: 'SFTP: double-click a text file' },
+      action: 'sftp'
+    },
+    {
+      icon: '🖥',
+      text: { zh: '窄窗口标题栏逐级收纳；「新建连接」文字始终可见', en: 'Responsive titlebar; New connection label always visible' }
+    },
+    {
+      icon: '💬',
+      text: { zh: 'IPC 错误去掉前缀并映射为人话', en: 'Friendly IPC error messages without Electron prefixes' }
+    },
+    {
+      icon: '拼音',
+      text: { zh: '命令面板支持拼音/别名搜索（如 xunjian、gaojing）', en: 'Command palette pinyin / alias search' },
+      action: 'commandPalette'
+    },
+    {
+      icon: '✅',
+      text: { zh: '发版前 ux-audit 静态门禁', en: 'ux-audit static gate before release' }
+    },
+    {
+      icon: '🗺',
+      text: { zh: '修复：多主机看板标签页现在会真正渲染内容', en: 'Fix: multi-host dashboard tab actually renders' },
+      action: 'dashboard'
+    }
+  ],
 
   '0.3.16': [
     {

@@ -5,6 +5,27 @@ export type PaletteEntry = { id: MenuAction; label: string; group: string; short
 /** clipboard items and the palette itself are not useful as palette entries */
 export const PALETTE_HIDDEN: ReadonlySet<MenuAction> = new Set<MenuAction>(['commandPalette', 'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll'])
 
+/** UX-11: common pinyin / English aliases so Ctrl+K finds Chinese features faster */
+export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
+  connection: 'xinjianlianjie new conn',
+  sftp: 'wenjian sftp chuanshu',
+  resourceMonitor: 'jiankong ziyuan monitor cpu',
+  serverTools: 'gongjuxiang toolbox jincheng',
+  dashboard: 'kanban duoji multihost',
+  alertRules: 'gaojing guize alert',
+  alertHistory: 'gaojing lishi',
+  batchExec: 'piliang batch',
+  aiInspect: 'xunjian inspect health jiancha',
+  toggleBroadcast: 'guangbo broadcast',
+  broadcastTargets: 'guangbo mubiao',
+  commandPalette: 'sousuo palette',
+  snippets: 'pianduan snippet',
+  inventory: 'zhuji dang an profile',
+  portForward: 'duankou zhuanfa forward',
+  aiCommand: 'ziran yuyan nl command',
+  aiExplainError: 'jieshi baocuo explain'
+}
+
 /** F4: every menu action becomes a palette entry; both languages and the action id are searchable. */
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {
   const out: PaletteEntry[] = []
@@ -14,7 +35,8 @@ export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: st
       if (it.type !== 'item' || PALETTE_HIDDEN.has(it.id)) continue
       const label = menuLabel(it.label, locale).replace(/…$/, '')
       const other = (locale === 'zh-CN' ? it.label.en : it.label.zh).replace(/…$/, '')
-      out.push({ id: it.id, label, group, shortcut: it.shortcut, hay: `${label} ${other} ${group} ${it.id}`.toLowerCase() })
+      const alias = PINYIN_ALIASES[it.id] ?? ''
+      out.push({ id: it.id, label, group, shortcut: it.shortcut, hay: `${label} ${other} ${group} ${it.id} ${alias}`.toLowerCase() })
     }
   }
   return out

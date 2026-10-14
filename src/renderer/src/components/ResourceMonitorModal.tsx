@@ -3,6 +3,7 @@ import type { ResourceSnapshot } from '../../../shared/resource-monitor'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { pushSample, sparklinePoints } from '../../../shared/server-tools'
 import { useI18n } from '../lib/i18n'
+import { friendlyErrorMessage } from '../lib/friendly-error'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
 
@@ -100,7 +101,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
       setHistory((h) => pushSample(h, { cpu: r.cpuPercent, mem: r.mem?.percent ?? null, at: r.at }, HISTORY_MAX))
       setError(null)
     } catch (e) {
-      setError((e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      setError(friendlyErrorMessage(e))
     }
   }, [])
 

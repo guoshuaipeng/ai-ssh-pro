@@ -40,7 +40,7 @@ const FILES: Record<string, string> = {
   ].join('\n')
 }
 
-const LS = 'app  backups  deploy.sh  logs  readme.txt'
+const LS = 'app  backups  deploy.sh  logs  notes.txt  README.md  readme.txt'
 const LS_LA = [
   'total 32',
   'drwxr-xr-x 6 demo demo 4096 Oct 14 09:30 .',
@@ -50,6 +50,8 @@ const LS_LA = [
   'drwxr-xr-x 2 demo demo 4096 Oct 13 23:00 backups',
   '-rwxr-xr-x 1 demo demo   78 Oct 12 18:21 deploy.sh',
   'drwxr-xr-x 2 demo demo 4096 Oct 14 10:00 logs',
+  '-rw-r--r-- 1 demo demo   64 Oct 14 09:00 notes.txt',
+  '-rw-r--r-- 1 demo demo  180 Oct 14 09:00 README.md',
   '-rw-r--r-- 1 demo demo  118 Oct  1 08:00 readme.txt'
 ].join('\n')
 

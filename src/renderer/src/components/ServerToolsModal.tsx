@@ -12,6 +12,7 @@ import {
 } from '../../../shared/server-tools'
 import { formatBytes } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
+import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askConfirm, askText } from '../lib/dialogs'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
@@ -28,7 +29,7 @@ type Props = {
 }
 
 const cleanErr = (e: unknown) =>
-  (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+  friendlyErrorMessage(e)
 
 const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs']
 

@@ -38,6 +38,8 @@ export type MenuAction =
   | 'toggleRecording'
   | 'resourceMonitor'
   | 'dashboard'
+  | 'alertRules'
+  | 'alertHistory'
   | 'serverTools'
   | 'refreshDocker'
   | 'batchExec'
@@ -46,6 +48,8 @@ export type MenuAction =
   | 'openAi'
   | 'aiExplainError'
   | 'aiCommand'
+  | 'aiInspect'
+  | 'broadcastTargets'
   | 'ai'
   | 'mcpGuide'
   | 'debug'
@@ -143,6 +147,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('portForward', '端口转发…', 'Port forwarding…', { needsSession: true }),
       sep,
       it('toggleBroadcast', '广播输入', 'Broadcast input', { toggle: true }),
+      it('broadcastTargets', '选择广播目标…', 'Choose broadcast targets…'),
       it('toggleRecording', '录制', 'Recording', { toggle: true, needsSession: true })
     ]
   },
@@ -152,6 +157,8 @@ export const SHARED_MENUS: SharedMenu[] = [
     items: [
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
       it('dashboard', '多主机看板', 'Multi-host dashboard'),
+      it('alertRules', '告警规则…', 'Alert rules…'),
+      it('alertHistory', '告警历史', 'Alert history'),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
       it('refreshDocker', '刷新 Docker', 'Refresh Docker'),
       sep,
@@ -167,6 +174,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('openAi', '打开 AI 助手', 'Open AI assistant'),
       it('aiExplainError', 'AI：解释最近的错误', 'AI: Explain the last error'),
       it('aiCommand', '用自然语言生成命令', 'Natural language → command', { needsSession: true }),
+      it('aiInspect', '多主机巡检报告…', 'Multi-host AI inspection…'),
       sep,
       it('ai', 'AI 设置…', 'AI settings…'),
       sep,

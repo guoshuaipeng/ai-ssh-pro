@@ -91,6 +91,35 @@ export default function AppToolbar({
   const [themeId, setThemeId] = useState<UiThemeId>(() => loadUiThemeId())
   const lightMode = isLightUiTheme(themeId)
   const versionText = version ? `v${version}${isDev ? '-dev' : ''}` : ''
+  const headerRef = useRef<HTMLElement>(null)
+  const [compactLevel, setCompactLevel] = useState(0) // UX-17: 0..4 stash steps
+  const [hamburgerOpen, setHamburgerOpen] = useState(false)
+
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let timer: number | null = null
+    const measure = () => {
+      const w = el.clientWidth
+      // Reference widths from UX-17; ResizeObserver measured, not hard breakpoints alone
+      let level = 0
+      if (w < 1366) level = 1
+      if (w < 1280) level = 2
+      if (w < 1100) level = 3
+      if (w < 1024) level = 4
+      setCompactLevel(level)
+    }
+    const ro = new ResizeObserver(() => {
+      if (timer) window.clearTimeout(timer)
+      timer = window.setTimeout(measure, 100)
+    })
+    ro.observe(el)
+    measure()
+    return () => {
+      ro.disconnect()
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [])
 
   useEffect(() => {
     const onTheme = (e: Event) => {
@@ -131,11 +160,16 @@ export default function AppToolbar({
     fn()
   }
 
+  const hideVersion = compactLevel >= 1
+  const iconOnlyTools = compactLevel >= 2
+  const searchIconOnly = compactLevel >= 3
+  const menusAsHamburger = compactLevel >= 4
+
   return (
-    <header className="app-titlebar">
+    <header className={`app-titlebar titlebar-compact-${compactLevel}`} ref={headerRef} data-compact={compactLevel}>
       <div className="app-titlebar-drag">
-        <span className="app-toolbar-brand">AI-SSH-Pro</span>
-        {versionText ? (
+        <span className="app-toolbar-brand" title={versionText ? `AI-SSH-Pro ${versionText}` : 'AI-SSH-Pro'}>AI-SSH-Pro</span>
+        {versionText && !hideVersion ? (
           <button
             type="button"
             className="app-toolbar-version"
@@ -152,7 +186,33 @@ export default function AppToolbar({
             {t('upd.badge', { version: updateVersion })}
           </button>
         ) : null}
-        <TitlebarMenus onAction={onMenuAction} toggles={toggles} />
+        {menusAsHamburger ? (
+          <div className="titlebar-hamburger-wrap">
+            <button
+              type="button"
+              className="titlebar-icon-btn"
+              title={t('ux17.menu')}
+              aria-label={t('ux17.menu')}
+              aria-expanded={hamburgerOpen}
+              onClick={() => setHamburgerOpen((v) => !v)}
+            >
+              ☰
+            </button>
+            {hamburgerOpen ? (
+              <div className="titlebar-hamburger-menu" role="menu">
+                <TitlebarMenus
+                  onAction={(a) => {
+                    setHamburgerOpen(false)
+                    onMenuAction(a)
+                  }}
+                  toggles={toggles}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <TitlebarMenus onAction={onMenuAction} toggles={toggles} />
+        )}
       </div>
       <div className="app-titlebar-spacer" />
       <div className="app-titlebar-corner" role="group" aria-label={t('toolbar.appActions')}>
@@ -165,7 +225,7 @@ export default function AppToolbar({
             aria-label={t('toolbar.newConn')}
             onClick={() => onMenuAction('connection')}
           >
-            <span aria-hidden>+</span> <span className="tb-label">{t('toolbar.newConn')}</span>
+            <span aria-hidden>+</span> <span className="tb-label tb-label-keep">{t('toolbar.newConn')}</span>
           </button>
           {false && onQuickConnect ? ( /* UX-15 hide recent */
             <div className="titlebar-popover-wrap" ref={recentRef}>
@@ -210,7 +270,7 @@ export default function AppToolbar({
                 aria-label={t(b.title)}
                 onClick={() => onMenuAction(b.id)}
               >
-                <span aria-hidden>{b.icon}</span> <span className="tb-label">{t(b.label)}</span>
+                <span aria-hidden>{b.icon}</span> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
               </button>
             )
           })}
@@ -225,8 +285,13 @@ export default function AppToolbar({
             aria-label={t('toolbar.paletteTitle')}
             onClick={() => onMenuAction('commandPalette')}
           >
-            <span aria-hidden>🔍</span> <span className="tb-label">{t('toolbar.searchFeatures')}</span>
-            <kbd className="tb-label">Ctrl+K</kbd>
+            <span aria-hidden>🔍</span>
+            {searchIconOnly ? null : (
+              <>
+                <span className="tb-label">{t('toolbar.searchFeatures')}</span>
+                <kbd className="tb-label">Ctrl+K</kbd>
+              </>
+            )}
           </button>
           <div className="titlebar-popover-wrap" ref={moreRef} style={{ display: "none" }} /* UX-15 no more */>
             <button

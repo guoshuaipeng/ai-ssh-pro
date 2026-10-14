@@ -42,7 +42,8 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'toggleSidebar', keys: 'Ctrl+Alt+1', scope: 'global', group: 'view', label: { zh: '显示/隐藏会话栏', en: 'Show/hide session sidebar' } },
   { id: 'toggleAi', keys: 'Ctrl+Alt+B', scope: 'global', group: 'view', label: { zh: '显示/隐藏 AI 面板', en: 'Show/hide AI panel' } },
   { id: 'nextTab', keys: 'Ctrl+Tab', scope: 'display', group: 'view', label: { zh: '下一个标签', en: 'Next tab' } },
-  { id: 'gotoTab', keys: 'Ctrl+1…9', scope: 'display', group: 'view', label: { zh: '切换到第 N 个标签（9 = 最后一个）', en: 'Go to tab N (9 = last)' } }
+  { id: 'gotoTab', keys: 'Ctrl+1…9', scope: 'display', group: 'view', label: { zh: '切换到第 N 个标签（9 = 最后一个）', en: 'Go to tab N (9 = last)' } },
+  { id: 'toggleBroadcast', keys: 'Ctrl+Alt+I', scope: 'global', group: 'session', label: { zh: '广播输入开/关', en: 'Toggle broadcast input' } }
 ]
 
 /** Actions that open the palette (both key combos map to the same action). */

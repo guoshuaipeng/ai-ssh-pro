@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ActiveForward } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
+import { friendlyErrorMessage } from '../lib/friendly-error'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import EmptyState from './EmptyState'
@@ -73,7 +74,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
       setRemotePort('')
       await reload()
     } catch (e) {
-      setError((e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      setError(friendlyErrorMessage(e))
     } finally {
       setBusy(false)
     }
