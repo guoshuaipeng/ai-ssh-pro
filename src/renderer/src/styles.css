@@ -15,6 +15,7 @@
   --row-hover-bg: rgba(88, 166, 255, 0.14);
   --row-hover-border: rgba(88, 166, 255, 0.4);
   --row-selected-bg: rgba(88, 166, 255, 0.22);
+  --color-ai: #a371f7;
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   color: var(--text);
@@ -1271,14 +1272,20 @@ body.layout-resizing {
   border-bottom-color: var(--bg);
 }
 
+.tab,
+.tab-title,
+.tab--disconnected,
+.tab--connecting,
+.tab--workspace .tab-title {
+  font-style: normal;
+}
+
 .tab--disconnected {
   opacity: 0.75;
-  font-style: italic;
 }
 
 .tab--connecting {
   opacity: 0.9;
-  font-style: italic;
 }
 
 .session-connecting-banner {
@@ -1629,7 +1636,7 @@ body.layout-resizing {
 }
 
 .tab--workspace .tab-title {
-  font-style: italic;
+  font-style: normal;
 }
 
 .inventory-detail-pane {
@@ -3293,7 +3300,8 @@ button.danger {
 
 
 .session-command-bar {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  height: 32px;
 }
 .cmd-explain {
   flex-basis: 100%;

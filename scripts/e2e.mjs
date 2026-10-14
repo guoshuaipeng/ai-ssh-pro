@@ -1116,10 +1116,13 @@ await step('A1: error → "Explain with AI" hint → needs-config state → mock
   await expectVisible(hint, 5000)
   assert(((await hint.textContent()) || '').includes('Explain with AI'), 'hint label')
   await hint.click()
-  const card = page.getByTestId('ai-explain-card')
-  await expectVisible(card.getByTestId('ai-explain-needs-config'), 10000)
-  await expectVisible(card.getByRole('button', { name: 'Open settings' }))
+  const configCard = page.getByTestId('ai-config-card')
+  await expectVisible(configCard, 10000)
+  await expectVisible(page.getByTestId('ai-config-context'))
+  await expectVisible(page.getByTestId('ai-config-setup'))
+  await expectHidden(page.getByTestId('ai-explain-card'), 3000)
   await cjkScan('AI explain: not configured')
+  const card = page.getByTestId('ai-explain-card')
   await page.evaluate((port) => window.aiss.ai.setSettings({
     providers: [{ id: 'e2e', name: 'e2e mock', baseURL: `http://127.0.0.1:${port}/v1`, apiKey: 'test-key', modelList: ['mock-1'] }],
     activeProviderId: 'e2e',

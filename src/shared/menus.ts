@@ -29,10 +29,13 @@ export type MenuAction =
   | 'toggleHostStatus'
   | 'uiTheme'
   | 'terminalPrefs'
+  | 'smartComplete'
+  | 'clearHostHistory'
   | 'toggleLanguage'
   | 'reconnect'
   | 'duplicateSession'
   | 'sftp'
+  | 'folderSync'
   | 'portForward'
   | 'toggleBroadcast'
   | 'toggleRecording'
@@ -133,6 +136,8 @@ export const SHARED_MENUS: SharedMenu[] = [
       sep,
       it('uiTheme', '界面主题…', 'UI theme…'),
       it('terminalPrefs', '终端外观…', 'Terminal appearance…'),
+      it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),
+      it('clearHostHistory', '清除本主机命令历史…', 'Clear history for this host…'),
       it('toggleLanguage', '切换语言（English）', 'Switch language (Chinese)')
     ]
   },
@@ -144,6 +149,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('duplicateSession', '复制会话', 'Duplicate session', { needsSession: true }),
       sep,
       it('sftp', 'SFTP 文件', 'SFTP files', { needsSession: true }),
+      it('folderSync', '文件夹同步…', 'Folder sync…', { needsSession: true }),
       it('portForward', '端口转发…', 'Port forwarding…', { needsSession: true }),
       sep,
       it('toggleBroadcast', '广播输入', 'Broadcast input', { toggle: true }),

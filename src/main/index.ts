@@ -34,6 +34,8 @@ import type { AiAssistRequest } from '../shared/ipc'
 import { importSessionFilesFromPaths } from './session-import'
 import { resolveHostKeyPrompt } from './host-key-prompt'
 import * as sftpManager from './sftp-manager'
+import * as localFs from './local-fs'
+import { loadSftpQueue, saveSftpQueue } from './sftp-queue-store'
 import * as dockerManager from './docker-manager'
 import { exportSessionsToJson, exportSessionsToOpenSsh } from './session-export'
 import { startRecording, stopRecording, stopAllRecordings } from './session-recorder'
@@ -563,6 +565,112 @@ function registerIpc(): void {
       return join(dir, safe)
     })
   })
+
+  const transferAborts = new Map<string, AbortController>()
+  const sendTransfer = (
+    sender: Electron.WebContents,
+    payload: {
+      transferId: string
+      sessionId: string
+      direction: 'upload' | 'download'
+      name: string
+      transferred: number
+      total: number
+      done?: boolean
+      error?: string
+    }
+  ) => {
+    const win = BrowserWindow.fromWebContents(sender)
+    if (!win || win.isDestroyed()) return
+    win.webContents.send('sftp:progress', payload)
+  }
+
+  ipcMain.handle('sftp:stat', async (_e, sessionId: string, remotePath: string) => {
+    return await sftpManager.statRemote(requireSshClient(sessionId), remotePath)
+  })
+  ipcMain.handle('sftp:hash', async (_e, sessionId: string, remotePath: string) => {
+    return await sftpManager.hashRemote(requireSshClient(sessionId), remotePath)
+  })
+  ipcMain.handle('sftp:cancel', (_e, transferId: string) => {
+    const ctl = transferAborts.get(String(transferId ?? ''))
+    ctl?.abort()
+    transferAborts.delete(String(transferId ?? ''))
+    return true
+  })
+  ipcMain.handle(
+    'sftp:transfer',
+    async (
+      _e,
+      payload: {
+        sessionId: string
+        direction: 'upload' | 'download'
+        localPath: string
+        remotePath: string
+        transferId?: string
+        offset?: number
+      }
+    ) => {
+      const sessionId = String(payload?.sessionId ?? '')
+      const client = requireSshClient(sessionId)
+      const direction = payload.direction === 'download' ? 'download' : 'upload'
+      const localPath = String(payload.localPath ?? '')
+      const remotePath = String(payload.remotePath ?? '')
+      const name =
+        direction === 'upload'
+          ? localPath.replace(/\\/g, '/').split('/').pop() || 'upload.bin'
+          : remotePath.replace(/\\/g, '/').split('/').pop() || 'download.bin'
+      const tid = String(payload.transferId || `${direction === 'upload' ? 'ul' : 'dl'}-${Date.now()}`)
+      const ctl = new AbortController()
+      transferAborts.set(tid, ctl)
+      const sendProg = (transferred: number, total: number, done?: boolean, error?: string) => {
+        sendTransfer(_e.sender, { transferId: tid, sessionId, direction, name, transferred, total, done, error })
+      }
+      try {
+        if (direction === 'download') {
+          await sftpManager.downloadResumable(client, remotePath, localPath, {
+            offset: payload.offset,
+            signal: ctl.signal,
+            onProgress: (p) => sendProg(p.transferred, p.total)
+          })
+        } else {
+          await sftpManager.uploadResumable(client, localPath, remotePath, {
+            offset: payload.offset,
+            signal: ctl.signal,
+            onProgress: (p) => sendProg(p.transferred, p.total)
+          })
+        }
+        sendProg(1, 1, true)
+      } catch (e) {
+        const aborted = e instanceof sftpManager.TransferAborted || ctl.signal.aborted
+        const message = aborted ? 'aborted' : e instanceof Error ? e.message : String(e)
+        sendProg(payload.offset ?? 0, 0, true, message)
+        if (!aborted) throw e
+      } finally {
+        transferAborts.delete(tid)
+      }
+    }
+  )
+  ipcMain.handle('sftp:queueLoad', () => loadSftpQueue())
+  ipcMain.handle('sftp:queueSave', (_e, tasks: unknown) => saveSftpQueue(tasks))
+
+  ipcMain.handle('localFs:home', () => localFs.localHome())
+  ipcMain.handle('localFs:list', (_e, dir: string) => localFs.listLocal(String(dir ?? '')))
+  ipcMain.handle('localFs:stat', (_e, target: string) => localFs.statLocal(String(target ?? '')))
+  ipcMain.handle('localFs:mkdir', (_e, target: string) => {
+    localFs.mkdirLocal(String(target ?? ''))
+    return true
+  })
+  ipcMain.handle('localFs:rename', (_e, from: string, to: string) => {
+    localFs.renameLocal(String(from ?? ''), String(to ?? ''))
+    return true
+  })
+  ipcMain.handle('localFs:trash', async (_e, target: string) => localFs.trashLocal(String(target ?? '')))
+  ipcMain.handle('localFs:restore', (_e, token: string) => localFs.restoreTrash(String(token ?? '')))
+  ipcMain.handle('localFs:reveal', (_e, target: string) => {
+    localFs.revealLocal(String(target ?? ''))
+    return true
+  })
+  ipcMain.handle('localFs:hash', (_e, target: string) => localFs.hashLocal(String(target ?? '')))
 
   ipcMain.handle('docker:listTree', async (_e, sessionId: string) => {
     return await dockerManager.listTree(requireSshClient(sessionId))

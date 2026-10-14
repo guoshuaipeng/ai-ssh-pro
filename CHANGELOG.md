@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.18
+
+- **SFTP dual pane (D1)** — local and remote side by side, drag-and-drop, transfer queue with pause / resume / cancel, and chunked resume via `.aisshpart`.
+- **Folder sync (D2)** — Session → Folder sync… compares two trees, previews new/changed/deleted, then queues the copy. Saved profiles rerun from Ctrl+K.
+- **Smart completion (X1)** — command bar accepts history with Tab; the terminal shows ghost text accepted with → or End. Tab in the terminal still reaches the shell.
+- **Inline AI prefix (UX-36)** — the ✨ / `>_` control sits inside the 32px command bar.
+- **AI setup card (UX-37)** — with no API key the AI panel shows only the setup card (no provider row, stop, or composer).
+- **Tour placement (UX-38)** — welcome cards prefer the right side and avoid action areas; ← / → move between steps.
+- **Upright tab titles (UX-42b)** — workspace, connecting, and disconnected tabs use the same roman face.
+- **Host picker (UX-43b)** — Chinese title no longer inserts a stray space; rows show the online dot, latency, and folder.
+
 ## v0.3.17
 
 - **Threshold alerts (O2)** — configurable CPU/mem/disk/offline rules; dashboard red badge + optional system notifications; Ops → Alert rules… / Alert history; mute 1 hour.

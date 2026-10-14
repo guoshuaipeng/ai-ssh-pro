@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useI18n, type MessageKey } from '../lib/i18n'
+import { placeTourCard, type Box } from '@shared/tour-place'
 
 export const TOUR_DONE_KEY = 'aiss.tourDone'
 
@@ -29,11 +30,15 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
   const [idx, setIdx] = useState(0)
   const [rect, setRect] = useState<DOMRect | null>(null)
   const [dir, setDir] = useState<1 | -1>(1)
+  const [skipped, setSkipped] = useState<number[]>([])
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [cardH, setCardH] = useState(180)
 
   useEffect(() => {
     if (open) {
       setIdx(0)
       setDir(1)
+      setSkipped([])
     }
   }, [open])
 
@@ -64,6 +69,7 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
     if (step.prepare === 'ai') ensureAiVisible()
     const timer = window.setTimeout(() => {
       if (cancelled || locate()) return
+      setSkipped((s) => (s.includes(idx) ? s : [...s, idx]))
       const next = idx + dir
       if (next < 0 || next >= TOUR_STEPS.length) finish()
       else setIdx(next)
@@ -74,42 +80,99 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
     }
   }, [open, idx, dir, ensureAiVisible, finish])
 
+  const go = useCallback(
+    (delta: 1 | -1) => {
+      setDir(delta)
+      setIdx((i) => {
+        let next = i + delta
+        while (next >= 0 && next < TOUR_STEPS.length && skipped.includes(next)) next += delta
+        if (next < 0 || next >= TOUR_STEPS.length) {
+          if (delta > 0) finish()
+          return i
+        }
+        return next
+      })
+    },
+    [finish, skipped]
+  )
+
   useEffect(() => {
     if (!open) return
-    const onResize = () => {
+    let frame = 0
+    const place = () => {
       const step = TOUR_STEPS[idx]
       const el = step ? findTarget(step) : null
       if (el) setRect(el.getBoundingClientRect())
     }
+    const onResize = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(place)
+    }
     const onKey = (e: KeyboardEvent) => {
+      const card = cardRef.current
+      if (e.key === 'Tab' && card) {
+        const items = [...card.querySelectorAll<HTMLElement>('button, [href], input, select, textarea')].filter((el) => !el.hasAttribute('disabled'))
+        if (items.length) {
+          e.preventDefault()
+          e.stopPropagation()
+          const i = items.indexOf(document.activeElement as HTMLElement)
+          const next = e.shiftKey ? items[(i <= 0 ? items.length : i) - 1]! : items[(i + 1) % items.length]!
+          next.focus()
+        }
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
         finish()
+        return
+      }
+      if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        e.preventDefault()
+        e.stopPropagation()
+        go(1)
+        return
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        e.stopPropagation()
+        go(-1)
       }
     }
     window.addEventListener('resize', onResize)
     window.addEventListener('keydown', onKey, true)
+    cardRef.current?.querySelector<HTMLElement>('button')?.focus()
     return () => {
+      cancelAnimationFrame(frame)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('keydown', onKey, true)
     }
-  }, [open, idx, finish])
+  }, [open, idx, finish, go])
+
+  useLayoutEffect(() => {
+    const h = cardRef.current?.offsetHeight
+    if (h && Math.abs(h - cardH) > 2) setCardH(h)
+  })
 
   if (!open || !rect) return null
   const step = TOUR_STEPS[idx]!
-  const last = idx === TOUR_STEPS.length - 1
+  const visible = TOUR_STEPS.map((_, i) => i).filter((i) => !skipped.includes(i))
+  const posIn = Math.max(1, visible.indexOf(idx) + 1)
+  const total = Math.max(1, visible.length)
+  const last = idx === visible[visible.length - 1]
+  const first = idx === visible[0]
   const pad = 6
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const bubbleW = 320
-  const below = rect.bottom + 160 < vh
-  const left = Math.max(12, Math.min(vw - bubbleW - 12, rect.left + rect.width / 2 - bubbleW / 2))
-  const top = below ? rect.bottom + pad + 10 : Math.max(12, rect.top - pad - 10 - 150)
-  // tall targets (sidebar, AI panel): put the bubble beside them
-  const tall = rect.height > vh * 0.5
-  const sideLeft = rect.left > vw / 2 ? rect.left - bubbleW - 16 : rect.right + 16
-  const pos = tall ? { left: Math.max(12, Math.min(vw - bubbleW - 12, sideLeft)), top: Math.max(12, rect.top + 40) } : { left, top }
+  const bubbleW = 300
+  const avoids: Box[] = [...document.querySelectorAll<HTMLElement>('[data-tour-avoid]')].map((el) => {
+    const r = el.getBoundingClientRect()
+    return { left: r.left, top: r.top, width: r.width, height: r.height }
+  })
+  const placed = placeTourCard({
+    target: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    avoids,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    card: { width: bubbleW, height: cardH }
+  })
 
   return (
     <div className="tour-root" data-testid="welcome-tour" role="dialog" aria-modal="true" aria-label={t('g2.title')}>
@@ -117,40 +180,35 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
         className="tour-highlight"
         style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }}
       />
-      <div className="tour-bubble" style={{ width: bubbleW, ...pos }}>
+      <div
+        ref={cardRef}
+        className={`tour-bubble tour-bubble--${placed.side}`}
+        data-testid="tour-card"
+        data-side={placed.side}
+        style={{ width: bubbleW, left: placed.left, top: placed.top }}
+      >
         <button type="button" className="tour-skip" data-testid="tour-skip" onClick={finish}>
           {t('g2.skip')}
         </button>
         <div className="tour-step">
-          {idx + 1} / {TOUR_STEPS.length}
+          {t('ux38.step', { i: posIn, n: total })}
         </div>
         <div className="tour-title" data-testid="tour-title">
           {t(step.title)}
         </div>
         <div className="tour-body">{t(step.body)}</div>
+        <div className="tour-hint">{t('ux38.keys')}</div>
         <div className="tour-actions">
-          <button
-            type="button"
-            disabled={idx === 0}
-            onClick={() => {
-              setDir(-1)
-              setIdx((i) => Math.max(0, i - 1))
-            }}
-          >
-            {t('g2.back')}
-          </button>
-          <button
-            type="button"
-            className="primary"
-            data-testid="tour-next"
-            onClick={() => {
-              if (last) finish()
-              else {
-                setDir(1)
-                setIdx((i) => i + 1)
-              }
-            }}
-          >
+          {first ? null : (
+            <button
+              type="button"
+              data-testid="tour-back"
+              onClick={() => go(-1)}
+            >
+              {t('g2.back')}
+            </button>
+          )}
+          <button type="button" className="primary" data-testid="tour-next" onClick={() => (last ? finish() : go(1))}>
             {last ? t('g2.start') : t('g2.next')}
           </button>
         </div>

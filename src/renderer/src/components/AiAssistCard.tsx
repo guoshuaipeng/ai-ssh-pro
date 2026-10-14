@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiAssistResult } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
-import EmptyState from './EmptyState'
 
 export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string }
 
@@ -14,7 +13,7 @@ type Props = {
 }
 
 /** A1: "Explain with AI" result in the right-hand AI panel — cause, fix commands (Insert / Run), notes. */
-export default function AiAssistCard({ request, onClose, onOpenSettings, onInsert, onRun }: Props) {
+export default function AiAssistCard({ request, onClose, onInsert, onRun }: Props) {
   const { t, locale } = useI18n()
   const [state, setState] = useState<{ phase: 'loading' } | { phase: 'done'; result: AiAssistResult }>({ phase: 'loading' })
   const reqIdRef = useRef('')
@@ -26,7 +25,13 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
     void window.aiss.ai
       .assist({ requestId, kind: 'explainError', text: request.text, host: request.host, locale })
       .then((result) => {
-        if (reqIdRef.current === requestId) setState({ phase: 'done', result })
+        if (reqIdRef.current !== requestId) return
+        if (!result.ok && result.code === 'not-configured') {
+          window.dispatchEvent(new CustomEvent('aiss-ai-need-config', { detail: { reason: 'explain' } }))
+          onClose()
+          return
+        }
+        setState({ phase: 'done', result })
       })
       .catch((e) => {
         if (reqIdRef.current === requestId) setState({ phase: 'done', result: { ok: false, code: 'error', message: e instanceof Error ? e.message : String(e) } })
@@ -68,15 +73,6 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
             </button>
           </div>
         </div>
-      ) : r && !r.ok && r.code === 'not-configured' ? (
-        <EmptyState
-          compact
-          icon="🤖"
-          title={t('a1.needAi')}
-          desc={t('a1.needAiDesc')}
-          testId="ai-explain-needs-config"
-          primary={{ label: t('a1.goSettings'), onClick: onOpenSettings }}
-        />
       ) : r && !r.ok ? (
         <div className="ai-assist-error" data-testid="ai-explain-error">
           <span>{r.code === 'aborted' ? t('a1.stopped') : t('a1.failed', { msg: r.message ?? '' })}</span>

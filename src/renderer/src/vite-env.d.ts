@@ -104,6 +104,30 @@ export type AissPreload = {
     pickUploadFiles: () => Promise<string[] | null>
     pickSavePaths: (names: string[]) => Promise<string[] | null>
     onProgress: (cb: (payload: import('@shared/ipc').SftpProgressEvent) => void) => () => void
+    stat: (sessionId: string, remotePath: string) => Promise<{ size: number; mtime?: number; isDirectory: boolean } | null>
+    hash: (sessionId: string, remotePath: string) => Promise<string>
+    cancel: (transferId: string) => Promise<boolean>
+    transfer: (payload: {
+      sessionId: string
+      direction: 'upload' | 'download'
+      localPath: string
+      remotePath: string
+      transferId?: string
+      offset?: number
+    }) => Promise<void>
+    queueLoad: () => Promise<import('@shared/sftp-queue').TransferTask[]>
+    queueSave: (tasks: unknown) => Promise<import('@shared/sftp-queue').TransferTask[]>
+  }
+  localFs: {
+    home: () => Promise<string>
+    list: (dir: string) => Promise<SftpListResult>
+    stat: (target: string) => Promise<{ size: number; mtime: number; isDirectory: boolean } | null>
+    mkdir: (target: string) => Promise<boolean>
+    rename: (from: string, to: string) => Promise<boolean>
+    trash: (target: string) => Promise<{ token: string }>
+    restore: (token: string) => Promise<boolean>
+    reveal: (target: string) => Promise<boolean>
+    hash: (target: string) => Promise<string>
   }
   docker: {
     listTree: (sessionId: string) => Promise<DockerTreeResult>

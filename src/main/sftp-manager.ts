@@ -1,8 +1,10 @@
 import { mt } from './main-i18n'
-import { existsSync } from 'node:fs'
-import { basename } from 'node:path'
+import { createHash } from 'node:crypto'
+import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs'
+import { basename, dirname } from 'node:path'
 import { Client, type SFTPWrapper, type TransferOptions } from 'ssh2'
 import type { SftpListEntry, SftpListResult } from '../shared/ipc'
+import { PART_SUFFIX, partPath } from '../shared/sftp-queue'
 
 /** 远端路径用 POSIX 风格拼接，避免 Windows 反斜杠污染 */
 export function joinRemotePath(...parts: string[]): string {
@@ -54,7 +56,7 @@ function withSftp<T>(client: Client, fn: (sftp: SFTPWrapper) => Promise<T>): Pro
 
 function entryToListItem(
   parentPath: string,
-  entry: { filename: string; attrs: { size?: number; mtime?: number; isDirectory?: () => boolean } }
+  entry: { filename: string; attrs: { size?: number; mtime?: number; mode?: number; isDirectory?: () => boolean } }
 ): SftpListEntry | null {
   const name = entry.filename
   if (!name || name === '.' || name === '..') return null
@@ -62,12 +64,14 @@ function entryToListItem(
   const isDirectory = Boolean(attrs && typeof attrs.isDirectory === 'function' && attrs.isDirectory())
   const size = typeof attrs?.size === 'number' ? attrs.size : 0
   const modifyTime = typeof attrs?.mtime === 'number' ? attrs.mtime * 1000 : undefined
+  const mode = typeof attrs?.mode === 'number' ? attrs.mode : undefined
   return {
     name,
     path: joinRemotePath(parentPath, name),
     isDirectory,
     size,
-    modifyTime
+    modifyTime,
+    mode
   }
 }
 
@@ -296,6 +300,199 @@ export async function readText(
       truncated: size > buf.length,
       encoding: 'utf-8'
     }
+  })
+}
+
+export class TransferAborted extends Error {
+  readonly code = 'TRANSFER_ABORTED'
+  constructor() {
+    super('aborted')
+    this.name = 'TransferAborted'
+  }
+}
+
+export type RemoteStat = { size: number; mtime?: number; isDirectory: boolean }
+
+export async function statRemote(client: Client, remotePath: string): Promise<RemoteStat | null> {
+  const path = normalizeRemotePath(remotePath)
+  return withSftp(client, (sftp) => {
+    return new Promise<RemoteStat | null>((resolve) => {
+      sftp.stat(path, (err, st) => {
+        if (err || !st) {
+          resolve(null)
+          return
+        }
+        resolve({
+          size: typeof st.size === 'number' ? st.size : 0,
+          mtime: typeof st.mtime === 'number' ? st.mtime * 1000 : undefined,
+          isDirectory: typeof st.isDirectory === 'function' ? st.isDirectory() : false
+        })
+      })
+    })
+  })
+}
+
+async function renameOver(client: Client, from: string, to: string): Promise<void> {
+  try {
+    await rename(client, from, to)
+  } catch {
+    try {
+      await remove(client, to)
+    } catch {
+      /* destination may not exist */
+    }
+    await rename(client, from, to)
+  }
+}
+
+type XferOpts = {
+  offset?: number
+  signal?: AbortSignal
+  onProgress?: (p: TransferProgress) => void
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new TransferAborted()
+}
+
+/** Download into `{local}.aisshpart` then rename. offset>0 appends from that byte. */
+export async function downloadResumable(
+  client: Client,
+  remotePath: string,
+  localPath: string,
+  opts: XferOpts = {}
+): Promise<void> {
+  throwIfAborted(opts.signal)
+  const remote = normalizeRemotePath(remotePath)
+  const info = await statRemote(client, remote)
+  const total = info?.size ?? 0
+  const finalLocal = localPath
+  const part = partPath(finalLocal)
+  mkdirSync(dirname(finalLocal), { recursive: true })
+  const offset = Math.max(0, Math.min(opts.offset ?? 0, total > 0 ? total : Number.MAX_SAFE_INTEGER))
+  if (offset <= 0) {
+    if (existsSync(part)) {
+      try {
+        unlinkSync(part)
+      } catch {
+        /* ignore */
+      }
+    }
+    await download(client, remote, part, opts.onProgress)
+    throwIfAborted(opts.signal)
+    if (existsSync(finalLocal)) {
+      try {
+        unlinkSync(finalLocal)
+      } catch {
+        /* ignore */
+      }
+    }
+    renameSync(part, finalLocal)
+    return
+  }
+  await withSftp(client, async (sftp) => {
+    await new Promise<void>((resolve, reject) => {
+      const rs = sftp.createReadStream(remote, { start: offset, end: Math.max(offset, total - 1) })
+      const ws = createWriteStream(part, { flags: 'a' })
+      let sent = offset
+      const fail = (err: Error) => {
+        rs.destroy()
+        ws.destroy()
+        reject(err)
+      }
+      const onAbort = () => fail(new TransferAborted())
+      if (opts.signal) opts.signal.addEventListener('abort', onAbort, { once: true })
+      rs.on('data', (chunk: Buffer) => {
+        sent += chunk.length
+        opts.onProgress?.({ transferred: sent, total: total || sent })
+      })
+      rs.on('error', (err: Error) => fail(err))
+      ws.on('error', (err: Error) => fail(err))
+      ws.on('close', () => {
+        if (opts.signal) opts.signal.removeEventListener('abort', onAbort)
+        resolve()
+      })
+      rs.pipe(ws)
+    })
+  })
+  throwIfAborted(opts.signal)
+  if (existsSync(finalLocal)) {
+    try {
+      unlinkSync(finalLocal)
+    } catch {
+      /* ignore */
+    }
+  }
+  renameSync(part, finalLocal)
+}
+
+/** Upload via `{name}.aisshpart` on the remote side, then rename into place. */
+export async function uploadResumable(
+  client: Client,
+  localPath: string,
+  remotePath: string,
+  opts: XferOpts = {}
+): Promise<void> {
+  throwIfAborted(opts.signal)
+  if (!existsSync(localPath)) {
+    throw new Error(mt(`本地文件不存在: ${localPath}`, `Local file not found: ${localPath}`))
+  }
+  const st = statSync(localPath)
+  const total = st.size
+  const remoteFinal = normalizeRemotePath(remotePath)
+  const remotePart = remoteFinal.endsWith(PART_SUFFIX) ? remoteFinal : remoteFinal + PART_SUFFIX
+  const offset = Math.max(0, Math.min(opts.offset ?? 0, total))
+  if (offset <= 0) {
+    await upload(client, localPath, remotePart, opts.onProgress)
+    throwIfAborted(opts.signal)
+    await renameOver(client, remotePart, remoteFinal)
+    return
+  }
+  await withSftp(client, async (sftp) => {
+    await new Promise<void>((resolve, reject) => {
+      const rs = createReadStream(localPath, { start: offset })
+      const ws = sftp.createWriteStream(remotePart, { flags: 'a', mode: 0o644 })
+      let sent = offset
+      const fail = (err: Error) => {
+        rs.destroy()
+        ws.destroy()
+        reject(err)
+      }
+      const onAbort = () => fail(new TransferAborted())
+      if (opts.signal) opts.signal.addEventListener('abort', onAbort, { once: true })
+      rs.on('data', (chunk: Buffer | string) => {
+        sent += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length
+        opts.onProgress?.({ transferred: sent, total })
+      })
+      rs.on('error', (err: Error) => fail(err))
+      ws.on('error', (err: Error) => fail(err))
+      ws.on('close', () => {
+        if (opts.signal) opts.signal.removeEventListener('abort', onAbort)
+        resolve()
+      })
+      rs.pipe(ws)
+    })
+  })
+  throwIfAborted(opts.signal)
+  await renameOver(client, remotePart, remoteFinal)
+}
+
+export async function hashRemote(client: Client, remotePath: string, maxBytes = 32 * 1024 * 1024): Promise<string> {
+  const path = normalizeRemotePath(remotePath)
+  return withSftp(client, async (sftp) => {
+    const hash = createHash('sha256')
+    await new Promise<void>((resolve, reject) => {
+      let got = 0
+      const rs = sftp.createReadStream(path, { end: Math.max(0, maxBytes - 1) })
+      rs.on('data', (chunk: Buffer) => {
+        got += chunk.length
+        hash.update(chunk)
+        if (got >= maxBytes) rs.destroy()
+      })
+      rs.on('error', reject)
+      rs.on('close', () => resolve())
+    })
+    return hash.digest('hex')
   })
 }
 

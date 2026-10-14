@@ -3,6 +3,8 @@ import type { TerminalPrefs, TerminalThemeId } from '@shared/ipc'
 import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
 import { TERMINAL_THEME_OPTIONS } from '../lib/terminal-themes'
 import { tg } from '../lib/i18n'
+import { loadSmartHistory, loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
+import type { SmartPrefs } from '@shared/smart-complete'
 
 type Props = {
   onClose: () => void
@@ -16,6 +18,7 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
   const [scrollback, setScrollback] = useState(TERMINAL_PREFS_DEFAULTS.scrollback)
   const [hint, setHint] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [smart, setSmart] = useState<SmartPrefs>(() => loadSmartPrefs())
 
   useEffect(() => {
     setHint(null)
@@ -102,6 +105,33 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
               onChange={(e) => setScrollback(parseInt(e.target.value, 10) || 4000)}
             />
           </div>
+          <fieldset className="smart-prefs" data-testid="smart-prefs">
+            <legend>{tg('x1.title')}</legend>
+            <label>
+              <input type="checkbox" checked={smart.enabled} onChange={(e) => setSmart(saveSmartPrefs({ ...smart, enabled: e.target.checked }))} />
+              {tg('x1.enabled')}
+            </label>
+            <label>
+              <input type="checkbox" checked={smart.ghost} onChange={(e) => setSmart(saveSmartPrefs({ ...smart, ghost: e.target.checked }))} />
+              {tg('x1.ghost')}
+            </label>
+            <div className="smart-sources">
+              {tg('x1.sources')}
+              <label>
+                <input type="checkbox" checked={smart.sourceHost} onChange={(e) => setSmart(saveSmartPrefs({ ...smart, sourceHost: e.target.checked }))} />
+                {tg('x1.host')}
+              </label>
+              <label>
+                <input type="checkbox" checked={smart.sourceCommon} onChange={(e) => setSmart(saveSmartPrefs({ ...smart, sourceCommon: e.target.checked }))} />
+                {tg('x1.common')}
+              </label>
+              <label>
+                <input type="checkbox" checked={smart.sourceSnippets} onChange={(e) => setSmart(saveSmartPrefs({ ...smart, sourceSnippets: e.target.checked }))} />
+                {tg('x1.snippet')}
+              </label>
+            </div>
+            <p className="smart-count">{tg('x1.recorded', { n: loadSmartHistory().length })}</p>
+          </fieldset>
           {hint ? <p style={{ margin: 0, fontSize: 12, color: 'var(--accent)' }}>{hint}</p> : null}
         </div>
       </div>

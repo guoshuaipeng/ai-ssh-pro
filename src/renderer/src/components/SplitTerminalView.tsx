@@ -17,6 +17,7 @@ type Props = {
   peers?: Peer[]
   /** UX-10: tells the app which session the second pane shows ('' = mirror of the primary) */
   onSecondaryChange?: (sessionId: string) => void
+  hostKey?: string
 }
 
 const LS_RATIO = 'aiss.split.ratio'
@@ -41,7 +42,8 @@ export default function SplitTerminalView({
   broadcastEnabled = false,
   defaultOrientation = 'horizontal',
   peers = [],
-  onSecondaryChange
+  onSecondaryChange,
+  hostKey
 }: Props) {
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>(() => {
     const v = localStorage.getItem(LS_ORIENT)
@@ -129,7 +131,7 @@ export default function SplitTerminalView({
         style={{ display: 'flex', flexDirection: horizontal ? 'row' : 'column', flex: 1, minHeight: 0, minWidth: 0 }}
       >
         <div className="split-pane" data-session-id={a.id} style={{ flex: `0 0 ${ratio * 100}%`, minWidth: 0, minHeight: 0 }}>
-          <TerminalPane key={`a-${a.id}-${a.mirror}`} sessionId={a.id} active={active} prefs={prefs} mirrorOnly={a.mirror} />
+          <TerminalPane key={`a-${a.id}-${a.mirror}`} sessionId={a.id} active={active} prefs={prefs} mirrorOnly={a.mirror} hostKey={hostKey} />
         </div>
         <div
           className="split-divider"
@@ -141,7 +143,7 @@ export default function SplitTerminalView({
           onDoubleClick={() => setRatio(0.5)}
         />
         <div className="split-pane" data-session-id={b.id} style={{ flex: '1 1 0', minWidth: 0, minHeight: 0 }}>
-          <TerminalPane key={`b-${b.id}-${b.mirror}`} sessionId={b.id} active={active} prefs={prefs} mirrorOnly={b.mirror} />
+          <TerminalPane key={`b-${b.id}-${b.mirror}`} sessionId={b.id} active={active} prefs={prefs} mirrorOnly={b.mirror} hostKey={hostKey} />
         </div>
       </div>
     </div>
