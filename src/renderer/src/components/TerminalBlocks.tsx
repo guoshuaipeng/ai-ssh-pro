@@ -6,6 +6,7 @@ import {
   disableBlocksKeepsScrollback,
   setBlocksEnabled,
   snippetFromBlock,
+  upsertCommandSnippet,
   startBlock,
   toggleBlock,
   type TermBlock
@@ -60,12 +61,11 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
     const snip = snippetFromBlock(b)
     void window.aiss.snippets
       .list()
-      .then((list) =>
-        window.aiss.snippets.save([
-          ...list,
-          { id: `blk-${Date.now().toString(36)}`, title: snip.title, body: snip.body }
-        ])
-      )
+      .then((list) => {
+        const next = upsertCommandSnippet(list, snip, `blk-${Date.now().toString(36)}`)
+        if (next === list) return
+        return window.aiss.snippets.save(next)
+      })
       .then(() => showToast(tg('m2.savedSnippet')))
       .catch(() => showToast(tg('m2.snippetFail')))
   }

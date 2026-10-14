@@ -73,3 +73,20 @@ export function snippetFromBlock(block: TermBlock, includeOutput = false): { tit
   const title = block.command.trim().split('\n')[0]?.slice(0, 48) || 'block'
   return { title, body: includeOutput ? `${block.command}\n${block.output}`.trim() : block.command }
 }
+
+/** Insert a command snippet, or replace the one with the same title. Same body returns the same list. */
+export function upsertCommandSnippet<T extends { id: string; title: string; body: string }>(
+  list: T[],
+  snippet: { title: string; body: string },
+  newId: string
+): T[] {
+  const title = snippet.title.trim() || 'block'
+  const body = snippet.body
+  const idx = list.findIndex((s) => s.title === title)
+  if (idx < 0) return [...list, { id: newId, title, body } as T]
+  const cur = list[idx]!
+  if (cur.body === body) return list
+  const next = list.slice()
+  next[idx] = { ...cur, title, body }
+  return next
+}

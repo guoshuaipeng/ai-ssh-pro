@@ -13,7 +13,7 @@ import {
   stepNeedsConfirm
 } from '../src/shared/playbook'
 import { applyChoice, buildVault, findConflicts, overwriteLocalAllowed, redactSecrets, statusGlyph, vaultHasSecrets } from '../src/shared/sync-vault'
-import { blocksEnabled, disableBlocksKeepsScrollback, setBlocksEnabled, startBlock } from '../src/shared/terminal-blocks'
+import { blocksEnabled, disableBlocksKeepsScrollback, setBlocksEnabled, startBlock, upsertCommandSnippet } from '../src/shared/terminal-blocks'
 import { chainFromLegacy, formatHopFailure, parseHopFailure, parseProxyJump, validateChain } from '../src/shared/jump-chain'
 import { shouldPinSyncPreview } from '../src/shared/file-workflow'
 import { auditToCsv, auditToJsonl, redactAuditText } from '../src/shared/audit-log'
@@ -141,7 +141,8 @@ const palette = readFileSync('src/renderer/src/lib/palette.ts', 'utf8')
 ok(!palette.includes('vault'), 'palette does not alias cloud sync as vault')
 const appSrc = readFileSync('src/renderer/src/App.tsx', 'utf8')
 ok(appSrc.includes('runCloudSync') && !appSrc.includes("action === 'cloudSync' || action === 'syncNow'"), 'sync now is not the settings opener')
-ok(appSrc.includes('runFolderSyncDurable') && !appSrc.includes("new CustomEvent('aiss-run-sync'"), 'pinned preview starts sync without a dead event')
+ok(appSrc.includes('runFolderSyncDurable') && appSrc.includes("addEventListener('aiss-run-sync'"), 'pinned preview and the sync event both run the write-gated handler')
+ok(!appSrc.includes("new CustomEvent('aiss-run-sync'"), 'sync start does not fire an unhandled event')
 ok(appSrc.includes('beforeRemoteWrite') && appSrc.includes('remoteWritesBlocked'), 'remote editor is given the write gate')
 const editor = readFileSync('src/renderer/src/components/RemoteTextEditor.tsx', 'utf8')
 const doSave = editor.slice(editor.indexOf('const doSave'), editor.indexOf('const requestSave'))
@@ -158,7 +159,11 @@ ok(readFileSync('src/renderer/src/components/SftpPanel.tsx', 'utf8').includes('r
 const recordings = readFileSync('src/renderer/src/components/RecordingsTab.tsx', 'utf8')
 ok(recordings.includes('askConfirm') && recordings.includes('danger: true') && recordings.indexOf('askConfirm') < recordings.indexOf('recordings.delete'), 'delete asks first')
 const blocks = readFileSync('src/renderer/src/components/TerminalBlocks.tsx', 'utf8')
-ok(blocks.includes('snippets.save') && blocks.includes("e.key.toLowerCase() !== 'e'"), 'snippet save is real and explain is block-scoped')
+ok(blocks.includes('upsertCommandSnippet') && blocks.includes('snippets.save') && blocks.includes("e.key.toLowerCase() !== 'e'"), 'snippet save upserts and explain is block-scoped')
+const inserted = upsertCommandSnippet([], { title: 'df', body: 'df -h' }, 'a')
+const updated = upsertCommandSnippet(inserted, { title: 'df', body: 'df -hT' }, 'b')
+ok(inserted.length === 1 && updated.length === 1 && updated[0]!.id === 'a' && updated[0]!.body === 'df -hT', 'snippet upsert replaces by title')
+ok(upsertCommandSnippet(updated, { title: 'df', body: 'df -hT' }, 'c') === updated, 'unchanged snippet is not rewritten')
 ok(readFileSync('src/renderer/src/components/JumpChainEditor.tsx', 'utf8').includes('jump-chips'), 'jump chain has a chip row')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }

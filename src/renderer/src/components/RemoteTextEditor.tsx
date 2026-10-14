@@ -150,9 +150,13 @@ export default function RemoteTextEditor({
 
   const requestSave = useCallback(() => {
     if (!dirty || saving || loading || meta?.truncated) return
+    if (remoteWritesBlocked) {
+      void doSave()
+      return
+    }
     if (showDiffPref) setMode('diff')
     else void doSave()
-  }, [dirty, doSave, loading, meta?.truncated, saving, showDiffPref])
+  }, [dirty, doSave, loading, meta?.truncated, remoteWritesBlocked, saving, showDiffPref])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

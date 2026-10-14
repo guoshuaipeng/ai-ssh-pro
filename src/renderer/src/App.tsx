@@ -113,7 +113,7 @@ import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks } from '@shared/playbook'
 import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
 import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
-import { runFolderSyncDurable } from './lib/folder-sync-run'
+import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
 import { connectOptsFromProfile } from './lib/connect-opts'
 import StartupSettingsModal from './components/StartupSettingsModal'
 import ProtectionSection, { ProtectionLevelField } from './components/ProtectionSection'
@@ -1755,6 +1755,30 @@ export default function App() {
       hostLabel: profile?.label || profile?.host || ''
     }
   }, [elevateMap, profileForSession])
+
+  useEffect(() => {
+    const onRun = (e: Event) => {
+      const plan = (e as CustomEvent<FolderSyncPlan>).detail
+      if (!plan?.sessionId) return
+      const sid = plan.sessionId
+      void runFolderSyncDurable({ ...plan, sessionId: sid }, async () => {
+        const g = guardForSession(sid)
+        return runGuardedCommand({
+          level: g.level,
+          hostName: g.hostName,
+          hostLabel: g.hostLabel,
+          elevated: g.elevated,
+          profileId: g.profile?.id,
+          channel: 'sftp',
+          dangerous: false,
+          command: 'folder-sync',
+          source: 'user'
+        })
+      })
+    }
+    window.addEventListener('aiss-run-sync', onRun)
+    return () => window.removeEventListener('aiss-run-sync', onRun)
+  }, [guardForSession])
 
   const refreshAlerts = useCallback((next: FiredAlert[]) => {
     saveAlertHistory(next)
