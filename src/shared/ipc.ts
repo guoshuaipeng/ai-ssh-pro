@@ -379,6 +379,8 @@ export type SavedSessionProfile = {
   tags?: string[]
   /** G1: the built-in simulated demo host (read-only, cannot be edited) */
   demo?: boolean
+  /** S2: client-side protection. Demo hosts default to production when unset. */
+  protection?: 'normal' | 'production' | 'readonly'
 }
 
 /** 侧栏已保存会话与分组（持久化） */

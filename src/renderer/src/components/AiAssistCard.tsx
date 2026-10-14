@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiAssistResult } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
+import AiConfigCard from './AiConfigCard'
 
 export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert' }
 
@@ -10,10 +11,12 @@ type Props = {
   onOpenSettings: () => void
   onInsert: (sessionId: string, command: string) => void
   onRun: (sessionId: string, command: string) => void
+  /** Keep the UX-37 card inside this surface instead of jumping to the AI panel. */
+  embed?: boolean
 }
 
 /** A1: "Explain with AI" result in the right-hand AI panel — cause, fix commands (Insert / Run), notes. */
-export default function AiAssistCard({ request, onClose, onInsert, onRun }: Props) {
+export default function AiAssistCard({ request, onClose, onOpenSettings, onInsert, onRun, embed }: Props) {
   const { t, locale } = useI18n()
   const [state, setState] = useState<{ phase: 'loading' } | { phase: 'done'; result: AiAssistResult }>({ phase: 'loading' })
   const reqIdRef = useRef('')
@@ -27,8 +30,12 @@ export default function AiAssistCard({ request, onClose, onInsert, onRun }: Prop
       .then((result) => {
         if (reqIdRef.current !== requestId) return
         if (!result.ok && result.code === 'not-configured') {
-          window.dispatchEvent(new CustomEvent('aiss-ai-need-config', { detail: { reason: 'explain' } }))
-          onClose()
+          if (!embed) {
+            window.dispatchEvent(new CustomEvent('aiss-ai-need-config', { detail: { reason: request.kind === 'explainAlert' ? 'alert' : 'explain' } }))
+            onClose()
+            return
+          }
+          setState({ phase: 'done', result })
           return
         }
         setState({ phase: 'done', result })
@@ -72,12 +79,14 @@ export default function AiAssistCard({ request, onClose, onInsert, onRun }: Prop
           <div className="ai-skeleton" />
           <div className="ai-skeleton ai-skeleton--short" />
           <div className="ai-assist-row">
-            <span>{t('a1.analyzing')}</span>
+            <span>{request.kind === 'explainAlert' ? t('a4.gathering') : t('a1.analyzing')}</span>
             <button type="button" onClick={stop}>
               {t('a1.stop')}
             </button>
           </div>
         </div>
+      ) : r && !r.ok && r.code === 'not-configured' ? (
+        <AiConfigCard context={t('ux37.needAlert')} onConfigure={onOpenSettings} />
       ) : r && !r.ok ? (
         <div className="ai-assist-error" data-testid="ai-explain-error">
           <span>{r.code === 'aborted' ? t('a1.stopped') : t('a1.failed', { msg: r.message ?? '' })}</span>

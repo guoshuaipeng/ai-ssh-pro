@@ -45,6 +45,8 @@ type Props = {
   onReconnect?: () => void
   onOpenRemoteFile?: (info: { remotePath: string; name: string; size: number }) => void
   onCompare?: (info: { localPath: string; remotePath: string; localName: string; remoteName: string; localSize: number; remoteSize: number }) => void
+  /** S2: called before an upload or remote delete. Return false to cancel. */
+  beforeRemoteWrite?: () => Promise<boolean>
 }
 
 type PaneId = 'local' | 'remote'
@@ -111,7 +113,8 @@ export default function SftpPanel({
   onClose,
   onReconnect,
   onOpenRemoteFile,
-  onCompare
+  onCompare,
+  beforeRemoteWrite
 }: Props) {
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
@@ -365,6 +368,10 @@ export default function SftpPanel({
   const transferFiles = useCallback(
     async (direction: 'upload' | 'download', files: { name: string; localPath: string; remotePath: string; size: number; mtime?: number; isPart?: boolean }[]) => {
       if (!sessionId) return
+      if (direction === 'upload' && beforeRemoteWrite) {
+        const ok = await beforeRemoteWrite()
+        if (!ok) return
+      }
       if (direction === 'upload' && readOnly) {
         setRemoteError(tg('ux34.noUpload'))
         return
@@ -397,7 +404,7 @@ export default function SftpPanel({
         await enqueueFile(direction, destLocal, destRemote, baseName(direction === 'upload' ? destRemote : destLocal), mtime, offset)
       }
     },
-    [enqueueFile, localCwd, localEntries, readOnly, remoteCwd, remoteEntries, sessionId]
+    [beforeRemoteWrite, enqueueFile, localCwd, localEntries, readOnly, remoteCwd, remoteEntries, sessionId]
   )
 
   const uploadSelected = () => {
@@ -604,6 +611,10 @@ export default function SftpPanel({
   const removeEntry = async (side: PaneId, entry: SftpListEntry) => {
     if (side === 'remote') {
       if (!sessionId || readOnly) return
+      if (beforeRemoteWrite) {
+        const allowed = await beforeRemoteWrite()
+        if (!allowed) return
+      }
       const ok = await confirmDialog({
         title: tg('d1.deleteN', { n: 1 }),
         body: `${entry.name}\n${tg('d1.remoteIrreversible')}`,

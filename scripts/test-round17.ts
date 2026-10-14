@@ -287,8 +287,6 @@ for (const phrase of ['localStorage prefs', 'no default service alert rules', 'd
 }
 ok(readFileSync('src/renderer/src/components/AiAssistCard.tsx', 'utf8').includes('a4.privacy'), 'privacy on result')
 ok(readFileSync('src/renderer/src/components/MultiHostDashboard.tsx', 'utf8').includes('a4-privacy-action'), 'privacy near action')
-ok(readFileSync('package.json', 'utf8').includes('"version": "0.3.19"'), 'package version')
-
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 for (const key of ['n1.auto', 'o4.locate', 'a4.interpret', 'a4.privacy', 'd5.compareWithLocal', 'ux46.comfort', 'n2.skip', 'g3.dismissAll', 'st.tab.df']) {
   const hits = i18n.split(`'${key}'`).length - 1

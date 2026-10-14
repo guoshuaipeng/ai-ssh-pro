@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.0-m1
+
+Pre-release of the ops workbench. The final `v0.4.0` tag waits for M2. Do not tag this build.
+
+- **Ops home (L7)** — a unique center tab with host health cards (at most 8, alerts first), an alert inbox, and shortcuts. New installs open this tab. View → Ops home, or Ctrl+Alt+H. Startup can switch back to last session or a blank workspace.
+- **Alert workbench (L2)** — one list-and-detail tab for locate (O4) and AI read (A4), with the privacy footnote in the detail. The bell and notification clicks open it and select the alert. Ops → Alert workbench, or Ctrl+Alt+A.
+- **Protection levels (S2 / L4)** — each host is normal, production, or read-only. Production asks for the host name before a dangerous command, an alert run, or an SFTP write. Read-only blocks the send and still allows insert. Temporary unlock lasts 15 minutes. Sidebar badge, terminal banner, and the host profile section stay in sync.
+- **Audit slice (S1)** — `alert.execute` and `danger` events are stored locally. Ops → Audit log can filter them. The full audit table is still ahead.
+- **已知限制** — Playbook editing is a disabled “coming soon” link; auto-record is the same. “Last session” reconnects saved hosts only, not tool tabs. Alert history and the audit log stay in localStorage. This is not a server permission system.
+
 ## v0.3.19
 
 - **Domestic update channel (N1)** — Settings → Updates: Auto (Gitee then GitHub), Gitee, GitHub, or a custom mirror. The download link comes from the same source that reported the version. About and the update dialog show the active source. Each source times out at about 8s; auto gives up after 16s.

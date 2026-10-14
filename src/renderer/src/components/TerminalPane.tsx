@@ -31,6 +31,9 @@ type Props = {
   /** Optional ref updated with the latest write handler (for external broadcast fan-in). */
   broadcastRef?: MutableRefObject<((data: string) => void) | null>
   hostKey?: string
+  /** S2 read-only: swallow keystrokes and tell the caller. */
+  inputBlocked?: boolean
+  onInputBlocked?: () => void
 }
 
 /** Electron 中 xterm 会把 Ctrl+C / Ctrl+V 当控制字符发给 SSH；此处对接系统剪贴板。 */
@@ -83,7 +86,9 @@ export default function TerminalPane({
   mirrorOnly = false,
   onUserData,
   broadcastRef,
-  hostKey = ''
+  hostKey = '',
+  inputBlocked = false,
+  onInputBlocked
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<{ term: Terminal; fit: FitAddon } | null>(null)
@@ -93,6 +98,10 @@ export default function TerminalPane({
   mirrorOnlyRef.current = mirrorOnly
   const onUserDataRef = useRef(onUserData)
   onUserDataRef.current = onUserData
+  const inputBlockedRef = useRef(inputBlocked)
+  inputBlockedRef.current = inputBlocked
+  const onInputBlockedRef = useRef(onInputBlocked)
+  onInputBlockedRef.current = onInputBlocked
   const prefsRef = useRef(resolvePrefs(prefs))
   prefsRef.current = resolvePrefs(prefs)
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
@@ -167,6 +176,10 @@ export default function TerminalPane({
     term.loadAddon(fit)
     term.open(el)
     const writeInput = (data: string) => {
+      if (inputBlockedRef.current) {
+        onInputBlockedRef.current?.()
+        return
+      }
       if (onUserDataRef.current) {
         onUserDataRef.current(data)
         return

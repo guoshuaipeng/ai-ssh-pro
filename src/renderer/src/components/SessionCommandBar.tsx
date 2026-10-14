@@ -19,6 +19,14 @@ type Props = {
   hostLabel?: string
   hostKey?: string
   onOpenAiSettings?: () => void
+  /** S2: return false to cancel the send. When set, this replaces the local danger dialog. */
+  beforeSend?: (command: string, dangerous: boolean) => Promise<boolean>
+  sendGuard?: {
+    level: import('@shared/protection').ProtectionLevel
+    hostName: string
+    elevated: boolean
+    profileId?: string
+  }
 }
 
 type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; result: AiAssistResult })
@@ -26,7 +34,7 @@ type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; resu
 /** Sends one line to the active terminal via the existing ssh.write path; "#" or Ctrl+Shift+Space switches to AI mode (A2). */
 const CMD_BAR_KEY = 'aiss.cmdBarOpen'
 
-export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', onOpenAiSettings }: Props) {
+export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', onOpenAiSettings, beforeSend, sendGuard }: Props) {
   const { t, locale } = useI18n()
   const [open, setOpen] = useState(() => {
     try {
@@ -177,7 +185,13 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
     const r = aiResult
     setAiCard(null)
     setAiMode(false)
-    await confirmAndRunAiCommand({ sessionId, command: r.command, host: hostLabel, aiRisk: r.risk })
+    await confirmAndRunAiCommand({
+      sessionId,
+      command: r.command,
+      host: hostLabel,
+      aiRisk: r.risk,
+      protection: sendGuard ? { ...sendGuard, channel: 'command' } : undefined
+    })
   }
 
   const onSubmit = async (command: string) => {
@@ -187,7 +201,10 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       return
     }
     const risk = assessCommandRisk(command)
-    if (risk) {
+    if (beforeSend) {
+      const ok = await beforeSend(command, Boolean(risk))
+      if (!ok) return
+    } else if (risk) {
       const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${command}`, { danger: true, okLabel: t('risk.run') })
       if (!ok) {
         setError(t('risk.blocked'))

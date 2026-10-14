@@ -11,6 +11,7 @@ import type {
 } from '@shared/ipc'
 import { normalizeQuery, profileMatches } from '../lib/session-filter'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
+import { effectiveLevel } from '@shared/protection'
 
 export type DockerTreeCache = {
   status: 'idle' | 'connecting' | 'loading' | 'ready' | 'error'
@@ -280,6 +281,11 @@ export default function SessionDockerBranch({
             {profile.demo ? (
               <span className="demo-badge" data-testid="demo-badge">
                 DEMO
+              </span>
+            ) : null}
+            {effectiveLevel(profile) !== 'normal' ? (
+              <span className={`prot-badge prot-badge--${effectiveLevel(profile)}`} data-testid="prot-badge">
+                {tg(effectiveLevel(profile) === 'production' ? 'l4.production' : 'l4.readonly')}
               </span>
             ) : null}
           </div>

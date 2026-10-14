@@ -41,8 +41,12 @@ export type MenuAction =
   | 'toggleRecording'
   | 'resourceMonitor'
   | 'dashboard'
+  | 'opsHome'
+  | 'alertWorkbench'
   | 'alertRules'
   | 'alertHistory'
+  | 'auditLog'
+  | 'startupSettings'
   | 'serverTools'
   | 'refreshDocker'
   | 'batchExec'
@@ -129,6 +133,7 @@ export const SHARED_MENUS: SharedMenu[] = [
     id: 'view',
     label: { zh: '查看', en: 'View' },
     items: [
+      it('opsHome', '运维首页', 'Ops home'),
       it('commandPalette', '命令面板…', 'Command palette…'),
       sep,
       it('toggleSidebar', '会话栏', 'Session sidebar', { toggle: true }),
@@ -143,6 +148,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),
       it('sftpComfort', 'SFTP 舒适密度', 'SFTP comfort density', { toggle: true }),
       it('clearHostHistory', '清除本主机命令历史…', 'Clear history for this host…'),
+      it('startupSettings', '启动设置…', 'Startup settings…'),
       it('toggleLanguage', '切换语言（English）', 'Switch language (Chinese)')
     ]
   },
@@ -166,10 +172,13 @@ export const SHARED_MENUS: SharedMenu[] = [
     id: 'ops',
     label: { zh: '运维', en: 'Ops' },
     items: [
+      it('opsHome', '运维首页', 'Ops home'),
+      it('alertWorkbench', '告警工作台', 'Alert workbench'),
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
       it('dashboard', '多主机看板', 'Multi-host dashboard'),
       it('alertRules', '告警规则…', 'Alert rules…'),
       it('alertHistory', '告警历史', 'Alert history'),
+      it('auditLog', '审计日志', 'Audit log'),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
       it('refreshDocker', '刷新 Docker', 'Refresh Docker'),
       sep,

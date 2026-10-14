@@ -12,6 +12,32 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.0-m1': [
+    {
+      icon: '▣',
+      text: { zh: '运维首页：主机健康、告警收件箱和快捷入口，新装默认打开', en: 'Ops home: host health, alert inbox, and shortcuts. New installs land here' },
+      where: { zh: '查看 → 运维首页', en: 'View → Ops home' },
+      action: 'opsHome'
+    },
+    {
+      icon: '🔔',
+      text: { zh: '告警工作台把定位和 AI 解读放在同一个标签里', en: 'Alert workbench combines locate and AI read in one tab' },
+      where: { zh: '运维 → 告警工作台', en: 'Ops → Alert workbench' },
+      action: 'alertWorkbench'
+    },
+    {
+      icon: '🛡',
+      text: { zh: '主机保护级别：普通、生产、只读；告警执行会遵守闸门', en: 'Host protection: normal, production, or read-only. Alert runs honor the gate' },
+      where: { zh: '主机档案 → 生产防护', en: 'Host inventory → Production guard' },
+      action: 'inventory'
+    },
+    {
+      icon: '▶',
+      text: { zh: '启动时可打开运维首页、上次会话或空白；审计日志记录告警执行和危险命令', en: 'Startup can open Ops home, the last session, or a blank workspace. The audit log records alert runs and dangerous commands' },
+      where: { zh: '查看 → 启动设置…', en: 'View → Startup settings…' },
+      action: 'startupSettings'
+    }
+  ],
   '0.3.19': [
     {
       icon: '⬇',
@@ -315,5 +341,13 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
 }
 
 export function changelogFor(version: string): ReadonlyArray<ChangelogEntry> {
-  return CHANGELOG[version.replace(/^v/i, '').replace(/-.*$/, '')] ?? []
+  let v = version.replace(/^v/i, '')
+  while (v) {
+    const hit = CHANGELOG[v]
+    if (hit) return hit
+    const cut = v.replace(/-[^-]+$/, '')
+    if (cut === v) break
+    v = cut
+  }
+  return []
 }
