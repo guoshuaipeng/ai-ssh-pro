@@ -15,6 +15,8 @@ import type {
   AiSettings,
   AiStreamEvent,
   AiParsedSshForm,
+  AiAssistRequest,
+  AiAssistResult,
   AiDebugStreamPayload,
   AppDialogKind,
   SshSnapshotOptions,
@@ -172,6 +174,8 @@ export type AissPreload = {
     chat: (payload: AiChatPayload) => Promise<void>
     abortChat: () => Promise<void>
     confirmStep: (requestId: string, ok: boolean) => Promise<boolean>
+    assist: (req: AiAssistRequest) => Promise<AiAssistResult>
+    abortAssist: (requestId: string) => Promise<void>
     parseSshForm: (rawText: string) => Promise<AiParsedSshForm>
     getChatHistory: (key: string) => Promise<AiChatMessage[]>
     setChatHistory: (key: string, messages: AiChatMessage[]) => Promise<void>

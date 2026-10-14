@@ -16,7 +16,7 @@ export function ToastHost() {
   const [items, setItems] = useState<Toast[]>([])
   useEffect(() => {
     const fn = (t: Toast) => {
-      setItems((prev) => [...prev.slice(-3), t])
+      setItems((prev) => [...prev.slice(-2), t])
       window.setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== t.id)), t.action ? 8000 : 4000)
     }
     listeners.add(fn)

@@ -23,6 +23,8 @@ import { promptHostKey } from './host-key-prompt'
 import { startTrackedForward, stopSessionForwards } from './forward-manager'
 import { appendRecording } from './session-recorder'
 import { assertSafeDockerId } from './docker-manager'
+import { demoHostManager } from './demo-host'
+import { isDemoSessionId } from '../shared/demo-host'
 
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
@@ -191,7 +193,8 @@ export class SshSessionManager {
 
   /** 供 SFTP 等复用同一会话的 ssh2 Client（目标机） */
   getClient(sessionId: string): Client | undefined {
-    return this.sessions.get(sessionId)?.client
+    // G1: the demo host answers exec/sftp with simulated data
+    return this.sessions.get(sessionId)?.client ?? demoHostManager.getClient(sessionId)
   }
 
   listMeta(): SessionMeta[] {
@@ -199,6 +202,9 @@ export class SshSessionManager {
   }
 
   getRingSnapshot(sessionId: string, options?: number | SshSnapshotOptions): string | null {
+    if (isDemoSessionId(sessionId)) {
+      return demoHostManager.getRingSnapshot(sessionId, typeof options === 'number' ? options : options?.maxLines ?? 200)
+    }
     const s = this.sessions.get(sessionId)
     if (!s) return null
     const opt = typeof options === 'number' ? { maxLines: options } : options ?? {}
@@ -526,6 +532,7 @@ export class SshSessionManager {
   }
 
   write(sessionId: string, data: string | Uint8Array): boolean {
+    if (isDemoSessionId(sessionId)) return demoHostManager.write(sessionId, data)
     const s = this.sessions.get(sessionId)
     if (!s) return false
     if (typeof data === 'string') {
@@ -536,6 +543,7 @@ export class SshSessionManager {
   }
 
   resize(sessionId: string, cols: number, rows: number): boolean {
+    if (isDemoSessionId(sessionId)) return demoHostManager.resize(sessionId, cols, rows)
     const s = this.sessions.get(sessionId)
     if (!s) return false
     try {
@@ -551,6 +559,7 @@ export class SshSessionManager {
   }
 
   disconnect(sessionId: string): void {
+    if (isDemoSessionId(sessionId)) return demoHostManager.disconnect(sessionId)
     const s = this.sessions.get(sessionId)
     if (!s) return
     try {

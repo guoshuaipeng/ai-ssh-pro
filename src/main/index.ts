@@ -29,6 +29,8 @@ import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './a
 import { streamOpenAICompatibleChat } from './ai-stream'
 import { setDebugWindowWebContents } from './debug-window-broadcast'
 import { parseSshFormWithAi } from './ai-parse-ssh'
+import { abortAiAssist, runAiAssist } from './ai-assist'
+import type { AiAssistRequest } from '../shared/ipc'
 import { importSessionFilesFromPaths } from './session-import'
 import { resolveHostKeyPrompt } from './host-key-prompt'
 import * as sftpManager from './sftp-manager'
@@ -36,6 +38,7 @@ import * as dockerManager from './docker-manager'
 import { exportSessionsToJson, exportSessionsToOpenSsh } from './session-export'
 import { startRecording, stopRecording, stopAllRecordings } from './session-recorder'
 import { LocalShellManager, isLocalShellAvailable } from './local-shell'
+import { demoHostManager } from './demo-host'
 import { getInventoryStore } from './inventory-store'
 import {
   checkForAppUpdate,
@@ -303,7 +306,7 @@ function openDebugWindow(): void {
     height: 700,
     minWidth: 720,
     minHeight: 440,
-    title: 'AI 助手调试',
+    title: 'AI 调试',
     show: false,
     webPreferences: {
       preload: resolvedPreload,
@@ -351,6 +354,8 @@ function openDebugWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle('ssh:connect', async (event, opts: SshConnectOptions) => {
+    // G1: simulated demo host, never touches the network or the recent list
+    if (opts?.demo) return demoHostManager.open(event.sender, { label: opts.label, termCols: opts.termCols, termRows: opts.termRows })
     const result = await sshManager.connect(opts, event.sender)
     try {
       recordRecentConnection({
@@ -762,6 +767,9 @@ function registerIpc(): void {
   ipcMain.handle('ai:confirmStep', async (_event, requestId: string, ok: boolean) => {
     return resolveAiConfirmStep(requestId, Boolean(ok))
   })
+
+  ipcMain.handle('ai:assist', async (_e, req: AiAssistRequest) => runAiAssist(req, getAiSettings()))
+  ipcMain.handle('ai:assistAbort', (_e, requestId: string) => abortAiAssist(String(requestId ?? '')))
 
   ipcMain.handle('ai:parseSshForm', async (_e, rawText: string) => {
     return await parseSshFormWithAi(rawText, getAiSettings())

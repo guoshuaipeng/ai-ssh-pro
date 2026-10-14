@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SftpReadTextResult } from '@shared/ipc'
 import { clearRemoteFileDirty, setRemoteFileDirty } from '../lib/remote-file-dirty'
 import { tg } from '../lib/i18n'
+import { confirmDialog } from '../lib/dialogs'
 
 type Props = {
   tabId: string
@@ -141,8 +142,8 @@ export default function RemoteTextEditor({
     return () => window.removeEventListener('keydown', onKey)
   }, [save])
 
-  const requestClose = () => {
-    if (dirty && !window.confirm(tg('ui.262'))) return
+  const requestClose = async () => {
+    if (dirty && !(await confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('ui.262'), danger: true, confirmText: tg('dlg.discard') }))) return
     clearRemoteFileDirty(tabId)
     onClose()
   }

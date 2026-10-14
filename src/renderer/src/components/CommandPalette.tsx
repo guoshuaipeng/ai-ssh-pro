@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '../lib/i18n'
 import { MENUS, type TitlebarMenuAction } from './TitlebarMenus'
-import { menuLabel } from '@shared/menus'
+import { buildPaletteEntries, filterPaletteEntries, type PaletteEntry } from '../lib/palette'
 
 type Props = {
   open: boolean
@@ -9,9 +9,7 @@ type Props = {
   onAction: (action: TitlebarMenuAction) => void
 }
 
-type Entry = { id: TitlebarMenuAction; label: string; group: string; shortcut?: string; hay: string }
-
-const HIDDEN: ReadonlySet<TitlebarMenuAction> = new Set(['commandPalette', 'undo', 'redo', 'cut', 'copy', 'paste', 'selectAll'])
+type Entry = PaletteEntry
 
 /** Ctrl+Shift+P / Ctrl+K: searchable list of every menu action (matches on the label, menu name and action id). */
 export default function CommandPalette({ open, onClose, onAction }: Props) {
@@ -21,28 +19,8 @@ export default function CommandPalette({ open, onClose, onAction }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const entries = useMemo<Entry[]>(() => {
-    const out: Entry[] = []
-    for (const m of MENUS) {
-      const group = menuLabel(m.label, locale)
-      for (const it of m.items) {
-        if (it.type !== 'item' || HIDDEN.has(it.id)) continue
-        const label = menuLabel(it.label, locale).replace(/…$/, '')
-        // both languages are searchable regardless of the UI language
-        const other = (locale === 'zh-CN' ? it.label.en : it.label.zh).replace(/…$/, '')
-        out.push({ id: it.id, label, group, shortcut: it.shortcut, hay: `${label} ${other} ${group} ${it.id}`.toLowerCase() })
-      }
-    }
-    return out
-  }, [locale])
-
-  const filtered = useMemo(() => {
-    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    if (!words.length) return entries
-    return entries
-      .filter((e) => words.every((w) => e.hay.includes(w)))
-      .sort((a, b) => Number(!a.label.toLowerCase().startsWith(words[0]!)) - Number(!b.label.toLowerCase().startsWith(words[0]!)))
-  }, [entries, q])
+  const entries = useMemo<Entry[]>(() => buildPaletteEntries(MENUS, locale), [locale])
+  const filtered = useMemo(() => filterPaletteEntries(entries, q), [entries, q])
 
   useEffect(() => {
     if (!open) return

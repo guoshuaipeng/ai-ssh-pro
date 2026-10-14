@@ -197,18 +197,17 @@ export default function AppToolbar({
           ) : null}
         </div>
         <span className="toolbar-divider" aria-hidden />
-        <div className="toolbar-group" role="group" aria-label={t('toolbar.groupOps')}>
+        <div className="toolbar-group" role="group" data-tour="ops" aria-label={t('toolbar.groupOps')}>
           {OPS_BUTTONS.map((b) => {
             const dim = b.needsSession && !hasSession
             const keys = keysFor(b.id)
-            const title = dim ? t('toolbar.needSession') : `${t(b.title)}${keys ? ` (${keys})` : ''}`
+            const title = dim ? `${t(b.title)} · ${t('ux09.dimHint')}` : `${t(b.title)}${keys ? ` (${keys})` : ''}`
             return (
               <button
                 key={b.id}
                 type="button"
                 className={`titlebar-icon-btn titlebar-tool-btn${dim ? ' is-dim' : ''}`}
                 data-tool={b.id}
-                aria-disabled={dim || undefined}
                 title={title}
                 aria-label={t(b.title)}
                 onClick={() => onMenuAction(b.id)}

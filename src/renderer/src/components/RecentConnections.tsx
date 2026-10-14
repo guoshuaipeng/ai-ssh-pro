@@ -4,7 +4,11 @@ import { useI18n } from '../lib/i18n'
 import { RECENT_CHANGED_EVENT } from '../lib/workspace-events'
 
 type Props = {
-  variant?: 'sidebar' | 'menu'
+  variant?: 'sidebar' | 'menu' | 'welcome'
+  /** show at most this many rows (UX-08 terminal-area empty state) */
+  limit?: number
+  /** render nothing while there are no recent connections */
+  hideWhenEmpty?: boolean
   onQuickConnect: (row: RecentConnection) => void
 }
 
@@ -22,7 +26,7 @@ function formatWhen(ts: number, locale: string): string {
   }
 }
 
-export default function RecentConnections({ variant = 'sidebar', onQuickConnect }: Props) {
+export default function RecentConnections({ variant = 'sidebar', limit, hideWhenEmpty, onQuickConnect }: Props) {
   const { t, locale } = useI18n()
   const [rows, setRows] = useState<RecentConnection[]>([])
 
@@ -53,6 +57,7 @@ export default function RecentConnections({ variant = 'sidebar', onQuickConnect 
     setRows(next)
   }
 
+  if (hideWhenEmpty && rows.length === 0) return null
   return (
     <section className={`recent-connections recent-connections--${variant}`}>
       <header className="recent-connections-header">
@@ -62,7 +67,7 @@ export default function RecentConnections({ variant = 'sidebar', onQuickConnect 
         <p className="recent-connections-empty">{t('recent.empty')}</p>
       ) : (
         <ul className="recent-connections-list">
-          {rows.map((row) => {
+          {(limit ? rows.slice(0, limit) : rows).map((row) => {
             const title = row.label?.trim() || `${row.username}@${row.host}`
             return (
               <li key={row.id} className={row.pinned ? 'is-pinned' : ''}>

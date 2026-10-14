@@ -53,8 +53,24 @@ import BackupModal from './components/BackupModal'
 import ServerToolsModal from './components/ServerToolsModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
+import EmptyState from './components/EmptyState'
+import HostPicker from './components/HostPicker'
+import WelcomeTour, { TOUR_DONE_KEY } from './components/WelcomeTour'
+import AiAssistCard from './components/AiAssistCard'
+import {
+  AI_EXPLAIN_EVENT,
+  enterAiMode,
+  fillCommandBar,
+  lastErrorFor,
+  lastErrorSessionId,
+  requestAiExplain,
+  type AiExplainDetail
+} from './lib/ai-events'
+import { confirmAndRunAiCommand } from './lib/ai-run'
+import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
+import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
-import { askConfirm, askText, DialogHost } from './lib/dialogs'
+import { askConfirm, askText, confirmDialog, DialogHost } from './lib/dialogs'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
 import { normalizeTags } from '@shared/workspace-features'
@@ -159,6 +175,25 @@ const PLACEHOLDER_CONNECT: SshConnectOptions = {
 
 function uuid(): string {
   return crypto.randomUUID()
+}
+
+/** UX-09: actions that need a connected SSH session; with none connected they open the host picker. */
+const PICKER_ACTIONS = new Set<MenuAction>(['resourceMonitor', 'serverTools', 'sftp', 'portForward', 'batchExec', 'aiCommand'])
+
+function featureLabel(action: MenuAction, locale: string): string {
+  for (const m of SHARED_MENUS) {
+    for (const it of m.items) {
+      if (it.type === 'item' && it.id === action) return menuLabel(it.label, locale).replace(/…$/, '')
+    }
+  }
+  return action
+}
+
+function formatDuration(ms: number): string {
+  const sec = Math.max(0, Math.floor(ms / 1000))
+  const m = Math.floor(sec / 60)
+  const s2 = sec % 60
+  return `${m}:${String(s2).padStart(2, '0')}`
 }
 
 export default function App() {
@@ -332,6 +367,8 @@ export default function App() {
         const last = localStorage.getItem('aiss.lastSeenVersion')
         const auto = localStorage.getItem(WHATS_NEW_AUTO_KEY) !== '0'
         if (last && last !== v && auto && changelogFor(v).length) setWhatsNewOpen(true)
+        // G2: fresh install only (never together with What's new)
+        else if (!last && localStorage.getItem(TOUR_DONE_KEY) !== '1') window.setTimeout(() => setTourOpen(true), 600)
         localStorage.setItem('aiss.lastSeenVersion', v)
       })
       .catch(() => {})
@@ -381,6 +418,15 @@ export default function App() {
   const [serverToolsOpen, setServerToolsOpen] = useState(false)
   const [serverToolsSession, setServerToolsSession] = useState<string | null>(null)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
+  // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
+  const [tourOpen, setTourOpen] = useState(false)
+  const [hostPicker, setHostPicker] = useState<{ action: MenuAction; feature: string } | null>(null)
+  const [aiExplain, setAiExplain] = useState<{ id: number; sessionId: string; text: string; host?: string } | null>(null)
+  const aiExplainSeqRef = useRef(0)
+  const [splitSecondary, setSplitSecondary] = useState('')
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null)
+  const [recentKeys, setRecentKeys] = useState<string[]>([])
+  const lastConnectErrorRef = useRef<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
 
@@ -409,6 +455,23 @@ export default function App() {
   )
   const activeIsSsh = Boolean(activeSessionId && activeTab?.kind !== 'local')
   const isRecordingActive = Boolean(activeSessionId && recordingSessionId === activeSessionId)
+  const connectedSshSessionsRef = useRef(connectedSshSessions)
+  connectedSshSessionsRef.current = connectedSshSessions
+  const activeSessionIdRef = useRef(activeSessionId)
+  activeSessionIdRef.current = activeSessionId
+  const addDemoHostRef = useRef<(connect: boolean) => Promise<void>>(async () => undefined)
+  const activeIsDemo = Boolean(activeIsSession && activeTab?.status === 'connected' && activeTab.connectOpts.demo)
+  // UX-10: which tabs take part in broadcast input
+  const broadcastSessions = useMemo(() => {
+    if (!broadcastEnabled || !splitEnabled || !activeSessionId) return [] as string[]
+    return [...new Set([activeSessionId, splitSecondary || activeSessionId])]
+  }, [broadcastEnabled, splitEnabled, activeSessionId, splitSecondary])
+  const [recordTick, setRecordTick] = useState(0)
+  useEffect(() => {
+    if (!recordingStartedAt) return
+    const id = window.setInterval(() => setRecordTick((n) => n + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [recordingStartedAt])
   const highlightedProfileId = selectedProfileId || activeTab?.profileId || null
 
   const isProfileHighlighted = useCallback(
@@ -531,6 +594,7 @@ export default function App() {
       extra?: { profileId?: string; hostInventoryId?: string; kind?: 'ssh' | 'local' }
     ): Promise<string | null> => {
       setError(null)
+      lastConnectErrorRef.current = null
       setConnecting(true)
       const tabId = uuid()
       const title = opts.label?.trim() || `${opts.username}@${opts.host}`
@@ -589,6 +653,7 @@ export default function App() {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         setError(msg)
+        lastConnectErrorRef.current = msg
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected' } : t))
         )
@@ -780,12 +845,16 @@ export default function App() {
       return
     }
     if (view === 'remote-file') {
-      if (isRemoteFileDirty(tabId)) {
-        if (!window.confirm(tg('app.unsavedClose'))) return
+      const drop = () => {
+        clearRemoteFileDirty(tabId)
+        setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
+        setActiveTabId((cur) => (cur === tabId ? null : cur))
       }
-      clearRemoteFileDirty(tabId)
-      setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
-      setActiveTabId((cur) => (cur === tabId ? null : cur))
+      if (isRemoteFileDirty(tabId)) {
+        void confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('app.unsavedClose'), danger: true, confirmText: tg('dlg.discard') }).then((ok) => ok && drop())
+        return
+      }
+      drop()
       return
     }
     if (status === 'connecting') {
@@ -1534,6 +1603,7 @@ export default function App() {
           password: p.password?.trim() || undefined,
           passphrase: p.passphrase?.trim() || undefined,
           label: p.label,
+          ...(p.demo ? { demo: true } : {}),
           ...(p.jumpHost?.host?.trim() && p.jumpHost.username?.trim()
             ? { jumpHost: p.jumpHost }
             : {}),
@@ -1749,8 +1819,10 @@ export default function App() {
     setError(null)
     try {
       const path = await window.aiss.ssh.startRecording(activeSessionId)
-      if (path) setRecordingSessionId(activeSessionId)
-      else setError(tg('app.recordFail'))
+      if (path) {
+        setRecordingSessionId(activeSessionId)
+        setRecordingStartedAt(Date.now())
+      } else setError(tg('app.recordFail'))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -1764,6 +1836,7 @@ export default function App() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setRecordingSessionId(null)
+      setRecordingStartedAt(null)
     }
   }, [recordingSessionId])
 
@@ -1958,6 +2031,43 @@ export default function App() {
 
   const handleTitlebarMenuAction = useCallback(
     (action: TitlebarMenuAction) => {
+      // UX-09: features that need a session open the host picker when nothing is connected
+      if (PICKER_ACTIONS.has(action) && connectedSshSessionsRef.current.length === 0) {
+        setHostPicker({ action, feature: featureLabel(action, locale) })
+        return
+      }
+      if (action === 'tour') {
+        setTourOpen(true)
+        return
+      }
+      if (action === 'demoHost') {
+        void addDemoHostRef.current(true)
+        return
+      }
+      if (action === 'aiExplainError') {
+        const sid = activeSessionIdRef.current
+        const text = lastErrorFor(sid) ?? lastErrorFor(null)
+        const target = lastErrorFor(sid) ? sid : lastErrorSessionId()
+        if (!text || !target) {
+          showToast(tg('a1.noError'))
+          return
+        }
+        requestAiExplain({ sessionId: target, text, source: 'palette' })
+        return
+      }
+      if (action === 'aiCommand') {
+        const sid = activeSessionIdRef.current
+        if (sid) {
+          enterAiMode(sid)
+          return
+        }
+        const tab = tabsRef.current.find((x) => (!x.view || x.view === 'session') && x.status === 'connected' && x.sessionId)
+        if (tab) {
+          setActiveTabId(tab.tabId)
+          window.setTimeout(() => enterAiMode(tab.sessionId), 120)
+        }
+        return
+      }
       if (action === 'quit') {
         window.close()
         return
@@ -2022,7 +2132,10 @@ export default function App() {
         return
       }
       if (action === 'toggleBroadcast') {
-        setBroadcastEnabled((v) => !v)
+        setBroadcastEnabled((v) => {
+          if (!v) setSplitEnabled(true)
+          return !v
+        })
         return
       }
       if (action === 'toggleRecording') {
@@ -2229,7 +2342,8 @@ export default function App() {
       if (!ids.length) return
       const first = profiles.find((x) => x.id === ids[0])
       const name = first ? first.label?.trim() || `${first.username}@${first.host}` : ''
-      const ok = await askConfirm(
+      const allDemo = ids.every((id) => profiles.find((x) => x.id === id)?.demo)
+      const ok = allDemo || await askConfirm(
         ids.length > 1 ? tg('ctx.deleteManyTitle', { n: ids.length }) : tg('ctx.deleteOneTitle', { name }),
         tg('ctx.deleteIrreversible'),
         { danger: true, okLabel: ids.length > 1 ? tg('ctx.deleteMany', { n: ids.length }) : tg('app.delete') }
@@ -2242,14 +2356,108 @@ export default function App() {
     [folders, persistSessionState, profiles]
   )
   deleteProfilesRef.current = deleteProfilesFn
+
+  /** G1: add the built-in demo host (local simulation, no network) and optionally open it. */
+  const addDemoHost = useCallback(
+    async (connect: boolean) => {
+      let demo = profilesRef.current.find((x) => x.demo)
+      if (!demo) {
+        demo = {
+          id: DEMO_PROFILE_ID,
+          label: demoProfileLabel(locale),
+          host: DEMO_HOST,
+          port: 22,
+          username: DEMO_USER,
+          demo: true
+        }
+        await persistSessionState({ folders, profiles: [demo, ...profilesRef.current] })
+      }
+      setSelectedProfileId(demo.id)
+      if (connect) openOrFocusProfile(demo)
+    },
+    [folders, locale, openOrFocusProfile, persistSessionState]
+  )
+  addDemoHostRef.current = addDemoHost
+
+  // UX-09: picker → connect → open the feature that was asked for
+  const openFeatureForSession = useCallback(
+    (action: MenuAction, sid: string) => {
+      if (action === 'resourceMonitor') openMonitorForSession(sid)
+      else if (action === 'serverTools') {
+        setServerToolsSession(sid)
+        setServerToolsOpen(true)
+      } else if (action === 'sftp') openSftpTransfer(sid)
+      else if (action === 'portForward') setPortForwardOpen(true)
+      else if (action === 'batchExec') {
+        setBatchPreselect([sid])
+        setBatchOpen(true)
+      } else if (action === 'aiCommand') window.setTimeout(() => enterAiMode(sid), 120)
+    },
+    [openMonitorForSession, openSftpTransfer]
+  )
+  const pickHostForFeature = useCallback(
+    async (p: SavedSessionProfile): Promise<string | null> => {
+      const req = hostPicker
+      if (!req) return null
+      const sid = await connectProfile(p)
+      if (!sid) return lastConnectErrorRef.current || tg('ctx.seeError')
+      await new Promise((r) => window.setTimeout(r, 60))
+      setHostPicker(null)
+      openFeatureForSession(req.action, sid)
+      return null
+    },
+    [connectProfile, hostPicker, openFeatureForSession]
+  )
+  useEffect(() => {
+    if (!hostPicker) return
+    void window.aiss.workspace.recent
+      .list()
+      .then((rows) => setRecentKeys(rows.map((r) => `${r.host}|${r.port || 22}|${r.username}`.toLowerCase())))
+      .catch(() => setRecentKeys([]))
+  }, [hostPicker])
+
+  // A1: "Explain with AI" from the terminal hint, selection menu or palette → card at the top of the AI panel
+  useEffect(() => {
+    const onExplain = (e: Event) => {
+      const d = (e as CustomEvent<AiExplainDetail>).detail
+      if (!d?.text) return
+      const tab = tabsRef.current.find((x) => x.sessionId === d.sessionId)
+      updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+      aiExplainSeqRef.current += 1
+      setAiExplain({
+        id: aiExplainSeqRef.current,
+        sessionId: d.sessionId,
+        text: d.text,
+        host: tab ? tab.connectOpts.label?.trim() || tab.title : undefined
+      })
+    }
+    window.addEventListener(AI_EXPLAIN_EVENT, onExplain)
+    return () => window.removeEventListener(AI_EXPLAIN_EVENT, onExplain)
+  }, [updateLayout])
+  const ensureAiVisible = useCallback(() => {
+    updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+  }, [updateLayout])
+  const closeTour = useCallback(() => setTourOpen(false), [])
+  const focusSessionTab = useCallback((sid: string) => {
+    const tab = tabsRef.current.find((x) => x.sessionId === sid && (!x.view || x.view === 'session'))
+    if (tab) setActiveTabId(tab.tabId)
+  }, [])
   // H2: TCP probe every 60 s while the window is visible
   useEffect(() => {
     if (!showHostStatus) return
     let cancelled = false
     const run = async () => {
       if (document.hidden) return
+      const demo = profilesRef.current.filter((p) => p.demo)
+      if (demo.length) {
+        setHostStatus((prev) => {
+          const next = { ...prev }
+          for (const p of demo) next[p.id] = { id: p.id, latencyMs: 9, checkedAt: Date.now() }
+          return next
+        })
+      }
       const targets = profilesRef.current
-        .filter((p) => p.host)
+        .filter((p) => p.host && !p.demo)
         .map((p) =>
           p.jumpHost?.host?.trim()
             ? { id: p.id, host: p.jumpHost.host.trim(), port: p.jumpHost.port || 22 }
@@ -2331,7 +2539,7 @@ export default function App() {
                 <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} />
               </div>
               <div className="sidebar-scroll" tabIndex={0} onKeyDown={onSidebarKeyDown}>
-                <RecentConnections onQuickConnect={quickConnectRecent} />
+                <RecentConnections hideWhenEmpty={profiles.length === 0} onQuickConnect={quickConnectRecent} />
                 {error && activeTab?.view !== 'connection' && (
                   <div
                     style={{
@@ -2356,7 +2564,18 @@ export default function App() {
                 )}
 
                 {folders.length === 0 && profiles.length === 0 && (
-                  <div style={{ color: 'var(--muted)', fontSize: 12 }}>{tr('sidebar.empty')}</div>
+                  <EmptyState
+                    testId="sidebar-empty"
+                    compact
+                    icon="🖥"
+                    title={tr('ux08.sidebarTitle')}
+                    desc={tr('ux08.sidebarDesc')}
+                    primary={{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor(), testId: 'empty-new-connection', tour: 'new-connection' }}
+                    secondary={[
+                      { label: tr('ux08.import'), onClick: () => void importSessionsPick() },
+                      { label: tr('g1.try'), onClick: () => void addDemoHost(true), testId: 'empty-try-demo' }
+                    ]}
+                  />
                 )}
 
                 {folders.map((f) => {
@@ -2425,6 +2644,17 @@ export default function App() {
           <section className="main">
           <div className="tab-bar">
             {tabs.length === 0 && <span style={{ padding: '8px 12px', color: 'var(--muted)' }}>{tr('tab.none')}</span>}
+            {broadcastSessions.length ? (
+              <button
+                type="button"
+                className="broadcast-badge"
+                data-testid="broadcast-badge"
+                title={tr('ux10.broadcastOff')}
+                onClick={() => setBroadcastEnabled(false)}
+              >
+                {tr('ux10.broadcasting', { n: broadcastSessions.length })}
+              </button>
+            ) : null}
             {tabs.map((t) => {
               const isSession = !t.view || t.view === 'session'
               return (
@@ -2474,6 +2704,20 @@ export default function App() {
                     }}
                   />
                 ) : (
+                <>
+                {isSession && t.sessionId && broadcastSessions.includes(t.sessionId) ? (
+                  <span className="tab-bc-dot" data-testid="tab-bc-dot" title={tr('ux10.inBroadcast')} aria-label={tr('ux10.inBroadcast')} />
+                ) : null}
+                {isSession && t.sessionId && t.sessionId === recordingSessionId ? (
+                  <span
+                    className="tab-rec"
+                    data-testid="tab-rec"
+                    data-tick={recordTick}
+                    title={tr('ux10.recFor', { time: formatDuration(Date.now() - (recordingStartedAt ?? Date.now())) })}
+                  >
+                    ●REC
+                  </span>
+                ) : null}
                 <span className="tab-title">
                   {isSession && t.status === 'connecting'
                     ? tr('tab.connecting', { title: t.title })
@@ -2481,6 +2725,7 @@ export default function App() {
                       ? tr('tab.disconnected', { title: t.title })
                       : t.title}
                 </span>
+                </>
                 )}
                 <span
                   role="button"
@@ -2506,6 +2751,7 @@ export default function App() {
               )
             })}
           </div>
+          {broadcastSessions.length ? <div className="broadcast-bar" data-testid="broadcast-bar" aria-hidden /> : null}
           {tabMenu
             ? (() => {
                 const idx = tabs.findIndex((x) => x.tabId === tabMenu.tabId)
@@ -2613,11 +2859,44 @@ export default function App() {
             </div>
           )}
 
+          {activeIsDemo ? (
+            <div className="demo-banner" data-testid="demo-banner" role="status">
+              <span>{tr('g1.banner')}</span>
+              <button type="button" className="primary" onClick={() => openConnectionEditor()}>
+                {tr('g1.addMine')}
+              </button>
+            </div>
+          ) : null}
+
           {activeIsSession && activeTab?.status === 'connected' && activeTab.sessionId ? (
-            <SessionCommandBar sessionId={activeTab.sessionId} />
+            <SessionCommandBar
+              sessionId={activeTab.sessionId}
+              hostLabel={activeTab.connectOpts.label?.trim() || activeTab.title}
+              onOpenAiSettings={() => openSettingsTab('ai')}
+            />
           ) : null}
 
           <div className="terminal-stack">
+            {tabs.length === 0 ? (
+              <EmptyState
+                testId="terminal-empty"
+                icon="⌨"
+                title={tr('ux08.termTitle')}
+                desc={tr('ux08.termDesc')}
+                primary={{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor() }}
+                secondary={[{ label: tr('ux08.palette'), onClick: () => setPaletteOpen(true) }]}
+              >
+                <RecentConnections variant="welcome" limit={5} hideWhenEmpty onQuickConnect={quickConnectRecent} />
+                <div className="empty-state-keys">
+                  <span>
+                    <kbd>Ctrl+Shift+N</kbd> {tr('ux08.keyNew')}
+                  </span>
+                  <span>
+                    <kbd>Ctrl+K</kbd> {tr('ux08.keyPalette')}
+                  </span>
+                </div>
+              </EmptyState>
+            ) : null}
             {tabs.map((t) => {
               return (
               <div key={t.tabId} className={`terminal-layer ${t.tabId === activeTabId ? 'active' : ''}`}>
@@ -2770,6 +3049,7 @@ export default function App() {
                       active={t.tabId === activeTabId}
                       prefs={terminalPrefs}
                       broadcastEnabled={broadcastEnabled}
+                      onSecondaryChange={setSplitSecondary}
                       peers={connectedSshSessions
                         .filter((x) => x.sessionId !== t.sessionId)
                         .map((x) => ({ sessionId: x.sessionId, title: x.title }))}
@@ -2796,6 +3076,22 @@ export default function App() {
 
         {layout.showAi ? (
           <div className="ai-panel-shell" style={{ width: layout.aiWidth, minWidth: layout.aiWidth }}>
+            {aiExplain ? (
+              <AiAssistCard
+                key={aiExplain.id}
+                request={aiExplain}
+                onClose={() => setAiExplain(null)}
+                onOpenSettings={() => openSettingsTab('ai')}
+                onInsert={(sid, command) => {
+                  focusSessionTab(sid)
+                  window.setTimeout(() => fillCommandBar(sid, command), 60)
+                }}
+                onRun={(sid, command) => {
+                  focusSessionTab(sid)
+                  window.setTimeout(() => void confirmAndRunAiCommand({ sessionId: sid, command, host: aiExplain.host }), 60)
+                }}
+              />
+            ) : null}
             <AIPanel
               activeSessionId={activeSessionId}
               historyKey={activeTab?.profileId ?? activeSessionId}
@@ -2814,6 +3110,16 @@ export default function App() {
         ) : null}
       </div>
 
+      <HostPicker
+        open={Boolean(hostPicker)}
+        feature={hostPicker?.feature ?? ''}
+        profiles={profiles}
+        recentKeys={recentKeys}
+        onPick={pickHostForFeature}
+        onNewConnection={() => openConnectionEditor()}
+        onClose={() => setHostPicker(null)}
+      />
+      <WelcomeTour open={tourOpen} onClose={closeTour} ensureAiVisible={ensureAiVisible} />
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
@@ -2996,12 +3302,12 @@ export default function App() {
             {item('docker', expandedHosts[p.id] ? tg('app.collapseDocker') : tg('app.expandDocker'), () => {
               toggleHostExpanded(p)
               setSessionMenu(null)
-            }, { disabled: dockerBusy })}
+            }, { disabled: dockerBusy || p.demo })}
             <div className="session-context-menu-sep" />
             {item('edit', tg('ctx.edit'), () => {
               openConnectionEditor(p)
               setSessionMenu(null)
-            })}
+            }, p.demo ? { disabled: true, hint: tg('g1.readOnly') } : undefined)}
             {item('rename', tg('ctx.rename'), () => void renameProfile(p), { hint: 'F2' })}
             {item('tags', tg('ctx.tags'), () => void editProfileTags(p.id))}
             {item('inventory', tg('app.inventory'), () => {

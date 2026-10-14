@@ -15,6 +15,8 @@ type Props = {
   defaultOrientation?: 'horizontal' | 'vertical'
   /** Other connected sessions that can be shown in the second pane */
   peers?: Peer[]
+  /** UX-10: tells the app which session the second pane shows ('' = mirror of the primary) */
+  onSecondaryChange?: (sessionId: string) => void
 }
 
 const LS_RATIO = 'aiss.split.ratio'
@@ -38,7 +40,8 @@ export default function SplitTerminalView({
   prefs,
   broadcastEnabled = false,
   defaultOrientation = 'horizontal',
-  peers = []
+  peers = [],
+  onSecondaryChange
 }: Props) {
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>(() => {
     const v = localStorage.getItem(LS_ORIENT)
@@ -50,6 +53,7 @@ export default function SplitTerminalView({
   const boxRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
 
+  useEffect(() => onSecondaryChange?.(secondary), [secondary, onSecondaryChange])
   useEffect(() => localStorage.setItem(LS_ORIENT, orientation), [orientation])
   useEffect(() => localStorage.setItem(LS_RATIO, String(ratio)), [ratio])
   useEffect(() => {

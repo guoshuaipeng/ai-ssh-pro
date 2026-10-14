@@ -12,6 +12,36 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.3.13': [
+    {
+      icon: '🧪',
+      text: { zh: '内置演示主机：不用服务器也能试终端、资源监控和工具箱（数据为模拟）', en: 'Built-in demo host: try the terminal, monitor and toolbox without a server (simulated data)' },
+      where: { zh: '帮助 → 试用演示主机', en: 'Help → Try demo host' },
+      action: 'demoHost'
+    },
+    {
+      icon: '🧭',
+      text: { zh: '5 步新手引导，随时可以跳过或重看', en: 'A 5-step welcome tour you can skip or replay any time' },
+      where: { zh: '帮助 → 新手引导', en: 'Help → Welcome tour' },
+      action: 'tour'
+    },
+    {
+      icon: '✨',
+      text: { zh: 'AI 解释报错：命令失败时点「✨ AI 解释」，给出原因和修复命令，可插入或确认后执行', en: 'Explain errors with AI: click "✨ Explain with AI" when a command fails to get the cause and fix commands to insert or run' },
+      where: { zh: '终端右下角 / 终端右键 / AI → AI：解释最近的错误', en: 'Terminal corner / terminal right-click / AI → AI: Explain the last error' },
+      action: 'aiExplainError'
+    },
+    {
+      icon: '💬',
+      text: { zh: '用自然语言生成命令：命令栏输入 # 或按 Ctrl+Shift+Space，带风险标记，执行前确认', en: 'Natural language → command: type # in the command bar or press Ctrl+Shift+Space; risk-labelled and confirmed before running' },
+      where: { zh: '命令栏 / AI → 用自然语言生成命令', en: 'Command bar / AI → Natural language → command' },
+      action: 'aiCommand'
+    },
+    {
+      icon: '🧹',
+      text: { zh: '体验打磨：统一的确认弹窗、空状态引导、未连接时先选主机、广播/录制状态一眼可见、菜单命名统一', en: 'Polish: one dialog style, helpful empty states, host picker when nothing is connected, visible broadcast/recording state, consistent names' }
+    }
+  ],
   '0.3.12': [
     {
       icon: '🏷',

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { tg } from '../lib/i18n'
-import { askConfirm, askText } from '../lib/dialogs'
+import { askConfirm, askText, confirmDialog } from '../lib/dialogs'
 import type { SftpListEntry, SftpListResult, SftpProgressEvent } from '@shared/ipc'
 import { isLikelyTextFile } from './RemoteTextEditor'
+import EmptyState from './EmptyState'
 
 type Props = {
   sessionId: string | null
@@ -186,13 +187,9 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
       return
     }
     if (onOpenRemoteFile) {
-      if (
-        window.confirm(
-          tg('sftp.notText', { name: entry.name })
-        )
-      ) {
-        onOpenRemoteFile({ remotePath: entry.path, name: entry.name, size: entry.size })
-      }
+      void confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('sftp.notText', { name: entry.name }), confirmText: tg('dlg.openAnyway') }).then((ok) => {
+        if (ok) onOpenRemoteFile({ remotePath: entry.path, name: entry.name, size: entry.size })
+      })
     }
   }
 
@@ -285,9 +282,9 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     })
   }
 
-  const onRemove = (entry: SftpListEntry) => {
+  const onRemove = async (entry: SftpListEntry) => {
     if (!sessionId) return
-    if (!window.confirm(tg('sftp.confirmDelete', { name: entry.name }))) return
+    if (!(await confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('sftp.confirmDelete', { name: entry.name }), danger: true, confirmText: tg('dlg.delete') }))) return
     void runBusy(async () => {
       const api = getSftpApi()
       if (!api) throw new Error(tg('sftp.notReady'))
@@ -405,7 +402,9 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
               {loading ? (
                 <div className="sftp-empty">{tg('common.loading')}</div>
               ) : entries.length === 0 ? (
-                <div className="sftp-empty">{tg('sftp.empty')}</div>
+                <div className="sftp-empty">
+                  <EmptyState compact testId="sftp-empty" icon="📂" title={tg('ux08.sftpTitle')} desc={tg('ux08.sftpDesc')} />
+                </div>
               ) : (
                 <table className="sftp-table">
                   <thead>

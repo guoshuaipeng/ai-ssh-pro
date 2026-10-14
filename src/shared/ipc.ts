@@ -58,6 +58,8 @@ export type SshConnectOptions = {
   jumpHost?: SshJumpHostOptions
   /** 本地端口转发（连接成功后建立） */
   forwards?: LocalPortForward[]
+  /** G1: simulated read-only demo host (no network) */
+  demo?: boolean
 }
 
 export type SshConnectResult = {
@@ -373,6 +375,8 @@ export type SavedSessionProfile = {
   hostInventoryId?: string
   /** User tags, e.g. prod / web; search with #tag */
   tags?: string[]
+  /** G1: the built-in simulated demo host (read-only, cannot be edited) */
+  demo?: boolean
 }
 
 /** 侧栏已保存会话与分组（持久化） */
@@ -696,3 +700,15 @@ export type BackupExportResult =
   | { ok: true; path: string; counts: BackupCounts }
   | { ok: false; canceled?: boolean; error: string }
 export type BackupImportResult = { ok: true; counts: BackupCounts } | { ok: false; canceled?: boolean; error: string }
+
+/** A1 / A2: one-shot AI helpers (explain an error, natural language → command) */
+export type AiAssistRequest =
+  | { requestId: string; kind: 'explainError'; text: string; host?: string; locale: string }
+  | { requestId: string; kind: 'nlCommand'; text: string; host?: string; locale: string }
+
+export type AiAssistFix = { command: string; note?: string }
+
+export type AiAssistResult =
+  | { ok: true; kind: 'explainError'; cause: string; fixes: AiAssistFix[]; notes?: string }
+  | { ok: true; kind: 'nlCommand'; command: string; explanation: string; risk: 'safe' | 'caution' | 'danger' }
+  | { ok: false; code: 'not-configured' | 'aborted' | 'error'; message?: string }

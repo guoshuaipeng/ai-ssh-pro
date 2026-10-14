@@ -43,11 +43,15 @@ export type MenuAction =
   | 'snippets'
   | 'inventory'
   | 'openAi'
+  | 'aiExplainError'
+  | 'aiCommand'
   | 'ai'
   | 'mcpGuide'
   | 'debug'
   | 'shortcuts'
   | 'whatsNew'
+  | 'tour'
+  | 'demoHost'
   | 'checkUpdate'
   | 'github'
   | 'about'
@@ -147,7 +151,7 @@ export const SHARED_MENUS: SharedMenu[] = [
     items: [
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
-      it('refreshDocker', 'Docker 刷新', 'Refresh Docker'),
+      it('refreshDocker', '刷新 Docker', 'Refresh Docker'),
       sep,
       it('batchExec', '批量执行…', 'Batch run…'),
       it('snippets', '命令片段', 'Snippets'),
@@ -159,6 +163,9 @@ export const SHARED_MENUS: SharedMenu[] = [
     label: { zh: 'AI', en: 'AI' },
     items: [
       it('openAi', '打开 AI 助手', 'Open AI assistant'),
+      it('aiExplainError', 'AI：解释最近的错误', 'AI: Explain the last error'),
+      it('aiCommand', '用自然语言生成命令', 'Natural language → command', { needsSession: true }),
+      sep,
       it('ai', 'AI 设置…', 'AI settings…'),
       sep,
       it('mcpGuide', 'MCP 安装指南…', 'MCP setup guide…'),
@@ -170,6 +177,8 @@ export const SHARED_MENUS: SharedMenu[] = [
     label: { zh: '帮助', en: 'Help' },
     items: [
       it('shortcuts', '键盘快捷键', 'Keyboard shortcuts'),
+      it('tour', '新手引导', 'Welcome tour'),
+      it('demoHost', '试用演示主机', 'Try demo host'),
       it('whatsNew', '更新内容', "What's new"),
       it('checkUpdate', '检查更新…', 'Check for updates…'),
       sep,

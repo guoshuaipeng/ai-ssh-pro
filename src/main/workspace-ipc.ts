@@ -3,6 +3,8 @@ import { RESOURCE_PROBE_CMD, parseResourceSnapshot } from '../shared/resource-mo
 import { listForwards, startTrackedForward, stopForward, stopSessionForwards } from './forward-manager'
 import { mt } from './main-i18n'
 import { ipcMain } from 'electron'
+import { demoHostManager } from './demo-host'
+import { isDemoSessionId } from '../shared/demo-host'
 import { probeHosts } from './host-probe'
 import type { SshSessionManager } from './ssh-manager'
 import {
@@ -27,6 +29,7 @@ import {
 export async function pingSession(sshManager: SshSessionManager, raw: unknown): Promise<number | null> {
   const id = normalizeSessionId(raw)
   if (!id) return null
+  if (isDemoSessionId(id)) return demoHostManager.has(id) ? 8 + Math.floor(Math.random() * 6) : null
   const session = sshManager.get(id)
   if (!session) return null
   const started = Date.now()
@@ -65,6 +68,23 @@ export async function runBatchExec(sshManager: SshSessionManager, raw: unknown):
         host: session?.meta.host || '',
         port: session?.meta.port || 0,
         username: session?.meta.username || ''
+      }
+      const demoClient = !session ? demoHostManager.getClient(sessionId) : undefined
+      if (!session && demoClient) {
+        const meta = demoHostManager.getMeta(sessionId)
+        const exec = await execBounded(demoClient, parsed.command, parsed.timeoutMs)
+        return {
+          ...base,
+          label: meta?.label || 'demo',
+          host: meta?.host || '',
+          port: meta?.port || 22,
+          username: meta?.username || 'demo',
+          ok: exec.code === 0,
+          code: exec.code,
+          stdout: exec.stdout,
+          stderr: exec.stderr,
+          elapsedMs: Date.now() - started
+        }
       }
       if (!session) {
         return {

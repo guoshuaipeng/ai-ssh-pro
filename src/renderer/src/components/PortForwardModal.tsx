@@ -3,6 +3,7 @@ import type { ActiveForward } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
+import EmptyState from './EmptyState'
 
 type Props = {
   open: boolean
@@ -125,7 +126,17 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
         </div>
         {error ? <p className="pf-error">{error}</p> : null}
         {rows.length === 0 ? (
-          <p className="pf-empty">{t('pf.none')}</p>
+          <EmptyState
+            compact
+            testId="pf-empty"
+            icon="🔀"
+            title={t('ux08.fwdTitle')}
+            desc={t('pf.none')}
+            primary={{
+              label: t('ux08.fwdNew'),
+              onClick: () => document.querySelector<HTMLInputElement>('.pf-form input')?.focus()
+            }}
+          />
         ) : (
           <table className="pf-table">
             <thead>

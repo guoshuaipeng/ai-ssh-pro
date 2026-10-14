@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { McpGuideInfo } from '@shared/ipc'
 import { tg, type MessageKey } from '../lib/i18n'
+import { toast } from '../lib/dialogs'
 
 /** Steps hold message keys (ui.*) or literal text such as "command: node". */
 const stepText = (s: string): string => (s.startsWith('ui.') ? tg(s as MessageKey) : s)
@@ -127,7 +128,7 @@ function CopyButton({ text, label = tg('ui.228') }: { text: string; label?: stri
       setOk(true)
       window.setTimeout(() => setOk(false), 1600)
     } catch {
-      window.alert(tg('ui.229'))
+      toast({ text: tg('ui.229'), kind: 'error' })
     }
   }, [text])
   return (
@@ -230,7 +231,7 @@ export default function McpGuidePanel({ onClose }: Props) {
                 type="button"
                 onClick={() => {
                   void window.aiss.app.openGithub().catch((e) => {
-                    window.alert(e instanceof Error ? e.message : String(e))
+                    toast({ text: e instanceof Error ? e.message : String(e), kind: 'error' })
                   })
                 }}
               >

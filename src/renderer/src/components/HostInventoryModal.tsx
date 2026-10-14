@@ -8,6 +8,7 @@ import type {
 } from '@shared/inventory'
 import NotesMarkdownPreview from './NotesMarkdownPreview'
 import { tg } from '../lib/i18n'
+import { confirmDialog } from '../lib/dialogs'
 export type HostInventoryLink = {
   profileId?: string
   host?: string
@@ -268,7 +269,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
       setError(tg('ui.157'))
       return
     }
-    if (!window.confirm(tg('ui.158', { 0: String(form.title || id) }))) return
+    if (!(await confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('ui.158', { 0: String(form.title || id) }), danger: true, confirmText: tg('dlg.delete') }))) return
     setSaving(true)
     setError(null)
     try {

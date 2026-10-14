@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import Modal from '../components/Modal'
 import { tg } from './i18n'
+import { showToast, type ToastAction } from './toast'
 
 /**
- * In-app replacements for window.prompt / window.confirm.
- * Electron does not implement window.prompt (it returns null), which silently broke
- * "new folder" / "rename" flows. Mount <DialogHost /> once (App does).
+ * UX-06: the only dialogs the app uses (no native browser dialogs anywhere; scripts/check-ux.mjs enforces it).
+ *   confirmDialog({ title, body, confirmText, danger }) → Promise<boolean>
+ *   promptDialog({ title, label, defaultValue, validate }) → Promise<string | null>
+ *   toast({ text, action, kind })
+ * Modal 420px, primary button on the right; Esc cancels, Enter confirms; danger dialogs focus Cancel first.
+ * Mount <DialogHost /> once (App does).
  */
+export type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean; detail?: string }
+export type PromptOptions = { title: string; label?: string; defaultValue?: string; validate?: (v: string) => string | null }
+
 type Request =
-  | { kind: 'text'; title: string; defaultValue: string; resolve: (v: string | null) => void }
-  | { kind: 'confirm'; title: string; message: string; danger: boolean; okLabel?: string; resolve: (v: boolean) => void }
+  | ({ kind: 'text'; resolve: (v: string | null) => void } & PromptOptions)
+  | ({ kind: 'confirm'; resolve: (v: boolean) => void } & ConfirmOptions)
 
 const listeners = new Set<(r: Request) => void>()
 
@@ -19,24 +26,41 @@ function emit(r: Request): boolean {
   return true
 }
 
-export function askText(title: string, defaultValue = ''): Promise<string | null> {
+export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
-    if (!emit({ kind: 'text', title, defaultValue, resolve })) resolve(null)
+    if (!emit({ kind: 'confirm', ...opts, resolve })) {
+      console.warn('[dialogs] no DialogHost mounted; treating as cancel:', opts.title)
+      resolve(false)
+    }
   })
 }
 
-export function askConfirm(title: string, message: string, opts?: { danger?: boolean; okLabel?: string }): Promise<boolean> {
+export function promptDialog(opts: PromptOptions): Promise<string | null> {
   return new Promise((resolve) => {
-    if (!emit({ kind: 'confirm', title, message, danger: Boolean(opts?.danger), okLabel: opts?.okLabel, resolve })) {
-      resolve(window.confirm(`${title}\n\n${message}`))
-    }
+    if (!emit({ kind: 'text', ...opts, resolve })) resolve(null)
   })
+}
+
+export function toast(opts: { text: string; action?: ToastAction; kind?: 'info' | 'error' }): void {
+  showToast(opts.text, { action: opts.action, kind: opts.kind })
+}
+
+/** Back-compat helpers used across the app. */
+export function askText(title: string, defaultValue = ''): Promise<string | null> {
+  return promptDialog({ title, defaultValue })
+}
+
+export function askConfirm(title: string, message: string, opts?: { danger?: boolean; okLabel?: string }): Promise<boolean> {
+  return confirmDialog({ title, body: message, danger: opts?.danger, confirmText: opts?.okLabel })
 }
 
 export function DialogHost() {
   const [queue, setQueue] = useState<Request[]>([])
   const [value, setValue] = useState('')
+  const [invalid, setInvalid] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const okRef = useRef<HTMLButtonElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
   const current = queue[0]
 
   useEffect(() => {
@@ -48,56 +72,82 @@ export function DialogHost() {
   }, [])
 
   useEffect(() => {
-    if (current?.kind === 'text') {
-      setValue(current.defaultValue)
+    if (!current) return
+    setInvalid(null)
+    if (current.kind === 'text') {
+      setValue(current.defaultValue ?? '')
       setTimeout(() => inputRef.current?.select(), 0)
+    } else {
+      setTimeout(() => (current.danger ? cancelRef.current : okRef.current)?.focus(), 0)
     }
   }, [current])
 
   if (!current) return null
   const finish = (ok: boolean) => {
-    if (current.kind === 'text') current.resolve(ok ? value : null)
-    else current.resolve(ok)
+    if (current.kind === 'text') {
+      if (ok && current.validate) {
+        const err = current.validate(value)
+        if (err) {
+          setInvalid(err)
+          return
+        }
+      }
+      current.resolve(ok ? value : null)
+    } else current.resolve(ok)
     setQueue((q) => q.slice(1))
   }
+  const danger = current.kind === 'confirm' && current.danger
 
   return (
     <Modal
       open
       title={current.title}
       onClose={() => finish(false)}
-      width={440}
+      width={420}
       footer={
         <>
-          <button type="button" onClick={() => finish(false)}>
+          <button type="button" ref={cancelRef} data-testid="dialog-cancel" onClick={() => finish(false)}>
             {tg('dlg.cancel')}
           </button>
           <button
             type="button"
-            className={current.kind === 'confirm' && current.danger ? 'primary danger' : 'primary'}
+            ref={okRef}
+            className={danger ? 'primary danger' : 'primary'}
             data-testid="dialog-ok"
             onClick={() => finish(true)}
           >
-            {current.kind === 'confirm' && current.okLabel ? current.okLabel : tg('dlg.ok')}
+            {current.kind === 'confirm' && current.confirmText ? current.confirmText : tg('dlg.ok')}
           </button>
         </>
       }
     >
-      {current.kind === 'text' ? (
-        <input
-          ref={inputRef}
-          className="dialog-text-input"
-          style={{ width: '100%' }}
-          value={value}
-          aria-label={current.title}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') finish(true)
-          }}
-        />
-      ) : (
-        <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{current.message}</p>
-      )}
+      <div className="app-dialog" data-testid="app-dialog" data-danger={danger ? 'true' : undefined}>
+        {current.kind === 'text' ? (
+          <>
+            {current.label ? <label className="app-dialog-label">{current.label}</label> : null}
+            <input
+              ref={inputRef}
+              className="dialog-text-input"
+              style={{ width: '100%' }}
+              value={value}
+              aria-label={current.label || current.title}
+              onChange={(e) => {
+                setValue(e.target.value)
+                setInvalid(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') finish(true)
+              }}
+            />
+            {invalid ? <p className="app-dialog-error">{invalid}</p> : null}
+          </>
+        ) : (
+          <>
+            {current.body ? <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{current.body}</p> : null}
+            {current.detail ? <pre className="app-dialog-detail">{current.detail}</pre> : null}
+          </>
+        )}
+      </div>
     </Modal>
   )
 }

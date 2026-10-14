@@ -10,6 +10,7 @@ import {
   mergeSnippetsImport
 } from '@shared/workspace-features'
 import { tg } from '../lib/i18n'
+import EmptyState from './EmptyState'
 
 type Props = {
   onClose: () => void
@@ -294,7 +295,15 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
           ) : null}
           {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.loading')}</p> : null}
           {!loading && items.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.empty')}</p>
+            <EmptyState
+              compact
+              testId="snippets-empty"
+              icon="📋"
+              title={t('ux08.snipTitle')}
+              desc={t('snip.empty')}
+              primary={{ label: t('ux08.snipNew'), onClick: () => document.getElementById('snippet-title')?.focus() }}
+              secondary={[{ label: t('ux08.snipImport'), onClick: () => fileRef.current?.click() }]}
+            />
           ) : null}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {visible.map((s) => (

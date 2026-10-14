@@ -319,6 +319,7 @@ function normalizeSavedSessionsRaw(raw: unknown): SavedSessionsState {
     if (jump) row.jumpHost = jump
     const forwards = normalizeForwards(o.forwards)
     if (forwards) row.forwards = forwards
+    if (o.demo === true) row.demo = true
     if (typeof o.hostInventoryId === 'string' && o.hostInventoryId.trim()) {
       row.hostInventoryId = o.hostInventoryId.trim()
     }

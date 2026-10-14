@@ -18,6 +18,8 @@ import type {
   AiSettings,
   AiStreamEvent,
   AiParsedSshForm,
+  AiAssistRequest,
+  AiAssistResult,
   AiDebugStreamPayload,
   AppDialogKind,
   SshSnapshotOptions,
@@ -242,6 +244,8 @@ const api = {
     abortChat: (): Promise<void> => ipcRenderer.invoke('ai:abortChat'),
     confirmStep: (requestId: string, ok: boolean): Promise<boolean> =>
       ipcRenderer.invoke('ai:confirmStep', requestId, ok),
+    assist: (req: AiAssistRequest): Promise<AiAssistResult> => ipcRenderer.invoke('ai:assist', req),
+    abortAssist: (requestId: string): Promise<void> => ipcRenderer.invoke('ai:assistAbort', requestId),
     parseSshForm: (rawText: string): Promise<AiParsedSshForm> =>
       ipcRenderer.invoke('ai:parseSshForm', rawText),
     getChatHistory: (key: string): Promise<AiChatMessage[]> => ipcRenderer.invoke('ai:chatHistory:get', key),

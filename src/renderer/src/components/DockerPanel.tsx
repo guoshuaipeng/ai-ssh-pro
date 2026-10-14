@@ -12,6 +12,7 @@ import type {
 } from '@shared/ipc'
 import { loadDockerPrefs, saveDockerPrefs } from '../lib/docker-prefs'
 import { tg } from '../lib/i18n'
+import { confirmDialog, promptDialog } from '../lib/dialogs'
 
 type Props = {
   sessionId: string
@@ -361,14 +362,15 @@ export default function DockerPanel({
   const runContainerAction = async (action: DockerContainerAction) => {
     if (busyRef.current) return
     if (action === 'rm') {
-      if (!window.confirm(tg('ui.72', { 0: String(resourceName) }))) return
+      if (!(await confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('ui.72', { 0: String(resourceName) }), danger: true, confirmText: tg('dlg.delete') }))) return
     }
     if (action === 'restart' && container?.swarmService) {
       if (
-        !window.confirm(
-          tg('ui.73', { 0: String(resourceName), 1: String(container.swarmService) }) +
-            tg('ui.74')
-        )
+        !(await confirmDialog({
+          title: tg('dlg.confirmTitle'),
+          body: tg('ui.73', { 0: String(resourceName), 1: String(container.swarmService) }) + tg('ui.74'),
+          confirmText: tg('dlg.restart')
+        }))
       ) {
         return
       }
@@ -417,11 +419,7 @@ export default function DockerPanel({
 
   const runSwarmRestart = async () => {
     if (busyRef.current) return
-    if (
-      !window.confirm(
-        tg('ui.79', { 0: String(resourceName) })
-      )
-    ) {
+    if (!(await confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('ui.79', { 0: String(resourceName) }), confirmText: tg('dlg.restart') }))) {
       return
     }
     busyRef.current = true
@@ -443,7 +441,7 @@ export default function DockerPanel({
   const runSwarmScale = async () => {
     if (busyRef.current) return
     const current = swarmDetail?.replicas?.split('/')[1] ?? ''
-    const input = window.prompt(tg('ui.81', { 0: String(resourceName) }), current)
+    const input = await promptDialog({ title: tg('ui.81', { 0: String(resourceName) }), defaultValue: current })
     if (input === null) return
     const n = Number(input.trim())
     if (!Number.isInteger(n) || n < 0 || n > 512) {
@@ -468,7 +466,7 @@ export default function DockerPanel({
 
   const runComposeAction = async (action: DockerComposeAction) => {
     const label = action === 'up' ? 'up -d' : 'down'
-    if (!window.confirm(tg('ui.84', { 0: String(resourceName), 1: String(label) }))) return
+    if (!(await confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('ui.84', { 0: String(resourceName), 1: String(label) }), danger: action === 'down', confirmText: label }))) return
     setBusy(true)
     setError(null)
     try {

@@ -275,7 +275,14 @@ export default function SessionDockerBranch({
             })()
           : null}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: profile.demo ? 'nowrap' : undefined }}>
+            {label}
+            {profile.demo ? (
+              <span className="demo-badge" data-testid="demo-badge">
+                DEMO
+              </span>
+            ) : null}
+          </div>
           {profile.tags?.length ? (
             <div className="profile-tags">
               {profile.tags.map((tag) => (

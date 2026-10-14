@@ -9,6 +9,7 @@ import { AISS_INJECT_TERMINAL_EVENT } from '../lib/terminal-inject'
 import { getXtermTheme } from '../lib/terminal-themes'
 import { attachZmodem, type ZmodemAttach } from '../lib/zmodem-attach'
 import { findInBuffer, AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
+import { looksLikeError, rememberError, requestAiExplain } from '../lib/ai-events'
 
 type Props = {
   sessionId: string
@@ -94,6 +95,26 @@ export default function TerminalPane({
   const [findMiss, setFindMiss] = useState(false)
   const findInputRef = useRef<HTMLInputElement>(null)
   const findPosRef = useRef<{ row: number; col: number } | null>(null)
+  // A1: "Explain with AI" hint after output that looks like an error (auto-hides after 8 s)
+  const [aiHint, setAiHint] = useState(false)
+  const aiHintTimerRef = useRef<number | null>(null)
+
+  /** Last N lines of the terminal buffer (plain text), used as context for "Explain with AI". */
+  const recentText = (maxLines = 40): string => {
+    const term = apiRef.current?.term
+    if (!term) return ''
+    const buf = term.buffer.active
+    const out: string[] = []
+    for (let i = Math.max(0, buf.length - 400); i < buf.length; i++) out.push(buf.getLine(i)?.translateToString(true) ?? '')
+    while (out.length && !out[out.length - 1]!.trim()) out.pop()
+    return out.slice(-maxLines).join('\n')
+  }
+  const explainWithAi = (source: 'auto' | 'selection') => {
+    const term = apiRef.current?.term
+    const sel = source === 'selection' && term?.hasSelection() ? term.getSelection() : ''
+    setAiHint(false)
+    requestAiExplain({ sessionId, text: sel || recentText(), source })
+  }
 
   useEffect(() => {
     const onFind = () => {
@@ -171,9 +192,30 @@ export default function TerminalPane({
       return chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayBuffer)
     }
 
+    const decoder = new TextDecoder()
+    let errCheckTimer: number | null = null
+    let pending = ''
+    const checkForError = (u8: Uint8Array) => {
+      if (mirrorOnlyRef.current) return
+      pending = (pending + decoder.decode(u8, { stream: true })).slice(-4000)
+      if (errCheckTimer != null) return
+      errCheckTimer = window.setTimeout(() => {
+        errCheckTimer = null
+        const text = pending
+        pending = ''
+        if (!looksLikeError(text, sessionId)) return
+        rememberError(sessionId, text)
+        if (!activeRef.current) return
+        setAiHint(true)
+        if (aiHintTimerRef.current != null) window.clearTimeout(aiHintTimerRef.current)
+        aiHintTimerRef.current = window.setTimeout(() => setAiHint(false), 8000)
+      }, 250)
+    }
+
     const unsubData = window.aiss.ssh.onData((p) => {
       if (p.sessionId !== sessionId) return
       const u8 = toUint8(p.chunk)
+      checkForError(u8)
       if (zmReady && zm) {
         try {
           zm.consume(u8)
@@ -234,6 +276,8 @@ export default function TerminalPane({
     el.addEventListener('contextmenu', onContextMenu)
 
     return () => {
+      if (errCheckTimer != null) window.clearTimeout(errCheckTimer)
+      if (aiHintTimerRef.current != null) window.clearTimeout(aiHintTimerRef.current)
       zm?.dispose()
       if (broadcastRef && broadcastRef.current === writeInput) {
         broadcastRef.current = null
@@ -304,6 +348,11 @@ export default function TerminalPane({
       <div className="terminal-pane-wrap">
         <div ref={wrapRef} className="terminal-pane-xterm" title={tg('term.tip')} />
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
+        {aiHint && !mirrorOnly ? (
+          <button type="button" className="ai-explain-hint" data-testid="ai-explain-hint" onClick={() => explainWithAi('auto')}>
+            ✨ {tg('a1.button')}
+          </button>
+        ) : null}
         {findOpen ? (
           <div className="terminal-find-bar" role="search" data-testid="terminal-find">
             <input
@@ -356,6 +405,7 @@ export default function TerminalPane({
           className="session-context-menu"
           style={{ left: termMenu.x, top: termMenu.y }}
           role="menu"
+          data-testid="terminal-menu"
         >
           <button
             type="button"
@@ -380,6 +430,39 @@ export default function TerminalPane({
             }}
           >
             {tg('common.paste')}
+          </button>
+          <button
+            type="button"
+            className="session-context-menu-item"
+            data-ctx="aiExplain"
+            onClick={() => {
+              setTermMenu(null)
+              explainWithAi('selection')
+            }}
+          >
+            ✨ {tg('a1.explainSelection')}
+          </button>
+          <div className="session-context-menu-sep" />
+          <button
+            type="button"
+            className="session-context-menu-item"
+            onClick={() => {
+              setTermMenu(null)
+              setFindOpen(true)
+              window.setTimeout(() => findInputRef.current?.select(), 0)
+            }}
+          >
+            {tg('term.find')}
+          </button>
+          <button
+            type="button"
+            className="session-context-menu-item"
+            onClick={() => {
+              setTermMenu(null)
+              apiRef.current?.term.clear()
+            }}
+          >
+            {tg('term.clear')}
           </button>
         </div>
       ) : null}

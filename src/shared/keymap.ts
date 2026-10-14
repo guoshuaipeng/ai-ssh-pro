@@ -34,6 +34,7 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'snippets', keys: 'Ctrl+Shift+S', scope: 'global', group: 'session', label: { zh: '命令片段', en: 'Snippets' } },
   { id: 'inventory', keys: 'Ctrl+Shift+H', scope: 'global', group: 'session', label: { zh: '主机档案', en: 'Host inventory' } },
   { id: 'find', keys: 'Ctrl+Shift+F', scope: 'global', group: 'terminal', label: { zh: '终端内查找', en: 'Find in terminal' } },
+  { id: 'aiCommand', keys: 'Ctrl+Shift+Space', scope: 'global', group: 'terminal', label: { zh: 'AI 模式：用自然语言生成命令', en: 'AI mode: natural language → command' } },
   { id: 'copy', keys: 'Ctrl+Shift+C', scope: 'display', group: 'terminal', label: { zh: '复制', en: 'Copy' } },
   { id: 'paste', keys: 'Ctrl+Shift+V', scope: 'display', group: 'terminal', label: { zh: '粘贴', en: 'Paste' } },
   { id: 'pasteAlt', keys: 'Shift+Insert', scope: 'display', group: 'terminal', label: { zh: '粘贴（备选）', en: 'Paste (alternative)' } },
@@ -64,6 +65,7 @@ function eventKeyName(e: KeyLike): string {
   if (e.code && /^Key[A-Z]$/.test(e.code)) return e.code.slice(3)
   if (e.code && /^Digit[0-9]$/.test(e.code)) return e.code.slice(5)
   if (e.code === 'Comma') return ','
+  if (e.code === 'Space' || e.key === ' ') return 'Space'
   if (e.key.length === 1) return e.key.toUpperCase()
   return e.key
 }

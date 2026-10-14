@@ -56,7 +56,7 @@ export async function parseSshFormWithAi(rawText: string, settings: AiSettings):
 
   const apiKey = provider.apiKey.trim()
   if (!apiKey) {
-    throw new Error('请先在左侧「AI 配置」中填写 API Key')
+    throw new Error('请先在「AI 设置」中填写 API Key')
   }
   const base = provider.baseURL.replace(/\/$/, '')
   const url = `${base}/chat/completions`

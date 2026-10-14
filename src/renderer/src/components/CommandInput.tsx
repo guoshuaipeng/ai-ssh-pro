@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from 'react'
 import { filterCommandHistory, normalizeCommandLine } from '@shared/workspace-features'
 import { useI18n } from '../lib/i18n'
 import { HISTORY_CHANGED_EVENT, notifyHistoryChanged } from '../lib/workspace-events'
@@ -12,6 +12,14 @@ type Props = {
   onSubmit?: (command: string) => void
   value?: string
   onValueChange?: (value: string) => void
+  /** return true to consume the key before the built-in history / submit handling (A2 AI mode) */
+  interceptKey?: (e: ReactKeyboardEvent<HTMLInputElement>) => boolean
+  /** marker shown inside the field on the left (A2: ✨) */
+  prefix?: ReactNode
+  inputRef?: Ref<HTMLInputElement>
+  /** history suggestions (off in AI mode) */
+  suggest?: boolean
+  className?: string
 }
 
 export default function CommandInput({
@@ -21,7 +29,12 @@ export default function CommandInput({
   submitOnEnter = false,
   onSubmit,
   value,
-  onValueChange
+  onValueChange,
+  interceptKey,
+  prefix,
+  inputRef,
+  suggest = true,
+  className
 }: Props) {
   const { t } = useI18n()
   const listId = useId()
@@ -62,7 +75,7 @@ export default function CommandInput({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
-  const suggestions = filterCommandHistory(history, text, 8)
+  const suggestions = suggest ? filterCommandHistory(history, text, 8) : []
 
   const fill = (command: string) => {
     setText(command)
@@ -87,9 +100,11 @@ export default function CommandInput({
   const canSubmit = Boolean(normalizeCommandLine(text))
 
   return (
-    <div className="command-input" ref={rootRef}>
+    <div className={`command-input${className ? ` ${className}` : ''}`} ref={rootRef}>
       <div className="command-input-field">
+      {prefix}
       <input
+        ref={inputRef}
         type="text"
         value={text}
         disabled={disabled}
@@ -113,6 +128,10 @@ export default function CommandInput({
           setOpen(true)
         }}
         onKeyDown={(e) => {
+          if (interceptKey?.(e)) {
+            e.preventDefault()
+            return
+          }
           if (e.key === 'Escape') {
             setOpen(false)
             setHighlight(-1)

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import net from 'node:net'
+import http from 'node:http'
 import { createRequire } from 'node:module'
 import { _electron } from 'playwright-core'
 
@@ -157,8 +158,8 @@ await import(${JSON.stringify(pathToFileURL(mainJs).href)})
 
 const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: appData, LOCALAPPDATA: join(root, 'AppData', 'Local') }
 for (const k of Object.keys(env)) if (k.startsWith('AISS_') || k === 'ELECTRON_RENDERER_URL') delete env[k]
-const app = await _electron.launch({ executablePath: require('electron'), args: [wrapperDir], env, timeout: 60000 })
-const page = await app.firstWindow()
+let app = await _electron.launch({ executablePath: require('electron'), args: [wrapperDir], env, timeout: 60000 })
+let page = await app.firstWindow()
 await page.waitForLoadState('domcontentloaded')
 await page.waitForTimeout(2500)
 
@@ -217,8 +218,8 @@ async function step(name, fn) {
 const expectVisible = (loc, timeout = 8000) => loc.first().waitFor({ state: 'visible', timeout })
 const expectHidden = (loc, timeout = 8000) => loc.first().waitFor({ state: 'hidden', timeout })
 const assert = (cond, msg) => { if (!cond) throw new Error(msg) }
-const tree = page.locator('.session-folder-block')
-const search = page.getByPlaceholder(/Search sessions/)
+let tree = page.locator('.session-folder-block')
+let search = page.getByPlaceholder(/Search sessions/)
 // Fails if visible UI text or title/placeholder/aria-label contains CJK (terminal output excluded).
 async function cjkScan(label) {
   const hits = await page.evaluate(() => {
@@ -242,9 +243,45 @@ async function cjkScan(label) {
   })
   assert(!hits.length, label + ' has CJK text: ' + hits.slice(0, 10).join(' | '))
 }
+const menu = async (top, item) => {
+  await page.getByRole('button', { name: top, exact: true }).click()
+  await page.getByText(item, { exact: true }).first().click()
+}
+const cmdInput = () => page.locator('.session-command-bar input, .session-command-bar textarea').first()
 const xtermHas = (s) => page.waitForFunction((x) => [...document.querySelectorAll('.xterm-rows')].some((r) => (r.textContent || '').includes(x)), s, { timeout: 8000 })
 
 console.log('== e2e (Playwright + Electron, isolated demo profile, ssh2 test server :' + sshPort + ') ==')
+
+await step('G2: welcome tour on first run (Back/Next, Esc skips, Help → Welcome tour replays to the end)', async () => {
+  const tour = page.getByTestId('welcome-tour')
+  const title = page.getByTestId('tour-title')
+  await expectVisible(tour, 10000)
+  await expectVisible(title.filter({ hasText: 'New connection' }))
+  await expectVisible(tour.getByText('1 / 5'))
+  await cjkScan('welcome tour')
+  await page.getByTestId('tour-next').click()
+  await expectVisible(title.filter({ hasText: 'Ops tools' }))
+  await tour.getByRole('button', { name: 'Back', exact: true }).click()
+  await expectVisible(title.filter({ hasText: 'New connection' }))
+  await page.getByTestId('tour-next').click()
+  await page.getByTestId('tour-next').click()
+  await expectVisible(title.filter({ hasText: 'Search features' }))
+  await page.keyboard.press('Escape')
+  await expectHidden(tour)
+  assert((await page.evaluate(() => localStorage.getItem('aiss.tourDone'))) === '1', 'tour remembered')
+  await menu('Help', 'Welcome tour')
+  await expectVisible(title.filter({ hasText: 'New connection' }))
+  for (let i = 0; i < 6; i++) {
+    const label = (await page.getByTestId('tour-next').textContent()) || ''
+    if (label.includes('Get started')) break
+    await page.getByTestId('tour-next').click()
+    await page.waitForTimeout(400)
+  }
+  await expectVisible(title.filter({ hasText: 'Host right-click menu' }))
+  await expectVisible(page.locator('.ai-panel-shell'))
+  await page.getByTestId('tour-next').click()
+  await expectHidden(tour)
+})
 
 await step('sidebar search: multi keyword / folder name', async () => {
   await search.fill('mysql')
@@ -327,7 +364,7 @@ await step('SSH connect to local test server (host key prompt, shell echo, laten
 })
 
 await step('batch execute + export .txt', async () => {
-  await page.getByText('Batch', { exact: true }).first().click()
+  await page.getByText('Batch run', { exact: true }).first().click()
   await expectVisible(page.locator('.batch-exec'))
   await page.locator('.batch-exec-toolbar button').first().click()
   const box = page.locator('.batch-exec input, .batch-exec textarea').last()
@@ -432,11 +469,6 @@ await step('session tags: edit via in-app dialog, chip, #tag search, persisted',
   const prof = saved.savedSessions.profiles.find((x) => x.id === 'p1')
   assert(JSON.stringify(prof.tags) === JSON.stringify(['prod', 'web']), 'tags persisted: ' + JSON.stringify(prof.tags))
 })
-
-const menu = async (top, item) => {
-  await page.getByRole('button', { name: top, exact: true }).click()
-  await page.getByText(item, { exact: true }).first().click()
-}
 
 await step('port forwarding panel: add (auto local port), traffic through SSH, stop', async () => {
   await menu('Session', 'Port forwarding…')
@@ -689,7 +721,7 @@ await step('toolbar buttons open monitor / forwarding / backup', async () => {
   await expectHidden(page.locator('.st-panel'))
   await page.locator('[data-tool="more"]').click()
   await expectVisible(page.getByTestId('toolbar-more').getByText('Check for updates…', { exact: true }))
-  await page.getByTestId('toolbar-more').getByText('Encrypted backup…', { exact: true }).click()
+  await page.getByTestId('toolbar-more').getByText('Encrypted backup & restore…', { exact: true }).click()
   await expectVisible(page.locator('.bk-panel'))
   await page.keyboard.press('Escape')
   await expectHidden(page.locator('.bk-panel'))
@@ -761,7 +793,7 @@ await step('sidebar host right-click → Resource monitor connects first, then m
   await page.waitForTimeout(300)
   // tab right-click has the entry too
   await page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }).first().click({ button: 'right' })
-  await page.locator('.tab-context-menu').getByRole('menuitem', { name: 'Resource monitor…' }).click()
+  await page.locator('.tab-context-menu').getByRole('menuitem', { name: 'Resource monitor' }).click()
   await expectVisible(panel)
   await page.keyboard.press('Escape')
   await expectHidden(panel)
@@ -928,8 +960,13 @@ await step("What's new dialog appears once after an upgrade", async () => {
   const dlg = page.locator('.wn-panel')
   await expectVisible(dlg, 15000)
   await cjkScan("what's new")
-  await dlg.locator('.wn-where--link', { hasText: 'Command palette' }).click()
-  await expectVisible(page.locator('.cmdp-input'))
+  if (JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')).version === '0.3.12') {
+    await dlg.locator('.wn-where--link', { hasText: 'Command palette' }).click()
+    await expectVisible(page.locator('.cmdp-input'))
+  } else {
+    await dlg.locator('.wn-where--link', { hasText: 'Welcome tour' }).click()
+    await expectVisible(page.getByTestId('welcome-tour'))
+  }
   await page.keyboard.press('Escape')
   await page.reload()
   await page.waitForLoadState('domcontentloaded')
@@ -937,7 +974,243 @@ await step("What's new dialog appears once after an upgrade", async () => {
   assert(!(await dlg.isVisible()), 'shown only once')
 })
 
+// ---------- v0.3.13: demo host, AI explain / NL → command (mock OpenAI-compatible server), state indicators ----------
+const aiServer = http.createServer((req, res) => {
+  let body = ''
+  req.on('data', (c) => (body += c))
+  req.on('end', () => {
+    let user = ''
+    try { user = String(JSON.parse(body).messages?.[1]?.content ?? '') } catch {}
+    const content = user.includes('Terminal output')
+      ? { cause: 'The file /nope does not exist on this host.', fixes: [{ command: 'ls -la /', note: 'List the root directory to check the path' }], notes: 'Check the spelling of the path.' }
+      : /delete/i.test(user)
+        ? { command: 'rm -rf /var/log/old', explanation: 'Deletes the old log directory recursively', risk: 'danger' }
+        : { command: 'ss -ltnp | grep :80', explanation: 'Shows which process listens on port 80', risk: 'safe' }
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }))
+  })
+})
+await new Promise((r) => aiServer.listen(0, '127.0.0.1', r))
+const aiPort = aiServer.address().port
+
+await step('G1: Help → Try demo host: DEMO badge, yellow banner, simulated shell, read-only edit, risk dialog', async () => {
+  await page.keyboard.press('Escape')
+  await menu('Help', 'Try demo host')
+  const demoRow = page.locator('aside .profile-row--host').filter({ hasText: 'Demo host (demo)' })
+  await expectVisible(demoRow, 10000)
+  await expectVisible(demoRow.getByTestId('demo-badge'))
+  const banner = page.getByTestId('demo-banner')
+  await expectVisible(banner, 10000)
+  await expectVisible(banner.getByText('This is a demo host with simulated data'))
+  await expectVisible(banner.getByRole('button', { name: 'Add my server' }))
+  await xtermHas('demo@demo-host')
+  await cmdInput().fill('ls')
+  await cmdInput().press('Enter')
+  await xtermHas('deploy.sh')
+  await cjkScan('demo host session')
+  await cmdInput().fill('rm -rf /')
+  await cmdInput().press('Enter')
+  await expectVisible(page.getByText('Dangerous command', { exact: true }))
+  await page.getByRole('button', { name: 'Cancel', exact: true }).last().click()
+  await expectVisible(page.getByText('Dangerous command cancelled'))
+  await demoRow.first().click({ button: 'right' })
+  assert(await page.getByTestId('host-menu').locator('[data-ctx="edit"]').isDisabled(), 'demo host edit disabled')
+  await page.keyboard.press('Escape')
+  await page.locator('[data-tool="resourceMonitor"]').click()
+  const panel = page.locator('.rm-panel')
+  await expectVisible(panel.locator('.rm-disk').filter({ hasText: '/data' }).filter({ hasText: '90%' }), 15000)
+  await page.keyboard.press('Escape')
+  await expectHidden(panel)
+})
+
+await step('A1: error → "Explain with AI" hint → needs-config state → mock AI cause/fix → Insert / Run confirm; palette entry', async () => {
+  await cmdInput().fill('cat /nope')
+  await cmdInput().press('Enter')
+  await xtermHas('No such file or directory')
+  const hint = page.getByTestId('ai-explain-hint')
+  await expectVisible(hint, 5000)
+  assert(((await hint.textContent()) || '').includes('Explain with AI'), 'hint label')
+  await hint.click()
+  const card = page.getByTestId('ai-explain-card')
+  await expectVisible(card.getByTestId('ai-explain-needs-config'), 10000)
+  await expectVisible(card.getByRole('button', { name: 'Open settings' }))
+  await cjkScan('AI explain: not configured')
+  await page.evaluate((port) => window.aiss.ai.setSettings({
+    providers: [{ id: 'e2e', name: 'e2e mock', baseURL: `http://127.0.0.1:${port}/v1`, apiKey: 'test-key', modelList: ['mock-1'] }],
+    activeProviderId: 'e2e',
+    model: 'mock-1'
+  }), aiPort)
+  await search.click()
+  await page.keyboard.press('Control+K')
+  await page.locator('.cmdp-input').fill('explain')
+  await expectVisible(page.locator('.cmdp-item.is-active', { hasText: 'AI: Explain the last error' }))
+  await page.keyboard.press('Enter')
+  await expectVisible(card.getByTestId('ai-explain-cause').filter({ hasText: 'does not exist' }), 15000)
+  const fix = card.getByTestId('ai-explain-fix').first()
+  await expectVisible(fix.getByText('ls -la /'))
+  await cjkScan('AI explain: result')
+  await fix.getByRole('button', { name: 'Insert', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('.session-command-bar input')?.value === 'ls -la /', null, { timeout: 5000 })
+  await fix.getByRole('button', { name: 'Run', exact: true }).click()
+  const dlg = page.getByTestId('app-dialog')
+  await expectVisible(dlg)
+  await expectVisible(page.getByText('Run on Demo host (demo)?'))
+  await page.getByTestId('dialog-ok').click()
+  await xtermHas('drwxr-xr-x')
+  // terminal right-click → Explain selection with AI
+  await page.locator('.xterm:visible').first().click({ button: 'right' })
+  await expectVisible(page.getByTestId('terminal-menu').getByText('Explain selection with AI'))
+  await page.keyboard.press('Escape')
+})
+
+await step('A2: "#" AI mode → card (Safe) → Tab fills; Ctrl+Shift+Space → dangerous → red dialog; Esc closes', async () => {
+  await page.keyboard.press('Escape')
+  const input = cmdInput()
+  await input.click()
+  await input.fill('#find the process on port 80')
+  await expectVisible(page.getByTestId('ai-mode-mark'))
+  await input.press('Enter')
+  const card = page.getByTestId('ai-cmd-card')
+  await expectVisible(card.getByTestId('ai-cmd-command').filter({ hasText: 'ss -ltnp' }), 15000)
+  await expectVisible(card.getByTestId('ai-cmd-risk').filter({ hasText: 'Safe' }))
+  await cjkScan('AI command card')
+  await input.press('Tab')
+  await expectHidden(card)
+  assert((await input.inputValue()) === 'ss -ltnp | grep :80', 'Tab filled the command: ' + (await input.inputValue()))
+  await input.fill('')
+  await page.keyboard.press('Control+Shift+Space')
+  await expectVisible(page.getByTestId('ai-mode-mark'))
+  assert(((await input.getAttribute('placeholder')) || '').startsWith('Describe what you want to do'), 'AI placeholder')
+  await input.fill('delete old logs')
+  await input.press('Enter')
+  await expectVisible(card.getByTestId('ai-cmd-risk').filter({ hasText: 'Dangerous' }), 15000)
+  await input.press('Enter')
+  await expectVisible(page.locator('[data-testid="app-dialog"][data-danger="true"]'))
+  await expectVisible(page.getByRole('button', { name: 'Run anyway' }))
+  await page.getByTestId('dialog-cancel').click()
+  await expectVisible(page.getByText('Dangerous command cancelled'))
+  await input.click()
+  await input.press('Escape')
+  await expectHidden(card)
+})
+
+await step('UX-10: broadcast shows red bar + "Broadcasting · n" badge + tab dot; recording shows ●REC', async () => {
+  await page.keyboard.press('Escape')
+  await menu('Session', 'Broadcast input')
+  const badge = page.getByTestId('broadcast-badge')
+  await expectVisible(badge)
+  assert(/^Broadcasting · \d+$/.test(((await badge.textContent()) || '').trim()), 'badge text ' + (await badge.textContent()))
+  await expectVisible(page.getByTestId('broadcast-bar'))
+  await expectVisible(page.getByTestId('tab-bc-dot'))
+  await page.getByRole('button', { name: 'Session', exact: true }).click()
+  assert((await page.locator('.titlebar-menu-dropdown [data-action="toggleBroadcast"]').getAttribute('aria-checked')) === 'true', 'menu check mark')
+  await page.keyboard.press('Escape')
+  await cjkScan('broadcast indicators')
+  await badge.click()
+  await expectHidden(badge)
+  await expectHidden(page.getByTestId('broadcast-bar'))
+  await menu('View', 'Split view')
+  const recFile = join(root, 'demo-recording.log')
+  await app.evaluate(({ dialog }, f) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: f }) }, recFile)
+  await menu('Session', 'Recording')
+  const rec = page.getByTestId('tab-rec')
+  await expectVisible(rec)
+  assert(((await rec.getAttribute('title')) || '').startsWith('Recording for'), 'REC tooltip')
+  await cmdInput().fill('whoami')
+  await cmdInput().press('Enter')
+  await page.waitForTimeout(800)
+  await menu('Session', 'Recording')
+  await expectHidden(rec)
+  assert(existsSync(recFile) && readFileSync(recFile, 'utf8').includes('demo'), 'recording written')
+})
+
+await step('G1: deleting the demo host needs no confirmation', async () => {
+  const demoRow = page.locator('aside .profile-row--host').filter({ hasText: 'Demo host (demo)' })
+  await demoRow.first().click({ button: 'right' })
+  await page.getByTestId('host-menu').locator('[data-ctx="delete"]').click()
+  await expectHidden(demoRow)
+  assert(!(await page.getByTestId('app-dialog').isVisible().catch(() => false)), 'no confirm dialog')
+})
+
 await app.close().catch(() => {})
+
+// ---------- second launch: fresh install with no hosts ----------
+const root2 = mkdtempSync(join(tmpdir(), 'aissh-e2e2-'))
+const appData2 = join(root2, 'AppData', 'Roaming')
+const userData2 = join(appData2, 'ai-ssh-pro')
+mkdirSync(join(root2, 'home'), { recursive: true })
+mkdirSync(userData2, { recursive: true })
+writeFileSync(join(userData2, 'ai-ssh-pro.json'), JSON.stringify({ locale: 'en', savedSessions: { folders: [], profiles: [] } }))
+const wrapper2 = join(root2, 'wrapper')
+mkdirSync(wrapper2)
+writeFileSync(join(wrapper2, 'package.json'), readFileSync(join(wrapperDir, 'package.json')))
+writeFileSync(
+  join(wrapper2, 'main.mjs'),
+  `import { app } from 'electron'
+app.setPath('appData', ${JSON.stringify(appData2)})
+app.setPath('userData', ${JSON.stringify(userData2)})
+await import(${JSON.stringify(pathToFileURL(mainJs).href)})
+`
+)
+const env2 = { ...env, HOME: join(root2, 'home'), USERPROFILE: join(root2, 'home'), APPDATA: appData2, LOCALAPPDATA: join(root2, 'AppData', 'Local') }
+app = await _electron.launch({ executablePath: require('electron'), args: [wrapper2], env: env2, timeout: 60000 })
+page = await app.firstWindow()
+await page.waitForLoadState('domcontentloaded')
+await page.waitForTimeout(2500)
+tree = page.locator('.session-folder-block')
+search = page.getByPlaceholder(/Search sessions/)
+
+await step('first run, no hosts: tour starts at the sidebar "+ New connection"; Skip; empty states (sidebar + terminal area)', async () => {
+  const tour = page.getByTestId('welcome-tour')
+  await expectVisible(tour, 10000)
+  await expectVisible(page.getByTestId('tour-title').filter({ hasText: 'New connection' }))
+  const hl = await page.locator('.tour-highlight').boundingBox()
+  const btn = await page.getByTestId('sidebar-empty').getByRole('button', { name: '+ New connection' }).boundingBox()
+  assert(hl && btn && Math.abs(hl.x + 6 - btn.x) < 3 && Math.abs(hl.y + 6 - btn.y) < 3, 'tour highlights the sidebar button')
+  await page.getByTestId('tour-skip').click()
+  await expectHidden(tour)
+  const side = page.getByTestId('sidebar-empty')
+  await expectVisible(side.getByText('No connections yet'))
+  await expectVisible(side.getByRole('button', { name: 'Import (Xshell/PuTTY/MobaXterm…)' }))
+  await expectVisible(side.getByRole('button', { name: 'Try demo host' }))
+  const term = page.getByTestId('terminal-empty')
+  await expectVisible(term.getByText('Open a session to get started'))
+  await expectVisible(term.getByText('Ctrl+Shift+N'))
+  await expectVisible(term.getByText('Ctrl+K'))
+  await cjkScan('empty states')
+  mkdirSync(artifacts, { recursive: true })
+  await page.screenshot({ path: join(artifacts, 'r13-empty-states.png') })
+})
+
+await step('UX-09: Monitor with nothing connected → host picker ("No connections yet" → demo host → Enter connects → monitor)', async () => {
+  await page.locator('[data-tool="resourceMonitor"]').click()
+  const picker = page.getByTestId('host-picker')
+  await expectVisible(picker)
+  await expectVisible(picker.getByText('Pick a host to open Resource monitor'))
+  await expectVisible(picker.getByText('No connections yet'))
+  await cjkScan('host picker (empty)')
+  await page.keyboard.press('Escape')
+  await expectHidden(picker)
+  await page.getByTestId('empty-try-demo').click()
+  await expectVisible(page.getByTestId('demo-banner'), 10000)
+  await page.locator('.tab-bar .tab').filter({ hasText: 'Demo host' }).locator('.tab-close').click()
+  await expectVisible(page.getByTestId('terminal-empty'))
+  await page.locator('[data-tool="resourceMonitor"]').click()
+  await expectVisible(picker.getByText('Demo host (demo)'))
+  await cjkScan('host picker')
+  await page.screenshot({ path: join(artifacts, 'r13-host-picker.png') })
+  await page.keyboard.press('Enter')
+  await expectHidden(picker, 10000)
+  const panel = page.locator('.rm-panel')
+  await expectVisible(panel.locator('.rm-disk').filter({ hasText: '/data' }), 15000)
+  await page.keyboard.press('Escape')
+  await expectHidden(panel)
+  await page.screenshot({ path: join(artifacts, 'r13-demo-session.png') })
+})
+
+await app.close().catch(() => {})
+aiServer.close()
+try { rmSync(root2, { recursive: true, force: true }) } catch {}
 ssh.close()
 try { rmSync(root, { recursive: true, force: true }) } catch {}
 try { rmSync(sftpRoot, { recursive: true, force: true }) } catch {}
