@@ -709,3 +709,9 @@ export type ActiveForward = {
 }
 
 export type AddForwardRequest = { sessionId: string; localPort: number; remoteHost: string; remotePort: number }
+
+export type BackupCounts = { profiles: number; folders: number; snippets: number }
+export type BackupExportResult =
+  | { ok: true; path: string; counts: BackupCounts }
+  | { ok: false; canceled?: boolean; error: string }
+export type BackupImportResult = { ok: true; counts: BackupCounts } | { ok: false; canceled?: boolean; error: string }

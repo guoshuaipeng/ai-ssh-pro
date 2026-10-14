@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiDebugSession } from '../lib/aiDebugStore'
 import { clearAiDebugSessions, getAiDebugSessions, pushAiDebugPayload, subscribeAiDebug } from '../lib/aiDebugStore'
+import { tg, useI18n } from '../lib/i18n'
 
 function formatTime(ts: number): string {
   try {
@@ -14,10 +15,10 @@ function entryLabel(session: AiDebugSession, index: number): string {
   const e = session.entries[index]
   if (!e) return ''
   if (e.kind === 'model') {
-    const tail = e.parseError ? `解析失败` : e.structured ? `action=${e.structured.action}` : '—'
-    return `第 ${e.round} 轮 · 模型 · ${tail}`
+    const tail = e.parseError ? tg('dbg.0') : e.structured ? `action=${e.structured.action}` : '—'
+    return tg('dbg.1', { 0: String(e.round), 1: String(tail) })
   }
-  return `第 ${e.round} 步 · ${e.label}`
+  return tg('dbg.2', { 0: String(e.round), 1: String(e.label) })
 }
 
 function buildDetailJson(session: AiDebugSession, index: number): string {
@@ -50,6 +51,7 @@ function buildDetailJson(session: AiDebugSession, index: number): string {
 }
 
 export default function AiDebugWindowApp(): JSX.Element {
+  useI18n() // re-render when the locale loads / changes
   const [, tick] = useState(0)
   const bump = useCallback(() => tick((n) => n + 1), [])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -107,11 +109,10 @@ export default function AiDebugWindowApp(): JSX.Element {
         <div className="modal-header ai-debug-header">
           <div className="ai-debug-header-titles">
             <h2 id="ai-debug-title" className="modal-title">
-              AI 助手调试（提示词与对话）
+              {tg('dbg.3')}
             </h2>
             <p className="ai-debug-hint">
-              独立窗口可拖动、缩放；在主窗口向 AI 助手发送消息后，调试数据会推送到此处。左侧为每次提问，中间为模型轮次与执行步骤，右侧为
-              request_messages、response_raw、structured 等 JSON。
+              {tg('dbg.4')}
             </p>
           </div>
         </div>
@@ -119,9 +120,9 @@ export default function AiDebugWindowApp(): JSX.Element {
         <div className="modal-body ai-debug-body">
           <div className="ai-debug-columns">
             <div className="ai-debug-col ai-debug-col--left">
-              <div className="ai-debug-col-title">用户问题</div>
+              <div className="ai-debug-col-title">{tg('dbg.5')}</div>
               <div className="ai-debug-col-scroll">
-                {sessions.length === 0 && <div className="ai-debug-empty">暂无记录；请保持本窗口打开并在主窗口向 AI 发消息。</div>}
+                {sessions.length === 0 && <div className="ai-debug-empty">{tg('dbg.6')}</div>}
                 {sessions.map((s) => (
                   <button
                     key={s.id}
@@ -132,7 +133,7 @@ export default function AiDebugWindowApp(): JSX.Element {
                       setSelectedEntryIdx(0)
                     }}
                   >
-                    <div className="ai-debug-q">{s.userQuestion || '(空)'}</div>
+                    <div className="ai-debug-q">{s.userQuestion || tg('dbg.7')}</div>
                     <div className="ai-debug-ts">{formatTime(s.startedAt)}</div>
                   </button>
                 ))}
@@ -140,11 +141,11 @@ export default function AiDebugWindowApp(): JSX.Element {
             </div>
 
             <div className="ai-debug-col ai-debug-col--mid">
-              <div className="ai-debug-col-title">明细条目</div>
+              <div className="ai-debug-col-title">{tg('dbg.8')}</div>
               <div className="ai-debug-col-scroll">
-                {!activeSession && <div className="ai-debug-empty">请选择左侧一次提问。</div>}
+                {!activeSession && <div className="ai-debug-empty">{tg('dbg.9')}</div>}
                 {activeSession && activeSession.entries.length === 0 && (
-                  <div className="ai-debug-empty">该次提问尚无调试数据。</div>
+                  <div className="ai-debug-empty">{tg('dbg.10')}</div>
                 )}
                 {activeSession?.entries.map((_, i) => (
                   <button
@@ -162,24 +163,24 @@ export default function AiDebugWindowApp(): JSX.Element {
             <div className="ai-debug-col ai-debug-col--right">
               <div className="ai-debug-col-title">
                 {activeSession && activeSession.entries[selectedEntryIdx]
-                  ? `第 ${activeSession.entries[selectedEntryIdx].round} 轮 · JSON`
+                  ? tg('dbg.11', { 0: String(activeSession.entries[selectedEntryIdx].round) })
                   : 'JSON'}
               </div>
-              <pre className="ai-debug-json">{detailJson || '（无内容）'}</pre>
+              <pre className="ai-debug-json">{detailJson || tg('dbg.12')}</pre>
             </div>
           </div>
         </div>
 
         <div className="modal-footer ai-debug-footer">
           <button type="button" className="ai-fill-cmd-btn" onClick={() => clearAiDebugSessions()}>
-            清空记录
+            {tg('dbg.13')}
           </button>
           <div style={{ flex: 1 }} />
           <button type="button" className="ai-fill-cmd-btn" onClick={copyJson}>
-            复制 JSON
+            {tg('dbg.14')}
           </button>
           <button type="button" className="primary" onClick={bump}>
-            刷新内容
+            {tg('dbg.15')}
           </button>
         </div>
       </div>

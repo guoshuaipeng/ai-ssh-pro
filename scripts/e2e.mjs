@@ -85,6 +85,7 @@ const ssh = new Server({ hostKeys: [hostKey] }, (client) => {
       session.on('exec', (ok, _rej, info) => {
         const ch = ok()
         if (info.command === 'uptime') ch.write(' 12:00:00 up 1 day, load average: 0.00\n')
+        if (info.command.includes('/proc/loadavg')) ch.write(RESOURCE_FIXTURE)
         ch.exit(0)
         ch.end()
       })
@@ -159,6 +160,17 @@ await page.waitForTimeout(2500)
 
 const results = []
 const artifacts = join(repo, 'e2e-artifacts')
+const RESOURCE_FIXTURE = [
+  '0.52 0.40 0.30 1/200 12345', '@@', '4', '@@',
+  'cpu  100 0 100 800 0 0 0 0 0 0', 'cpu  150 0 150 900 0 0 0 0 0 0', '@@',
+  '              total        used        free      shared  buff/cache   available',
+  'Mem:     8000000000  3000000000  1000000000        1000  4000000000  6000000000',
+  'Swap:    2000000000   500000000  1500000000', '@@',
+  'Filesystem     1024-blocks      Used Available Capacity Mounted on',
+  '/dev/vda1         41152832  20576416  20576416      50% /',
+  '/dev/vdb1        103081248  92773123  10308125      90% /data', '@@',
+  '93784.12 300000.00', ''
+].join('\n')
 async function step(name, fn) {
   const t0 = Date.now()
   try {
@@ -446,6 +458,54 @@ await step('command bar explains commands offline (flags, pipes, risk)', async (
   await expectHidden(ex)
 })
 
+await step('resource monitor: CPU / memory / disk / uptime from the SSH host', async () => {
+  await page.keyboard.press('Escape')
+  await menu('Session', 'Resource monitor…')
+  const panel = page.locator('.rm-panel')
+  await expectVisible(panel)
+  await expectVisible(panel.locator('.rm-row').filter({ hasText: 'CPU' }).locator('.rm-value', { hasText: '50%' }), 15000)
+  await expectVisible(panel.locator('.rm-row').filter({ hasText: 'Memory' }).locator('.rm-value', { hasText: '25%' }))
+  await expectVisible(panel.locator('.rm-disk').filter({ hasText: '/data' }).filter({ hasText: '90%' }))
+  assert(await panel.locator('.rm-disk.rm-bad').filter({ hasText: '/data' }).count() === 1, '/data flagged red')
+  await expectVisible(panel.getByText('1d 2h 3m', { exact: false }))
+  await cjkScan('resource monitor')
+  await page.keyboard.press('Escape')
+  await expectHidden(panel)
+})
+
+await step('split view: second session in pane 2, drag divider, swap, persisted ratio', async () => {
+  await page.getByText('e2e-local', { exact: true }).first().dblclick()
+  const trust = page.getByRole('button', { name: 'Trust and continue' })
+  if (await trust.isVisible({ timeout: 2500 }).catch(() => false)) await trust.click()
+  await page.waitForFunction(() => document.querySelectorAll('.tab-bar .tab').length > 0)
+  await page.waitForTimeout(2500)
+  await menu('Session', 'Split view')
+  const divider = page.locator('.split-divider')
+  await expectVisible(divider)
+  const sel = page.getByLabel('Second pane')
+  await page.waitForFunction(() => (document.querySelector('select[aria-label="Second pane"]')?.options.length ?? 0) >= 2, null, { timeout: 15000 })
+  const value = await sel.locator('option').nth(1).getAttribute('value')
+  await sel.selectOption(value)
+  const ids = await page.locator('.split-pane').evaluateAll((els) => els.map((e) => e.getAttribute('data-session-id')))
+  assert(ids.length === 2 && ids[0] !== ids[1] && ids[1] === value, 'two different sessions: ' + JSON.stringify(ids))
+  await page.getByRole('button', { name: 'Swap', exact: true }).click()
+  const ids2 = await page.locator('.split-pane').evaluateAll((els) => els.map((e) => e.getAttribute('data-session-id')))
+  assert(ids2[0] === ids[1] && ids2[1] === ids[0], 'swapped')
+  const b = await divider.boundingBox()
+  const body = await page.locator('.split-body').boundingBox()
+  await page.mouse.move(b.x + 2, b.y + b.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(body.x + body.width * 0.3, b.y + b.height / 2, { steps: 8 })
+  await page.mouse.up()
+  const ratio = Number(await page.evaluate(() => localStorage.getItem('aiss.split.ratio')))
+  assert(ratio > 0.2 && ratio < 0.4, 'ratio persisted: ' + ratio)
+  await cjkScan('split view')
+  await divider.dblclick()
+  assert(Number(await page.evaluate(() => localStorage.getItem('aiss.split.ratio'))) === 0.5, 'reset')
+  await menu('Session', 'Split view')
+  await expectHidden(divider)
+})
+
 await step('main window title is AI-SSH-Pro and the window is visible', async () => {
   const wins = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => ({ title: w.getTitle(), visible: w.isVisible() })))
   assert(wins.length >= 1 && wins[0].title === 'AI-SSH-Pro' && wins[0].visible, 'window: ' + JSON.stringify(wins))
@@ -479,6 +539,53 @@ for (const [top, item, label] of [
     await page.waitForTimeout(300)
   })
 }
+
+await step('encrypted backup: export, wrong password rejected, import restores sessions', async () => {
+  const bak = join(root, 'demo.aissbak')
+  await app.evaluate(({ dialog }, f) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: f })
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [f] })
+  }, bak)
+  await page.keyboard.press('Escape')
+  await menu('Session', 'Encrypted backup…')
+  const panel = page.locator('.bk-panel')
+  await expectVisible(panel)
+  await cjkScan('backup dialog')
+  const pws = panel.locator('input[type="password"]')
+  await pws.nth(0).fill('demo-pass-123')
+  await pws.nth(1).fill('demo-pass-1')
+  await page.getByRole('button', { name: 'Export backup' }).click()
+  await expectVisible(panel.locator('.bk-error', { hasText: 'do not match' }))
+  await pws.nth(1).fill('demo-pass-123')
+  await page.getByRole('button', { name: 'Export backup' }).click()
+  await expectVisible(panel.locator('.bk-ok', { hasText: 'Exported' }), 20000)
+  const raw = readFileSync(bak, 'utf8')
+  assert(raw.includes('ai-ssh-pro-backup') && !raw.includes('e2e-pass') && !raw.includes('demo-web-01'), 'file encrypted')
+  await page.keyboard.press('Escape')
+  // change tags after the backup
+  if (!(await tree.getByText('demo-web-01').first().isVisible())) await page.getByText('Demo · Web', { exact: true }).first().click()
+  await page.getByText('demo-web-01', { exact: true }).first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Edit tags…' }).click()
+  await page.locator('.dialog-text-input').fill('changed')
+  await page.getByTestId('dialog-ok').click()
+  await expectVisible(tree.locator('.profile-tag', { hasText: '#changed' }))
+  await menu('Session', 'Encrypted backup…')
+  await pws.nth(2).fill('wrong-password')
+  await page.getByRole('button', { name: 'Import from file…' }).click()
+  await page.getByTestId('dialog-ok').click()
+  await expectVisible(panel.locator('.bk-error', { hasText: 'Wrong password' }), 20000)
+  await pws.nth(2).fill('demo-pass-123')
+  await page.getByRole('button', { name: 'Import from file…' }).click()
+  await page.getByTestId('dialog-ok').click()
+  await expectVisible(panel.locator('.bk-ok', { hasText: 'Imported' }), 20000)
+  await page.waitForLoadState('domcontentloaded')
+  await page.waitForTimeout(3000)
+  if (!(await tree.getByText('demo-web-01').first().isVisible())) await page.getByText('Demo · Web', { exact: true }).first().click()
+  await expectVisible(tree.locator('.profile-tag', { hasText: '#prod' }), 15000)
+  assert(await tree.locator('.profile-tag', { hasText: '#changed' }).count() === 0, 'changed tag gone')
+  const saved = JSON.parse(readFileSync(join(userData, 'ai-ssh-pro.json'), 'utf8'))
+  assert(JSON.stringify(saved.savedSessions.profiles.find((x) => x.id === 'p1').tags) === '["prod","web"]', 'store restored')
+})
 
 await app.close().catch(() => {})
 ssh.close()

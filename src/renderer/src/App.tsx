@@ -39,6 +39,8 @@ import McpGuidePanel from './components/McpGuidePanel'
 import LayoutResizer from './components/LayoutResizer'
 import BatchExecuteModal, { type BatchSessionOption } from './components/BatchExecuteModal'
 import PortForwardModal from './components/PortForwardModal'
+import ResourceMonitorModal from './components/ResourceMonitorModal'
+import BackupModal from './components/BackupModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
@@ -313,6 +315,8 @@ export default function App() {
   }, [])
   const [batchOpen, setBatchOpen] = useState(false)
   const [portForwardOpen, setPortForwardOpen] = useState(false)
+  const [resourceOpen, setResourceOpen] = useState(false)
+  const [backupOpen, setBackupOpen] = useState(false)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
@@ -2058,6 +2062,14 @@ export default function App() {
         setPortForwardOpen(true)
         return
       }
+      if (action === 'resourceMonitor') {
+        setResourceOpen(true)
+        return
+      }
+      if (action === 'backup') {
+        setBackupOpen(true)
+        return
+      }
       if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets' || action === 'mcpGuide') {
         openSettingsTab(action)
       }
@@ -2520,6 +2532,9 @@ export default function App() {
                       active={t.tabId === activeTabId}
                       prefs={terminalPrefs}
                       broadcastEnabled={broadcastEnabled}
+                      peers={connectedSshSessions
+                        .filter((x) => x.sessionId !== t.sessionId)
+                        .map((x) => ({ sessionId: x.sessionId, title: x.title }))}
                     />
                   ) : (
                     <TerminalPane sessionId={t.sessionId} active={t.tabId === activeTabId} prefs={terminalPrefs} />
@@ -2564,7 +2579,6 @@ export default function App() {
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-      <DialogHost />
       <BatchExecuteModal open={batchOpen} sessions={connectedSshSessions} onClose={() => setBatchOpen(false)} />
       <PortForwardModal
         open={portForwardOpen}
@@ -2572,6 +2586,15 @@ export default function App() {
         activeSessionId={activeSessionId ?? null}
         onClose={() => setPortForwardOpen(false)}
       />
+      <ResourceMonitorModal
+        open={resourceOpen}
+        sessions={connectedSshSessions}
+        activeSessionId={activeSessionId ?? null}
+        onClose={() => setResourceOpen(false)}
+      />
+      <BackupModal open={backupOpen} onClose={() => setBackupOpen(false)} />
+      {/* last so confirm/prompt dialogs stack above any open modal */}
+      <DialogHost />
 
       {sessionMenu && (
         <div

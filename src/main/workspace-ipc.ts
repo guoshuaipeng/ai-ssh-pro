@@ -1,8 +1,9 @@
+import { execBounded } from './ssh-batch'
+import { RESOURCE_PROBE_CMD, parseResourceSnapshot } from '../shared/resource-monitor'
 import { listForwards, startTrackedForward, stopForward, stopSessionForwards } from './forward-manager'
 import { mt } from './main-i18n'
 import { ipcMain } from 'electron'
 import type { SshSessionManager } from './ssh-manager'
-import { execBounded } from './ssh-batch'
 import {
   getCommandHistory,
   getLocale,
@@ -119,6 +120,17 @@ export async function runBatchExec(sshManager: SshSessionManager, raw: unknown):
 export function registerWorkspaceIpc(sshManager: SshSessionManager): void {
   ipcMain.handle('workspace:ping', async (_e, sessionId: unknown) => pingSession(sshManager, sessionId))
   ipcMain.handle('workspace:batchExec', async (_e, payload: unknown) => runBatchExec(sshManager, payload))
+  ipcMain.handle('workspace:resources', async (_e, sessionId: unknown) => {
+    const client = sshManager.getClient(typeof sessionId === 'string' ? sessionId : '')
+    if (!client) throw new Error(mt('会话未连接', 'Session is not connected'))
+    const r = await execBounded(client, RESOURCE_PROBE_CMD, 10_000, 256 * 1024)
+    if (r.timedOut) throw new Error(mt('采集超时', 'Probe timed out'))
+    const snap = parseResourceSnapshot(r.stdout)
+    if (!snap.load && !snap.mem && !snap.disks.length) {
+      throw new Error(mt('无法读取资源信息（仅支持 Linux 主机）', 'Could not read resource data (Linux hosts only)'))
+    }
+    return { ...snap, at: Date.now() }
+  })
   ipcMain.handle('workspace:forwards:list', (_e, sessionId: unknown) =>
     listForwards(typeof sessionId === 'string' && sessionId ? sessionId : undefined)
   )

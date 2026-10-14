@@ -181,9 +181,14 @@ export type AissPreload = {
     openWindow: () => Promise<void>
     onPush: (cb: (payload: AiDebugStreamPayload) => void) => () => void
   }
+  backup: {
+    export: (opts: { password: string; includeAi?: boolean }) => Promise<import('@shared/ipc').BackupExportResult>
+    import: (opts: { password: string }) => Promise<import('@shared/ipc').BackupImportResult>
+  }
   workspace: {
     ping: (sessionId: string) => Promise<number | null>
     batchExec: (payload: BatchExecRequest) => Promise<BatchExecResult>
+    resources: (sessionId: string) => Promise<import('../../shared/resource-monitor').ResourceSnapshot & { at: number }>
     forwards: {
       list: (sessionId?: string) => Promise<import('@shared/ipc').ActiveForward[]>
       add: (req: import('@shared/ipc').AddForwardRequest) => Promise<import('@shared/ipc').ActiveForward>

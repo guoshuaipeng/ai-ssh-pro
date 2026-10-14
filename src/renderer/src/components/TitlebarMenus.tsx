@@ -13,6 +13,8 @@ export type TitlebarMenuAction =
   | 'selectAll'
   | 'batchExec'
   | 'portForward'
+  | 'resourceMonitor'
+  | 'backup'
   | 'shortcuts'
 
 type MenuItem =
@@ -33,11 +35,13 @@ const MENUS: MenuDef[] = [
       { type: 'sep' },
       { type: 'item', id: 'batchExec', label: 'menu.batchExec' },
       { type: 'item', id: 'portForward', label: 'menu.portForward' },
+      { type: 'item', id: 'resourceMonitor', label: 'menu.resourceMonitor' },
       { type: 'sep' },
       { type: 'item', id: 'newFolder', label: 'menu.newFolder' },
       { type: 'item', id: 'importSessions', label: 'menu.importSessions' },
       { type: 'item', id: 'exportOpenssh', label: 'menu.exportOpenssh' },
       { type: 'item', id: 'exportJson', label: 'menu.exportJson' },
+      { type: 'item', id: 'backup', label: 'menu.backup' },
       { type: 'sep' },
       { type: 'item', id: 'toggleSplit', label: 'menu.split' },
       { type: 'item', id: 'toggleBroadcast', label: 'menu.broadcast' },

@@ -3306,3 +3306,135 @@ button.danger {
   display: flex;
   gap: 4px;
 }
+
+.split-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.split-divider {
+  flex: 0 0 5px;
+  background: var(--border, #30363d);
+  cursor: col-resize;
+  touch-action: none;
+}
+.split-vertical .split-divider {
+  cursor: row-resize;
+}
+.split-divider:hover {
+  background: var(--accent, #58a6ff);
+}
+body.split-resizing {
+  user-select: none;
+}
+.rm-panel,
+.bk-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+.rm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.rm-time,
+.rm-empty,
+.rm-uptime,
+.bk-hint {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.rm-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 56px minmax(0, 170px);
+  align-items: center;
+  gap: 8px;
+}
+.rm-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(127, 127, 127, 0.2);
+  overflow: hidden;
+}
+.rm-bar-sm {
+  display: inline-block;
+  width: 80px;
+  height: 7px;
+  vertical-align: middle;
+}
+.rm-fill {
+  height: 100%;
+  transition: width 0.4s;
+}
+.rm-fill.rm-ok {
+  background: #3fb950;
+}
+.rm-fill.rm-warn {
+  background: #d29922;
+}
+.rm-fill.rm-bad {
+  background: #f85149;
+}
+.rm-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rm-detail {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.rm-disks {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.rm-disks th,
+.rm-disks td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+.rm-error,
+.bk-error {
+  margin: 0;
+  color: #f85149;
+}
+.bk-ok {
+  margin: 0;
+  color: #3fb950;
+  word-break: break-all;
+}
+.bk-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border, #30363d);
+  border-radius: 8px;
+}
+.bk-section h4 {
+  margin: 0;
+}
+.bk-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.bk-section label.bk-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.bk-section button {
+  align-self: flex-start;
+}

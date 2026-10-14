@@ -23,6 +23,7 @@ import {
   recordRecentConnection
 } from './app-store'
 import { registerWorkspaceIpc } from './workspace-ipc'
+import { registerBackupIpc } from './backup-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
 import { streamOpenAICompatibleChat } from './ai-stream'
 import { setDebugWindowWebContents } from './debug-window-broadcast'
@@ -775,6 +776,7 @@ function registerIpc(): void {
   })
 
   registerWorkspaceIpc(sshManager)
+  registerBackupIpc()
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()

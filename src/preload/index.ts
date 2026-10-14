@@ -1,3 +1,5 @@
+import type { ResourceSnapshot } from '../shared/resource-monitor'
+import type { BackupExportResult, BackupImportResult } from '../shared/ipc'
 import type { ActiveForward, AddForwardRequest } from '../shared/ipc'
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type {
@@ -258,10 +260,15 @@ const api = {
       return () => unsub('ai-debug:push', fn)
     }
   },
+  backup: {
+    export: (opts: { password: string; includeAi?: boolean }): Promise<BackupExportResult> => ipcRenderer.invoke('backup:export', opts),
+    import: (opts: { password: string }): Promise<BackupImportResult> => ipcRenderer.invoke('backup:import', opts)
+  },
   workspace: {
     ping: (sessionId: string): Promise<number | null> => ipcRenderer.invoke('workspace:ping', sessionId),
     batchExec: (payload: BatchExecRequest): Promise<BatchExecResult> =>
       ipcRenderer.invoke('workspace:batchExec', payload),
+    resources: (sessionId: string): Promise<ResourceSnapshot & { at: number }> => ipcRenderer.invoke('workspace:resources', sessionId),
     forwards: {
       list: (sessionId?: string): Promise<ActiveForward[]> => ipcRenderer.invoke('workspace:forwards:list', sessionId),
       add: (req: AddForwardRequest): Promise<ActiveForward> => ipcRenderer.invoke('workspace:forwards:add', req),

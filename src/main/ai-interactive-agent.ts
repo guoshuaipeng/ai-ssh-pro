@@ -1,3 +1,4 @@
+import { mt } from './main-i18n'
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -40,10 +41,10 @@ function lastUserQuestionForDebug(messages: { role: string; content: string }[])
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i]?.role === 'user') {
       const c = messages[i].content?.trim() ?? ''
-      return c.length > 800 ? `${c.slice(0, 800)}…` : c || '(空)'
+      return c.length > 800 ? `${c.slice(0, 800)}…` : c || mt('(空)', "(empty)")
     }
   }
-  return '(无用户消息)'
+  return mt('(无用户消息)', "(no user message)")
 }
 
 function cloneChatMessages(m: Array<{ role: string; content: string }>): Array<{ role: string; content: string }> {
@@ -52,7 +53,7 @@ function cloneChatMessages(m: Array<{ role: string; content: string }>): Array<{
 
 function capDebugDetail(s: string, max = 12000): string {
   if (s.length <= max) return s
-  return `${s.slice(0, max)}\n…(已截断，共 ${s.length} 字符)`
+  return mt(`${s.slice(0, max)}\n…(已截断，共 ${s.length} 字符)`, `${s.slice(0, max)}\n…(truncated, ${s.length} characters total)`)
 }
 
 function truncate(s: string, max: number): string {
@@ -177,7 +178,7 @@ function getSessionState(targetSessionId?: string): CoreSessionState {
         const st = m[1] as TaskNodeStatus
         created.taskGraph.push({
           id: `T${created.nextTaskId++}`,
-          title: m[2]!.trim().slice(0, 120) || '历史任务',
+          title: m[2]!.trim().slice(0, 120) || mt('历史任务', "Past task"),
           status: validStatus.has(st) ? st : 'open',
           confidence: 0.5,
           updatedAt: persisted.updatedAt
@@ -215,7 +216,7 @@ function compactConversation(conv: PlannerTurn[], maxTurns = 8): PlannerTurn[] {
 
 function appendObservation(state: CoreSessionState, snapshot: string, command?: string | null): void {
   const raw = snapshot.trim()
-  if (!raw || raw.includes('暂无缓冲') || raw.includes('无法读取')) return
+  if (!raw || raw.includes('暂无缓冲') || raw.includes('No buffered output') || raw.includes('无法读取')) return
   const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const tail = lines.slice(-4).join(' | ')
   const head = command ? `cmd=${command}: ` : ''
@@ -288,19 +289,19 @@ function rememberCommand(state: CoreSessionState, command: string): void {
 }
 
 function summarizeTaskGraph(state: CoreSessionState): string {
-  if (state.taskGraph.length === 0) return '（暂无）'
+  if (state.taskGraph.length === 0) return mt('（暂无）', "(none)")
   return state.taskGraph
     .slice(-6)
-    .map((t) => `- [${t.status}] ${t.title} (置信度 ${Math.round(t.confidence * 100)}%)`)
+    .map((t) => mt(`- [${t.status}] ${t.title} (置信度 ${Math.round(t.confidence * 100)}%)`, `- [${t.status}] ${t.title} (confidence ${Math.round(t.confidence * 100)}%)`))
     .join('\n')
 }
 
 function ensureSeedTask(state: CoreSessionState, userQuestion: string): void {
   if (state.taskGraph.length > 0) return
-  const title = truncate(userQuestion || '解决用户当前问题', 120)
+  const title = truncate(userQuestion || mt('解决用户当前问题', "Solve the user's current problem"), 120)
   state.taskGraph.push({
     id: `T${state.nextTaskId++}`,
-    title: title || '解决用户当前问题',
+    title: title || mt('解决用户当前问题', "Solve the user's current problem"),
     status: 'open',
     confidence: 0.4,
     updatedAt: Date.now()
@@ -343,8 +344,8 @@ function updateTaskGraphOnAction(state: CoreSessionState, action: AiAssistantRep
 
 function scoreToolSnapshot(snapshot: string, lastCommand: string | null): ToolScore {
   const raw = snapshot.trim()
-  if (!raw || raw.includes('暂无缓冲输出') || raw.includes('无法读取终端快照')) {
-    return { score: 0.15, level: 'high', reason: '快照为空或会话不可用' }
+  if (!raw || raw.includes('暂无缓冲输出') || raw.includes('No buffered output') || raw.includes('无法读取终端快照') || raw.includes('cannot read the terminal snapshot')) {
+    return { score: 0.15, level: 'high', reason: mt('快照为空或会话不可用', "Snapshot is empty or the session is unavailable") }
   }
   const lineCount = raw.split(/\r?\n/).length
   const hasError = /\b(error|failed|denied|not found|traceback|exception)\b/i.test(raw)
@@ -359,9 +360,9 @@ function scoreToolSnapshot(snapshot: string, lastCommand: string | null): ToolSc
   if (hasError) score += 0.1
   score = Math.min(1, Math.max(0, score))
 
-  if (score >= 0.75) return { score, level: 'low', reason: '快照信息充分，可继续决策' }
-  if (score >= 0.5) return { score, level: 'medium', reason: '快照信息一般，建议补充证据' }
-  return { score, level: 'high', reason: '快照信息不足，可能需要替代策略' }
+  if (score >= 0.75) return { score, level: 'low', reason: mt('快照信息充分，可继续决策', "Snapshot is informative enough to continue") }
+  if (score >= 0.5) return { score, level: 'medium', reason: mt('快照信息一般，建议补充证据', "Snapshot is so-so; consider gathering more evidence") }
+  return { score, level: 'high', reason: mt('快照信息不足，可能需要替代策略', "Snapshot is insufficient; an alternative approach may be needed") }
 }
 
 const assistantStepSchema = z
@@ -400,17 +401,17 @@ const assistantStepSchema = z
   .superRefine((v, ctx) => {
     if (v.action === 'tool_call') {
       if (!v.toolName || !v.toolName.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['toolName'], message: 'tool_call 必须给出 toolName' })
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['toolName'], message: mt('tool_call 必须给出 toolName', "tool_call must include toolName") })
       }
     }
     if (v.action === 'command') {
       if (!v.command || !v.command.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: 'command 必须给出 command' })
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: mt('command 必须给出 command', "command must include command") })
       }
     }
     if (v.action === 'end') {
       if (v.command && v.command.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: 'end 不应给出 command' })
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: mt('end 不应给出 command', "end must not include command") })
       }
     }
   })
@@ -455,10 +456,10 @@ function normalizeAssistantStepRaw(obj: Record<string, unknown>): Record<string,
   const notes = pickStringField(out, ['notes', 'note', 'comment'])
 
   if (!description) {
-    if (action === 'command' && command) description = `建议执行命令：${command}`
-    else if (action === 'tool_call') description = '需要读取终端快照以获取最新证据'
+    if (action === 'command' && command) description = mt(`建议执行命令：${command}`, `Suggested command: ${command}`)
+    else if (action === 'tool_call') description = mt('需要读取终端快照以获取最新证据', "Need to read the terminal snapshot for the latest evidence")
     else if (notes) description = notes
-    else description = '根据当前上下文继续分析'
+    else description = mt('根据当前上下文继续分析', "Continue analysis based on the current context")
   }
 
   out.action = action
@@ -485,7 +486,7 @@ function normalizeAssistantStepRaw(obj: Record<string, unknown>): Record<string,
 function formatParseError(e: unknown): string {
   if (e instanceof z.ZodError) {
     const lines = e.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
-    return `模型 JSON 字段不符合约定：${lines.join('；')}`
+    return mt(`模型 JSON 字段不符合约定：${lines.join('；')}`, `Model JSON fields do not match the contract: ${lines.join('；')}`)
   }
   return e instanceof Error ? e.message : String(e)
 }
@@ -496,7 +497,7 @@ export function parseAssistantStep(content: string): { structured: AiAssistantRe
   try {
     const raw = JSON.parse(jsonText) as unknown
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      return { structured: null, parseError: '模型返回的不是 JSON 对象' }
+      return { structured: null, parseError: mt('模型返回的不是 JSON 对象', "The model did not return a JSON object") }
     }
     const normalized = normalizeAssistantStepRaw(raw as Record<string, unknown>)
     const parsed = assistantStepSchema.parse(normalized) as unknown as AiAssistantReply
@@ -505,7 +506,7 @@ export function parseAssistantStep(content: string): { structured: AiAssistantRe
   } catch (e) {
     const loose = parseAiAssistantReply(content)
     if (loose) {
-      return { structured: loose, parseError: `严格校验失败，已宽松恢复：${formatParseError(e)}` }
+      return { structured: loose, parseError: mt(`严格校验失败，已宽松恢复：${formatParseError(e)}`, `Strict validation failed, recovered loosely: ${formatParseError(e)}`) }
     }
     return { structured: null, parseError: formatParseError(e) }
   }
@@ -523,46 +524,46 @@ function buildCoreSystemPrompt(
     plannerHint?: string | null
   }
 ): string {
-  const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : '（暂无）'
-  const recentCmdSection = state.recentCommands.length > 0 ? state.recentCommands.map((c) => `- ${c}`).join('\n') : '（暂无）'
+  const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : mt('（暂无）', "(none)")
+  const recentCmdSection = state.recentCommands.length > 0 ? state.recentCommands.map((c) => `- ${c}`).join('\n') : mt('（暂无）', "(none)")
   const obsSection =
-    state.observations.length > 0 ? state.observations.map((o, i) => `${i + 1}. ${o}`).join('\n') : '（暂无）'
+    state.observations.length > 0 ? state.observations.map((o, i) => `${i + 1}. ${o}`).join('\n') : mt('（暂无）', "(none)")
   const taskGraphSection = summarizeTaskGraph(state)
   const lastScoreSection = state.lastToolScore
-    ? `${Math.round(state.lastToolScore.score * 100)} 分 / 风险 ${state.lastToolScore.level} / ${state.lastToolScore.reason}`
-    : '（暂无）'
+    ? mt(`${Math.round(state.lastToolScore.score * 100)} 分 / 风险 ${state.lastToolScore.level} / ${state.lastToolScore.reason}`, `${Math.round(state.lastToolScore.score * 100)} pts / risk ${state.lastToolScore.level} / ${state.lastToolScore.reason}`)
+    : mt('（暂无）', "(none)")
 
   const parts: string[] = [
     buildBootstrapPrompt(ctx.userQuestion),
     '---',
-    '你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。',
-    'action（必填）：tool_call | command | end。',
-    'command 需要用户确认后才执行（低风险可自动批准）；tool_call 会被系统立即执行。',
-    '可用 toolName：get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note。',
-    '若上一轮刚执行过命令，系统可能已自动附带终端观测结果，请优先阅读后再决策。',
-    `当前轮次：${ctx.step}`,
-    '工作区观测笔记（跨轮持久）：',
+    mt('你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。', "Output a single JSON object; no Markdown, no code fences, no text outside the JSON."),
+    mt('action（必填）：tool_call | command | end。', "action (required): tool_call | command | end."),
+    mt('command 需要用户确认后才执行（低风险可自动批准）；tool_call 会被系统立即执行。', "command runs only after user confirmation (low risk may be auto-approved); tool_call is executed by the system immediately."),
+    mt('可用 toolName：get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note。', "Available toolName: get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note."),
+    mt('若上一轮刚执行过命令，系统可能已自动附带终端观测结果，请优先阅读后再决策。', "If a command just ran in the previous round, terminal observations may be attached automatically; read them before deciding."),
+    mt(`当前轮次：${ctx.step}`, `Current round: ${ctx.step}`),
+    mt('工作区观测笔记（跨轮持久）：', "Workspace observation notes (persist across rounds):"),
     obsSection,
-    '最近核心记忆：',
+    mt('最近核心记忆：', "Recent core memory:"),
     memorySection,
-    '最近已执行命令：',
+    mt('最近已执行命令：', "Recently executed commands:"),
     recentCmdSection,
-    '任务图（Task Graph）：',
+    mt('任务图（Task Graph）：', "Task graph:"),
     taskGraphSection,
-    '最近工具结果评分：',
+    mt('最近工具结果评分：', "Latest tool result score:"),
     lastScoreSection,
-    `当前失败连续计数：${state.failureStreak}`,
-    'JSON 字段（description 与 action 必填）：description, action, completed, toolName, toolInput, command, riskLevel, notes。'
+    mt(`当前失败连续计数：${state.failureStreak}`, `Consecutive failures: ${state.failureStreak}`),
+    mt('JSON 字段（description 与 action 必填）：description, action, completed, toolName, toolInput, command, riskLevel, notes。', "JSON fields (description and action required): description, action, completed, toolName, toolInput, command, riskLevel, notes.")
   ]
 
   if (ctx.plannerHint) {
-    parts.push(`本轮策略提示：${ctx.plannerHint}`)
+    parts.push(mt(`本轮策略提示：${ctx.plannerHint}`, `Strategy hint for this round: ${ctx.plannerHint}`))
   }
 
   if (payload.targetSessionId) {
-    parts.push(`当前关联 SSH 会话：${payload.targetSessionId}。`)
+    parts.push(mt(`当前关联 SSH 会话：${payload.targetSessionId}。`, `Linked SSH session: ${payload.targetSessionId}.`))
   } else {
-    parts.push('当前未关联 SSH 会话：禁止 get_terminal_snapshot；仍可读写主机知识库或给出本地自检建议，或直接 end。')
+    parts.push(mt('当前未关联 SSH 会话：禁止 get_terminal_snapshot；仍可读写主机知识库或给出本地自检建议，或直接 end。', "No SSH session linked: get_terminal_snapshot is not allowed; you may still read/write the host inventory, suggest local checks, or end."))
   }
 
   const inv = getInventoryStore()
@@ -573,23 +574,23 @@ function buildCoreSystemPrompt(
     profileId: payload.inventoryLookup?.profileId
   })
   if (hostCtx) {
-    parts.push('当前主机知识库档案（本地 Inventory，可信运维事实）：\n' + hostCtx)
+    parts.push(mt('当前主机知识库档案（本地 Inventory，可信运维事实）：\n', "Current host inventory profile (local inventory, trusted ops facts):") + hostCtx)
   } else {
     parts.push(
-      '当前未命中主机知识库档案。若用户描述的是某台已知机器，可用 get_host_inventory 搜索；发现服务后可用 upsert_host_service / append_host_note 登记。'
+      mt('当前未命中主机知识库档案。若用户描述的是某台已知机器，可用 get_host_inventory 搜索；发现服务后可用 upsert_host_service / append_host_note 登记。', "No host inventory profile matched. If the user describes a known machine, search with get_host_inventory; register discovered services with upsert_host_service / append_host_note.")
     )
   }
 
   if (payload.terminalExcerpt?.trim()) {
-    parts.push('用户附带终端片段：\n```\n' + payload.terminalExcerpt.trim() + '\n```')
+    parts.push(mt('用户附带终端片段：\n```\n', "Terminal excerpt attached by the user:\n```") + payload.terminalExcerpt.trim() + '\n```')
   }
 
   if (ctx.lastToolResult != null) {
-    parts.push('最近一次终端快照：\n```\n' + (ctx.lastToolResult.trim() ? ctx.lastToolResult.trim() : '（空）') + '\n```')
+    parts.push(mt('最近一次终端快照：\n```\n', "Latest terminal snapshot:\n```") + (ctx.lastToolResult.trim() ? ctx.lastToolResult.trim() : mt('（空）', "(empty)")) + '\n```')
   }
 
   if (ctx.lastCommand) {
-    parts.push(`上一条命令已发送（writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}）：\n\`\`\`\n${ctx.lastCommand}\n\`\`\``)
+    parts.push(mt(`上一条命令已发送（writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}）：\n\`\`\`\n${ctx.lastCommand}\n\`\`\``, `Previous command sent (writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}):\n\`\`\`\n${ctx.lastCommand}\n\`\`\``))
   }
 
   return parts.join('\n')
@@ -646,12 +647,12 @@ async function callCorePlannerJson(params: {
 
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] }
     const content = json.choices?.[0]?.message?.content
-    if (!content || typeof content !== 'string') throw new Error('模型未返回有效 content')
+    if (!content || typeof content !== 'string') throw new Error(mt('模型未返回有效 content', "The model returned no valid content"))
     return content
   } catch (e) {
     if (isAbortError(e)) {
       if (userAbortSignal?.aborted) throw e
-      throw new Error(`请求超时（${timeoutMs}ms）`)
+      throw new Error(mt(`请求超时（${timeoutMs}ms）`, `Request timed out (${timeoutMs}ms)`))
     }
     throw e
   } finally {
@@ -668,7 +669,7 @@ export async function runOpenClawCoreAgentChat(
 ): Promise<void> {
   const provider = settings.providers.find((p) => p.id === settings.activeProviderId) ?? settings.providers[0]
   if (!provider) {
-    send(wc, { type: 'error', message: '未找到有效的 AI Provider 配置' })
+    send(wc, { type: 'error', message: mt('未找到有效的 AI Provider 配置', "No valid AI provider configuration found") })
     return
   }
 
@@ -676,7 +677,7 @@ export async function runOpenClawCoreAgentChat(
   if (!apiKey) {
     send(wc, {
       type: 'error',
-      message: '请先填写 API Key（OpenClaw 风格核心会直接使用当前 Provider）。'
+      message: mt('请先填写 API Key（OpenClaw 风格核心会直接使用当前 Provider）。', "Please enter an API key first (the OpenClaw-style core uses the current provider directly).")
     })
     return
   }
@@ -746,7 +747,7 @@ export async function runOpenClawCoreAgentChat(
       lastToolResult = bootSnap
       sessionState.lastToolScore = scoreToolSnapshot(bootSnap, null)
       appendObservation(sessionState, bootSnap, null)
-      rememberNote(sessionState, '会话启动时已自动读取终端上下文')
+      rememberNote(sessionState, mt('会话启动时已自动读取终端上下文', "Terminal context was read automatically at session start"))
     }
   }
 
@@ -754,23 +755,23 @@ export async function runOpenClawCoreAgentChat(
     for (let step = 1; step <= maxSteps; step++) {
       conversation = compactConversation(conversation)
       if (runCtx.userAborted) {
-        send(wc, { type: 'cancelled', message: '已停止生成' })
+        send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
         send(wc, { type: 'done' })
         return
       }
 
-      send(wc, { type: 'status', text: `正在生成第 ${step} 步...` })
+      send(wc, { type: 'status', text: mt(`正在生成第 ${step} 步...`, `Generating step ${step}...`) })
       if (sessionState.failureStreak >= 2) {
-        rememberNote(sessionState, '检测到连续失败，下一步应优先选择低风险证据命令或直接结束并说明缺失信息。')
+        rememberNote(sessionState, mt('检测到连续失败，下一步应优先选择低风险证据命令或直接结束并说明缺失信息。', "Repeated failures detected; next prefer a low-risk evidence command or end and explain what is missing."))
       }
 
       let plannerHint: string | null = null
       if (!lastToolResult && targetSessionId && step <= 2) {
-        plannerHint = '尚无终端证据，本轮应优先 tool_call(get_terminal_snapshot)，不要直接 command。'
+        plannerHint = mt('尚无终端证据，本轮应优先 tool_call(get_terminal_snapshot)，不要直接 command。', "No terminal evidence yet; this round should prefer tool_call(get_terminal_snapshot) rather than a command.")
       } else if (lastCommand && lastToolResult) {
-        plannerHint = '上一条命令已执行且已有自动观测，请基于快照给出结论或下一步；证据充分时请 end。'
+        plannerHint = mt('上一条命令已执行且已有自动观测，请基于快照给出结论或下一步；证据充分时请 end。', "The previous command ran and was observed automatically; give a conclusion or next step from the snapshot, and end when evidence is sufficient.")
       } else if (sessionState.failureStreak >= 2) {
-        plannerHint = '连续失败：优先只读快照或低风险 command，避免重复相同动作。'
+        plannerHint = mt('连续失败：优先只读快照或低风险 command，避免重复相同动作。', "Consecutive failures: prefer a read-only snapshot or low-risk command and avoid repeating the same action.")
       }
 
       const sysPrompt = buildCoreSystemPrompt(payload, sessionState, {
@@ -808,7 +809,7 @@ export async function runOpenClawCoreAgentChat(
       const { structured, parseError } = parseAssistantStep(content)
 
       if (!structured) {
-        throw new Error(parseError ?? '模型返回 JSON 解析失败')
+        throw new Error(parseError ?? mt('模型返回 JSON 解析失败', "Failed to parse the model's JSON"))
       }
 
       let parsed = structured
@@ -821,11 +822,11 @@ export async function runOpenClawCoreAgentChat(
       sessionState.lastActionFingerprint = actionFingerprint
       if (sessionState.repeatActionCount >= 2) {
         parsed = {
-          description: '检测到动作重复且没有新证据，已自动结束以避免无效循环。请补充关键终端输出后再继续。',
+          description: mt('检测到动作重复且没有新证据，已自动结束以避免无效循环。请补充关键终端输出后再继续。', "Repeated action without new evidence; ended automatically to avoid a useless loop. Add the key terminal output and continue."),
           action: 'end',
           completed: true,
           riskLevel: 'low',
-          notes: '建议附带相关报错或执行结果，再发起下一轮。'
+          notes: mt('建议附带相关报错或执行结果，再发起下一轮。', "Attach the relevant error or command output before the next round.")
         }
       }
 
@@ -841,8 +842,8 @@ export async function runOpenClawCoreAgentChat(
           lastToolResult = gateSnap
           sessionState.lastToolScore = scoreToolSnapshot(gateSnap, lastCommand)
           appendObservation(sessionState, gateSnap, lastCommand)
-          rememberNote(sessionState, '结束前轮询：证据不足，已自动补充终端观测')
-          send(wc, { type: 'status', text: '证据不足，已自动读取终端后继续分析…' })
+          rememberNote(sessionState, mt('结束前轮询：证据不足，已自动补充终端观测', "Pre-end check: evidence insufficient, terminal observation added automatically"))
+          send(wc, { type: 'status', text: mt('证据不足，已自动读取终端后继续分析…', "Evidence insufficient; read the terminal automatically and continuing…") })
           persistSessionState(targetSessionId, sessionState)
           await new Promise<void>((r) => setTimeout(r, 300))
           continue
@@ -895,18 +896,18 @@ export async function runOpenClawCoreAgentChat(
           emitDebug({
             kind: 'execution',
             round: step,
-            label: '低风险命令已自动批准',
+            label: mt('低风险命令已自动批准', "Low-risk command auto-approved"),
             detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
           })
         } else {
           if (!requestId) {
-            send(wc, { type: 'error', message: '内部错误：command 缺少 requestId' })
+            send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
             return
           }
 
           const ok = await waitForAiConfirm(requestId)
           if (runCtx.userAborted) {
-            send(wc, { type: 'cancelled', message: '已停止生成' })
+            send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
             send(wc, { type: 'done' })
             return
           }
@@ -914,10 +915,10 @@ export async function runOpenClawCoreAgentChat(
             emitDebug({
               kind: 'execution',
               round: step,
-              label: '用户未同意执行命令',
+              label: mt('用户未同意执行命令', "User declined to run the command"),
               detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
             })
-            send(wc, { type: 'cancelled', message: '已取消：你未同意执行该命令' })
+            send(wc, { type: 'cancelled', message: mt('已取消：你未同意执行该命令', "Cancelled: you declined to run this command") })
             return
           }
         }
@@ -951,7 +952,7 @@ export async function runOpenClawCoreAgentChat(
             const hits = invStore.search(toolInput.query.trim())
             text =
               hits.length === 0
-                ? `（搜索「${toolInput.query.trim()}」无结果）`
+                ? mt(`（搜索「${toolInput.query.trim()}」无结果）`, `(no results for "${toolInput.query.trim()}")`)
                 : hits
                     .map((h) => {
                       const body = invStore.formatContext({ hostId: h.id })
@@ -961,8 +962,8 @@ export async function runOpenClawCoreAgentChat(
           } else {
             const hid = resolveHostId()
             text = hid
-              ? invStore.formatContext({ hostId: hid }) || `（档案 ${hid} 为空）`
-              : '（未指定 hostId/query，且当前会话未关联档案。可用 query 搜索。）'
+              ? invStore.formatContext({ hostId: hid }) || mt(`（档案 ${hid} 为空）`, `(profile ${hid} is empty)`)
+              : mt('（未指定 hostId/query，且当前会话未关联档案。可用 query 搜索。）', "(No hostId/query given and the session has no linked profile. Use query to search.)")
           }
           lastToolResult = text
           consecutiveSnapshotTools = 0
@@ -970,7 +971,7 @@ export async function runOpenClawCoreAgentChat(
           emitDebug({
             kind: 'execution',
             round: step,
-            label: '工具：get_host_inventory',
+            label: mt('工具：get_host_inventory', "Tool: get_host_inventory"),
             detail: capDebugDetail(text)
           })
           continue
@@ -982,7 +983,7 @@ export async function runOpenClawCoreAgentChat(
           if (!hid || !serviceName) {
             send(wc, {
               type: 'error',
-              message: 'upsert_host_service 需要 hostId（或当前会话已关联档案）以及 serviceName'
+              message: mt('upsert_host_service 需要 hostId（或当前会话已关联档案）以及 serviceName', "upsert_host_service needs hostId (or a linked profile) and serviceName")
             })
             return
           }
@@ -998,15 +999,15 @@ export async function runOpenClawCoreAgentChat(
             notes: toolInput?.serviceNotes
           })
           const text = updated
-            ? `已更新档案 ${hid} 的服务 ${serviceName}。\n` + invStore.formatContext({ hostId: hid })
-            : `（无法更新：档案 ${hid} 不存在）`
+            ? mt(`已更新档案 ${hid} 的服务 ${serviceName}。\n`, `Updated service ${serviceName} in profile ${hid}.\n`) + invStore.formatContext({ hostId: hid })
+            : mt(`（无法更新：档案 ${hid} 不存在）`, `(cannot update: profile ${hid} does not exist)`)
           lastToolResult = text
           consecutiveSnapshotTools = 0
-          rememberNote(sessionState, `已登记服务 ${serviceName} → ${hid}`)
+          rememberNote(sessionState, mt(`已登记服务 ${serviceName} → ${hid}`, `Registered service ${serviceName} → ${hid}`))
           emitDebug({
             kind: 'execution',
             round: step,
-            label: '工具：upsert_host_service',
+            label: mt('工具：upsert_host_service', "Tool: upsert_host_service"),
             detail: capDebugDetail(text)
           })
           continue
@@ -1018,28 +1019,28 @@ export async function runOpenClawCoreAgentChat(
           if (!hid || !note) {
             send(wc, {
               type: 'error',
-              message: 'append_host_note 需要 hostId（或关联档案）以及 note'
+              message: mt('append_host_note 需要 hostId（或关联档案）以及 note', "append_host_note needs hostId (or a linked profile) and note")
             })
             return
           }
           const updated = invStore.appendNote(hid, note)
           const text = updated
-            ? `已追加备注到 ${hid}。\n` + invStore.formatContext({ hostId: hid })
-            : `（无法追加：档案 ${hid} 不存在）`
+            ? mt(`已追加备注到 ${hid}。\n`, `Appended note to ${hid}.\n`) + invStore.formatContext({ hostId: hid })
+            : mt(`（无法追加：档案 ${hid} 不存在）`, `(cannot append: profile ${hid} does not exist)`)
           lastToolResult = text
           consecutiveSnapshotTools = 0
-          rememberNote(sessionState, `已写主机备注 → ${hid}`)
+          rememberNote(sessionState, mt(`已写主机备注 → ${hid}`, `Wrote host note → ${hid}`))
           emitDebug({
             kind: 'execution',
             round: step,
-            label: '工具：append_host_note',
+            label: mt('工具：append_host_note', "Tool: append_host_note"),
             detail: capDebugDetail(text)
           })
           continue
         }
 
         if (toolName !== 'get_terminal_snapshot') {
-          send(wc, { type: 'error', message: `不支持的工具：${toolName ?? '(空)'}` })
+          send(wc, { type: 'error', message: mt(`不支持的工具：${toolName ?? '(空)'}`, `Unsupported tool: ${toolName ?? '(空)'}`) })
           return
         }
 
@@ -1047,7 +1048,7 @@ export async function runOpenClawCoreAgentChat(
 
         let snapText: string
         if (!targetSessionId) {
-          snapText = '（当前未关联 SSH 会话，无法读取终端快照。）'
+          snapText = mt('（当前未关联 SSH 会话，无法读取终端快照。）', "(No SSH session linked; cannot read the terminal snapshot.)")
         } else {
           const maxLines =
             toolInput?.maxLines && Number.isFinite(toolInput.maxLines)
@@ -1061,7 +1062,7 @@ export async function runOpenClawCoreAgentChat(
           const captured = await captureTerminalSnapshot(ssh, targetSessionId, fromCurrentCommand)
           snapText =
             captured == null || !captured.trim() ?
-              '（该会话暂无缓冲输出或会话已断开。）'
+              mt('（该会话暂无缓冲输出或会话已断开。）', "(No buffered output for this session, or it has disconnected.)")
             : captured
         }
 
@@ -1081,7 +1082,7 @@ export async function runOpenClawCoreAgentChat(
         sessionState.lastToolScore = toolScore
         if (toolScore.score < 0.5) {
           sessionState.failureStreak += 1
-          rememberNote(sessionState, `工具结果质量偏低：${toolScore.reason}`)
+          rememberNote(sessionState, mt(`工具结果质量偏低：${toolScore.reason}`, `Tool result quality is low: ${toolScore.reason}`))
         } else {
           sessionState.failureStreak = 0
         }
@@ -1090,7 +1091,7 @@ export async function runOpenClawCoreAgentChat(
         emitDebug({
           kind: 'execution',
           round: step,
-          label: '工具：get_terminal_snapshot',
+          label: mt('工具：get_terminal_snapshot', "Tool: get_terminal_snapshot"),
           detail: capDebugDetail(
             `maxLines=${toolInput?.maxLines && Number.isFinite(toolInput.maxLines) ? Math.min(2000, Math.max(1, Math.floor(toolInput.maxLines))) : 800}\nfromCurrentCommand=${String(toolInput?.fromCurrentCommand === true)}\nincludeCommandLine=${String(toolInput?.includeCommandLine !== false)}\n---\n${snapText}`
           )
@@ -1098,7 +1099,7 @@ export async function runOpenClawCoreAgentChat(
         emitDebug({
           kind: 'execution',
           round: step,
-          label: '工具结果评分',
+          label: mt('工具结果评分', "Tool result score"),
           detail: `score=${Math.round(toolScore.score * 100)} level=${toolScore.level}\n${toolScore.reason}`
         })
 
@@ -1107,11 +1108,11 @@ export async function runOpenClawCoreAgentChat(
             type: 'step',
             structured: {
               description:
-                '已自动结束：模型多次读取终端快照但未带来新信息（内容重复或步数过多）。请直接描述你的目标，或勾选「附带最近终端输出」后重新提问。',
+                mt('已自动结束：模型多次读取终端快照但未带来新信息（内容重复或步数过多）。请直接描述你的目标，或勾选「附带最近终端输出」后重新提问。', "Ended automatically: the model read the terminal snapshot repeatedly without new information (duplicate content or too many steps). Describe your goal directly, or tick \"Attach recent terminal output\" and ask again."),
               action: 'end',
               completed: true,
               riskLevel: 'low',
-              notes: '若需继续排查，可把关键命令输出粘贴到问题里，或手动执行只读命令（如 journalctl -b、systemctl status）后再问。'
+              notes: mt('若需继续排查，可把关键命令输出粘贴到问题里，或手动执行只读命令（如 journalctl -b、systemctl status）后再问。', "To keep troubleshooting, paste key command output into your question, or run a read-only command (e.g. journalctl -b, systemctl status) yourself and ask again.")
             }
           })
           send(wc, { type: 'done' })
@@ -1122,12 +1123,12 @@ export async function runOpenClawCoreAgentChat(
         const cmdRaw = parsed.command ?? ''
         const oneLineCmd = cmdRaw.replace(/[\r\n]+/g, ' ').trim()
         if (!oneLineCmd) {
-          send(wc, { type: 'error', message: '模型返回了空 command' })
+          send(wc, { type: 'error', message: mt('模型返回了空 command', "The model returned an empty command") })
           return
         }
 
         if (!targetSessionId) {
-          send(wc, { type: 'error', message: '当前未关联 SSH 会话，无法执行命令。' })
+          send(wc, { type: 'error', message: mt('当前未关联 SSH 会话，无法执行命令。', "No SSH session linked; cannot run commands.") })
           return
         }
 
@@ -1138,12 +1139,12 @@ export async function runOpenClawCoreAgentChat(
         rememberCommand(sessionState, oneLineCmd)
         if (!lastWriteOk) {
           sessionState.failureStreak += 1
-          rememberNote(sessionState, `命令发送失败：${oneLineCmd}`)
+          rememberNote(sessionState, mt(`命令发送失败：${oneLineCmd}`, `Failed to send command: ${oneLineCmd}`))
         }
         emitDebug({
           kind: 'execution',
           round: step,
-          label: '命令已发送到 SSH（含换行）',
+          label: mt('命令已发送到 SSH（含换行）', "Command sent to SSH (with newline)"),
           detail: `writeOk=${String(lastWriteOk)}\n${oneLineCmd}`
         })
 
@@ -1156,11 +1157,11 @@ export async function runOpenClawCoreAgentChat(
             sessionState.lastToolScore = scoreToolSnapshot(postCmdSnap, oneLineCmd)
             appendObservation(sessionState, postCmdSnap, oneLineCmd)
             if (sessionState.lastToolScore.score >= 0.5) sessionState.failureStreak = 0
-            rememberNote(sessionState, '命令执行后已自动观测终端输出')
+            rememberNote(sessionState, mt('命令执行后已自动观测终端输出', "Terminal output observed automatically after the command"))
             emitDebug({
               kind: 'execution',
               round: step,
-              label: 'Observe：命令后自动快照',
+              label: mt('Observe：命令后自动快照', "Observe: automatic snapshot after command"),
               detail: capDebugDetail(postCmdSnap)
             })
           }
@@ -1174,17 +1175,17 @@ export async function runOpenClawCoreAgentChat(
     send(wc, {
       type: 'step',
       structured: {
-        description: `已轮询 ${maxSteps} 次仍未结束。建议你查看终端输出并提出更明确的下一步目标。`,
+        description: mt(`已轮询 ${maxSteps} 次仍未结束。建议你查看终端输出并提出更明确的下一步目标。`, `Still not finished after ${maxSteps} polls. Check the terminal output and give a clearer next goal.`),
         action: 'end',
         completed: true,
         riskLevel: 'low',
-        notes: '若需要继续排错，请再次向 AI 提问，并勾选/附带最新终端输出。'
+        notes: mt('若需要继续排错，请再次向 AI 提问，并勾选/附带最新终端输出。', "To keep troubleshooting, ask the AI again and attach the latest terminal output.")
       }
     })
     send(wc, { type: 'done' })
   } catch (e) {
     if (isAbortError(e) || runCtx.userAborted) {
-      send(wc, { type: 'cancelled', message: '已停止生成' })
+      send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
       send(wc, { type: 'done' })
       return
     }

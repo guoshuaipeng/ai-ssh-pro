@@ -1,4 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { tg } from './i18n'/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * 终端内 Zmodem（sz / rz）探测与传文件。
  * 远端需安装 lrzsz：`sz file` 下载到本机；`rz` 从本机上传。
@@ -76,7 +77,7 @@ export async function attachZmodem(opts: {
     on_detect(detection: any) {
       active = true
       const zsession = detection.confirm()
-      opts.onStatus?.(zsession.type === 'send' ? 'Zmodem：请选择要上传的文件…' : 'Zmodem：接收文件…')
+      opts.onStatus?.(zsession.type === 'send' ? tg('dbg.16') : tg('dbg.17'))
 
       if (zsession.type === 'send') {
         // 远端 rz → 本机发送
@@ -90,7 +91,7 @@ export async function attachZmodem(opts: {
                 /* ignore */
               }
               active = false
-              opts.onStatus?.('已取消上传')
+              opts.onStatus?.(tg('dbg.18'))
               return
             }
             await Zmodem.Browser.send_files(zsession, files, {
@@ -98,13 +99,13 @@ export async function attachZmodem(opts: {
                 try {
                   const d = xfer.get_offset?.() ?? 0
                   const t = xfer.get_details?.()?.size ?? 0
-                  if (t > 0) opts.onStatus?.(`Zmodem 上传 ${Math.round((d / t) * 100)}%`)
+                  if (t > 0) opts.onStatus?.(tg('dbg.19', { 0: String(Math.round((d / t) * 100)) }))
                 } catch {
                   /* ignore */
                 }
               }
             })
-            opts.onStatus?.('Zmodem 上传完成')
+            opts.onStatus?.(tg('dbg.20'))
           } catch (e) {
             opts.onStatus?.(e instanceof Error ? e.message : String(e))
           } finally {
@@ -125,12 +126,12 @@ export async function attachZmodem(opts: {
               xfer.skip()
               return
             }
-            opts.onStatus?.(`Zmodem 下载 ${name}…`)
+            opts.onStatus?.(tg('dbg.21', { 0: String(name) }))
             await xfer.accept()
             const payloads = (xfer.get_payloads?.() || []) as Uint8Array[]
             const bytes = concatUint8(payloads.map((p) => (p instanceof Uint8Array ? p : Uint8Array.from(p as any))))
             await (window.aiss as any).fs.writeFile(local, Array.from(bytes))
-            opts.onStatus?.(`Zmodem 已保存 ${name}`)
+            opts.onStatus?.(tg('dbg.22', { 0: String(name) }))
           } catch (e) {
             try {
               xfer.skip()
