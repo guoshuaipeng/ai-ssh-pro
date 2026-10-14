@@ -348,6 +348,8 @@ export const SHORTCUTS: ReadonlyArray<{ keys: string; group: ShortcutGroup; id: 
   { keys: 'Ctrl+Shift+C', group: 'terminal', id: 'copy' },
   { keys: 'Ctrl+Shift+V', group: 'terminal', id: 'paste' },
   { keys: 'Shift+Insert', group: 'terminal', id: 'pasteAlt' },
+  { keys: 'Ctrl+Tab', group: 'view', id: 'nextTab' },
+  { keys: 'Ctrl+1…9', group: 'view', id: 'gotoTab' },
   { keys: 'Ctrl+B', group: 'view', id: 'toggleSidebar' },
   { keys: 'Ctrl+Alt+B', group: 'view', id: 'toggleAi' }
 ]

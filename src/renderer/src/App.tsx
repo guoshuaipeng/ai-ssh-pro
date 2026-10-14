@@ -124,6 +124,8 @@ type Tab = {
   /** 关联主机知识库档案 id */
   hostInventoryId?: string
   kind?: 'ssh' | 'local'
+  /** user-chosen name (rename); kept across reconnect */
+  customTitle?: string
   /** 文件传输 / 远端编辑 / Docker 绑定的 SSH sessionId */
   boundSessionId?: string
   /** 远端文件路径（remote-file） */
@@ -251,6 +253,36 @@ export default function App() {
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const dragTabIdRef = useRef<string | null>(null)
+  // Ctrl+1..9 jump to tab, Ctrl+Tab / Ctrl+Shift+Tab cycle (capture phase so the terminal does not swallow it)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey) return
+      const list = tabsRef.current
+      if (!list.length) return
+      let target: string | undefined
+      if (e.key === 'Tab') {
+        setActiveTabId((cur) => {
+          const i = Math.max(0, list.findIndex((t) => t.tabId === cur))
+          const n = (i + (e.shiftKey ? -1 : 1) + list.length) % list.length
+          return list[n]!.tabId
+        })
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      if (!e.shiftKey && /^[1-9]$/.test(e.key)) {
+        const idx = e.key === '9' ? list.length - 1 : Number(e.key) - 1
+        target = list[idx]?.tabId
+      }
+      if (target) {
+        setActiveTabId(target)
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
   useEffect(() => {
     if (!tabMenu) return
     const close = () => setTabMenu(null)
@@ -559,7 +591,7 @@ export default function App() {
                 ? {
                     ...t,
                     sessionId,
-                    title: meta.label ?? t.title,
+                    title: t.customTitle ?? meta.label ?? t.title,
                     status: 'connected',
                     kind: 'local',
                     connectOpts: {
@@ -584,7 +616,7 @@ export default function App() {
               ? {
                   ...t,
                   sessionId,
-                  title: meta.label ?? t.title,
+                  title: t.customTitle ?? meta.label ?? t.title,
                   status: 'connected',
                   connectOpts: {
                     ...t.connectOpts,
@@ -700,7 +732,7 @@ export default function App() {
     const id = renamingTabId
     if (!id) return
     const title = normalizeTabTitle(renameDraft)
-    if (title) setTabs((prev) => prev.map((t) => (t.tabId === id ? { ...t, title } : t)))
+    if (title) setTabs((prev) => prev.map((t) => (t.tabId === id ? { ...t, title, customTitle: title } : t)))
     setRenamingTabId(null)
   }, [renamingTabId, renameDraft])
 

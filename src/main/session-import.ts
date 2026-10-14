@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
+import { looksLikeMobaXterm, looksLikeSecureCrt, parseMobaXtermSessions, parseSecureCrtSession } from './session-import-extra'
 import type { ImportedSessionDraft, SessionImportPickResult } from '../shared/ipc'
 
 function decodeTextFile(buf: Buffer): string {
@@ -327,6 +328,28 @@ export async function importSessionFilesFromPaths(filePaths: string[]): Promise<
     try {
       const buf = await readFile(fp)
       const text = decodeTextFile(buf)
+
+      if (ext === '.mxtsessions' || looksLikeMobaXterm(text)) {
+        const drafts = parseMobaXtermSessions(text)
+        if (drafts.length) {
+          items.push(...drafts)
+          notes.push(`${base}：自 MobaXterm 书签解析 ${drafts.length} 条`)
+        } else {
+          notes.push(`${base}：未解析到 MobaXterm SSH 书签`)
+        }
+        continue
+      }
+
+      if (looksLikeSecureCrt(text)) {
+        const one = parseSecureCrtSession(basename(fp, extname(fp)), text)
+        if (one) {
+          items.push(one)
+          notes.push(`${base}：自 SecureCRT 会话解析 1 条`)
+        } else {
+          notes.push(`${base}：SecureCRT 会话未识别到 SSH 主机 / 用户名`)
+        }
+        continue
+      }
 
       if (ext === '.xsh') {
         const one = parseXshFile(fp, text)

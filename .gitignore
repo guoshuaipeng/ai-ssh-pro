@@ -28,3 +28,5 @@ __pycache__/
 # IDE
 .idea/
 *.iml
+
+e2e-artifacts/

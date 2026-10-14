@@ -1,6 +1,6 @@
 {
   "name": "ai-ssh-pro",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "类 Xshell 的多会话 SSH 客户端，集成 AI 对话（方案 B：Electron + TypeScript）",
   "main": "out/main/index.js",
   "type": "module",
@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "mcp:inventory": "node scripts/mcp-inventory-server.mjs",
     "smoke": "npx tsx scripts/smoke-test.ts",
-    "test": "npx tsx scripts/test-workspace-features.ts && npx tsx scripts/test-ssh-batch.ts && npx tsx scripts/test-robustness.ts && npx tsx scripts/test-round5.ts && npx tsx scripts/test-session-filter.ts && npx tsx scripts/test-round6.ts && npx tsx scripts/smoke-test.ts"
+    "e2e": "node scripts/e2e.mjs",
+    "test": "npx tsx scripts/test-workspace-features.ts && npx tsx scripts/test-ssh-batch.ts && npx tsx scripts/test-robustness.ts && npx tsx scripts/test-round5.ts && npx tsx scripts/test-session-filter.ts && npx tsx scripts/test-round6.ts && npx tsx scripts/test-import-extra.ts && npx tsx scripts/smoke-test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -38,6 +39,7 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "playwright-core": "^1.64.0",
     "sharp": "^0.34.5",
     "to-ico": "^1.1.5",
     "typescript": "^5.7.2",

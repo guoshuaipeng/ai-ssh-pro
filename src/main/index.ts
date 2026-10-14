@@ -696,10 +696,10 @@ function registerIpc(): void {
   ipcMain.handle('sessions:importPick', async () => {
     const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
     const dlgOpts: Electron.OpenDialogOptions = {
-      title: '导入会话（Xshell .xsh / OpenSSH config / PuTTY .reg）',
+      title: '导入会话（Xshell .xsh / OpenSSH config / PuTTY .reg / MobaXterm .mxtsessions / SecureCRT .ini）',
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: '会话配置', extensions: ['xsh', 'config', 'reg'] },
+        { name: '会话配置', extensions: ['xsh', 'config', 'reg', 'mxtsessions', 'ini'] },
         { name: '所有文件', extensions: ['*'] }
       ]
     }
