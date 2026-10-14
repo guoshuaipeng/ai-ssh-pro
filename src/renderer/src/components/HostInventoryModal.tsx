@@ -7,6 +7,7 @@ import type {
   HostServiceKind
 } from '@shared/inventory'
 import NotesMarkdownPreview from './NotesMarkdownPreview'
+import HostProfileFocus, { type HostProfileLink } from './HostProfileFocus'
 import { tg } from '../lib/i18n'
 import { confirmDialog } from '../lib/dialogs'
 export type HostInventoryLink = {
@@ -23,6 +24,15 @@ type Props = {
   link?: HostInventoryLink
   /** Called after successful upsert (e.g. sync profile.hostInventoryId) */
   onUpserted?: (rec: HostInventoryRecord) => void
+  active?: boolean
+  onDirtyChange?: (dirty: boolean) => void
+  onConnect?: () => void
+  onOpenSftp?: () => void
+  onOpenMonitor?: () => void
+  onOpenToolbox?: () => void
+  onViewLogs?: (svc: HostService) => void
+  onSearchTag?: (tag: string) => void
+  resolveSession?: () => Promise<string | null>
 }
 
 type InventoryApi = {
@@ -72,7 +82,20 @@ function emptyForm(link?: HostInventoryLink): {
   }
 }
 
-export default function HostInventoryModal({ onClose, link, onUpserted }: Props) {
+export default function HostInventoryModal({
+  onClose,
+  link,
+  onUpserted,
+  active,
+  onDirtyChange,
+  onConnect,
+  onOpenSftp,
+  onOpenMonitor,
+  onOpenToolbox,
+  onViewLogs,
+  onSearchTag,
+  resolveSession
+}: Props) {
   /** 从会话右键打开：只编辑该主机，不显示档案列表 */
   const focused = Boolean(
     link && (link.hostInventoryId?.trim() || link.profileId?.trim() || link.host?.trim())
@@ -92,6 +115,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
   })
   const [editingSvcIdx, setEditingSvcIdx] = useState<number | null>(null)
   const [notesMode, setNotesMode] = useState<'preview' | 'edit' | 'split'>('split')
+  const [focusedRecord, setFocusedRecord] = useState<HostInventoryRecord | null>(null)
 
   const notesChars = form.notesMarkdown.length
   const notesLines = form.notesMarkdown ? form.notesMarkdown.split(/\n/).length : 0
@@ -120,6 +144,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
     })
     setEditingSvcIdx(null)
     setSvcDraft({ name: '', kind: 'unknown', notes: '' })
+    setFocusedRecord(rec)
     const len = (rec.notesMarkdown || '').length
     setNotesMode(len > 800 ? 'preview' : len > 0 ? 'split' : 'edit')
   }, [])
@@ -186,6 +211,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
           }
           setSelectedId(null)
           setForm(emptyForm(link))
+          setFocusedRecord(null)
           return
         }
 
@@ -374,7 +400,42 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
     }
   }
 
+  const profileLink: HostProfileLink | undefined = link
   const canLink = Boolean(link && (link.host || link.profileId || link.username))
+
+  if (focused) {
+    return (
+      <HostProfileFocus
+        record={focusedRecord}
+        link={profileLink}
+        loading={loading}
+        error={error}
+        rootHint={rootHint}
+        active={active}
+        onDirtyChange={onDirtyChange}
+        onConnect={onConnect}
+        onOpenSftp={onOpenSftp}
+        onOpenMonitor={onOpenMonitor}
+        onOpenToolbox={onOpenToolbox}
+        onViewLogs={onViewLogs}
+        onSearchTag={onSearchTag}
+        resolveSession={resolveSession}
+        onUpsert={async (input) => {
+          const rec = await getInventoryApi().upsert(input)
+          setFocusedRecord(rec)
+          applyRecord(rec)
+          onUpserted?.(rec)
+          return rec
+        }}
+        onDelete={async () => {
+          const id = focusedRecord?.meta.id || form.id
+          if (!id) return
+          await getInventoryApi().remove(id)
+          onClose()
+        }}
+      />
+    )
+  }
   const panelTitle =
     focused && (form.title.trim() || form.host.trim() || link?.label || link?.host)
       ? tg('ui.161', { 0: String(form.title.trim() || form.host.trim() || link?.label || link?.host) })

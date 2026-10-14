@@ -54,6 +54,8 @@ export type AissPreload = {
     checkUpdate: () => Promise<AppUpdateCheckResult>
     openExternal: (url: string) => Promise<boolean>
     openGithub: () => Promise<boolean>
+    showItemInFolder: (target: string) => Promise<boolean>
+    pickFile: (title?: string) => Promise<string | null>
     getMcpGuideInfo: () => Promise<McpGuideInfo>
     setUiChrome: (chrome: {
       backgroundColor: string

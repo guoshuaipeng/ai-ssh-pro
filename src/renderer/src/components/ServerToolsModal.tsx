@@ -8,6 +8,7 @@ import {
   forwardTargetHost,
   highlightSegments,
   logLevel,
+  processDisplayName,
   suggestLocalPort
 } from '../../../shared/server-tools'
 import { formatBytes } from '../../../shared/resource-monitor'
@@ -18,6 +19,16 @@ import type { BatchSessionOption } from './BatchExecuteModal'
 
 export type ServerToolsTab = 'processes' | 'services' | 'ports' | 'logs'
 
+type ToolboxNav = { sessionId?: string; tab?: ServerToolsTab; unit?: string; query?: string }
+
+let pendingNav: ToolboxNav | null = null
+
+/** Ask an open (or about-to-mount) toolbox to show a tab, optionally prefilled for one service. */
+export function requestToolboxNav(nav: ToolboxNav): void {
+  pendingNav = nav
+  window.dispatchEvent(new CustomEvent('aiss-toolbox-nav', { detail: nav }))
+}
+
 type Props = {
   open: boolean
   sessions: BatchSessionOption[]
@@ -25,6 +36,8 @@ type Props = {
   initialTab?: ServerToolsTab
   onClose: () => void
   embedded?: boolean
+  /** When the toolbox tab is in the background, log follow pauses. */
+  active?: boolean
 }
 
 const cleanErr = (e: unknown) =>
@@ -33,7 +46,7 @@ const cleanErr = (e: unknown) =>
 const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs']
 
 /** Processes, systemd services, listening ports and log tail of one connected Linux host. */
-export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded }: Props) {
+export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded, active = true }: Props) {
   const { t } = useI18n()
   const [sessionId, setSessionId] = useState('')
   const [tab, setTab] = useState<ServerToolsTab>('processes')
@@ -41,6 +54,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [logSeed, setLogSeed] = useState<{ unit?: string; query?: string } | null>(null)
 
   useEffect(() => {
     if (!open && !embedded) return
@@ -51,6 +65,22 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
         : sessions.find((s) => s.sessionId === activeSessionId)?.sessionId ?? sessions[0]?.sessionId ?? ''
     )
   }, [open, embedded, sessions, activeSessionId, initialTab])
+
+  useEffect(() => {
+    const apply = (nav: ToolboxNav) => {
+      if (nav.sessionId && activeSessionId && nav.sessionId !== activeSessionId && nav.sessionId !== sessionId) return
+      if (nav.tab) setTab(nav.tab)
+      if (nav.tab === 'logs') setLogSeed({ unit: nav.unit, query: nav.query })
+    }
+    if (pendingNav) {
+      const nav = pendingNav
+      pendingNav = null
+      apply(nav)
+    }
+    const onNav = (e: Event) => apply((e as CustomEvent<ToolboxNav>).detail || {})
+    window.addEventListener('aiss-toolbox-nav', onNav)
+    return () => window.removeEventListener('aiss-toolbox-nav', onNav)
+  }, [activeSessionId, sessionId])
 
   useEffect(() => {
     setError(null)
@@ -113,7 +143,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
             {sessionId && tab === 'processes' ? <ProcessesTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'services' ? <ServicesTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'ports' ? <PortsTab key={sessionId} {...common} /> : null}
-            {sessionId && tab === 'logs' ? <LogsTab key={sessionId} {...common} /> : null}
+            {sessionId && tab === 'logs' ? <LogsTab key={`${sessionId}:${logSeed?.unit ?? ''}:${logSeed?.query ?? ''}`} {...common} active={active} seed={logSeed} /> : null}
           </>
         )}
       </div>
@@ -134,6 +164,8 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
   const [list, setList] = useState<ProcInfo[] | null>(null)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<ProcSort>('cpu')
+  const [selected, setSelected] = useState<number | null>(null)
+  const [menu, setMenu] = useState<{ pid: number; x: number; y: number } | null>(null)
   const load = useCallback(async () => {
     const r = await guard(() => window.aiss.tools.processes(sessionId))
     if (r) setList(r)
@@ -141,14 +173,30 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
   useEffect(() => {
     void load()
   }, [load])
+  useEffect(() => {
+    if (!menu) return
+    const close = () => setMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [menu])
   const shown = useMemo(() => (list ? filterProcesses(list, query, sort).slice(0, 200) : []), [list, query, sort])
 
   const kill = async (p: ProcInfo, signal: KillSignal) => {
-    const ok = await askConfirm(
-      t('st.killTitle', { signal }),
-      t('st.killMsg', { pid: p.pid, cmd: p.command.slice(0, 120) }),
-      { danger: signal === 'KILL', okLabel: t('st.send') }
-    )
+    const name = processDisplayName(p.command)
+    const ok =
+      signal === 'KILL'
+        ? await askConfirm(t('st.forceTitle'), t('st.forceBody', { name, pid: p.pid }), {
+            danger: true,
+            okLabel: t('st.forceOk', { name })
+          })
+        : await askConfirm(t('st.killTitle', { signal }), t('st.killMsg', { pid: p.pid, cmd: p.command.slice(0, 120) }), {
+            danger: false,
+            okLabel: t('st.term')
+          })
     if (!ok) return
     const r = await guard(() => window.aiss.tools.kill(sessionId, p.pid, signal, sudo))
     if (r) {
@@ -156,6 +204,8 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
       void load()
     }
   }
+
+  const sortMark = (key: ProcSort) => (sort === key ? ' ▾' : '')
 
   return (
     <div className="st-body">
@@ -167,14 +217,6 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <label>
-          {t('st.sortBy')}{' '}
-          <select value={sort} onChange={(e) => setSort(e.target.value as ProcSort)} aria-label={t('st.sortBy')}>
-            <option value="cpu">CPU</option>
-            <option value="mem">{t('rm.mem')}</option>
-            <option value="pid">PID</option>
-          </select>
-        </label>
         <button type="button" onClick={() => void load()} disabled={busy}>
           {t('rm.refresh')}
         </button>
@@ -186,19 +228,41 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
           <table className="st-table st-procs">
             <thead>
               <tr>
-                <th>PID</th>
+                <th>
+                  <button type="button" className="st-sort" onClick={() => setSort('pid')}>
+                    PID{sortMark('pid')}
+                  </button>
+                </th>
                 <th>{t('st.user')}</th>
-                <th>CPU%</th>
-                <th>{t('st.memPct')}</th>
+                <th>
+                  <button type="button" className="st-sort" onClick={() => setSort('cpu')}>
+                    CPU%{sortMark('cpu')}
+                  </button>
+                </th>
+                <th>
+                  <button type="button" className="st-sort" onClick={() => setSort('mem')}>
+                    {t('st.memPct')}
+                    {sortMark('mem')}
+                  </button>
+                </th>
                 <th>RSS</th>
                 <th>{t('st.elapsed')}</th>
-                <th>{t('st.command')}</th>
+                <th>
+                  <button type="button" className="st-sort" onClick={() => setSort('name')}>
+                    {t('st.command')}
+                    {sortMark('name')}
+                  </button>
+                </th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {shown.map((p) => (
-                <tr key={p.pid} className={p.cpu >= 50 ? 'st-hot' : undefined}>
+                <tr
+                  key={p.pid}
+                  className={`${p.cpu >= 50 ? 'st-hot' : ''} ${selected === p.pid ? 'is-selected' : ''}`.trim()}
+                  onClick={() => setSelected(p.pid)}
+                >
                   <td>{p.pid}</td>
                   <td>{p.user}</td>
                   <td className="num">{p.cpu.toFixed(1)}</td>
@@ -208,12 +272,33 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
                   <td className="st-cmd" title={p.command}>
                     {p.command}
                   </td>
-                  <td className="st-actions">
-                    <button type="button" onClick={() => void kill(p, 'TERM')} disabled={busy} title={t('st.termHint')}>
-                      {t('st.term')}
+                  <td className="st-actions st-proc-actions">
+                    <button
+                      type="button"
+                      className="st-icon-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void kill(p, 'TERM')
+                      }}
+                      disabled={busy}
+                      title={t('st.endProcess')}
+                      aria-label={t('st.endProcess')}
+                    >
+                      ⏹
                     </button>
-                    <button type="button" className="danger" onClick={() => void kill(p, 'KILL')} disabled={busy} title={t('st.killHint')}>
-                      {t('st.kill')}
+                    <button
+                      type="button"
+                      className="st-icon-btn"
+                      aria-label={t('st.more')}
+                      title={t('st.more')}
+                      disabled={busy}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                        setMenu({ pid: p.pid, x: rect.right, y: rect.bottom })
+                      }}
+                    >
+                      ⋯
                     </button>
                   </td>
                 </tr>
@@ -222,6 +307,28 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
           </table>
         </div>
       ) : null}
+      {menu
+        ? (() => {
+            const p = shown.find((x) => x.pid === menu.pid)
+            if (!p) return null
+            return (
+              <div className="st-row-menu" role="menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="danger"
+                  data-testid="proc-force-kill"
+                  onClick={() => {
+                    setMenu(null)
+                    void kill(p, 'KILL')
+                  }}
+                >
+                  {t('st.forceMenu')}
+                </button>
+              </div>
+            )
+          })()
+        : null}
     </div>
   )
 }
@@ -426,27 +533,44 @@ function PortsTab({ sessionId, busy, guard, setNotice, t }: TabProps) {
   )
 }
 
-function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
-  const [source, setSource] = useState<'journal' | 'unit' | 'file'>('file')
+function LogsTab({ sessionId, sudo, busy, t, active = true, seed }: TabProps & { active?: boolean; seed?: { unit?: string; query?: string } | null }) {
+  const seededUnit = seed?.unit?.trim() || ''
+  const [source, setSource] = useState<'journal' | 'unit' | 'file'>(seededUnit ? 'unit' : 'file')
   const [path, setPath] = useState(LOG_PRESETS[0])
-  const [unit, setUnit] = useState('')
+  const [unit, setUnit] = useState(seededUnit)
   const [lines, setLines] = useState(200)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(seed?.query ?? '')
   const [level, setLevel] = useState<'all' | 'warn' | 'error'>('all')
   const [follow, setFollow] = useState(false)
   const [data, setData] = useState<{ text: string; at: number } | null>(null)
+  const [phase, setPhase] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [localError, setLocalError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const req = { source, path: source === 'file' ? path.trim() : undefined, unit: source === 'unit' ? unit.trim() : undefined, lines, sudo }
-    const r = await guard(() => window.aiss.tools.logs(sessionId, req))
-    if (r) setData(r)
-  }, [guard, sessionId, source, path, unit, lines, sudo])
+    setPhase('loading')
+    setLocalError(null)
+    try {
+      const r = await window.aiss.tools.logs(sessionId, req)
+      setData(r)
+      setPhase('ok')
+    } catch (e) {
+      setLocalError(cleanErr(e))
+      setPhase('error')
+    }
+  }, [sessionId, source, path, unit, lines, sudo])
 
   useEffect(() => {
-    if (!follow) return
+    void load()
+    // Auto-read once when the log page opens (default file, or the seeded unit).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!follow || active === false) return
     const timer = setInterval(() => void load(), 3000)
     return () => clearInterval(timer)
-  }, [follow, load])
+  }, [follow, load, active])
 
   const shown = useMemo(() => (data ? filterLogLines(data.text, { query, level }) : []), [data, query, level])
 
@@ -481,9 +605,10 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
             ))}
           </select>
         </label>
-        <button type="button" className="primary" onClick={() => void load()} disabled={busy}>
+        <button type="button" className="primary" onClick={() => void load()} disabled={busy || phase === 'loading'}>
           {t('st.loadLog')}
         </button>
+        <span className="st-count">{t('st.last200')}</span>
         <label className="st-follow">
           <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> {t('st.follow')}
         </label>
@@ -507,6 +632,15 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
           </button>
         ) : null}
       </div>
+      {phase === 'loading' && !data ? <p className="st-empty">{t('st.reading')}</p> : null}
+      {phase === 'error' ? (
+        <p className="st-error">
+          {localError}{' '}
+          <button type="button" onClick={() => void load()}>
+            {t('upd.retry')}
+          </button>
+        </p>
+      ) : null}
       {data ? (
         <pre className="st-pre st-log" data-testid="st-log">
           {shown.map((l, i) => (
@@ -515,7 +649,7 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
             </div>
           ))}
         </pre>
-      ) : (
+      ) : phase === 'loading' || phase === 'error' ? null : (
         <p className="st-empty">{t('st.logIntro')}</p>
       )}
     </div>

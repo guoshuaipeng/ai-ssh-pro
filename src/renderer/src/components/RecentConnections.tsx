@@ -12,22 +12,18 @@ type Props = {
   onQuickConnect: (row: RecentConnection) => void
 }
 
-function formatWhen(ts: number, locale: string): string {
+function relativeWhen(ts: number, t: (key: 'recent.justNow' | 'recent.minutesAgo' | 'recent.hoursAgo' | 'recent.daysAgo', vars?: Record<string, string | number>) => string): string {
   if (!ts) return ''
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      month: 'numeric',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(ts)
-  } catch {
-    return ''
-  }
+  const min = Math.round((Date.now() - ts) / 60000)
+  if (min < 1) return t('recent.justNow')
+  if (min < 60) return t('recent.minutesAgo', { n: min })
+  const hr = Math.round(min / 60)
+  if (hr < 48) return t('recent.hoursAgo', { n: hr })
+  return t('recent.daysAgo', { n: Math.round(hr / 24) })
 }
 
 export default function RecentConnections({ variant = 'sidebar', limit, hideWhenEmpty, onQuickConnect }: Props) {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const [rows, setRows] = useState<RecentConnection[]>([])
 
   const reload = useCallback(() => {
@@ -69,21 +65,20 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
         <ul className="recent-connections-list">
           {(limit ? rows.slice(0, limit) : rows).map((row) => {
             const title = row.label?.trim() || `${row.username}@${row.host}`
+            const when = row.lastConnectedAt ? relativeWhen(row.lastConnectedAt, t) : ''
+            const addr = `${row.username}@${row.host}${row.port && row.port !== 22 ? `:${row.port}` : ''}`
             return (
               <li key={row.id} className={row.pinned ? 'is-pinned' : ''}>
                 <button
                   type="button"
                   className="recent-connections-main"
-                  title={t('recent.quickHint')}
+                  title={addr}
                   onClick={() => onQuickConnect(row)}
                 >
                   <span className="recent-connections-name">
                     {row.pinned ? <span className="recent-connections-badge">{t('recent.bookmark')}</span> : null}
                     {title}
-                  </span>
-                  <span className="recent-connections-meta">
-                    {row.username}@{row.host}:{row.port}
-                    {row.lastConnectedAt ? ` · ${formatWhen(row.lastConnectedAt, locale)}` : ''}
+                    {when ? <span className="recent-connections-when"> · {when}</span> : null}
                   </span>
                 </button>
                 <button

@@ -50,7 +50,7 @@ import { matchKeymap } from '@shared/keymap'
 import { changelogFor } from '@shared/changelog'
 import { HOST_PROBE_INTERVAL_MS, type HostProbeResult } from '@shared/host-status'
 import BackupModal from './components/BackupModal'
-import ServerToolsModal from './components/ServerToolsModal'
+import ServerToolsModal, { requestToolboxNav } from './components/ServerToolsModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
 import EmptyState from './components/EmptyState'
@@ -70,7 +70,7 @@ import { confirmAndRunAiCommand } from './lib/ai-run'
 import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
-import { askConfirm, askText, confirmDialog, DialogHost } from './lib/dialogs'
+import { askConfirm, askText, confirmDialog, DialogHost, isDialogOpen } from './lib/dialogs'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
 import { normalizeTags } from '@shared/workspace-features'
@@ -360,9 +360,6 @@ export default function App() {
     }
   }, [tabMenu])
   const [batchOpen, setBatchOpen] = useState(false)
-  const [portForwardOpen, setPortForwardOpen] = useState(false)
-  const [resourceOpen, setResourceOpen] = useState(false)
-  const [resourceTarget, setResourceTarget] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [appVersion, setAppVersion] = useState('')
@@ -423,8 +420,7 @@ export default function App() {
   const [multiSelected, setMultiSelected] = useState<string[]>([])
   const lastClickedProfileRef = useRef<string | null>(null)
   const [backupOpen, setBackupOpen] = useState(false)
-  const [serverToolsOpen, setServerToolsOpen] = useState(false)
-  const [serverToolsSession, setServerToolsSession] = useState<string | null>(null)
+  const inventoryDirtyRef = useRef(false)
   const openToolTabRef = useRef<(
     kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch',
     forSessionId?: string | null
@@ -642,24 +638,26 @@ export default function App() {
           termCols: meta.termCols,
           termRows: meta.termRows
         }
-        setTabs((prev) => {
-          if (!prev.some((t) => t.tabId === tabId)) {
-            void window.aiss.ssh.disconnect(sessionId)
-            return prev
-          }
-          return prev.map((t) =>
-            t.tabId === tabId
-              ? {
-                  ...t,
-                  sessionId,
-                  title: nextTitle,
-                  connectOpts,
-                  status: 'connected',
-                  kind: extra?.kind ?? meta.kind ?? 'ssh'
-                }
-              : t
-          )
-        })
+        const prevTabs = tabsRef.current
+        if (!prevTabs.some((t) => t.tabId === tabId)) {
+          void window.aiss.ssh.disconnect(sessionId)
+          return null
+        }
+        const nextTabs: Tab[] = prevTabs.map((t) =>
+          t.tabId === tabId
+            ? {
+                ...t,
+                sessionId,
+                title: nextTitle,
+                connectOpts,
+                status: 'connected' as const,
+                kind: extra?.kind ?? meta.kind ?? 'ssh'
+              }
+            : t
+        )
+        // Publish the session id before React re-renders so openToolTab can bind this host.
+        tabsRef.current = nextTabs
+        setTabs(nextTabs)
         notifyRecentChanged()
         return sessionId
       } catch (e) {
@@ -838,9 +836,24 @@ export default function App() {
       return
     }
     if (view === 'inventory') {
-      setInventoryLink(undefined)
-      setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
-      setActiveTabId((cur) => (cur === tabId ? null : cur))
+      const drop = () => {
+        inventoryDirtyRef.current = false
+        setInventoryLink(undefined)
+        setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
+        setActiveTabId((cur) => (cur === tabId ? null : cur))
+      }
+      if (inventoryDirtyRef.current) {
+        void confirmDialog({
+          title: tg('hp.discardTitle'),
+          confirmText: tg('hp.discard'),
+          cancelText: tg('hp.keepEditing'),
+          danger: true
+        }).then((ok) => {
+          if (ok) drop()
+        })
+        return
+      }
+      drop()
       return
     }
     if (
@@ -1117,22 +1130,55 @@ export default function App() {
         openSftpTransfer(forSessionId || undefined)
         return
       }
-      const bound =
-        tabsNow.find(
-          (t) =>
-            (forSessionId ? t.sessionId === forSessionId : t.tabId === activeTabId) &&
-            (!t.view || t.view === 'session') &&
-            t.kind !== 'local' &&
-            t.status === 'connected' &&
-            t.sessionId
-        ) ||
-        tabsNow.find(
-          (t) =>
-            (!t.view || t.view === 'session') &&
-            t.kind !== 'local' &&
-            t.status === 'connected' &&
-            t.sessionId
-        )
+      if (kind === 'batch') {
+        if (forSessionId) setBatchPreselect([forSessionId])
+        setBatchOpen(true)
+        return
+      }
+      if (kind === 'forward') {
+        const title = tg('tab.forward')
+        const prefer =
+          tabsNow.find(
+            (t) =>
+              (forSessionId ? t.sessionId === forSessionId : t.tabId === activeTabId) &&
+              (!t.view || t.view === 'session') &&
+              t.status === 'connected' &&
+              t.sessionId
+          ) ||
+          tabsNow.find((t) => (!t.view || t.view === 'session') && t.status === 'connected' && t.sessionId && t.kind !== 'local')
+        const existing = tabsNow.find((t) => t.view === 'forward')
+        if (existing) {
+          setTabs((prev) =>
+            prev.map((t) =>
+              t.tabId === existing.tabId ? { ...t, title, boundSessionId: prefer?.sessionId || t.boundSessionId } : t
+            )
+          )
+          setActiveTabId(existing.tabId)
+          return
+        }
+        const tabId = uuid()
+        setTabs((prev) => [
+          ...prev,
+          {
+            tabId,
+            sessionId: '',
+            title,
+            connectOpts: prefer?.connectOpts ?? PLACEHOLDER_CONNECT,
+            status: 'connected',
+            view: 'forward',
+            boundSessionId: prefer?.sessionId
+          }
+        ])
+        setActiveTabId(tabId)
+        return
+      }
+      const sessionTabs = tabsNow.filter(
+        (t) => (!t.view || t.view === 'session') && t.kind !== 'local' && t.status === 'connected' && t.sessionId
+      )
+      // An explicit session must not fall through to whatever else is connected.
+      const bound = forSessionId
+        ? sessionTabs.find((t) => t.sessionId === forSessionId)
+        : sessionTabs.find((t) => t.tabId === activeTabId) || sessionTabs[0]
       if (!bound) {
         setError(tg('app.needSshSftp'))
         return
@@ -2279,7 +2325,7 @@ export default function App() {
         return
       }
       if (action === 'portForward') {
-        setPortForwardOpen(true)
+        openToolTabRef.current('forward')
         return
       }
       if (action === 'resourceMonitor') {
@@ -2300,7 +2346,6 @@ export default function App() {
       }
       if (action === 'serverTools') {
         openToolTabRef.current('toolbox')
-        return
         return
       }
       if (action === 'settings') {
@@ -2379,18 +2424,6 @@ export default function App() {
   const openMonitorForSession = useCallback((sid: string | null) => {
     openToolTabRef.current('monitor', sid)
   }, [])
-  const monitorProfile = useCallback(
-    async (p: SavedSessionProfile) => {
-      setSessionMenu(null)
-      const live = tabs.find(
-        (x) => x.profileId === p.id && x.status === 'connected' && x.sessionId && (!x.view || x.view === 'session')
-      )
-      if (live) return openMonitorForSession(live.sessionId)
-      const sid = await connectProfile(p)
-      if (sid) openMonitorForSession(sid)
-    },
-    [tabs, connectProfile, openMonitorForSession]
-  )
 
   /** H1: reuse a connected tab for this host or connect first; failure shows a toast with Retry. */
   const ensureProfileSession = useCallback(
@@ -2473,7 +2506,7 @@ export default function App() {
       else if (action === 'serverTools') {
         openToolTabRef.current('toolbox', sid)
       } else if (action === 'sftp') openSftpTransfer(sid)
-      else if (action === 'portForward') setPortForwardOpen(true)
+      else if (action === 'portForward') openToolTabRef.current('forward')
       else if (action === 'batchExec') {
         setBatchPreselect([sid])
         setBatchOpen(true)
@@ -2583,6 +2616,22 @@ export default function App() {
       if (!action) return
       e.preventDefault()
       e.stopPropagation()
+      const blockedWhileDialog = new Set([
+        'resourceMonitor',
+        'serverTools',
+        'batchExec',
+        'portForward',
+        'inventory',
+        'snippets',
+        'sftp',
+        'docker',
+        'refreshDocker',
+        'backup'
+      ])
+      if (isDialogOpen() && blockedWhileDialog.has(action)) {
+        showToast(tg('dlg.finishFirst'))
+        return
+      }
       handleTitlebarMenuActionRef.current(action as TitlebarMenuAction)
     }
     window.addEventListener('keydown', onKey, true)
@@ -2884,7 +2933,7 @@ export default function App() {
                       onClick={() => {
                         setTabMenu(null)
                         setActiveTabId(tab.tabId)
-                        setPortForwardOpen(true)
+                        openToolTabRef.current('forward')
                       }}
                     >
                       {tr('menu.portForward')}
@@ -3042,6 +3091,72 @@ export default function App() {
                     }
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     link={inventoryLink}
+                    active={t.tabId === activeTabId}
+                    onDirtyChange={(dirty) => {
+                      inventoryDirtyRef.current = dirty
+                      setTabs((prev) =>
+                        prev.map((x) => {
+                          if (x.view !== 'inventory') return x
+                          const bare = x.title.replace(/^•\s/, '')
+                          const next = dirty ? `• ${bare}` : bare
+                          return next === x.title ? x : { ...x, title: next }
+                        })
+                      )
+                    }}
+                    onConnect={() => {
+                      const p = profiles.find(
+                        (x) =>
+                          (inventoryLink?.profileId && x.id === inventoryLink.profileId) ||
+                          (inventoryLink?.host && x.host === inventoryLink.host && (!inventoryLink.username || x.username === inventoryLink.username))
+                      )
+                      if (p) openOrFocusProfile(p)
+                      else showToast(tg('hp.needSession'))
+                    }}
+                    onOpenSftp={() => {
+                      const p = profiles.find((x) => inventoryLink?.profileId && x.id === inventoryLink.profileId)
+                      if (p) runForProfile(p, (sid) => openSftpTransfer(sid))
+                      else showToast(tg('hp.needSession'))
+                    }}
+                    onOpenMonitor={() => {
+                      const p = profiles.find((x) => inventoryLink?.profileId && x.id === inventoryLink.profileId)
+                      if (p) runForProfile(p, (sid) => openToolTabRef.current('monitor', sid))
+                      else showToast(tg('hp.needSession'))
+                    }}
+                    onOpenToolbox={() => {
+                      const p = profiles.find((x) => inventoryLink?.profileId && x.id === inventoryLink.profileId)
+                      if (p) runForProfile(p, (sid) => openToolTabRef.current('toolbox', sid))
+                      else showToast(tg('hp.needSession'))
+                    }}
+                    onViewLogs={(svc) => {
+                      const p = profiles.find((x) => inventoryLink?.profileId && x.id === inventoryLink.profileId)
+                      if (!p) {
+                        showToast(tg('hp.needSession'))
+                        return
+                      }
+                      runForProfile(p, (sid) => {
+                        openToolTabRef.current('toolbox', sid)
+                        window.setTimeout(
+                          () =>
+                            requestToolboxNav({
+                              sessionId: sid,
+                              tab: 'logs',
+                              unit: svc.unit || (svc.kind === 'systemd' ? `${svc.name}.service` : ''),
+                              query: svc.name
+                            }),
+                          60
+                        )
+                      })
+                    }}
+                    onSearchTag={(tag) => setSessionSearch(`#${tag.replace(/^#/, '')}`)}
+                    resolveSession={async () => {
+                      const p = profiles.find(
+                        (x) =>
+                          (inventoryLink?.profileId && x.id === inventoryLink.profileId) ||
+                          (inventoryLink?.host && x.host === inventoryLink.host)
+                      )
+                      if (!p) return null
+                      return ensureProfileSession(p)
+                    }}
                     onUpserted={(rec) => {
                       const pid = rec.meta.profileId
                       if (!pid) return
@@ -3069,6 +3184,15 @@ export default function App() {
                     embedded
                     sessions={connectedSshSessions}
                     activeSessionId={t.boundSessionId}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    active={t.tabId === activeTabId}
+                  />
+                ) : t.view === 'forward' ? (
+                  <PortForwardModal
+                    open
+                    embedded
+                    sessions={connectedSshSessions}
+                    activeSessionId={t.boundSessionId || activeSessionId}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'sftp' ? (
@@ -3236,32 +3360,6 @@ export default function App() {
           setBatchPreselect(undefined)
         }}
       />
-      <PortForwardModal
-        open={portForwardOpen}
-        sessions={connectedSshSessions}
-        activeSessionId={activeSessionId ?? null}
-        onClose={() => setPortForwardOpen(false)}
-      />
-      <ResourceMonitorModal
-        open={resourceOpen}
-        sessions={connectedSshSessions}
-        activeSessionId={resourceTarget ?? activeSessionId ?? null}
-        onClose={() => {
-          setResourceOpen(false)
-          setResourceTarget(null)
-        }}
-        onOpenTools={(sid) => {
-          setResourceOpen(false)
-          setServerToolsSession(sid)
-          setServerToolsOpen(true)
-        }}
-      />
-      <ServerToolsModal
-        open={serverToolsOpen}
-        sessions={connectedSshSessions}
-        activeSessionId={serverToolsSession ?? activeSessionId ?? null}
-        onClose={() => setServerToolsOpen(false)}
-      />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onAction={handleTitlebarMenuAction} />
       <WhatsNewModal
         open={whatsNewOpen}
@@ -3396,12 +3494,9 @@ export default function App() {
             })}
             <div className="session-context-menu-sep" />
             {item('sftp', tg('ctx.sftp'), () => runForProfile(p, (sid) => openSftpTransfer(sid)))}
-            {item('monitor', tg('ctx.monitor'), () => void monitorProfile(p))}
+            {item('monitor', tg('ctx.monitor'), () => runForProfile(p, (sid) => openToolTabRef.current('monitor', sid)))}
             {item('toolbox', tg('ctx.toolbox'), () =>
-              runForProfile(p, (sid) => {
-                setServerToolsSession(sid)
-                setServerToolsOpen(true)
-              })
+              runForProfile(p, (sid) => openToolTabRef.current('toolbox', sid))
             )}
             {item('docker', expandedHosts[p.id] ? tg('app.collapseDocker') : tg('app.expandDocker'), () => {
               toggleHostExpanded(p)

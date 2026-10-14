@@ -11,7 +11,14 @@ import { showToast, type ToastAction } from './toast'
  * Modal 420px, primary button on the right; Esc cancels, Enter confirms; danger dialogs focus Cancel first.
  * Mount <DialogHost /> once (App does).
  */
-export type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean; detail?: string }
+export type ConfirmOptions = {
+  title: string
+  body?: string
+  confirmText?: string
+  cancelText?: string
+  danger?: boolean
+  detail?: string
+}
 export type PromptOptions = { title: string; label?: string; defaultValue?: string; validate?: (v: string) => string | null }
 
 type Request =
@@ -19,6 +26,17 @@ type Request =
   | ({ kind: 'confirm'; resolve: (v: boolean) => void } & ConfirmOptions)
 
 const listeners = new Set<(r: Request) => void>()
+
+/** Module flag so keymap handlers can tell a confirm/prompt is up without reading React state. */
+let dialogOpenCount = 0
+
+export function isDialogOpen(): boolean {
+  return dialogOpenCount > 0
+}
+
+function setDialogOpenCount(n: number): void {
+  dialogOpenCount = n
+}
 
 function emit(r: Request): boolean {
   if (listeners.size === 0) return false
@@ -50,8 +68,8 @@ export function askText(title: string, defaultValue = ''): Promise<string | null
   return promptDialog({ title, defaultValue })
 }
 
-export function askConfirm(title: string, message: string, opts?: { danger?: boolean; okLabel?: string }): Promise<boolean> {
-  return confirmDialog({ title, body: message, danger: opts?.danger, confirmText: opts?.okLabel })
+export function askConfirm(title: string, message: string, opts?: { danger?: boolean; okLabel?: string; cancelLabel?: string }): Promise<boolean> {
+  return confirmDialog({ title, body: message, danger: opts?.danger, confirmText: opts?.okLabel, cancelText: opts?.cancelLabel })
 }
 
 export function DialogHost() {
@@ -68,8 +86,13 @@ export function DialogHost() {
     listeners.add(fn)
     return () => {
       listeners.delete(fn)
+      setDialogOpenCount(0)
     }
   }, [])
+
+  useEffect(() => {
+    setDialogOpenCount(queue.length)
+  }, [queue.length])
 
   useEffect(() => {
     if (!current) return
@@ -107,7 +130,7 @@ export function DialogHost() {
       footer={
         <>
           <button type="button" ref={cancelRef} data-testid="dialog-cancel" onClick={() => finish(false)}>
-            {tg('dlg.cancel')}
+            {current.kind === 'confirm' && current.cancelText ? current.cancelText : tg('dlg.cancel')}
           </button>
           <button
             type="button"

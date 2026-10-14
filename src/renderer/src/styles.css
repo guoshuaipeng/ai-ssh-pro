@@ -15,6 +15,26 @@
   --row-hover-bg: rgba(88, 166, 255, 0.14);
   --row-hover-border: rgba(88, 166, 255, 0.4);
   --row-selected-bg: rgba(88, 166, 255, 0.22);
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 17px;
+  --fs-xl: 20px;
+  --surface-1: #161a20;
+  --surface-2: #1d222a;
+  --code-bg: #11151b;
+  --warn: #f59e0b;
+  --ok: #22c55e;
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-badge: 4px;
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   color: var(--text);
@@ -91,6 +111,11 @@
   --row-hover-bg: rgba(9, 105, 218, 0.1);
   --row-hover-border: rgba(9, 105, 218, 0.35);
   --row-selected-bg: rgba(9, 105, 218, 0.16);
+  --surface-1: #ffffff;
+  --surface-2: #f4f6f8;
+  --code-bg: #f6f8fa;
+  --warn: #9a6700;
+  --ok: #1a7f37;
 }
 
 [data-ui-theme='sand'] {
@@ -109,6 +134,11 @@
   --row-hover-bg: rgba(180, 83, 9, 0.1);
   --row-hover-border: rgba(180, 83, 9, 0.35);
   --row-selected-bg: rgba(180, 83, 9, 0.16);
+  --surface-1: #faf7f2;
+  --surface-2: #f3eee6;
+  --code-bg: #fffdf8;
+  --warn: #9a6700;
+  --ok: #1a7f37;
 }
 
 * {
@@ -1191,6 +1221,7 @@ body.layout-resizing {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  position: relative;
 }
 
 .ai-panel-shell {
@@ -2327,6 +2358,8 @@ body:has(.debug-window-root) #root {
   position: relative;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
 }
 
 .terminal-pane-xterm {
@@ -3376,13 +3409,18 @@ body.split-resizing {
   transition: width 0.4s;
 }
 .rm-fill.rm-ok {
-  background: #3fb950;
+  background: var(--ok);
 }
 .rm-fill.rm-warn {
-  background: #d29922;
+  background: var(--warn);
 }
 .rm-fill.rm-bad {
-  background: #f85149;
+  background: var(--danger);
+}
+.rm-warn-icon {
+  margin-left: 4px;
+  color: var(--danger);
+  font-size: var(--fs-sm);
 }
 .rm-value {
   text-align: right;
@@ -3470,10 +3508,23 @@ body.split-resizing {
   stroke-linejoin: round;
 }
 .rm-spark-warn {
-  stroke: #d29922;
+  stroke: var(--warn);
   stroke-width: 1;
   stroke-dasharray: 3 3;
   opacity: 0.6;
+}
+.rm-spark-tick {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.rm-spark-tick-label {
+  fill: var(--muted);
+  font-size: 9px;
+}
+.rm-spark-area {
+  fill: var(--accent);
+  opacity: 0.18;
+  stroke: none;
 }
 
 /* ---------- server toolbox ---------- */

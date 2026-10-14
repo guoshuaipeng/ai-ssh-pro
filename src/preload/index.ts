@@ -67,6 +67,8 @@ const api = {
     checkUpdate: (): Promise<AppUpdateCheckResult> => ipcRenderer.invoke('app:checkUpdate'),
     openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('app:openExternal', url),
     openGithub: (): Promise<boolean> => ipcRenderer.invoke('app:openGithub'),
+    showItemInFolder: (target: string): Promise<boolean> => ipcRenderer.invoke('app:showItemInFolder', target),
+    pickFile: (title?: string): Promise<string | null> => ipcRenderer.invoke('app:pickFile', title),
     getMcpGuideInfo: (): Promise<McpGuideInfo> => ipcRenderer.invoke('app:getMcpGuideInfo'),
     setUiChrome: (chrome: {
       backgroundColor: string

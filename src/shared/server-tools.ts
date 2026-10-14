@@ -40,7 +40,16 @@ export function parseProcessList(text: string): ProcInfo[] {
   return out
 }
 
-export type ProcSort = 'cpu' | 'mem' | 'pid'
+export type ProcSort = 'cpu' | 'mem' | 'pid' | 'name'
+
+/** Short process name for confirmations (basename of argv0, without a trailing colon). */
+export function processDisplayName(command: string): string {
+  const base = command.trim().split(/\s+/)[0] || command.trim()
+  const i = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'))
+  const name = (i >= 0 ? base.slice(i + 1) : base).replace(/:$/, '')
+  return name.slice(0, 80) || 'process'
+}
+
 /** Filter by substring (command, user or pid) and sort; returns a new array. */
 export function filterProcesses(list: ProcInfo[], query: string, sort: ProcSort = 'cpu'): ProcInfo[] {
   const q = query.trim().toLowerCase()
@@ -48,7 +57,8 @@ export function filterProcesses(list: ProcInfo[], query: string, sort: ProcSort 
   const key: Record<ProcSort, (a: ProcInfo, b: ProcInfo) => number> = {
     cpu: (a, b) => b.cpu - a.cpu || b.mem - a.mem,
     mem: (a, b) => b.mem - a.mem || b.rssKb - a.rssKb,
-    pid: (a, b) => a.pid - b.pid
+    pid: (a, b) => a.pid - b.pid,
+    name: (a, b) => a.command.localeCompare(b.command) || a.pid - b.pid
   }
   return hit.sort(key[sort])
 }

@@ -17,6 +17,14 @@ export type ResourceSnapshot = {
 
 const pct = (used: number, total: number) => (total > 0 ? Math.round((used / total) * 1000) / 10 : 0)
 
+/** UX-43: ≥85% is bad (red), ≥70% is warn, otherwise ok. */
+export function resourceLevel(percent: number): 'ok' | 'warn' | 'bad' {
+  if (!Number.isFinite(percent)) return 'ok'
+  if (percent >= 85) return 'bad'
+  if (percent >= 70) return 'warn'
+  return 'ok'
+}
+
 function cpuFromStat(a: string, b: string): number | null {
   const nums = (l: string) => l.trim().split(/\s+/).slice(1).map(Number)
   if (!/^cpu\s/.test(a) || !/^cpu\s/.test(b)) return null

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
-import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
+import { formatBytes, formatUptime, resourceLevel } from '../../../shared/resource-monitor'
 import { pushSample, sparklinePoints } from '../../../shared/server-tools'
 import { useI18n } from '../lib/i18n'
 import Modal from './Modal'
@@ -19,17 +19,49 @@ type Props = {
 type Sample = { cpu: number | null; mem: number | null; at: number }
 const HISTORY_MAX = 60
 
-function Sparkline({ label, values, testId, peakLabel }: { label: string; values: number[]; testId: string; peakLabel: string }) {
+function Sparkline({
+  label,
+  values,
+  testId,
+  peakLabel,
+  emptyLabel
+}: {
+  label: string
+  values: number[]
+  testId: string
+  peakLabel: string
+  emptyLabel: string
+}) {
   const w = 240
-  const h = 36
+  const h = 64
   const last = values.length ? values[values.length - 1] : null
   const peak = values.length ? Math.max(...values) : null
+  const line = values.length ? sparklinePoints(values, w, h) : ''
+  const area = line ? `0,${h} ${line} ${w},${h}` : ''
+  const ticks = [0, 50, 100]
   return (
     <div className="rm-trend" data-testid={testId}>
       <span className="rm-label">{label}</span>
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="rm-spark" role="img" aria-label={label}>
-        <line x1="0" y1={h * 0.3} x2={w} y2={h * 0.3} className="rm-spark-warn" />
-        {values.length > 0 ? <polyline points={sparklinePoints(values, w, h)} className="rm-spark-line" /> : null}
+        {ticks.map((tick) => {
+          const y = h - (tick / 100) * h
+          return (
+            <g key={tick}>
+              <line x1="0" y1={y} x2={w} y2={y} className={tick === 0 ? 'rm-spark-tick' : 'rm-spark-tick'} />
+              <text x="2" y={Math.min(h - 2, Math.max(9, y - 2))} className="rm-spark-tick-label">
+                {tick}
+              </text>
+            </g>
+          )
+        })}
+        <line x1="0" y1={h * 0.15} x2={w} y2={h * 0.15} className="rm-spark-warn" />
+        {area ? <polygon points={area} className="rm-spark-area" /> : null}
+        {line ? <polyline points={line} className="rm-spark-line" /> : null}
+        {!values.length ? (
+          <text x={w / 2} y={h / 2} textAnchor="middle" className="rm-spark-tick-label">
+            {emptyLabel}
+          </text>
+        ) : null}
       </svg>
       <span className="rm-detail">
         {last == null ? '—' : `${Math.round(last)}%`}
@@ -41,19 +73,24 @@ function Sparkline({ label, values, testId, peakLabel }: { label: string; values
 
 const REFRESH_MS = 5000
 
-function level(p: number): 'ok' | 'warn' | 'bad' {
-  return p >= 90 ? 'bad' : p >= 70 ? 'warn' : 'ok'
+function exactPct(percent: number): string {
+  return `${Math.round(percent * 10) / 10}%`
 }
 
 function Bar({ label, percent, detail }: { label: string; percent: number | null; detail?: string }) {
   const p = percent == null ? 0 : Math.max(0, Math.min(100, percent))
+  const lvl = percent == null ? 'ok' : resourceLevel(p)
+  const tip = percent == null ? undefined : exactPct(percent)
   return (
     <div className="rm-row">
       <span className="rm-label">{label}</span>
-      <div className="rm-bar" role="progressbar" aria-label={label} aria-valuenow={Math.round(p)} aria-valuemin={0} aria-valuemax={100}>
-        <div className={`rm-fill rm-${level(p)}`} style={{ width: `${p}%` }} />
+      <div className="rm-bar" role="progressbar" aria-label={label} aria-valuenow={Math.round(p)} aria-valuemin={0} aria-valuemax={100} title={tip}>
+        <div className={`rm-fill rm-${lvl}`} style={{ width: `${p}%` }} />
       </div>
-      <span className="rm-value">{percent == null ? '—' : `${Math.round(percent * 10) / 10}%`}</span>
+      <span className="rm-value" title={tip}>
+        {percent == null ? '—' : exactPct(percent)}
+        {lvl === 'bad' ? <span className="rm-warn-icon" title={tip} aria-label={tip}>⚠</span> : null}
+      </span>
       {detail ? <span className="rm-detail">{detail}</span> : null}
     </div>
   )
@@ -116,24 +153,30 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
   const memTrend = history.map((x) => x.mem).filter((v): v is number => v != null)
 
   const loadPct = snap?.load && snap.cores ? (snap.load[0] / snap.cores) * 100 : null
+  const hostLabel = sessions.find((s) => s.sessionId === (sessionId || activeSessionId))?.title ?? ''
+  const title = hostLabel ? t('rm.hostTitle', { host: hostLabel }) : t('tab.monitor')
 
   return (
-    <Modal open={open || !!embedded} title={t('rm.title')} onClose={onClose} width={680} embedded={embedded} testId="resource-monitor-panel">
+    <Modal open={open || !!embedded} title={title} onClose={onClose} width={680} embedded={embedded} testId="resource-monitor-panel">
       <div className="rm-panel">
         {sessions.length === 0 ? (
           <p className="rm-empty">{t('rm.noSessions')}</p>
         ) : (
           <div className="rm-toolbar">
-            <label>
-              {t('rm.session')}{' '}
-              <select value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
-                {sessions.map((s) => (
-                  <option key={s.sessionId} value={s.sessionId}>
-                    {s.title}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {embedded ? (
+              <strong className="rm-bound-title">{title}</strong>
+            ) : (
+              <label>
+                {t('rm.session')}{' '}
+                <select value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
+                  {sessions.map((s) => (
+                    <option key={s.sessionId} value={s.sessionId}>
+                      {s.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button type="button" onClick={() => void load(sessionId)}>
               {t('rm.refresh')}
             </button>
@@ -141,7 +184,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
               <input type="checkbox" checked={!paused} onChange={(e) => setPaused(!e.target.checked)} /> {t('rm.auto')}
             </label>
             {onOpenTools && sessionId ? (
-              <button type="button" onClick={() => onOpenTools(sessionId)}>
+              <button type="button" className="primary" onClick={() => onOpenTools(sessionId)}>
                 {t('rm.openTools')}
               </button>
             ) : null}
@@ -166,8 +209,8 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
             <Bar label={t('rm.load')} percent={loadPct} detail={snap.load ? snap.load.join(' / ') : undefined} />
             <div className="rm-trends">
               <p className="rm-trends-title">{t('rm.trend', { min: Math.round((HISTORY_MAX * REFRESH_MS) / 60000) })}</p>
-              <Sparkline label={t('rm.cpu')} values={cpuTrend} testId="rm-trend-cpu" peakLabel={t('rm.peak')} />
-              <Sparkline label={t('rm.mem')} values={memTrend} testId="rm-trend-mem" peakLabel={t('rm.peak')} />
+              <Sparkline label={t('rm.cpu')} values={cpuTrend} testId="rm-trend-cpu" peakLabel={t('rm.peak')} emptyLabel={t('rm.noSamples')} />
+              <Sparkline label={t('rm.mem')} values={memTrend} testId="rm-trend-mem" peakLabel={t('rm.peak')} emptyLabel={t('rm.noSamples')} />
             </div>
             {snap.uptimeSec != null ? (
               <p className="rm-uptime">
@@ -184,19 +227,24 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
                 </tr>
               </thead>
               <tbody>
-                {snap.disks.map((d) => (
-                  <tr key={`${d.fs}:${d.mount}`} className={`rm-disk rm-${level(d.percent)}`}>
+                {snap.disks.map((d) => {
+                  const lvl = resourceLevel(d.percent)
+                  const tip = `${d.percent}%`
+                  return (
+                  <tr key={`${d.fs}:${d.mount}`} className={`rm-disk rm-${lvl}`}>
                     <td>{d.mount}</td>
                     <td>{d.fs}</td>
                     <td>{formatBytes(d.totalKb * 1024)}</td>
-                    <td>
-                      <div className="rm-bar rm-bar-sm">
-                        <div className={`rm-fill rm-${level(d.percent)}`} style={{ width: `${d.percent}%` }} />
+                    <td title={tip}>
+                      <div className="rm-bar rm-bar-sm" title={tip}>
+                        <div className={`rm-fill rm-${lvl}`} style={{ width: `${d.percent}%` }} />
                       </div>{' '}
                       {d.percent}%
+                      {lvl === 'bad' ? <span className="rm-warn-icon" title={tip} aria-label={tip}>⚠</span> : null}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </>

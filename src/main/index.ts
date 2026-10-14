@@ -1,7 +1,7 @@
 import { mt, setMainLocaleGetter } from './main-i18n'
 import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
-import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
 import { existsSync, statSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
@@ -657,6 +657,22 @@ function registerIpc(): void {
   ipcMain.handle('app:checkUpdate', () => checkForAppUpdate())
   ipcMain.handle('app:openExternal', (_e, url: string) => openExternalUrl(String(url || '')))
   ipcMain.handle('app:openGithub', () => openGithubRepo())
+  ipcMain.handle('app:showItemInFolder', (_e, target: string) => {
+    const p = String(target || '')
+    if (!p) return false
+    shell.showItemInFolder(p)
+    return true
+  })
+  ipcMain.handle('app:pickFile', async (_e, title?: string) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const opts: Electron.OpenDialogOptions = {
+      title: title || 'Select file',
+      properties: ['openFile']
+    }
+    const r = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts)
+    if (r.canceled || !r.filePaths[0]) return null
+    return r.filePaths[0]
+  })
   ipcMain.handle('app:getMcpGuideInfo', () => resolveMcpGuideInfo())
   ipcMain.handle(
     'app:setUiChrome',

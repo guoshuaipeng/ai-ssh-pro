@@ -19,11 +19,38 @@ type Props = {
 
 type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; result: AiAssistResult })
 
+const CMD_BAR_OPEN_KEY = 'aiss.cmdBarOpen'
+
+function readCmdBarOpen(): boolean {
+  try {
+    return localStorage.getItem(CMD_BAR_OPEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeCmdBarOpen(open: boolean): void {
+  try {
+    localStorage.setItem(CMD_BAR_OPEN_KEY, open ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Sends one line to the active terminal via the existing ssh.write path; "#" or Ctrl+Shift+Space switches to AI mode (A2). */
 export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettings }: Props) {
   const { t, locale } = useI18n()
   const [draft, setDraft] = useState('')
   const [aiMode, setAiMode] = useState(false)
+  const [open, setOpen] = useState(readCmdBarOpen)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const openRef = useRef(open)
+  openRef.current = open
+  const setOpenPersist = (next: boolean) => {
+    openRef.current = next
+    setOpen(next)
+    writeCmdBarOpen(next)
+  }
   const [aiCard, setAiCard] = useState<AiCard | null>(null)
   const aiReqRef = useRef('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -64,6 +91,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
     const onFill = (e: Event) => {
       const d = (e as CustomEvent<{ sessionId: string; command: string }>).detail
       if (!d || d.sessionId !== sessionId) return
+      setOpenPersist(true)
       setAiMode(false)
       setDraft(d.command)
       if (d.command) window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -71,6 +99,12 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
     const onAi = (e: Event) => {
       const d = (e as CustomEvent<{ sessionId: string | null }>).detail
       if (d?.sessionId && d.sessionId !== sessionId) return
+      if (!openRef.current) {
+        setOpenPersist(true)
+        setAiMode(true)
+        window.setTimeout(() => inputRef.current?.focus(), 40)
+        return
+      }
       const focused = document.activeElement === inputRef.current
       setAiMode((v) => (focused ? !v : true))
       window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -168,6 +202,24 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
   const riskLabel = (r: 'safe' | 'caution' | 'danger') => t(r === 'danger' ? 'a2.danger' : r === 'caution' ? 'a2.caution' : 'a2.safe')
   const effectiveRisk = aiResult ? (assessCommandRisk(aiResult.command) ? 'danger' : aiResult.risk) : 'safe'
 
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="cmd-bar-fab"
+        data-testid="cmd-bar-fab"
+        title={t('cmd.expand')}
+        aria-label={t('cmd.expand')}
+        onClick={() => {
+          setOpenPersist(true)
+          window.setTimeout(() => inputRef.current?.focus(), 40)
+        }}
+      >
+        ✨
+      </button>
+    )
+  }
+
   return (
     <div className={`session-command-bar${inAi ? ' is-ai' : ''}`}>
       <CommandInput
@@ -213,9 +265,42 @@ export default function SessionCommandBar({ sessionId, hostLabel, onOpenAiSettin
         }}
         onSubmit={(command) => void onSubmit(command)}
       />
-      <button type="button" className="session-command-clear" onClick={() => void clearHistory()}>
-        {t('history.clear')}
-      </button>
+      <div className="cmd-bar-more-wrap">
+        <button
+          type="button"
+          className="st-icon-btn"
+          aria-label={t('st.more')}
+          title={t('st.more')}
+          onClick={() => setMoreOpen((v) => !v)}
+        >
+          ⋯
+        </button>
+        {moreOpen ? (
+          <div className="cmd-bar-menu" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMoreOpen(false)
+                void clearHistory()
+              }}
+            >
+              {t('history.clear')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMoreOpen(false)
+                setOpenPersist(false)
+                setAiMode(false)
+              }}
+            >
+              {t('cmd.collapse')}
+            </button>
+          </div>
+        ) : null}
+      </div>
       {latency !== undefined ? (
         <span className={`session-latency session-latency-${classifyLatency(latency)}`} title={t('latency.title')}>
           ● {latency === null ? t('latency.down') : `${latency} ms`}
