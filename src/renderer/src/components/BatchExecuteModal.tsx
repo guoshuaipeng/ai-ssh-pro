@@ -14,6 +14,8 @@ export type BatchSessionOption = {
   host: string
   port: number
   username: string
+  profileId?: string
+  folderId?: string
 }
 
 type Props = {

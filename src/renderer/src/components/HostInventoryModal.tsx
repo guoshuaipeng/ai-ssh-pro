@@ -7,6 +7,7 @@ import type {
   HostServiceKind
 } from '@shared/inventory'
 import NotesMarkdownPreview from './NotesMarkdownPreview'
+import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
 import { confirmDialog } from '../lib/dialogs'
 export type HostInventoryLink = {
@@ -25,6 +26,14 @@ type Props = {
   onUpserted?: (rec: HostInventoryRecord) => void
   onConnect?: (link: HostInventoryLink) => void
   onOpenTool?: (tool: 'sftp' | 'monitor' | 'toolbox', link: HostInventoryLink) => void
+  protectionLevel?: import('@shared/protection').ProtectionLevel
+  auditOn?: boolean
+  suggestProd?: boolean
+  scrollToGuard?: boolean
+  onProtectionChange?: (level: import('@shared/protection').ProtectionLevel) => void
+  onAuditChange?: (on: boolean) => void
+  onOpenAudit?: () => void
+  onElevate?: () => void
 }
 
 type InventoryApi = {
@@ -74,7 +83,7 @@ function emptyForm(link?: HostInventoryLink): {
   }
 }
 
-export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool }: Props) {
+export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool, protectionLevel, auditOn, suggestProd, scrollToGuard, onProtectionChange, onAuditChange, onOpenAudit, onElevate }: Props) {
   /** 从会话右键打开：只编辑该主机，不显示档案列表 */
   const focused = Boolean(
     link && (link.hostInventoryId?.trim() || link.profileId?.trim() || link.host?.trim())
@@ -98,6 +107,11 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
   const [svcFilter, setSvcFilter] = useState('')
   const [svcKind, setSvcKind] = useState<'all' | HostServiceKind>('all')
   const [svcCollapsed, setSvcCollapsed] = useState(false)
+  useEffect(() => {
+    if (!scrollToGuard) return
+    const el = document.getElementById('l4-guard')
+    el?.scrollIntoView({ block: 'start' })
+  }, [scrollToGuard, protectionLevel])
   const [headerMenu, setHeaderMenu] = useState(false)
   const [metaDirty, setMetaDirty] = useState(false)
 
@@ -679,6 +693,18 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     <div className="inv20-form" onChange={() => setMetaDirty(true)}>{metaFields}</div>
                   )}
                 </section>
+                {onProtectionChange && onAuditChange && onOpenAudit && onElevate ? (
+                  <ProtectionSection
+                    level={protectionLevel ?? 'normal'}
+                    auditOn={auditOn !== false}
+                    suggestProd={suggestProd}
+                    onLevel={onProtectionChange}
+                    onAudit={onAuditChange}
+                    onOpenAudit={onOpenAudit}
+                    onRecordings={() => undefined}
+                    onElevate={onElevate}
+                  />
+                ) : null}
                 <section className="inv20-card">
                   <div className="inv20-card-head">
                     <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}>{svcCollapsed ? '▸' : '▾'} {tg('ux20.services')} ({form.services.length})</button>

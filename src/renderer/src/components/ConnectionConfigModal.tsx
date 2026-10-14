@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { tg } from '../lib/i18n'
+import { ProtectionLevelField } from './ProtectionSection'
 
 export type ConnectionConfigModalProps = {
   /** 默认「新建连接」；编辑已保存会话时可传入更明确的标题 */
@@ -48,6 +49,8 @@ export type ConnectionConfigModalProps = {
   setForwardRemoteHost?: (v: string) => void
   forwardRemotePort?: string
   setForwardRemotePort?: (v: string) => void
+  protection?: import('@shared/protection').ProtectionLevel
+  setProtection?: (v: import('@shared/protection').ProtectionLevel) => void
 }
 
 /** UX-25: documentation-range placeholder only */
@@ -97,7 +100,9 @@ export default function ConnectionConfigModal({
   forwardRemoteHost = '',
   setForwardRemoteHost,
   forwardRemotePort = '',
-  setForwardRemotePort
+  setForwardRemotePort,
+  protection = 'normal',
+  setProtection
 }: ConnectionConfigModalProps) {
   const initialAuth: 'password' | 'key' = privateKeyPath.trim() ? 'key' : 'password'
   const [authMode, setAuthMode] = useState<'password' | 'key'>(initialAuth)
@@ -163,6 +168,13 @@ export default function ConnectionConfigModal({
                 </div>
               </div>
             </div>
+            {setProtection ? (
+              <div className="field" style={{ marginTop: 8 }}>
+                <label>{tg('l4.level')}</label>
+                <ProtectionLevelField value={protection} onChange={setProtection} name="conn-protection" />
+                <p className="l4-hint">{tg(protection === 'readonly' ? 'l4.hintRo' : protection === 'production' ? 'l4.hintProd' : 'l4.hintNormal')}</p>
+              </div>
+            ) : null}
           </section>
 
           <section className="conn-card">

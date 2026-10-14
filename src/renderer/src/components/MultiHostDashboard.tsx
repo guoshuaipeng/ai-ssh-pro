@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { FiredAlert } from '../../../shared/alert-rules'
 import { primaryAlert } from '../../../shared/alert-locate'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
@@ -23,6 +23,9 @@ type Props = {
   alerts?: FiredAlert[]
   onLocate?: (alert: FiredAlert) => void
   onInterpret?: (alert: FiredAlert) => void
+  onOpenWorkbench?: (alert: FiredAlert) => void
+  visibleSession?: (sessionId: string) => boolean
+  scopeSlot?: ReactNode
 }
 
 type CardState = {
@@ -74,13 +77,16 @@ function Bar({ label, percent }: { label: string; percent: number | null }) {
 }
 
 /** O1: multi-host resource dashboard as a center tab. */
-export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal, alertSessionIds, onOpenAlertRules, onOpenInspect, sortAlertsFirst, alerts, onLocate, onInterpret }: Props) {
+export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal, alertSessionIds, onOpenAlertRules, onOpenInspect, sortAlertsFirst, alerts, onLocate, onInterpret, onOpenWorkbench, visibleSession, scopeSlot }: Props) {
   const { t } = useI18n()
   const [sort, setSort] = useState<'name' | 'cpu' | 'mem' | 'disk' | 'alert'>('name')
   const alertSet = alertSessionIds instanceof Set ? alertSessionIds : new Set(alertSessionIds ?? [])
   const [cards, setCards] = useState<CardState[]>([])
 
-  const targets = useMemo(() => sessions.slice(0, MAX_HOSTS), [sessions])
+  const targets = useMemo(
+    () => sessions.filter((s) => (visibleSession ? visibleSession(s.sessionId) : true)).slice(0, MAX_HOSTS),
+    [sessions, visibleSession]
+  )
 
   useEffect(() => {
     setCards((prev) => {
@@ -163,6 +169,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
     <div className="workspace-panel workspace-panel--o1" data-testid="multi-host-dashboard">
       <div className="workspace-panel-toolbar">
         <div className="workspace-panel-actions">
+          {scopeSlot}
           <label className="o1-sort">
             {t('o1.sort')}{' '}
             <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label={t('o1.sort')}>
@@ -266,6 +273,19 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
                           }}
                         >
                           {t('tab.toolbox')}
+                        </button>
+                      ) : null}
+                      {alertSet.has(c.sessionId) && onOpenWorkbench ? (
+                        <button
+                          type="button"
+                          data-testid="o1-open-workbench"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const hit = primaryAlert(alerts ?? [], c.sessionId)
+                            if (hit) onOpenWorkbench(hit)
+                          }}
+                        >
+                          {t('l2.title')}
                         </button>
                       ) : null}
                       {alertSet.has(c.sessionId) && onLocate ? (

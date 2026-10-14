@@ -45,6 +45,10 @@ type Props = {
   onReconnect?: () => void
   onOpenRemoteFile?: (info: { remotePath: string; name: string; size: number }) => void
   onCompare?: (info: { localPath: string; remotePath: string; localName: string; remoteName: string; localSize: number; remoteSize: number }) => void
+  /** S2: called before a remote upload, delete, mkdir, or rename. Return false to cancel. */
+  beforeRemoteWrite?: () => Promise<boolean>
+  /** S2: read-only and not temporarily unlocked. Remote write controls stay disabled. */
+  remoteWritesBlocked?: boolean
 }
 
 type PaneId = 'local' | 'remote'
@@ -111,7 +115,9 @@ export default function SftpPanel({
   onClose,
   onReconnect,
   onOpenRemoteFile,
-  onCompare
+  onCompare,
+  beforeRemoteWrite,
+  remoteWritesBlocked = false
 }: Props) {
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
@@ -365,6 +371,10 @@ export default function SftpPanel({
   const transferFiles = useCallback(
     async (direction: 'upload' | 'download', files: { name: string; localPath: string; remotePath: string; size: number; mtime?: number; isPart?: boolean }[]) => {
       if (!sessionId) return
+      if (direction === 'upload' && beforeRemoteWrite) {
+        const ok = await beforeRemoteWrite()
+        if (!ok) return
+      }
       if (direction === 'upload' && readOnly) {
         setRemoteError(tg('ux34.noUpload'))
         return
@@ -397,7 +407,7 @@ export default function SftpPanel({
         await enqueueFile(direction, destLocal, destRemote, baseName(direction === 'upload' ? destRemote : destLocal), mtime, offset)
       }
     },
-    [enqueueFile, localCwd, localEntries, readOnly, remoteCwd, remoteEntries, sessionId]
+    [beforeRemoteWrite, enqueueFile, localCwd, localEntries, readOnly, remoteCwd, remoteEntries, sessionId]
   )
 
   const uploadSelected = () => {
@@ -604,6 +614,10 @@ export default function SftpPanel({
   const removeEntry = async (side: PaneId, entry: SftpListEntry) => {
     if (side === 'remote') {
       if (!sessionId || readOnly) return
+      if (beforeRemoteWrite) {
+        const allowed = await beforeRemoteWrite()
+        if (!allowed) return
+      }
       const ok = await confirmDialog({
         title: tg('d1.deleteN', { n: 1 }),
         body: `${entry.name}\n${tg('d1.remoteIrreversible')}`,
@@ -629,25 +643,33 @@ export default function SftpPanel({
     await refreshLocal(localCwd)
   }
 
+  const allowRemoteWrite = async (): Promise<boolean> => {
+    if (readOnly) return false
+    if (!beforeRemoteWrite) return true
+    return beforeRemoteWrite()
+  }
+
   const mkdir = async (side: PaneId) => {
+    if (side === 'remote' && (!sessionId || !(await allowRemoteWrite()))) return
     const name = await askText(tg('sftp.newDirName'))
     if (!name?.trim()) return
     if (side === 'local') {
       await window.aiss.localFs.mkdir(joinLocal(localCwd, name.trim()))
       await refreshLocal(localCwd)
-    } else if (sessionId && !readOnly) {
+    } else if (sessionId) {
       await window.aiss.sftp.mkdir(sessionId, joinPosix(remoteCwd, name.trim()))
       await refreshRemote(remoteCwd)
     }
   }
 
   const renameEntry = async (side: PaneId, entry: SftpListEntry) => {
+    if (side === 'remote' && (!sessionId || !(await allowRemoteWrite()))) return
     const next = await askText(tg('sftp.newName'), entry.name)
     if (!next?.trim() || next.trim() === entry.name) return
     if (side === 'local') {
       await window.aiss.localFs.rename(entry.path, joinLocal(parentLocal(entry.path), next.trim()))
       await refreshLocal(localCwd)
-    } else if (sessionId && !readOnly) {
+    } else if (sessionId) {
       await window.aiss.sftp.rename(sessionId, entry.path, joinPosix(parentPosix(entry.path), next.trim()))
       await refreshRemote(remoteCwd)
     }
@@ -757,7 +779,13 @@ export default function SftpPanel({
             <button type="button" onClick={() => (isLocal ? void refreshLocal(cwd) : void refreshRemote(cwd))}>
               {tg('sftp.refresh')}
             </button>
-            <button type="button" title={isLocal ? undefined : roTitle} disabled={!isLocal && (readOnly || !sessionId)} onClick={() => void mkdir(side)}>
+            <button
+              type="button"
+              data-testid={isLocal ? undefined : 'sftp-remote-mkdir'}
+              title={isLocal ? undefined : readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
+              disabled={!isLocal && (readOnly || remoteWritesBlocked || !sessionId)}
+              onClick={() => void mkdir(side)}
+            >
               {tg('sftp.mkdir')}
             </button>
             <button type="button" className={showHidden ? 'is-on' : ''} onClick={() => setShowHidden((v) => !v)} title={tg('d1.hidden')}>

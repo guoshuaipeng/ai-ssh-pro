@@ -34,6 +34,8 @@ export type FiredAlert = {
   at: number
   status: 'active' | 'recovered' | 'ignored'
   recoveredAt?: number
+  /** L2: user marked the alert handled without waiting for the metric to recover. */
+  handledManually?: boolean
 }
 
 export const DEFAULT_ALERT_RULES: AlertRule[] = [
