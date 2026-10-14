@@ -280,11 +280,17 @@ ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'u
 ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'taskCards')), 'tasks menu')
 ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'sftpComfort')), 'comfort menu')
 ok(changelogFor('0.3.19').length >= 7, 'whats new 0.3.19')
-ok(readFileSync('CHANGELOG.md', 'utf8').includes('## v0.3.19'), 'changelog md')
+const changelog = readFileSync('CHANGELOG.md', 'utf8')
+ok(changelog.includes('## v0.3.19'), 'changelog md')
+for (const phrase of ['localStorage prefs', 'no default service alert rules', 'diff skips >2MB', 'Auto update needs reachable Gitee/GitHub/mirror JSON']) {
+  ok(changelog.includes(phrase), `changelog limit: ${phrase}`)
+}
+ok(readFileSync('src/renderer/src/components/AiAssistCard.tsx', 'utf8').includes('a4.privacy'), 'privacy on result')
+ok(readFileSync('src/renderer/src/components/MultiHostDashboard.tsx', 'utf8').includes('a4-privacy-action'), 'privacy near action')
 ok(readFileSync('package.json', 'utf8').includes('"version": "0.3.19"'), 'package version')
 
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
-for (const key of ['n1.auto', 'o4.locate', 'a4.interpret', 'd5.compareWithLocal', 'ux46.comfort', 'n2.skip', 'g3.dismissAll', 'st.tab.df']) {
+for (const key of ['n1.auto', 'o4.locate', 'a4.interpret', 'a4.privacy', 'd5.compareWithLocal', 'ux46.comfort', 'n2.skip', 'g3.dismissAll', 'st.tab.df']) {
   const hits = i18n.split(`'${key}'`).length - 1
   ok(hits >= 2, `${key} zh+en (${hits})`)
 }

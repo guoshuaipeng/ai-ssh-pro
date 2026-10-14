@@ -62,6 +62,11 @@ export default function AiAssistCard({ request, onClose, onInsert, onRun }: Prop
           ×
         </button>
       </header>
+      {request.kind === 'explainAlert' ? (
+        <p className="a4-privacy" data-testid="a4-privacy">
+          {t('a4.privacy')}
+        </p>
+      ) : null}
       {state.phase === 'loading' ? (
         <div className="ai-assist-loading" data-testid="ai-explain-loading">
           <div className="ai-skeleton" />

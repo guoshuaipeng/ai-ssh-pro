@@ -1058,6 +1058,8 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .sftp-pane-title { display: flex; align-items: center; gap: 8px; }
 .sftp-crumb-toggle { font-size: 11px; padding: 0 6px; height: 22px; }
 .o1-card.is-alert .o1-card-actions { opacity: 1; flex-wrap: nowrap; }
+.a4-privacy { margin: 6px 0 0; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.45; }
+.ai-assist-card .a4-privacy { margin: 0 0 8px; }
 .o2-row-actions { display: inline-flex; gap: 4px; margin-left: 6px; }
 .o2-row-actions button, .n1-choice, .n2-policy label { white-space: nowrap; }
 .n1-sources, .n2-policy { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }

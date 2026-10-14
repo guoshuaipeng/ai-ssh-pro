@@ -9,7 +9,7 @@
 - **Compact dual pane (UX-46)** — At 1366px and narrower the SFTP dual pane uses shorter rows, icon toolbar buttons, and a collapsible path. View → SFTP comfort density restores the roomier layout. 1024 and 1366 do not scroll sideways.
 - **Competitor session import (N2)** — File → Import sessions… (and the empty host list) previews FinalShell, Xshell, MobaXterm, PuTTY, and SSH config: groups, host count, and skip / overwrite / copy. Passwords and keys are not written into notes or the preview.
 - **Getting-started cards (G3)** — After the welcome tour, small cards offer connect / monitor / AI / file transfer. They do not cover the command bar. Completion is remembered; Help → Getting started tasks reopens them; dismiss all can be permanent.
-- **已知限制** — Auto mode still needs a reachable Gitee or GitHub release API (or a custom mirror that returns the same JSON). Service locate is wired, but the built-in rules still cover CPU, memory, disk, and offline only. Diff is line-based and does not load files over 2MB. Import preview stores secrets only on the saved session, same as before.
+- **已知限制** — Auto mode still needs a reachable Gitee or GitHub release API (or a custom mirror that returns the same JSON). Service locate is wired, but the built-in rules still cover CPU, memory, disk, and offline only. Diff is line-based and does not load files over 2MB. Import preview stores secrets only on the saved session, same as before. Also: localStorage prefs; no default service alert rules; diff skips >2MB; Auto update needs reachable Gitee/GitHub/mirror JSON.
 
 ## v0.3.18
 

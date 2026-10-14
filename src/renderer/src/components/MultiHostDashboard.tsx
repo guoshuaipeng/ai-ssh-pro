@@ -295,6 +295,15 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
                         </button>
                       ) : null}
                     </div>
+                    {alertSet.has(c.sessionId) && onInterpret ? (
+                      <p
+                        className="a4-privacy"
+                        data-testid="a4-privacy-action"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {t('a4.privacy')}
+                      </p>
+                    ) : null}
                   </article>
                 )
               })}

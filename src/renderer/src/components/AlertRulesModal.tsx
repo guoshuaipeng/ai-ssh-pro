@@ -200,6 +200,12 @@ export default function AlertRulesModal({
               {t('o2.emptyHistory')}
             </p>
           ) : (
+            <>
+            {onInterpret && sortedHistory.some((h) => h.status === 'active') ? (
+              <p className="a4-privacy" data-testid="a4-privacy-history">
+                {t('a4.privacy')}
+              </p>
+            ) : null}
             <ul className="o2-history">
               {sortedHistory.map((h) => (
                 <li key={h.id}>
@@ -232,6 +238,7 @@ export default function AlertRulesModal({
                 </li>
               ))}
             </ul>
+            </>
           )}
           <div className="modal-actions">
             <button type="button" onClick={onClearHistory} disabled={!sortedHistory.length}>
