@@ -1,3 +1,4 @@
+import { KEYMAP } from './keymap'
 /** Local workspace helpers shared by main and renderer. No secrets, no network. */
 
 export const COMMAND_HISTORY_CAP = 200
@@ -338,28 +339,12 @@ export function formatBatchReport(result: BatchExecResult): string {
 
 // ---------- keyboard shortcuts reference ----------
 export type ShortcutGroup = 'general' | 'session' | 'terminal' | 'view'
-export const SHORTCUTS: ReadonlyArray<{ keys: string; group: ShortcutGroup; id: string }> = [
-  { keys: 'F1', group: 'general', id: 'shortcuts' },
-  { keys: 'Ctrl+,', group: 'general', id: 'ai' },
-  { keys: 'Ctrl+Shift+N', group: 'session', id: 'newConnection' },
-  { keys: 'Ctrl+Shift+F', group: 'session', id: 'sftp' },
-  { keys: 'Ctrl+Shift+D', group: 'session', id: 'refreshDocker' },
-  { keys: 'Ctrl+Shift+H', group: 'session', id: 'inventory' },
-  { keys: 'Ctrl+Shift+T', group: 'session', id: 'serverTools' },
-  { keys: 'Ctrl+Shift+P', group: 'general', id: 'commandPalette' },
-  { keys: 'Ctrl+K', group: 'general', id: 'commandPaletteAlt' },
-  { keys: 'Ctrl+Shift+M', group: 'session', id: 'resourceMonitor' },
-  { keys: 'Ctrl+Shift+O', group: 'session', id: 'portForward' },
-  { keys: 'Ctrl+Shift+B', group: 'session', id: 'batchExec' },
-  { keys: 'Ctrl+Shift+S', group: 'session', id: 'snippets' },
-  { keys: 'Ctrl+Shift+C', group: 'terminal', id: 'copy' },
-  { keys: 'Ctrl+Shift+V', group: 'terminal', id: 'paste' },
-  { keys: 'Shift+Insert', group: 'terminal', id: 'pasteAlt' },
-  { keys: 'Ctrl+Tab', group: 'view', id: 'nextTab' },
-  { keys: 'Ctrl+1…9', group: 'view', id: 'gotoTab' },
-  { keys: 'Ctrl+B', group: 'view', id: 'toggleSidebar' },
-  { keys: 'Ctrl+Alt+B', group: 'view', id: 'toggleAi' }
-]
+/** Derived from the keymap registry (src/shared/keymap.ts) so the F1 panel never drifts from real bindings. */
+export const SHORTCUTS: ReadonlyArray<{ keys: string; group: ShortcutGroup; id: string }> = KEYMAP.map((k) => ({
+  keys: k.keys,
+  group: k.group,
+  id: k.id
+}))
 
 // ---------- snippets import / export ----------
 export const SNIPPETS_EXPORT_KIND = 'ai-ssh-pro/snippets'

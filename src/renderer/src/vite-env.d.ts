@@ -208,6 +208,9 @@ export type AissPreload = {
   }
   workspace: {
     ping: (sessionId: string) => Promise<number | null>
+    probeHosts: (
+      targets: import('../../shared/host-status').HostProbeTarget[]
+    ) => Promise<import('../../shared/host-status').HostProbeResult[]>
     batchExec: (payload: BatchExecRequest) => Promise<BatchExecResult>
     resources: (sessionId: string) => Promise<import('../../shared/resource-monitor').ResourceSnapshot & { at: number }>
     forwards: {

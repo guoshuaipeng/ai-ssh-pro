@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '../lib/i18n'
 import { MENUS, type TitlebarMenuAction } from './TitlebarMenus'
+import { menuLabel } from '@shared/menus'
 
 type Props = {
   open: boolean
@@ -14,7 +15,7 @@ const HIDDEN: ReadonlySet<TitlebarMenuAction> = new Set(['commandPalette', 'undo
 
 /** Ctrl+Shift+P / Ctrl+K: searchable list of every menu action (matches on the label, menu name and action id). */
 export default function CommandPalette({ open, onClose, onAction }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -23,15 +24,17 @@ export default function CommandPalette({ open, onClose, onAction }: Props) {
   const entries = useMemo<Entry[]>(() => {
     const out: Entry[] = []
     for (const m of MENUS) {
-      const group = t(m.label)
+      const group = menuLabel(m.label, locale)
       for (const it of m.items) {
         if (it.type !== 'item' || HIDDEN.has(it.id)) continue
-        const label = t(it.label).replace(/…$/, '')
-        out.push({ id: it.id, label, group, shortcut: it.shortcut, hay: `${label} ${group} ${it.id}`.toLowerCase() })
+        const label = menuLabel(it.label, locale).replace(/…$/, '')
+        // both languages are searchable regardless of the UI language
+        const other = (locale === 'zh-CN' ? it.label.en : it.label.zh).replace(/…$/, '')
+        out.push({ id: it.id, label, group, shortcut: it.shortcut, hay: `${label} ${other} ${group} ${it.id}`.toLowerCase() })
       }
     }
     return out
-  }, [t])
+  }, [locale])
 
   const filtered = useMemo(() => {
     const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean)

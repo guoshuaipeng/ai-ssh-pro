@@ -10,6 +10,7 @@ import type {
   SavedSessionProfile
 } from '@shared/ipc'
 import { normalizeQuery, profileMatches } from '../lib/session-filter'
+import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 
 export type DockerTreeCache = {
   status: 'idle' | 'connecting' | 'loading' | 'ready' | 'error'
@@ -28,7 +29,9 @@ type Props = {
   isComposeProjectExpanded: (projectName: string) => boolean
   isSwarmNodeExpanded: (key: string) => boolean
   tree: DockerTreeCache | undefined
-  onSelect: () => void
+  onSelect: (e: MouseEvent) => void
+  /** H2: undefined = status hidden; null = not checked yet */
+  hostStatus?: HostProbeResult | null
   onConnect: () => void
   onContextMenu: (e: MouseEvent) => void
   onToggleHost: () => void
@@ -86,6 +89,7 @@ export default function SessionDockerBranch({
   isSwarmNodeExpanded,
   tree,
   onSelect,
+  hostStatus,
   onConnect,
   onContextMenu,
   onToggleHost,
@@ -257,6 +261,19 @@ export default function SessionDockerBranch({
             '▶'
           )}
         </button>
+        {hostStatus !== undefined
+          ? (() => {
+              const level = hostStatusLevel(hostStatus ?? undefined)
+              const time = hostStatus ? new Date(hostStatus.checkedAt).toLocaleTimeString() : ''
+              const tip =
+                level === 'checking'
+                  ? tg('hs.checking')
+                  : level === 'offline'
+                    ? tg('hs.offline', { host: profile.host, port: profile.port || 22 })
+                    : tg('hs.online', { ms: hostStatus!.latencyMs!, time })
+              return <span className={`host-status-dot host-status-dot--${level}`} data-status={level} title={tip} aria-label={tip} />
+            })()
+          : null}
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
           {profile.tags?.length ? (
@@ -269,6 +286,7 @@ export default function SessionDockerBranch({
             </div>
           ) : null}
         </div>
+        {hostStatus?.latencyMs != null ? <span className="host-status-ms">{hostStatus.latencyMs} ms</span> : null}
         {hostExpanded ? (
           <button
             type="button"

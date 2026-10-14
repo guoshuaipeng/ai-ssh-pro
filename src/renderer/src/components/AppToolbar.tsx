@@ -9,7 +9,8 @@ import {
   toggleLightDarkTheme,
   type UiThemeId
 } from '../lib/ui-themes'
-import { useI18n } from '../lib/i18n'
+import { useI18n, type MessageKey } from '../lib/i18n'
+import { keysFor } from '@shared/keymap'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -19,9 +20,28 @@ type Props = {
   showSidebar?: boolean
   showMain?: boolean
   showAi?: boolean
-  onOpenBatch?: () => void
   onQuickConnect?: (row: RecentConnection) => void
+  /** ☑ state for toggle menu items */
+  toggles?: Partial<Record<TitlebarMenuAction, boolean>>
+  /** an SSH session is connected (ops buttons look disabled otherwise) */
+  hasSession?: boolean
+  /** app version (V1) */
+  version?: string
+  isDev?: boolean
+  /** newer version found by the update check (V2) */
+  updateVersion?: string | null
+  onOpenUpdate?: () => void
 }
+
+/** Ops group buttons (UX-04): icon, label key, needs a session */
+const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: string; label: MessageKey; title: MessageKey; needsSession: boolean }> = [
+  { id: 'resourceMonitor', icon: '📊', label: 'toolbar.monitor', title: 'toolbar.monitorTitle', needsSession: true },
+  { id: 'serverTools', icon: '🧰', label: 'toolbar.toolbox', title: 'toolbar.toolboxTitle', needsSession: true },
+  { id: 'sftp', icon: '📁', label: 'toolbar.sftp', title: 'toolbar.sftpTitle', needsSession: true },
+  { id: 'portForward', icon: '🔀', label: 'toolbar.forward', title: 'toolbar.forwardTitle', needsSession: true },
+  { id: 'batchExec', icon: '⚡', label: 'toolbar.batch', title: 'toolbar.batchTitle', needsSession: true },
+  { id: 'snippets', icon: '📋', label: 'toolbar.snippets', title: 'toolbar.snippetsTitle', needsSession: false }
+]
 
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
   if (kind === 'sidebar') {
@@ -48,66 +68,7 @@ function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
   )
 }
 
-function UpdateIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-      <path
-        d="M8 2.5v7.2M5.2 7.2 8 10l2.8-2.8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.35"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M3 11.5v1.2A1.3 1.3 0 0 0 4.3 14h7.4A1.3 1.3 0 0 0 13 12.7v-1.2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.35"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function GithubIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-      <path
-        fill="currentColor"
-        d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 3.58c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
-      />
-    </svg>
-  )
-}
-
-/** 当前是深色时显示太阳（点一下切浅色）；浅色时显示月亮 */
-function ThemeToggleIcon({ light }: { light: boolean }) {
-  if (light) {
-    return (
-      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-        <path
-          fill="currentColor"
-          d="M6.05 1.6a.75.75 0 0 1 .9-.1 5.5 5.5 0 1 0 7.55 7.55.75.75 0 0 1 1.05.9A7 7 0 1 1 5.15 1.5a.75.75 0 0 1 .9.1z"
-        />
-      </svg>
-    )
-  }
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-      <circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.35" />
-      <path
-        d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.35"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-/** 合并标题栏：品牌 + 菜单 + 更新/GitHub/主题 + 布局开关 */
+/** 标题栏：品牌+版本 + 菜单 ｜ 新建/最近 ｜ 运维工具 ｜ 搜索/更多 ｜ 布局开关（UX-04） */
 export default function AppToolbar({
   onMenuAction,
   onToggleSidebar,
@@ -116,31 +77,22 @@ export default function AppToolbar({
   showSidebar = true,
   showMain = true,
   showAi = true,
-  onOpenBatch,
-  onQuickConnect
+  onQuickConnect,
+  toggles,
+  hasSession = false,
+  version = '',
+  isDev = false,
+  updateVersion,
+  onOpenUpdate
 }: Props) {
   const { t, locale, setLocale } = useI18n()
-  const [version, setVersion] = useState('')
-  const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [recentOpen, setRecentOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const recentRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLDivElement>(null)
   const [themeId, setThemeId] = useState<UiThemeId>(() => loadUiThemeId())
   const lightMode = isLightUiTheme(themeId)
-
-  useEffect(() => {
-    let cancelled = false
-    void window.aiss.app
-      .getVersion()
-      .then((v) => {
-        if (!cancelled) setVersion(v)
-      })
-      .catch(() => {
-        /* ignore */
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const versionText = version ? `v${version}${isDev ? '-dev' : ''}` : ''
 
   useEffect(() => {
     const onTheme = (e: Event) => {
@@ -152,12 +104,17 @@ export default function AppToolbar({
   }, [])
 
   useEffect(() => {
-    if (!recentOpen) return
+    if (!recentOpen && !moreOpen) return
     const onDoc = (e: MouseEvent) => {
-      if (!recentRef.current?.contains(e.target as Node)) setRecentOpen(false)
+      const n = e.target as Node
+      if (!recentRef.current?.contains(n)) setRecentOpen(false)
+      if (!moreRef.current?.contains(n)) setMoreOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setRecentOpen(false)
+      if (e.key === 'Escape') {
+        setRecentOpen(false)
+        setMoreOpen(false)
+      }
     }
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
@@ -165,194 +122,149 @@ export default function AppToolbar({
       document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onKey)
     }
-  }, [recentOpen])
-
-  const onOpenGithub = useCallback(() => {
-    void window.aiss.app.openGithub().catch((e) => {
-      window.alert(e instanceof Error ? e.message : String(e))
-    })
-  }, [])
+  }, [recentOpen, moreOpen])
 
   const onToggleTheme = useCallback(() => {
     setThemeId(toggleLightDarkTheme(themeId))
   }, [themeId])
 
-  const onCheckUpdate = useCallback(async () => {
-    if (checkingUpdate) return
-    setCheckingUpdate(true)
-    try {
-      const result = await window.aiss.app.checkUpdate()
-      if (result.status === 'available') {
-        const openDownload = window.confirm(t('update.available', { message: result.message }))
-        if (openDownload) {
-          const url = result.downloadUrl || result.releaseUrl
-          if (url) await window.aiss.app.openExternal(url)
-        }
-        return
-      }
-      if (result.status === 'noRelease') {
-        const openRepo = window.confirm(t('update.noRelease', { message: result.message }))
-        if (openRepo && result.releaseUrl) await window.aiss.app.openExternal(result.releaseUrl)
-        return
-      }
-      if (result.status === 'error') {
-        const openRepo = window.confirm(t('update.failed', { message: result.message }))
-        if (openRepo) await window.aiss.app.openGithub()
-        return
-      }
-      window.alert(result.message)
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : String(e))
-    } finally {
-      setCheckingUpdate(false)
-    }
-  }, [checkingUpdate, t])
+  const more = (fn: () => void) => () => {
+    setMoreOpen(false)
+    fn()
+  }
 
   return (
     <header className="app-titlebar">
       <div className="app-titlebar-drag">
         <span className="app-toolbar-brand">AI-SSH-Pro</span>
-        <TitlebarMenus onAction={onMenuAction} />
+        {versionText ? (
+          <button
+            type="button"
+            className="app-toolbar-version"
+            data-testid="titlebar-version"
+            title={t('ver.tooltip', { version: versionText.slice(1) })}
+            onClick={() => onMenuAction('whatsNew')}
+          >
+            {versionText}
+          </button>
+        ) : null}
+        {updateVersion ? (
+          <button type="button" className="app-toolbar-update-badge" data-testid="update-badge" onClick={onOpenUpdate}>
+            <span className="app-toolbar-update-dot" aria-hidden />
+            {t('upd.badge', { version: updateVersion })}
+          </button>
+        ) : null}
+        <TitlebarMenus onAction={onMenuAction} toggles={toggles} />
       </div>
       <div className="app-titlebar-spacer" />
       <div className="app-titlebar-corner" role="group" aria-label={t('toolbar.appActions')}>
-        {onOpenBatch ? (
+        <div className="toolbar-group" role="group" aria-label={t('toolbar.groupConnect')}>
           <button
             type="button"
-            className="titlebar-icon-btn"
-            title={t('toolbar.batchTitle')}
-            aria-label={t('toolbar.batchTitle')}
-            onClick={onOpenBatch}
+            className="titlebar-icon-btn titlebar-tool-btn"
+            data-tool="connection"
+            title={`${t('toolbar.newConn')} (${keysFor('connection') ?? ''})`}
+            aria-label={t('toolbar.newConn')}
+            onClick={() => onMenuAction('connection')}
           >
-            <span>{t('toolbar.batch')}</span>
+            <span aria-hidden>+</span> <span className="tb-label">{t('toolbar.newConn')}</span>
           </button>
-        ) : null}
-        <button
-          type="button"
-          className="titlebar-icon-btn titlebar-tool-btn"
-          data-tool="resourceMonitor"
-          title={t('toolbar.monitorTitle')}
-          aria-label={t('toolbar.monitorTitle')}
-          onClick={() => onMenuAction('resourceMonitor')}
-        >
-          <span aria-hidden>📊</span> <span>{t('toolbar.monitor')}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn titlebar-tool-btn"
-          data-tool="serverTools"
-          title={t('toolbar.toolboxTitle')}
-          aria-label={t('toolbar.toolboxTitle')}
-          onClick={() => onMenuAction('serverTools')}
-        >
-          <span aria-hidden>🧰</span> <span>{t('toolbar.toolbox')}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn titlebar-tool-btn"
-          data-tool="portForward"
-          title={t('toolbar.forwardTitle')}
-          aria-label={t('toolbar.forwardTitle')}
-          onClick={() => onMenuAction('portForward')}
-        >
-          <span aria-hidden>🔀</span> <span>{t('toolbar.forward')}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn titlebar-tool-btn"
-          data-tool="snippets"
-          title={t('toolbar.snippetsTitle')}
-          aria-label={t('toolbar.snippetsTitle')}
-          onClick={() => onMenuAction('snippets')}
-        >
-          <span aria-hidden>📋</span> <span>{t('toolbar.snippets')}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn titlebar-tool-btn"
-          data-tool="backup"
-          title={t('toolbar.backupTitle')}
-          aria-label={t('toolbar.backupTitle')}
-          onClick={() => onMenuAction('backup')}
-        >
-          <span aria-hidden>🔐</span> <span>{t('toolbar.backup')}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn titlebar-tool-btn"
-          data-tool="commandPalette"
-          title={t('toolbar.paletteTitle')}
-          aria-label={t('toolbar.paletteTitle')}
-          onClick={() => onMenuAction('commandPalette')}
-        >
-          <span aria-hidden>⌘</span> <span>{t('toolbar.palette')}</span>
-        </button>
-        {onQuickConnect ? (
-          <div className="titlebar-popover-wrap" ref={recentRef}>
+          {onQuickConnect ? (
+            <div className="titlebar-popover-wrap" ref={recentRef}>
+              <button
+                type="button"
+                className="titlebar-icon-btn"
+                data-tool="recent"
+                title={t('toolbar.recentTitle')}
+                aria-label={t('toolbar.recentTitle')}
+                aria-expanded={recentOpen}
+                onClick={() => setRecentOpen((v) => !v)}
+              >
+                <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden>▾</span>
+              </button>
+              {recentOpen ? (
+                <div className="titlebar-popover">
+                  <RecentConnections
+                    variant="menu"
+                    onQuickConnect={(row) => {
+                      setRecentOpen(false)
+                      onQuickConnect(row)
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <span className="toolbar-divider" aria-hidden />
+        <div className="toolbar-group" role="group" aria-label={t('toolbar.groupOps')}>
+          {OPS_BUTTONS.map((b) => {
+            const dim = b.needsSession && !hasSession
+            const keys = keysFor(b.id)
+            const title = dim ? t('toolbar.needSession') : `${t(b.title)}${keys ? ` (${keys})` : ''}`
+            return (
+              <button
+                key={b.id}
+                type="button"
+                className={`titlebar-icon-btn titlebar-tool-btn${dim ? ' is-dim' : ''}`}
+                data-tool={b.id}
+                aria-disabled={dim || undefined}
+                title={title}
+                aria-label={t(b.title)}
+                onClick={() => onMenuAction(b.id)}
+              >
+                <span aria-hidden>{b.icon}</span> <span className="tb-label">{t(b.label)}</span>
+              </button>
+            )
+          })}
+        </div>
+        <span className="toolbar-divider" aria-hidden />
+        <div className="toolbar-group" role="group">
+          <button
+            type="button"
+            className="titlebar-icon-btn titlebar-tool-btn titlebar-search-btn"
+            data-tool="commandPalette"
+            title={t('toolbar.paletteTitle')}
+            aria-label={t('toolbar.paletteTitle')}
+            onClick={() => onMenuAction('commandPalette')}
+          >
+            <span aria-hidden>🔍</span> <span className="tb-label">{t('toolbar.searchFeatures')}</span>
+            <kbd className="tb-label">Ctrl+K</kbd>
+          </button>
+          <div className="titlebar-popover-wrap" ref={moreRef}>
             <button
               type="button"
               className="titlebar-icon-btn"
-              title={t('toolbar.recentTitle')}
-              aria-label={t('toolbar.recentTitle')}
-              aria-expanded={recentOpen}
-              onClick={() => setRecentOpen((v) => !v)}
+              data-tool="more"
+              title={t('toolbar.more')}
+              aria-label={t('toolbar.more')}
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((v) => !v)}
             >
-              <span>{t('toolbar.recent')}</span>
+              <span aria-hidden>⋯</span> <span className="tb-label">{t('toolbar.more')}</span> <span aria-hidden>▾</span>
             </button>
-            {recentOpen ? (
-              <div className="titlebar-popover">
-                <RecentConnections
-                  variant="menu"
-                  onQuickConnect={(row) => {
-                    setRecentOpen(false)
-                    onQuickConnect(row)
-                  }}
-                />
+            {moreOpen ? (
+              <div className="titlebar-popover titlebar-more-menu" role="menu" data-testid="toolbar-more">
+                <button type="button" role="menuitem" onClick={more(() => onMenuAction('backup'))}>
+                  {t('menu.backup')}
+                </button>
+                <button type="button" role="menuitem" onClick={more(() => onMenuAction('checkUpdate'))}>
+                  {t('toolbar.checkUpdateEllipsis')}
+                </button>
+                <button type="button" role="menuitem" onClick={more(() => setLocale(locale === 'en' ? 'zh-CN' : 'en'))}>
+                  {t('toolbar.language')}: {locale === 'en' ? '中文' : 'English'}
+                </button>
+                <button type="button" role="menuitem" onClick={more(onToggleTheme)}>
+                  {t('toolbar.theme')}: {lightMode ? t('toolbar.toDark') : t('toolbar.toLight')}
+                </button>
+                <button type="button" role="menuitem" onClick={more(() => onMenuAction('github'))}>
+                  GitHub
+                </button>
               </div>
             ) : null}
           </div>
-        ) : null}
-        <button
-          type="button"
-          className="titlebar-icon-btn titlebar-locale-btn"
-          title={t('toolbar.localeTitle', { locale: locale === 'en' ? 'English' : '简体中文' })}
-          aria-label={t('toolbar.localeTitle', { locale: locale === 'en' ? 'English' : '简体中文' })}
-          onClick={() => setLocale(locale === 'en' ? 'zh-CN' : 'en')}
-        >
-          <span>{locale === 'en' ? 'EN' : '中文'}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn"
-          title={version ? t('toolbar.checkUpdate', { version }) : t('toolbar.checkUpdatePlain')}
-          aria-label={t('toolbar.checkUpdatePlain')}
-          disabled={checkingUpdate}
-          onClick={() => void onCheckUpdate()}
-        >
-          <UpdateIcon />
-          <span>{checkingUpdate ? t('toolbar.checking') : t('toolbar.update')}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn"
-          title={t('toolbar.openGithub')}
-          aria-label={t('toolbar.github')}
-          onClick={onOpenGithub}
-        >
-          <GithubIcon />
-          <span>{t('toolbar.github')}</span>
-        </button>
-        <button
-          type="button"
-          className="titlebar-icon-btn"
-          title={lightMode ? t('toolbar.toDark') : t('toolbar.toLight')}
-          aria-label={lightMode ? t('toolbar.toDark') : t('toolbar.toLight')}
-          aria-pressed={lightMode}
-          onClick={onToggleTheme}
-        >
-          <ThemeToggleIcon light={lightMode} />
-          <span>{lightMode ? t('toolbar.dark') : t('toolbar.light')}</span>
-        </button>
+        </div>
+        <span className="toolbar-divider" aria-hidden />
         <div className="app-toolbar-layout" role="group" aria-label={t('toolbar.layout')}>
           {onToggleSidebar ? (
             <button

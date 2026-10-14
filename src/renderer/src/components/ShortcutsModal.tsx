@@ -1,4 +1,5 @@
-import { SHORTCUTS, type ShortcutGroup } from '@shared/workspace-features'
+import type { ShortcutGroup } from '@shared/workspace-features'
+import { KEYMAP } from '@shared/keymap'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import Modal from './Modal'
 
@@ -7,7 +8,7 @@ type Props = { open: boolean; onClose: () => void }
 const GROUPS: ShortcutGroup[] = ['general', 'session', 'terminal', 'view']
 
 export default function ShortcutsModal({ open, onClose }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   return (
     <Modal open={open} title={t('shortcuts.title')} onClose={onClose} width={520}>
       <div className="shortcuts-panel">
@@ -16,9 +17,9 @@ export default function ShortcutsModal({ open, onClose }: Props) {
             <h3 className="modal-section-title">{t(`shortcuts.group.${g}` as MessageKey)}</h3>
             <table className="shortcuts-table">
               <tbody>
-                {SHORTCUTS.filter((s) => s.group === g).map((s) => (
+                {KEYMAP.filter((s) => s.group === g).map((s) => (
                   <tr key={s.id}>
-                    <td>{t(`shortcuts.item.${s.id}` as MessageKey)}</td>
+                    <td>{locale === 'zh-CN' ? s.label.zh : s.label.en}</td>
                     <td>
                       {s.keys.split('+').map((k, i) => (
                         <span key={i}>

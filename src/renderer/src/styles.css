@@ -3763,3 +3763,129 @@ body.split-resizing {
   font-size: 12px;
   opacity: 0.9;
 }
+
+/* ---------- v0.3.12: version label, update badge, grouped toolbar (V1/V2/UX-04) ---------- */
+.app-toolbar-version {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  padding: 0 4px;
+  margin-right: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.app-toolbar-version:hover { color: var(--accent); text-decoration: underline; }
+.app-toolbar-update-badge {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 8px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+}
+.app-toolbar-update-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.toolbar-group { display: inline-flex; align-items: center; gap: 2px; }
+.toolbar-divider { width: 1px; height: 18px; background: var(--border); margin: 0 6px; }
+.titlebar-tool-btn.is-dim { opacity: 0.45; }
+.titlebar-tool-btn.is-dim:hover { opacity: 0.75; }
+.titlebar-search-btn kbd { font-size: 10px; opacity: 0.7; margin-left: 4px; }
+.titlebar-more-menu { right: 0; left: auto; min-width: 200px; display: flex; flex-direction: column; padding: 4px; }
+.titlebar-more-menu button {
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.titlebar-more-menu button:hover { background: var(--border); }
+@media (max-width: 1100px) {
+  .app-titlebar-corner .tb-label { display: none; }
+}
+.titlebar-menu-check { display: inline-block; width: 16px; opacity: 0.85; }
+
+/* toast (non-blocking notifications) */
+.toast-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+  max-width: 420px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--panel, #161b22);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  font-size: 12.5px;
+}
+.toast--error { border-color: var(--danger); }
+.toast button { margin-left: auto; background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+
+/* terminal find bar (Ctrl+Shift+F) */
+.terminal-pane-wrap { position: relative; }
+.terminal-find-bar {
+  position: absolute;
+  top: 6px;
+  right: 18px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--panel, #161b22);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.terminal-find-bar input { width: 220px; font-size: 12px; padding: 3px 6px; }
+.terminal-find-bar input.is-miss { border-color: var(--danger); }
+.terminal-find-bar button { background: none; border: none; color: inherit; cursor: pointer; padding: 2px 6px; }
+.terminal-find-status { font-size: 11px; color: var(--danger); min-width: 0; }
+
+/* host status (H2) */
+.host-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  box-sizing: border-box;
+}
+.host-status-dot--online { background: #3fb950; }
+.host-status-dot--slow { background: #d29922; }
+.host-status-dot--offline { background: #6e7681; }
+.host-status-dot--checking { border: 1.5px solid var(--muted); background: transparent; }
+.host-status-ms { flex: none; font-size: 10.5px; color: var(--muted); margin-left: 6px; }
+
+/* host context menu (H1) */
+.session-context-menu-item { display: flex; justify-content: space-between; gap: 16px; }
+.session-context-menu-hint { opacity: 0.55; font-size: 11px; }
+.sidebar-scroll:focus { outline: none; }
+
+/* update dialog + what's new (V2/V3) */
+.update-modal-actions { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
+.update-modal ul { margin: 0; padding-left: 18px; line-height: 1.7; font-size: 13px; }
+.wn-icon { font-size: 18px; width: 24px; text-align: center; }
+.wn-where { font-size: 12px; color: var(--muted); background: none; border: none; padding: 0; text-align: left; }
+.wn-where--link { color: var(--accent); cursor: pointer; }
+.wn-where--link:hover { text-decoration: underline; }
+.wn-noauto { display: inline-flex; align-items: center; gap: 6px; }
+.wn-foot { width: 100%; }

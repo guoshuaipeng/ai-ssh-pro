@@ -41,13 +41,20 @@ import BatchExecuteModal, { type BatchSessionOption } from './components/BatchEx
 import PortForwardModal from './components/PortForwardModal'
 import ResourceMonitorModal from './components/ResourceMonitorModal'
 import CommandPalette from './components/CommandPalette'
-import WhatsNewModal from './components/WhatsNewModal'
+import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
+import UpdateModal from './components/UpdateModal'
+import { ToastHost, showToast } from './lib/toast'
+import { isSkipped, markChecked, shouldAutoCheck, skipVersion } from './lib/update-check'
+import { requestTerminalFind } from './lib/terminal-find'
+import { matchKeymap } from '@shared/keymap'
+import { changelogFor } from '@shared/changelog'
+import { HOST_PROBE_INTERVAL_MS, type HostProbeResult } from '@shared/host-status'
 import BackupModal from './components/BackupModal'
 import ServerToolsModal from './components/ServerToolsModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
-import { askText, DialogHost } from './lib/dialogs'
+import { askConfirm, askText, DialogHost } from './lib/dialogs'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
 import { normalizeTags } from '@shared/workspace-features'
@@ -155,7 +162,7 @@ function uuid(): string {
 }
 
 export default function App() {
-  const { t: tr } = useI18n()
+  const { t: tr, locale, setLocale } = useI18n()
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
@@ -220,7 +227,10 @@ export default function App() {
     x: number
     y: number
     profile: SavedSessionProfile
+    /** profile ids when the menu was opened on a multi-selection (H1) */
+    multi?: string[]
   } | null>(null)
+  const [batchPreselect, setBatchPreselect] = useState<string[] | undefined>(undefined)
   const [inventoryLink, setInventoryLink] = useState<HostInventoryLink | undefined>(undefined)
   const sessionMenuRef = useRef<HTMLDivElement>(null)
   const [folderMenu, setFolderMenu] = useState<{
@@ -265,13 +275,6 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.ctrlKey || e.altKey || e.metaKey) return
-      if (e.shiftKey && (e.key === 'T' || e.key === 't')) {
-        setServerToolsSession(null)
-        setServerToolsOpen(true)
-        e.preventDefault()
-        e.stopPropagation()
-        return
-      }
       const list = tabsRef.current
       if (!list.length) return
       let target: string | undefined
@@ -313,16 +316,6 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
     }
   }, [tabMenu])
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        e.preventDefault()
-        setShortcutsOpen((v) => !v)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
   const [batchOpen, setBatchOpen] = useState(false)
   const [portForwardOpen, setPortForwardOpen] = useState(false)
   const [resourceOpen, setResourceOpen] = useState(false)
@@ -337,11 +330,53 @@ export default function App() {
       .then((v) => {
         setAppVersion(v)
         const last = localStorage.getItem('aiss.lastSeenVersion')
-        if (last && last !== v) setWhatsNewOpen(true)
+        const auto = localStorage.getItem(WHATS_NEW_AUTO_KEY) !== '0'
+        if (last && last !== v && auto && changelogFor(v).length) setWhatsNewOpen(true)
         localStorage.setItem('aiss.lastSeenVersion', v)
       })
       .catch(() => {})
   }, [])
+  // V2: update check (silent once a day 10 s after start; manual from Help / More)
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string; notes?: string } | null>(null)
+  const [updateModalOpen, setUpdateModalOpen] = useState(false)
+  const checkingUpdateRef = useRef(false)
+  const runUpdateCheck = useCallback(async (manual: boolean) => {
+    if (checkingUpdateRef.current) return
+    checkingUpdateRef.current = true
+    if (manual) showToast(tg('upd.checking'))
+    try {
+      const r = await window.aiss.app.checkUpdate()
+      markChecked()
+      if (r.status === 'available' && r.latestVersion) {
+        const info = { version: r.latestVersion, url: r.downloadUrl || r.releaseUrl || '', notes: r.notes }
+        if (!manual && isSkipped(r.latestVersion)) return
+        setUpdateInfo(info)
+        if (manual) setUpdateModalOpen(true)
+        return
+      }
+      if (!manual) return
+      if (r.status === 'error') {
+        showToast(tg('upd.failed'), { kind: 'error', action: { label: tg('upd.retry'), run: () => void runUpdateCheck(true) } })
+      } else {
+        showToast(tg('upd.upToDate', { version: r.currentVersion }))
+      }
+    } catch {
+      if (manual) showToast(tg('upd.failed'), { kind: 'error', action: { label: tg('upd.retry'), run: () => void runUpdateCheck(true) } })
+    } finally {
+      checkingUpdateRef.current = false
+    }
+  }, [])
+  useEffect(() => {
+    if (!shouldAutoCheck()) return
+    const id = window.setTimeout(() => void runUpdateCheck(false), 10_000)
+    return () => window.clearTimeout(id)
+  }, [runUpdateCheck])
+  // H2: host online status
+  const [showHostStatus, setShowHostStatus] = useState(() => localStorage.getItem('aiss.showHostStatus') !== '0')
+  const [hostStatus, setHostStatus] = useState<Record<string, HostProbeResult>>({})
+  // H1: multi-select in the sidebar (Ctrl/Shift+click)
+  const [multiSelected, setMultiSelected] = useState<string[]>([])
+  const lastClickedProfileRef = useRef<string | null>(null)
   const [backupOpen, setBackupOpen] = useState(false)
   const [serverToolsOpen, setServerToolsOpen] = useState(false)
   const [serverToolsSession, setServerToolsSession] = useState<string | null>(null)
@@ -935,11 +970,12 @@ export default function App() {
     [ensureMainVisible, tabs]
   )
 
-  const openSftpTransfer = useCallback(() => {
+  const openSftpTransfer = useCallback((forSessionId?: string) => {
     ensureMainVisible()
+    const tabs = tabsRef.current
     const sshTab = tabs.find(
       (t) =>
-        t.tabId === activeTabId &&
+        (forSessionId ? t.sessionId === forSessionId : t.tabId === activeTabId) &&
         (!t.view || t.view === 'session') &&
         t.kind !== 'local' &&
         t.status === 'connected' &&
@@ -1544,12 +1580,55 @@ export default function App() {
     [connectProfile, openConnectionEditor, profiles]
   )
 
+  /** "Connect": focus an open tab for this host, otherwise connect (H1). */
+  const openOrFocusProfile = useCallback(
+    (p: SavedSessionProfile) => {
+      const live = tabsRef.current.find((x) => x.profileId === p.id && x.status !== 'disconnected' && (!x.view || x.view === 'session'))
+      if (live) {
+        setActiveTabId(live.tabId)
+        return
+      }
+      void connectProfile(p)
+    },
+    [connectProfile]
+  )
+  const renameProfile = useCallback(
+    async (p: SavedSessionProfile) => {
+      setSessionMenu(null)
+      const next = await askText(tg('ctx.renameTitle'), p.label?.trim() || `${p.username}@${p.host}`)
+      if (next == null || !next.trim()) return
+      void persistSessionState({ folders, profiles: profiles.map((x) => (x.id === p.id ? { ...x, label: next.trim() } : x)) })
+    },
+    [folders, persistSessionState, profiles]
+  )
+  const onSidebarKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const p = profiles.find((x) => x.id === selectedProfileId)
+      if (!p) return
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        openOrFocusProfile(p)
+      } else if (e.key === 'F2') {
+        e.preventDefault()
+        void renameProfile(p)
+      } else if (e.key === 'Delete') {
+        e.preventDefault()
+        void deleteProfilesRef.current(multiSelected.length >= 2 ? multiSelected : [p.id])
+      }
+    },
+    [profiles, selectedProfileId, openOrFocusProfile, renameProfile, multiSelected]
+  )
+  const deleteProfilesRef = useRef<(ids: string[]) => Promise<void>>(async () => undefined)
+
   const renderProfileBranch = (p: SavedSessionProfile, inFolder?: boolean) => (
     <SessionDockerBranch
       key={p.id}
       profile={p}
-      selected={highlightedProfileId === p.id}
+      selected={highlightedProfileId === p.id || multiSelected.includes(p.id)}
       inFolder={inFolder}
+      hostStatus={showHostStatus ? (hostStatus[p.id] ?? null) : undefined}
       searchQuery={sessionSearch}
       hostExpanded={Boolean(expandedHosts[p.id])}
       composeExpanded={expandedDockerGroups[`${p.id}:compose`] === true}
@@ -1560,12 +1639,32 @@ export default function App() {
       }
       isSwarmNodeExpanded={(key) => expandedDockerGroups[`${p.id}:sw:${key}`] === true}
       tree={dockerTreeByProfileId[p.id]}
-      onSelect={() => setSelectedProfileId(p.id)}
-      onConnect={() => connectProfile(p)}
+      onSelect={(e) => {
+        if (e.ctrlKey || e.metaKey) {
+          setMultiSelected((prev) => {
+            const base = prev.length ? prev : selectedProfileId ? [selectedProfileId] : []
+            return base.includes(p.id) ? base.filter((x) => x !== p.id) : [...base, p.id]
+          })
+        } else if (e.shiftKey && lastClickedProfileRef.current) {
+          const ids = profiles.map((x) => x.id)
+          const a = ids.indexOf(lastClickedProfileRef.current)
+          const b = ids.indexOf(p.id)
+          if (a >= 0 && b >= 0) setMultiSelected(ids.slice(Math.min(a, b), Math.max(a, b) + 1))
+        } else {
+          setMultiSelected([])
+        }
+        if (!e.shiftKey) lastClickedProfileRef.current = p.id
+        setSelectedProfileId(p.id)
+      }}
+      onConnect={() => openOrFocusProfile(p)}
       onContextMenu={(e) => {
         e.preventDefault()
-        setSelectedProfileId(p.id)
-        setSessionMenu({ x: e.clientX, y: e.clientY, profile: p })
+        const multi = multiSelected.length >= 2 && multiSelected.includes(p.id) ? multiSelected : undefined
+        if (!multi) {
+          setMultiSelected([])
+          setSelectedProfileId(p.id)
+        }
+        setSessionMenu({ x: e.clientX, y: e.clientY, profile: p, multi })
       }}
       onToggleHost={() => toggleHostExpanded(p)}
       onToggleCompose={() =>
@@ -1769,9 +1868,10 @@ export default function App() {
   )
 
   const moveProfileToFolder = useCallback(
-    (profileId: string, targetFolderId: string | undefined) => {
+    (profileId: string | string[], targetFolderId: string | undefined) => {
+      const ids = new Set(Array.isArray(profileId) ? profileId : [profileId])
       const next = profiles.map((p) => {
-        if (p.id !== profileId) return p
+        if (!ids.has(p.id)) return p
         if (!targetFolderId) {
           const { folderId: _omit, ...rest } = p
           return rest as SavedSessionProfile
@@ -1822,120 +1922,10 @@ export default function App() {
     }
   }, [folders, persistSessionState, profiles])
 
+  // main-process menu clicks use the same handler as the titlebar menus (UX-03)
   useEffect(() => {
-    return window.aiss.app.onOpenDialog((kind) => {
-      if (kind === 'newFolder') {
-        addFolder()
-        return
-      }
-      if (kind === 'importSessions') {
-        void importSessionsPick()
-        return
-      }
-      if (kind === 'exportJson' || kind === 'exportOpenssh') {
-        const format = kind === 'exportJson' ? 'json' : 'openssh'
-        void (async () => {
-          try {
-            await exportSessionsAndCopy(format)
-            setSideInfo(tg('exp.copied', { format }))
-          } catch (e) {
-            setError(e instanceof Error ? e.message : String(e))
-          }
-        })()
-        return
-      }
-      if (kind === 'toggleSidebar') {
-        toggleSidebar()
-        return
-      }
-      if (kind === 'toggleMain') {
-        toggleMain()
-        return
-      }
-      if (kind === 'toggleAi') {
-        toggleAi()
-        return
-      }
-      if (kind === 'localShell') {
-        void openLocalShell()
-        return
-      }
-      if (kind === 'sftp') {
-        openSftpTransfer()
-        return
-      }
-      if (kind === 'refreshDocker') {
-        refreshDockerForActiveHost()
-        return
-      }
-      if (kind === 'toggleSplit') {
-        setSplitEnabled((v) => {
-          if (v) setBroadcastEnabled(false)
-          return !v
-        })
-        return
-      }
-      if (kind === 'toggleBroadcast') {
-        setBroadcastEnabled((v) => !v)
-        return
-      }
-      if (kind === 'toggleRecording') {
-        if (recordingSessionId) void stopRecording()
-        else void startRecording()
-        return
-      }
-      if (kind === 'connection') {
-        openConnectionEditor()
-        return
-      }
-      if (kind === 'debug') {
-        void window.aiss.debug.openWindow()
-        return
-      }
-      if (kind === 'inventory') {
-        const t = tabs.find((x) => x.tabId === activeTabId) ?? null
-        const sessionTab = t && (!t.view || t.view === 'session') ? t : null
-        openInventoryEditor(
-          sessionTab
-            ? {
-                profileId: sessionTab.profileId,
-                host: sessionTab.connectOpts.host,
-                port: sessionTab.connectOpts.port,
-                username: sessionTab.connectOpts.username,
-                label: sessionTab.connectOpts.label ?? sessionTab.title,
-                hostInventoryId: sessionTab.hostInventoryId
-              }
-            : undefined
-        )
-        return
-      }
-      if (kind === 'about') {
-        setAboutOpen(true)
-        return
-      }
-      if (kind === 'ai' || kind === 'terminalPrefs' || kind === 'uiTheme' || kind === 'snippets' || kind === 'mcpGuide') {
-        openSettingsTab(kind)
-        return
-      }
-    })
-  }, [
-    activeTabId,
-    tabs,
-    addFolder,
-    importSessionsPick,
-    toggleSidebar,
-    toggleMain,
-    toggleAi,
-    openLocalShell,
-    openConnectionEditor,
-    openInventoryEditor,
-    openSftpTransfer,
-    openSettingsTab,
-    refreshDockerForActiveHost,
-    recordingSessionId,
-    startRecording,
-    stopRecording
-  ])
+    return window.aiss.app.onOpenDialog((kind) => handleTitlebarMenuActionRef.current(kind))
+  }, [])
 
   useEffect(() => {
     if (!sideInfo) return
@@ -2048,12 +2038,12 @@ export default function App() {
         try {
           const d = window.aiss?.debug
           if (!d?.openWindow) {
-            window.alert(tg('app.debugMissing'))
+            showToast(tg('app.debugMissing'), { kind: 'error' })
             return
           }
           void d.openWindow()
         } catch (e) {
-          window.alert(e instanceof Error ? e.message : String(e))
+          showToast(e instanceof Error ? e.message : String(e), { kind: 'error' })
         }
         return
       }
@@ -2112,6 +2102,47 @@ export default function App() {
         setServerToolsOpen(true)
         return
       }
+      if (action === 'settings') {
+        openSettingsTab('terminalPrefs')
+        return
+      }
+      if (action === 'find') {
+        requestTerminalFind()
+        return
+      }
+      if (action === 'toggleLanguage') {
+        setLocale(locale === 'en' ? 'zh-CN' : 'en')
+        return
+      }
+      if (action === 'toggleHostStatus') {
+        setShowHostStatus((v) => {
+          localStorage.setItem('aiss.showHostStatus', v ? '0' : '1')
+          return !v
+        })
+        return
+      }
+      if (action === 'openAi') {
+        if (!layout.showAi) toggleAi()
+        return
+      }
+      if (action === 'checkUpdate') {
+        void runUpdateCheck(true)
+        return
+      }
+      if (action === 'github') {
+        void window.aiss.app.openGithub().catch(() => undefined)
+        return
+      }
+      if (action === 'reconnect' || action === 'duplicateSession') {
+        const tab = tabs.find((x) => x.tabId === activeTabId)
+        if (!tab || (tab.view && tab.view !== 'session') || tab.kind === 'local') {
+          showToast(tg('toolbar.needSession'))
+          return
+        }
+        if (action === 'reconnect') void reconnectTab(tab.tabId)
+        else void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
+        return
+      }
       if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets' || action === 'mcpGuide') {
         openSettingsTab(action)
       }
@@ -2132,9 +2163,17 @@ export default function App() {
       startRecording,
       stopRecording,
       tabs,
-      activeTabId
+      activeTabId,
+      locale,
+      setLocale,
+      layout.showAi,
+      runUpdateCheck,
+      reconnectTab,
+      openSession
     ]
   )
+  const handleTitlebarMenuActionRef = useRef(handleTitlebarMenuAction)
+  handleTitlebarMenuActionRef.current = handleTitlebarMenuAction
 
   const openMonitorForSession = useCallback((sid: string | null) => {
     setResourceTarget(sid)
@@ -2152,33 +2191,109 @@ export default function App() {
     },
     [tabs, connectProfile, openMonitorForSession]
   )
+
+  /** H1: reuse a connected tab for this host or connect first; failure shows a toast with Retry. */
+  const ensureProfileSession = useCallback(
+    async (p: SavedSessionProfile): Promise<string | null> => {
+      const live = tabsRef.current.find(
+        (x) => x.profileId === p.id && x.status === 'connected' && x.sessionId && (!x.view || x.view === 'session')
+      )
+      if (live) return live.sessionId
+      const sid = await connectProfile(p)
+      if (!sid) return null
+      await new Promise((r) => window.setTimeout(r, 30))
+      return sid
+    },
+    [connectProfile]
+  )
+  const runForProfile = useCallback(
+    (p: SavedSessionProfile, open: (sid: string) => void) => {
+      setSessionMenu(null)
+      void (async () => {
+        const sid = await ensureProfileSession(p)
+        if (sid) {
+          open(sid)
+          return
+        }
+        showToast(tg('ctx.connectFailed', { reason: tg('ctx.seeError') }), {
+          kind: 'error',
+          action: { label: tg('upd.retry'), run: () => runForProfile(p, open) }
+        })
+      })()
+    },
+    [ensureProfileSession]
+  )
+  const deleteProfilesFn = useCallback(
+    async (ids: string[]) => {
+      setSessionMenu(null)
+      if (!ids.length) return
+      const first = profiles.find((x) => x.id === ids[0])
+      const name = first ? first.label?.trim() || `${first.username}@${first.host}` : ''
+      const ok = await askConfirm(
+        ids.length > 1 ? tg('ctx.deleteManyTitle', { n: ids.length }) : tg('ctx.deleteOneTitle', { name }),
+        tg('ctx.deleteIrreversible'),
+        { danger: true, okLabel: ids.length > 1 ? tg('ctx.deleteMany', { n: ids.length }) : tg('app.delete') }
+      )
+      if (!ok) return
+      const drop = new Set(ids)
+      void persistSessionState({ folders, profiles: profiles.filter((x) => !drop.has(x.id)) })
+      setMultiSelected([])
+    },
+    [folders, persistSessionState, profiles]
+  )
+  deleteProfilesRef.current = deleteProfilesFn
+  // H2: TCP probe every 60 s while the window is visible
   useEffect(() => {
-    const map: Record<string, TitlebarMenuAction> = {
-      KeyP: 'commandPalette',
-      KeyM: 'resourceMonitor',
-      KeyO: 'portForward',
-      KeyB: 'batchExec',
-      KeyS: 'snippets'
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || e.altKey || e.metaKey) return
-      let action: TitlebarMenuAction | undefined
-      if (e.shiftKey) action = map[e.code]
-      else if (e.code === 'KeyK') {
-        // plain Ctrl+K stays with the shell (kill-line) while a terminal has focus
-        const el = document.activeElement as HTMLElement | null
-        if (el?.closest('.xterm')) return
-        action = 'commandPalette'
+    if (!showHostStatus) return
+    let cancelled = false
+    const run = async () => {
+      if (document.hidden) return
+      const targets = profilesRef.current
+        .filter((p) => p.host)
+        .map((p) =>
+          p.jumpHost?.host?.trim()
+            ? { id: p.id, host: p.jumpHost.host.trim(), port: p.jumpHost.port || 22 }
+            : { id: p.id, host: p.host, port: p.port || 22 }
+        )
+      if (!targets.length || !window.aiss.workspace.probeHosts) return
+      try {
+        const res = await window.aiss.workspace.probeHosts(targets)
+        if (cancelled) return
+        setHostStatus((prev) => {
+          const next = { ...prev }
+          for (const r of res) next[r.id] = r
+          return next
+        })
+      } catch {
+        /* status stays as it was */
       }
+    }
+    void run()
+    const id = window.setInterval(() => void run(), HOST_PROBE_INTERVAL_MS)
+    const onVis = () => {
+      if (!document.hidden) void run()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [showHostStatus, profiles.length])
+  // UX-01/UX-02: every shortcut comes from the keymap registry; plain Ctrl+letter stays with a focused terminal
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null
+      const inTerminal = Boolean(el?.closest('.xterm'))
+      const action = matchKeymap(e, inTerminal)
       if (!action) return
       e.preventDefault()
       e.stopPropagation()
-      if (action === 'batchExec') setBatchOpen(true)
-      else handleTitlebarMenuAction(action)
+      handleTitlebarMenuActionRef.current(action as TitlebarMenuAction)
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [handleTitlebarMenuAction])
+  }, [])
 
   return (
     <div className="app-root">
@@ -2190,8 +2305,21 @@ export default function App() {
         showSidebar={layout.showSidebar}
         showMain={layout.showMain}
         showAi={layout.showAi}
-        onOpenBatch={() => setBatchOpen(true)}
         onQuickConnect={quickConnectRecent}
+        hasSession={connectedSshSessions.length > 0}
+        version={appVersion}
+        isDev={import.meta.env.DEV}
+        updateVersion={updateInfo?.version ?? null}
+        onOpenUpdate={() => setUpdateModalOpen(true)}
+        toggles={{
+          toggleSidebar: layout.showSidebar,
+          toggleMain: layout.showMain,
+          toggleAi: layout.showAi,
+          toggleSplit: splitEnabled,
+          toggleHostStatus: showHostStatus,
+          toggleBroadcast: broadcastEnabled,
+          toggleRecording: Boolean(recordingSessionId)
+        }}
       />
 
       <div className="app-shell">
@@ -2202,7 +2330,7 @@ export default function App() {
                 <h3>{tr('sidebar.saved')}</h3>
                 <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} />
               </div>
-              <div className="sidebar-scroll">
+              <div className="sidebar-scroll" tabIndex={0} onKeyDown={onSidebarKeyDown}>
                 <RecentConnections onQuickConnect={quickConnectRecent} />
                 {error && activeTab?.view !== 'connection' && (
                   <div
@@ -2689,7 +2817,15 @@ export default function App() {
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-      <BatchExecuteModal open={batchOpen} sessions={connectedSshSessions} onClose={() => setBatchOpen(false)} />
+      <BatchExecuteModal
+        open={batchOpen}
+        sessions={connectedSshSessions}
+        preselect={batchPreselect}
+        onClose={() => {
+          setBatchOpen(false)
+          setBatchPreselect(undefined)
+        }}
+      />
       <PortForwardModal
         open={portForwardOpen}
         sessions={connectedSshSessions}
@@ -2724,92 +2860,45 @@ export default function App() {
         onAction={handleTitlebarMenuAction}
       />
       <BackupModal open={backupOpen} onClose={() => setBackupOpen(false)} />
+      <UpdateModal
+        open={updateModalOpen && Boolean(updateInfo)}
+        version={updateInfo?.version ?? ''}
+        notes={updateInfo?.notes}
+        onDownload={() => {
+          setUpdateModalOpen(false)
+          if (updateInfo?.url) void window.aiss.app.openExternal(updateInfo.url)
+        }}
+        onLater={() => setUpdateModalOpen(false)}
+        onSkip={() => {
+          if (updateInfo) skipVersion(updateInfo.version)
+          setUpdateModalOpen(false)
+          setUpdateInfo(null)
+        }}
+      />
       {/* last so confirm/prompt dialogs stack above any open modal */}
       <DialogHost />
+      <ToastHost />
 
-      {sessionMenu && (
-        <div
-          ref={sessionMenuRef}
-          className="session-context-menu"
-          style={{ left: sessionMenu.x, top: sessionMenu.y }}
-          role="menu"
-        >
+      {sessionMenu && (() => {
+        const p = sessionMenu.profile
+        const multi = sessionMenu.multi
+        const multiProfiles = multi ? profiles.filter((x) => multi.includes(x.id)) : []
+        const item = (key: string, label: string, onClick: () => void, opts?: { hint?: string; danger?: boolean; disabled?: boolean }) => (
           <button
+            key={key}
             type="button"
             role="menuitem"
-            className="session-context-menu-item"
-            onClick={() => {
-              connectProfile(sessionMenu.profile)
-              setSessionMenu(null)
-            }}
+            data-ctx={key}
+            className={`session-context-menu-item${opts?.danger ? ' danger' : ''}`}
+            disabled={opts?.disabled}
+            onClick={onClick}
           >
-            {tg('app.connect')}
+            <span>{label}</span>
+            {opts?.hint ? <span className="session-context-menu-hint">{opts.hint}</span> : null}
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="session-context-menu-item"
-            disabled={
-              (dockerTreeByProfileId[sessionMenu.profile.id]?.status === 'connecting' ||
-                dockerTreeByProfileId[sessionMenu.profile.id]?.status === 'loading') &&
-              !expandedHosts[sessionMenu.profile.id]
-            }
-            onClick={() => {
-              toggleHostExpanded(sessionMenu.profile)
-              setSessionMenu(null)
-            }}
-          >
-            {expandedHosts[sessionMenu.profile.id] ? tg('app.collapseDocker') : tg('app.expandDocker')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="session-context-menu-item"
-            onClick={() => {
-              openConnectionEditor(sessionMenu.profile)
-              setSessionMenu(null)
-            }}
-          >
-            {tg('app.edit')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="session-context-menu-item"
-            onClick={() => void editProfileTags(sessionMenu.profile.id)}
-          >
-            {tg('tags.edit')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="session-context-menu-item"
-            onClick={() => void monitorProfile(sessionMenu.profile)}
-          >
-            {tg('ctx.monitor')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="session-context-menu-item"
-            onClick={() => {
-              const p = sessionMenu.profile
-              openInventoryEditor({
-                profileId: p.id,
-                host: p.host,
-                port: p.port,
-                username: p.username,
-                label: p.label,
-                hostInventoryId: p.hostInventoryId
-              })
-              setSessionMenu(null)
-            }}
-          >
-            {tg('app.inventory')}
-          </button>
-          <div
-            className={`session-context-submenu-wrap${sessionMenu.x > window.innerWidth - 320 ? ' open-left' : ''}`}
-          >
+        )
+        const moveTo = (ids: string[], currentFolder?: string) => (
+          <div className={`session-context-submenu-wrap${sessionMenu.x > window.innerWidth - 320 ? ' open-left' : ''}`}>
             <button type="button" role="menuitem" className="session-context-menu-item session-context-menu-item--submenu">
               <span>{tg('app.moveTo')}</span>
               <span className="session-context-menu-caret" aria-hidden>
@@ -2821,8 +2910,8 @@ export default function App() {
                 type="button"
                 role="menuitem"
                 className="session-context-menu-item"
-                disabled={!sessionMenu.profile.folderId}
-                onClick={() => moveProfileToFolder(sessionMenu.profile.id, undefined)}
+                disabled={ids.length === 1 && !currentFolder}
+                onClick={() => moveProfileToFolder(ids, undefined)}
               >
                 {tg('app.ungrouped')}
               </button>
@@ -2835,8 +2924,8 @@ export default function App() {
                     type="button"
                     role="menuitem"
                     className="session-context-menu-item"
-                    disabled={sessionMenu.profile.folderId === f.id}
-                    onClick={() => moveProfileToFolder(sessionMenu.profile.id, f.id)}
+                    disabled={ids.length === 1 && currentFolder === f.id}
+                    onClick={() => moveProfileToFolder(ids, f.id)}
                   >
                     {f.name}
                   </button>
@@ -2844,23 +2933,99 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="session-context-menu-sep" />
-          <button
-            type="button"
-            role="menuitem"
-            className="session-context-menu-item danger"
-            onClick={() => {
-              const p = sessionMenu.profile
-              const name = p.label?.trim() || `${p.username}@${p.host}` || p.host || tg('app.thisConn')
-              if (!window.confirm(tg('app.confirmDeleteConn', { name }))) return
-              removeProfile(p.id)
-              setSessionMenu(null)
-            }}
+        )
+        if (multi) {
+          return (
+            <div
+              ref={sessionMenuRef}
+              className="session-context-menu"
+              style={{ left: sessionMenu.x, top: sessionMenu.y }}
+              role="menu"
+              data-testid="host-menu-multi"
+            >
+              {item('connectAll', tg('ctx.connectAll', { n: multi.length }), () => {
+                setSessionMenu(null)
+                for (const x of multiProfiles) openOrFocusProfile(x)
+              })}
+              {item('batch', tg('ctx.batch'), () => {
+                setSessionMenu(null)
+                void (async () => {
+                  const sids: string[] = []
+                  for (const x of multiProfiles) {
+                    const sid = await ensureProfileSession(x)
+                    if (sid) sids.push(sid)
+                  }
+                  setBatchPreselect(sids)
+                  setBatchOpen(true)
+                })()
+              })}
+              {moveTo(multi)}
+              <div className="session-context-menu-sep" />
+              {item('delete', tg('ctx.deleteMany', { n: multi.length }), () => void deleteProfilesFn(multi), { danger: true, hint: 'Del' })}
+            </div>
+          )
+        }
+        const dockerBusy =
+          (dockerTreeByProfileId[p.id]?.status === 'connecting' || dockerTreeByProfileId[p.id]?.status === 'loading') &&
+          !expandedHosts[p.id]
+        return (
+          <div
+            ref={sessionMenuRef}
+            className="session-context-menu"
+            style={{ left: sessionMenu.x, top: sessionMenu.y }}
+            role="menu"
+            data-testid="host-menu"
           >
-            {tg('app.delete')}
-          </button>
-        </div>
-      )}
+            {item('connect', tg('app.connect'), () => {
+              setSessionMenu(null)
+              openOrFocusProfile(p)
+            }, { hint: 'Enter' })}
+            {item('connectNew', tg('ctx.connectNewTab'), () => {
+              setSessionMenu(null)
+              void connectProfile(p)
+            })}
+            <div className="session-context-menu-sep" />
+            {item('sftp', tg('ctx.sftp'), () => runForProfile(p, (sid) => openSftpTransfer(sid)))}
+            {item('monitor', tg('ctx.monitor'), () => void monitorProfile(p))}
+            {item('toolbox', tg('ctx.toolbox'), () =>
+              runForProfile(p, (sid) => {
+                setServerToolsSession(sid)
+                setServerToolsOpen(true)
+              })
+            )}
+            {item('docker', expandedHosts[p.id] ? tg('app.collapseDocker') : tg('app.expandDocker'), () => {
+              toggleHostExpanded(p)
+              setSessionMenu(null)
+            }, { disabled: dockerBusy })}
+            <div className="session-context-menu-sep" />
+            {item('edit', tg('ctx.edit'), () => {
+              openConnectionEditor(p)
+              setSessionMenu(null)
+            })}
+            {item('rename', tg('ctx.rename'), () => void renameProfile(p), { hint: 'F2' })}
+            {item('tags', tg('ctx.tags'), () => void editProfileTags(p.id))}
+            {item('inventory', tg('app.inventory'), () => {
+              openInventoryEditor({
+                profileId: p.id,
+                host: p.host,
+                port: p.port,
+                username: p.username,
+                label: p.label,
+                hostInventoryId: p.hostInventoryId
+              })
+              setSessionMenu(null)
+            })}
+            {moveTo([p.id], p.folderId)}
+            {item('copyAddr', tg('ctx.copyAddr'), () => {
+              setSessionMenu(null)
+              const addr = `${p.username}@${p.host}${p.port && p.port !== 22 ? ` -p ${p.port}` : ''}`
+              void navigator.clipboard.writeText(addr).then(() => showToast(tg('ctx.copied')))
+            })}
+            <div className="session-context-menu-sep" />
+            {item('delete', tg('app.delete'), () => void deleteProfilesFn([p.id]), { danger: true, hint: 'Del' })}
+          </div>
+        )
+      })()}
 
       {folderMenu && (
         <div

@@ -14,6 +14,8 @@ export type AppUpdateCheckResult = {
   releaseUrl?: string
   downloadUrl?: string
   releaseName?: string
+  /** release notes (markdown body of the GitHub release) */
+  notes?: string
   message: string
 }
 
@@ -128,6 +130,7 @@ export async function checkForAppUpdate(): Promise<AppUpdateCheckResult> {
       (typeof data.html_url === 'string' && data.html_url) || `${GITHUB_RELEASES_URL}/tag/${tag || latestVersion}`
     const downloadUrl = pickDownloadUrl(data.assets, process.platform)
     const releaseName = typeof data.name === 'string' ? data.name : undefined
+    const notes = typeof data.body === 'string' ? data.body.slice(0, 8000) : undefined
     if (compareSemver(latestVersion, currentVersion) > 0) {
       return {
         currentVersion,
@@ -136,6 +139,7 @@ export async function checkForAppUpdate(): Promise<AppUpdateCheckResult> {
         releaseUrl,
         downloadUrl,
         releaseName,
+        notes,
         message: `发现新版本 ${latestVersion}（当前 ${currentVersion}）。`
       }
     }

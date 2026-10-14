@@ -1,27 +1,6 @@
 /** 主菜单 / 工具栏打开的对话框或会话管理命令 */
-export type AppDialogKind =
-  | 'connection'
-  | 'ai'
-  | 'debug'
-  | 'terminalPrefs'
-  | 'uiTheme'
-  | 'snippets'
-  | 'inventory'
-  | 'newFolder'
-  | 'importSessions'
-  | 'exportJson'
-  | 'exportOpenssh'
-  | 'toggleSidebar'
-  | 'toggleMain'
-  | 'toggleAi'
-  | 'localShell'
-  | 'sftp'
-  | 'refreshDocker'
-  | 'toggleSplit'
-  | 'toggleBroadcast'
-  | 'toggleRecording'
-  | 'mcpGuide'
-  | 'about'
+/** Menu actions sent from the main-process application menu (same ids as the shared menu definition). */
+export type AppDialogKind = import('./menus').MenuAction
 
 /** MCP 安装指南：主进程解析的本机路径与仓库信息 */
 export type McpGuideInfo = {
@@ -688,6 +667,8 @@ export type AppUpdateCheckResult = {
   releaseUrl?: string
   downloadUrl?: string
   releaseName?: string
+  /** release notes (markdown body of the GitHub release) */
+  notes?: string
   message: string
 }
 

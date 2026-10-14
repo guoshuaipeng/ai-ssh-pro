@@ -1,124 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AppDialogKind } from '@shared/ipc'
-import { useI18n, type MessageKey } from '../lib/i18n'
+import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
+import { useI18n } from '../lib/i18n'
 
-export type TitlebarMenuAction =
-  | AppDialogKind
-  | 'quit'
-  | 'undo'
-  | 'redo'
-  | 'cut'
-  | 'copy'
-  | 'paste'
-  | 'selectAll'
-  | 'batchExec'
-  | 'portForward'
-  | 'resourceMonitor'
-  | 'serverTools'
-  | 'backup'
-  | 'shortcuts'
-  | 'commandPalette'
-  | 'whatsNew'
+export type TitlebarMenuAction = MenuAction
 
-export type MenuItem =
-  | { type: 'item'; id: TitlebarMenuAction; label: MessageKey; shortcut?: string }
-  | { type: 'sep' }
-
-type MenuDef = { id: string; label: MessageKey; items: MenuItem[] }
-
-export const MENUS: MenuDef[] = [
-  {
-    id: 'session',
-    label: 'menu.session',
-    items: [
-      { type: 'item', id: 'connection', label: 'menu.newConnection', shortcut: 'Ctrl+Shift+N' },
-      { type: 'item', id: 'localShell', label: 'menu.localShell' },
-      { type: 'item', id: 'sftp', label: 'menu.sftp', shortcut: 'Ctrl+Shift+F' },
-      { type: 'sep' },
-      { type: 'item', id: 'newFolder', label: 'menu.newFolder' },
-      { type: 'item', id: 'importSessions', label: 'menu.importSessions' },
-      { type: 'item', id: 'exportOpenssh', label: 'menu.exportOpenssh' },
-      { type: 'item', id: 'exportJson', label: 'menu.exportJson' },
-      { type: 'item', id: 'backup', label: 'menu.backup' }
-    ]
-  },
-  {
-    id: 'tools',
-    label: 'menu.tools',
-    items: [
-      { type: 'item', id: 'commandPalette', label: 'menu.commandPalette', shortcut: 'Ctrl+Shift+P' },
-      { type: 'sep' },
-      { type: 'item', id: 'resourceMonitor', label: 'menu.resourceMonitor', shortcut: 'Ctrl+Shift+M' },
-      { type: 'item', id: 'serverTools', label: 'menu.serverTools', shortcut: 'Ctrl+Shift+T' },
-      { type: 'item', id: 'portForward', label: 'menu.portForward', shortcut: 'Ctrl+Shift+O' },
-      { type: 'item', id: 'batchExec', label: 'menu.batchExec', shortcut: 'Ctrl+Shift+B' },
-      { type: 'item', id: 'snippets', label: 'menu.snippets', shortcut: 'Ctrl+Shift+S' },
-      { type: 'item', id: 'inventory', label: 'menu.inventory', shortcut: 'Ctrl+Shift+H' },
-      { type: 'item', id: 'refreshDocker', label: 'menu.refreshDocker', shortcut: 'Ctrl+Shift+D' },
-      { type: 'sep' },
-      { type: 'item', id: 'toggleSplit', label: 'menu.split' },
-      { type: 'item', id: 'toggleBroadcast', label: 'menu.broadcast' },
-      { type: 'item', id: 'toggleRecording', label: 'menu.recording' }
-    ]
-  },
-  {
-    id: 'aiMenu',
-    label: 'menu.aiMenu',
-    items: [
-      { type: 'item', id: 'ai', label: 'menu.ai', shortcut: 'Ctrl+,' },
-      { type: 'item', id: 'debug', label: 'menu.debug' },
-      { type: 'item', id: 'mcpGuide', label: 'menu.mcpGuide' }
-    ]
-  },
-  {
-    id: 'edit',
-    label: 'menu.edit',
-    items: [
-      { type: 'item', id: 'undo', label: 'menu.undo', shortcut: 'Ctrl+Z' },
-      { type: 'item', id: 'redo', label: 'menu.redo', shortcut: 'Ctrl+Y' },
-      { type: 'sep' },
-      { type: 'item', id: 'cut', label: 'menu.cut', shortcut: 'Ctrl+X' },
-      { type: 'item', id: 'copy', label: 'menu.copy', shortcut: 'Ctrl+C' },
-      { type: 'item', id: 'paste', label: 'menu.paste', shortcut: 'Ctrl+V' },
-      { type: 'item', id: 'selectAll', label: 'menu.selectAll', shortcut: 'Ctrl+A' }
-    ]
-  },
-  {
-    id: 'view',
-    label: 'menu.view',
-    items: [
-      { type: 'item', id: 'toggleSidebar', label: 'menu.toggleSidebar', shortcut: 'Ctrl+B' },
-      { type: 'item', id: 'toggleMain', label: 'menu.toggleMain' },
-      { type: 'item', id: 'toggleAi', label: 'menu.toggleAi', shortcut: 'Ctrl+Alt+B' },
-      { type: 'sep' },
-      { type: 'item', id: 'uiTheme', label: 'menu.uiTheme' },
-      { type: 'item', id: 'terminalPrefs', label: 'menu.terminalPrefs' }
-    ]
-  },
-  {
-    id: 'file',
-    label: 'menu.file',
-    items: [{ type: 'item', id: 'quit', label: 'menu.quit', shortcut: 'Alt+F4' }]
-  },
-  {
-    id: 'help',
-    label: 'menu.help',
-    items: [
-      { type: 'item', id: 'commandPalette', label: 'menu.commandPalette', shortcut: 'Ctrl+K' },
-      { type: 'item', id: 'whatsNew', label: 'menu.whatsNew' },
-      { type: 'item', id: 'shortcuts', label: 'menu.shortcuts', shortcut: 'F1' },
-      { type: 'item', id: 'about', label: 'menu.about' }
-    ]
-  }
-]
+/** Single menu definition shared with the main process (UX-03). */
+export const MENUS = SHARED_MENUS
 
 type Props = {
   onAction: (action: TitlebarMenuAction) => void
+  /** current on/off state of toggle items, shown as ☑ (UX-10) */
+  toggles?: Partial<Record<MenuAction, boolean>>
 }
 
 /** 标题栏内嵌菜单（替代被隐藏的系统菜单栏） */
-export default function TitlebarMenus({ onAction }: Props) {
-  const { t } = useI18n()
+export default function TitlebarMenus({ onAction, toggles }: Props) {
+  const { locale } = useI18n()
   const [openId, setOpenId] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -154,7 +51,7 @@ export default function TitlebarMenus({ onAction }: Props) {
                 if (openId) setOpenId(menu.id)
               }}
             >
-              {t(menu.label)}
+              {menuLabel(menu.label, locale)}
             </button>
             {open ? (
               <div className="titlebar-menu-dropdown" role="menu">
@@ -166,13 +63,22 @@ export default function TitlebarMenus({ onAction }: Props) {
                       key={item.id}
                       type="button"
                       className="titlebar-menu-item"
-                      role="menuitem"
+                      role={item.toggle ? 'menuitemcheckbox' : 'menuitem'}
+                      aria-checked={item.toggle ? Boolean(toggles?.[item.id]) : undefined}
+                      data-action={item.id}
                       onClick={() => {
                         setOpenId(null)
                         onAction(item.id)
                       }}
                     >
-                      <span>{t(item.label)}</span>
+                      <span className="titlebar-menu-label">
+                        {item.toggle ? (
+                          <span className="titlebar-menu-check" aria-hidden>
+                            {toggles?.[item.id] ? '☑' : '☐'}
+                          </span>
+                        ) : null}
+                        <span>{menuLabel(item.label, locale)}</span>
+                      </span>
                       {item.shortcut ? <span className="titlebar-menu-shortcut">{item.shortcut}</span> : null}
                     </button>
                   )

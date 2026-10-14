@@ -8,6 +8,7 @@ import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
 import { AISS_INJECT_TERMINAL_EVENT } from '../lib/terminal-inject'
 import { getXtermTheme } from '../lib/terminal-themes'
 import { attachZmodem, type ZmodemAttach } from '../lib/zmodem-attach'
+import { findInBuffer, AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
 
 type Props = {
   sessionId: string
@@ -88,6 +89,35 @@ export default function TerminalPane({
   const [termMenu, setTermMenu] = useState<{ x: number; y: number } | null>(null)
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
   const termMenuRef = useRef<HTMLDivElement>(null)
+  const [findOpen, setFindOpen] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [findMiss, setFindMiss] = useState(false)
+  const findInputRef = useRef<HTMLInputElement>(null)
+  const findPosRef = useRef<{ row: number; col: number } | null>(null)
+
+  useEffect(() => {
+    const onFind = () => {
+      if (!activeRef.current) return
+      setFindOpen(true)
+      window.setTimeout(() => findInputRef.current?.select(), 0)
+    }
+    window.addEventListener(AISS_TERMINAL_FIND_EVENT, onFind)
+    return () => window.removeEventListener(AISS_TERMINAL_FIND_EVENT, onFind)
+  }, [])
+
+  const runFind = (backwards: boolean) => {
+    const term = apiRef.current?.term
+    if (!term || !findQuery) return
+    const buf = term.buffer.active
+    const lines: string[] = []
+    for (let i = 0; i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? '')
+    const hit = findInBuffer(lines, findQuery, findPosRef.current, backwards)
+    setFindMiss(!hit)
+    if (!hit) return
+    findPosRef.current = hit
+    term.select(hit.col, hit.row, findQuery.length)
+    term.scrollToLine(Math.max(0, hit.row - Math.floor(term.rows / 2)))
+  }
 
   useEffect(() => {
     if (!termMenu) return
@@ -274,6 +304,51 @@ export default function TerminalPane({
       <div className="terminal-pane-wrap">
         <div ref={wrapRef} className="terminal-pane-xterm" title={tg('term.tip')} />
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
+        {findOpen ? (
+          <div className="terminal-find-bar" role="search" data-testid="terminal-find">
+            <input
+              ref={findInputRef}
+              className={findMiss ? 'is-miss' : ''}
+              placeholder={tg('find.placeholder')}
+              aria-label={tg('find.placeholder')}
+              value={findQuery}
+              onChange={(e) => {
+                setFindQuery(e.target.value)
+                findPosRef.current = null
+                setFindMiss(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  runFind(e.shiftKey)
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setFindOpen(false)
+                  apiRef.current?.term.clearSelection()
+                  apiRef.current?.term.focus()
+                }
+              }}
+            />
+            <span className="terminal-find-status">{findMiss ? tg('find.none') : ''}</span>
+            <button type="button" title={tg('find.prev')} aria-label={tg('find.prev')} onClick={() => runFind(true)}>
+              ↑
+            </button>
+            <button type="button" title={tg('find.next')} aria-label={tg('find.next')} onClick={() => runFind(false)}>
+              ↓
+            </button>
+            <button
+              type="button"
+              title={tg('find.close')}
+              aria-label={tg('find.close')}
+              onClick={() => {
+                setFindOpen(false)
+                apiRef.current?.term.focus()
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
       </div>
       {termMenu ? (
         <div

@@ -1,6 +1,8 @@
-import { useI18n, type MessageKey } from '../lib/i18n'
+import { useState } from 'react'
+import { useI18n } from '../lib/i18n'
 import Modal from './Modal'
 import type { TitlebarMenuAction } from './TitlebarMenus'
+import { changelogFor } from '@shared/changelog'
 
 type Props = {
   open: boolean
@@ -9,52 +11,72 @@ type Props = {
   onAction: (action: TitlebarMenuAction) => void
 }
 
-/** Highlights of the current release; each row has a "Try it" button that opens the feature. */
-export const WHATS_NEW: ReadonlyArray<{ key: string; action?: TitlebarMenuAction; keys?: string }> = [
-  { key: 'palette', action: 'commandPalette', keys: 'Ctrl+Shift+P / Ctrl+K' },
-  { key: 'toolbar' },
-  { key: 'monitor', action: 'resourceMonitor', keys: 'Ctrl+Shift+M' },
-  { key: 'toolbox', action: 'serverTools', keys: 'Ctrl+Shift+T' },
-  { key: 'forward', action: 'portForward', keys: 'Ctrl+Shift+O' },
-  { key: 'backup', action: 'backup' },
-  { key: 'split', action: 'toggleSplit' }
-]
+export const WHATS_NEW_AUTO_KEY = 'aiss.whatsNewAuto'
 
+/** V3: what changed in this version, each row says where to find it (clickable when it can open the feature). */
 export default function WhatsNewModal({ open, version, onClose, onAction }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
+  const [noAuto, setNoAuto] = useState(() => localStorage.getItem(WHATS_NEW_AUTO_KEY) === '0')
+  const pick = (b: { zh: string; en: string }) => (locale === 'zh-CN' ? b.zh : b.en)
+  const entries = changelogFor(version)
   return (
-    <Modal open={open} title={t('wn.title', { version })} onClose={onClose} width={600}>
-      <div className="wn-panel">
-        <p className="wn-intro">{t('wn.intro')}</p>
-        <ul className="wn-list">
-          {WHATS_NEW.map((it) => (
-            <li key={it.key} className="wn-item">
-              <div className="wn-text">
-                <strong>{t(`wn.${it.key}.title` as MessageKey)}</strong>
-                {it.keys ? <kbd className="wn-kbd">{it.keys}</kbd> : null}
-                <span>{t(`wn.${it.key}.desc` as MessageKey)}</span>
-              </div>
-              {it.action ? (
-                <button
-                  type="button"
-                  className="ai-fill-cmd-btn"
-                  onClick={() => {
-                    onClose()
-                    window.setTimeout(() => onAction(it.action!), 0)
-                  }}
-                >
-                  {t('wn.try')}
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+    <Modal
+      open={open}
+      title={t('wn.title', { version })}
+      onClose={onClose}
+      width={560}
+      footer={
         <div className="wn-foot">
-          <span>{t('wn.later')}</span>
+          <label className="wn-noauto">
+            <input
+              type="checkbox"
+              checked={noAuto}
+              onChange={(e) => {
+                setNoAuto(e.target.checked)
+                localStorage.setItem(WHATS_NEW_AUTO_KEY, e.target.checked ? '0' : '1')
+              }}
+            />
+            {t('wn.noAuto')}
+          </label>
           <button type="button" className="primary" onClick={onClose}>
             {t('wn.ok')}
           </button>
         </div>
+      }
+    >
+      <div className="wn-panel" data-testid="whats-new">
+        {entries.length ? (
+          <ul className="wn-list">
+            {entries.map((it, i) => (
+              <li key={i} className="wn-item">
+                <span className="wn-icon" aria-hidden>
+                  {it.icon}
+                </span>
+                <div className="wn-text">
+                  <span>{pick(it.text)}</span>
+                  {it.where ? (
+                    it.action ? (
+                      <button
+                        type="button"
+                        className="wn-where wn-where--link"
+                        onClick={() => {
+                          onClose()
+                          window.setTimeout(() => onAction(it.action!), 0)
+                        }}
+                      >
+                        {pick(it.where)}
+                      </button>
+                    ) : (
+                      <span className="wn-where">{pick(it.where)}</span>
+                    )
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="wn-intro">{t('wn.empty')}</p>
+        )}
       </div>
     </Modal>
   )

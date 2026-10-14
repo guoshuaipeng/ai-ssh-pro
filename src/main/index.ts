@@ -22,7 +22,7 @@ import {
   setAiChatHistory,
   recordRecentConnection
 } from './app-store'
-import { registerWorkspaceIpc } from './workspace-ipc'
+import { registerWorkspaceIpc, setLocaleChangedHandler } from './workspace-ipc'
 import { registerBackupIpc } from './backup-ipc'
 import { registerServerToolsIpc } from './server-tools-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
@@ -876,6 +876,7 @@ if (!gotSingleInstanceLock) {
     migratePlaintextSecretsToEncrypted()
     registerIpc()
     installApplicationMenu()
+    setLocaleChangedHandler(() => installApplicationMenu())
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

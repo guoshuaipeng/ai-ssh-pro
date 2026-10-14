@@ -3,6 +3,7 @@ import { RESOURCE_PROBE_CMD, parseResourceSnapshot } from '../shared/resource-mo
 import { listForwards, startTrackedForward, stopForward, stopSessionForwards } from './forward-manager'
 import { mt } from './main-i18n'
 import { ipcMain } from 'electron'
+import { probeHosts } from './host-probe'
 import type { SshSessionManager } from './ssh-manager'
 import {
   getCommandHistory,
@@ -117,7 +118,15 @@ export async function runBatchExec(sshManager: SshSessionManager, raw: unknown):
   return { command: parsed.command, startedAt, results }
 }
 
+let onLocaleChanged: (() => void) | null = null
+
+/** Lets index.ts rebuild the application menu after the UI language changes. */
+export function setLocaleChangedHandler(fn: (() => void) | null): void {
+  onLocaleChanged = fn
+}
+
 export function registerWorkspaceIpc(sshManager: SshSessionManager): void {
+  ipcMain.handle('workspace:probeHosts', (_e, targets: unknown) => probeHosts(Array.isArray(targets) ? targets : []))
   ipcMain.handle('workspace:ping', async (_e, sessionId: unknown) => pingSession(sshManager, sessionId))
   ipcMain.handle('workspace:batchExec', async (_e, payload: unknown) => runBatchExec(sshManager, payload))
   ipcMain.handle('workspace:resources', async (_e, sessionId: unknown) => {
@@ -160,5 +169,9 @@ export function registerWorkspaceIpc(sshManager: SshSessionManager): void {
   )
 
   ipcMain.handle('workspace:locale:get', () => getLocale())
-  ipcMain.handle('workspace:locale:set', (_e, locale: LocaleId) => setLocale(normalizeLocale(locale)))
+  ipcMain.handle('workspace:locale:set', (_e, locale: LocaleId) => {
+    const r = setLocale(normalizeLocale(locale))
+    onLocaleChanged?.()
+    return r
+  })
 }

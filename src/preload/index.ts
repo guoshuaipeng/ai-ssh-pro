@@ -278,6 +278,9 @@ const api = {
   },
   workspace: {
     ping: (sessionId: string): Promise<number | null> => ipcRenderer.invoke('workspace:ping', sessionId),
+    probeHosts: (
+      targets: import('../shared/host-status').HostProbeTarget[]
+    ): Promise<import('../shared/host-status').HostProbeResult[]> => ipcRenderer.invoke('workspace:probeHosts', targets),
     batchExec: (payload: BatchExecRequest): Promise<BatchExecResult> =>
       ipcRenderer.invoke('workspace:batchExec', payload),
     resources: (sessionId: string): Promise<ResourceSnapshot & { at: number }> => ipcRenderer.invoke('workspace:resources', sessionId),

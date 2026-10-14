@@ -141,7 +141,7 @@ writeFileSync(
 )
 const wrapperDir = join(root, 'wrapper')
 mkdirSync(wrapperDir)
-writeFileSync(join(wrapperDir, 'package.json'), JSON.stringify({ name: 'ai-ssh-pro', version: '0.0.0-e2e', type: 'module', main: 'main.mjs' }))
+writeFileSync(join(wrapperDir, 'package.json'), JSON.stringify({ name: 'ai-ssh-pro', version: JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')).version + '-e2e', type: 'module', main: 'main.mjs' }))
 writeFileSync(
   join(wrapperDir, 'main.mjs'),
   `import { app, session } from 'electron'
@@ -397,7 +397,7 @@ await step('SFTP: list, upload via dialog, download via dialog', async () => {
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: a.down })
   }, { up: localUp, down: localDown })
   await page.getByRole('button', { name: 'Session', exact: true }).click()
-  await page.getByText('File transfer', { exact: true }).first().click()
+  await page.getByText('SFTP files', { exact: true }).first().click()
   const row = (name) => page.locator('tr').filter({ has: page.locator('.sftp-name-btn', { hasText: name }) })
   await expectVisible(row('hello.txt'), 15000)
   await cjkScan('SFTP panel')
@@ -418,7 +418,7 @@ await step('SFTP: list, upload via dialog, download via dialog', async () => {
 await step('session tags: edit via in-app dialog, chip, #tag search, persisted', async () => {
   if (!(await tree.getByText('demo-web-01').first().isVisible())) await page.getByText('Demo · Web', { exact: true }).first().click()
   await page.getByText('demo-web-01', { exact: true }).first().click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Edit tags…' }).click()
+  await page.getByRole('menuitem', { name: 'Tags…' }).click()
   const box = page.locator('.dialog-text-input')
   await box.fill('Prod, web, #prod')
   await page.getByTestId('dialog-ok').click()
@@ -439,7 +439,7 @@ const menu = async (top, item) => {
 }
 
 await step('port forwarding panel: add (auto local port), traffic through SSH, stop', async () => {
-  await menu('Tools', 'Port forwarding…')
+  await menu('Session', 'Port forwarding…')
   await expectVisible(page.locator('.pf-panel'))
   await page.getByLabel('Remote port').fill('7777')
   await page.getByRole('button', { name: 'Add forward', exact: true }).click()
@@ -490,7 +490,7 @@ await step('command bar explains commands offline (flags, pipes, risk)', async (
 
 await step('resource monitor: CPU / memory / disk / uptime from the SSH host', async () => {
   await page.keyboard.press('Escape')
-  await menu('Tools', 'Resource monitor…')
+  await menu('Ops', 'Resource monitor')
   const panel = page.locator('.rm-panel')
   await expectVisible(panel)
   await expectVisible(panel.locator('.rm-row').filter({ hasText: 'CPU' }).locator('.rm-value', { hasText: '50%' }), 15000)
@@ -504,7 +504,7 @@ await step('resource monitor: CPU / memory / disk / uptime from the SSH host', a
 })
 
 await step('resource monitor trend + server toolbox: processes, services, ports, logs', async () => {
-  await menu('Tools', 'Resource monitor…')
+  await menu('Ops', 'Resource monitor')
   const rm = page.locator('.rm-panel')
   await expectVisible(rm.getByTestId('rm-trend-cpu').getByText('50%', { exact: false }), 15000)
   assert((await rm.getByTestId('rm-trend-cpu').locator('polyline').count()) === 1, 'cpu sparkline drawn')
@@ -574,7 +574,7 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
   await page.keyboard.press('Escape')
   await expectHidden(st)
   // clean up the forward we opened
-  await menu('Tools', 'Port forwarding…')
+  await menu('Session', 'Port forwarding…')
   const fr = page.locator('.pf-table tbody tr').filter({ hasText: '127.0.0.1:3306' })
   await expectVisible(fr, 10000)
   await fr.getByRole('button', { name: 'Stop', exact: true }).click()
@@ -582,12 +582,14 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
 })
 
 await step('split view: second session in pane 2, drag divider, swap, persisted ratio', async () => {
-  await page.getByText('e2e-local', { exact: true }).first().dblclick()
+  // double-click focuses the open tab now; a second session comes from "Connect in new tab"
+  await page.locator('aside .profile-row--host').filter({ hasText: 'e2e-local' }).first().click({ button: 'right' })
+  await page.getByTestId('host-menu').getByRole('menuitem', { name: 'Connect in new tab' }).click()
   const trust = page.getByRole('button', { name: 'Trust and continue' })
   if (await trust.isVisible({ timeout: 2500 }).catch(() => false)) await trust.click()
   await page.waitForFunction(() => document.querySelectorAll('.tab-bar .tab').length > 0)
   await page.waitForTimeout(2500)
-  await menu('Tools', 'Split view')
+  await menu('View', 'Split view')
   const divider = page.locator('.split-divider')
   await expectVisible(divider)
   const sel = page.getByLabel('Second pane')
@@ -610,7 +612,7 @@ await step('split view: second session in pane 2, drag divider, swap, persisted 
   await cjkScan('split view')
   await divider.dblclick()
   assert(Number(await page.evaluate(() => localStorage.getItem('aiss.split.ratio'))) === 0.5, 'reset')
-  await menu('Tools', 'Split view')
+  await menu('View', 'Split view')
   await expectHidden(divider)
 })
 
@@ -621,7 +623,7 @@ await step('main window title is AI-SSH-Pro and the window is visible', async ()
 })
 
 await step('English UI: remote editor has no CJK text', async () => {
-  await page.locator('.tab-bar .tab').filter({ hasText: 'File transfer' }).first().click()
+  await page.locator('.tab-bar .tab').filter({ hasText: 'SFTP files' }).first().click()
   const r = page.locator('tr').filter({ has: page.locator('.sftp-name-btn', { hasText: 'hello.txt' }) })
   await r.getByRole('button', { name: 'Edit', exact: true }).click()
   await expectVisible(page.getByText('hello from e2e sftp', { exact: false }), 15000)
@@ -631,12 +633,12 @@ await step('English UI: remote editor has no CJK text', async () => {
 })
 
 for (const [top, item, label] of [
-  ['Session', 'New connection', 'connection config'],
-  ['AI', 'AI settings', 'AI config form'],
-  ['Tools', 'Host inventory', 'host inventory'],
+  ['File', 'New connection…', 'connection config'],
+  ['AI', 'AI settings…', 'AI config form'],
+  ['Ops', 'Host inventory', 'host inventory'],
   ['AI', 'MCP setup guide…', 'MCP guide'],
-  ['View', 'Terminal appearance', 'terminal prefs'],
-  ['View', 'UI theme', 'UI theme']
+  ['View', 'Terminal appearance…', 'terminal prefs'],
+  ['View', 'UI theme…', 'UI theme']
 ]) {
   await step('English UI: ' + label + ' has no CJK text', async () => {
     await page.keyboard.press('Escape')
@@ -648,18 +650,30 @@ for (const [top, item, label] of [
   })
 }
 
-await step('menus: Session / Tools / AI split; Tools lists the workspace features', async () => {
+await step('menus: File / Edit / View / Session / Ops / AI / Help (shared definition, check marks)', async () => {
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: 'Tools', exact: true }).click()
-  for (const item of ['Command palette…', 'Server toolbox…', 'Resource monitor…', 'Port forwarding…', 'Batch execute…', 'Split view']) {
+  const tops = await page.locator('.titlebar-menu-trigger').allTextContents()
+  assert(JSON.stringify(tops) === JSON.stringify(['File', 'Edit', 'View', 'Session', 'Ops', 'AI', 'Help']), 'menu order: ' + tops.join(','))
+  await page.getByRole('button', { name: 'Ops', exact: true }).click()
+  for (const item of ['Resource monitor', 'Server toolbox', 'Batch run…', 'Snippets', 'Host inventory']) {
     await expectVisible(page.locator('.titlebar-menu-dropdown').getByText(item, { exact: true }))
   }
-  await expectVisible(page.locator('.titlebar-menu-dropdown').getByText('Ctrl+Shift+M', { exact: true }))
-  await cjkScan('tools menu')
+  await expectVisible(page.locator('.titlebar-menu-dropdown').getByText('Ctrl+Alt+T', { exact: true }))
+  await cjkScan('ops menu')
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: 'Session', exact: true }).click()
-  assert(await page.locator('.titlebar-menu-dropdown').getByText('Resource monitor…', { exact: true }).count() === 0, 'Session menu is shorter')
+  await page.getByRole('button', { name: 'View', exact: true }).click()
+  const sidebarItem = page.locator('.titlebar-menu-dropdown [data-action="toggleSidebar"]')
+  assert((await sidebarItem.getAttribute('aria-checked')) === 'true', 'sidebar toggle shows checked')
+  await expectVisible(page.locator('.titlebar-menu-dropdown').getByText('Ctrl+Alt+1', { exact: true }))
+  await cjkScan('view menu')
   await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Help', exact: true }).click()
+  for (const item of ['Keyboard shortcuts', "What's new", 'Check for updates…', 'About AI-SSH-Pro']) {
+    await expectVisible(page.locator('.titlebar-menu-dropdown').getByText(item, { exact: true }))
+  }
+  await page.keyboard.press('Escape')
+  const all = await page.evaluate(() => document.body.innerText)
+  assert(!all.includes('Ctrl+B\n'), 'no Ctrl+B binding shown')
 })
 
 await step('toolbar buttons open monitor / forwarding / backup', async () => {
@@ -673,7 +687,9 @@ await step('toolbar buttons open monitor / forwarding / backup', async () => {
   await expectVisible(page.locator('.st-panel'), 15000)
   await page.keyboard.press('Escape')
   await expectHidden(page.locator('.st-panel'))
-  await page.locator('[data-tool="backup"]').click()
+  await page.locator('[data-tool="more"]').click()
+  await expectVisible(page.getByTestId('toolbar-more').getByText('Check for updates…', { exact: true }))
+  await page.getByTestId('toolbar-more').getByText('Encrypted backup…', { exact: true }).click()
   await expectVisible(page.locator('.bk-panel'))
   await page.keyboard.press('Escape')
   await expectHidden(page.locator('.bk-panel'))
@@ -759,7 +775,7 @@ await step('encrypted backup: export, wrong password rejected, import restores s
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [f] })
   }, bak)
   await page.keyboard.press('Escape')
-  await menu('Session', 'Encrypted backup…')
+  await menu('File', 'Encrypted backup & restore…')
   const panel = page.locator('.bk-panel')
   await expectVisible(panel)
   await cjkScan('backup dialog')
@@ -777,11 +793,11 @@ await step('encrypted backup: export, wrong password rejected, import restores s
   // change tags after the backup
   if (!(await tree.getByText('demo-web-01').first().isVisible())) await page.getByText('Demo · Web', { exact: true }).first().click()
   await page.getByText('demo-web-01', { exact: true }).first().click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'Edit tags…' }).click()
+  await page.getByRole('menuitem', { name: 'Tags…' }).click()
   await page.locator('.dialog-text-input').fill('changed')
   await page.getByTestId('dialog-ok').click()
   await expectVisible(tree.locator('.profile-tag', { hasText: '#changed' }))
-  await menu('Session', 'Encrypted backup…')
+  await menu('File', 'Encrypted backup & restore…')
   await pws.nth(2).fill('wrong-password')
   await page.getByRole('button', { name: 'Import from file…' }).click()
   await page.getByTestId('dialog-ok').click()
@@ -799,6 +815,112 @@ await step('encrypted backup: export, wrong password rejected, import restores s
   assert(JSON.stringify(saved.savedSessions.profiles.find((x) => x.id === 'p1').tags) === '["prod","web"]', 'store restored')
 })
 
+await step('v0.3.12 titlebar version + toolbar groups (ops buttons, More menu)', async () => {
+  await page.keyboard.press('Escape')
+  const ver = page.getByTestId('titlebar-version')
+  await expectVisible(ver)
+  const pkgVer = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')).version
+  assert((await ver.textContent()).startsWith('v' + pkgVer), 'version label ' + (await ver.textContent()))
+  assert(((await ver.getAttribute('title')) || '').includes("what's new"), 'version tooltip')
+  for (const id of ['connection', 'recent', 'resourceMonitor', 'serverTools', 'sftp', 'portForward', 'batchExec', 'snippets', 'commandPalette', 'more']) {
+    await expectVisible(page.locator(`.app-titlebar [data-tool="${id}"]`))
+  }
+  assert((await page.locator('.app-titlebar [data-tool="backup"]').count()) === 0, 'backup moved into More')
+  await ver.click()
+  await expectVisible(page.getByTestId('whats-new'))
+  await cjkScan("what's new (version click)")
+  await page.keyboard.press('Escape')
+  await expectHidden(page.getByTestId('whats-new'))
+})
+
+await step('UX-01: Ctrl+B in a focused terminal reaches the shell, Ctrl+Alt+1 toggles the sidebar', async () => {
+  // sessions were reset by the backup import above: connect via the host menu's default "Connect"
+  await page.locator('aside .profile-row--host').filter({ hasText: 'e2e-local' }).first().click({ button: 'right' })
+  await page.getByTestId('host-menu').getByRole('menuitem', { name: /^Connect/ }).first().click()
+  const trust = page.getByRole('button', { name: 'Trust and continue' })
+  if (await trust.isVisible({ timeout: 2500 }).catch(() => false)) await trust.click()
+  await expectVisible(page.locator('.xterm:visible'), 15000)
+  await page.waitForTimeout(1500)
+  await page.locator('.xterm:visible').first().click()
+  await page.keyboard.press('Enter')
+  await xtermHas('e2e$')
+  await page.keyboard.press('Control+B')
+  await page.keyboard.type('zz12')
+  await page.keyboard.press('Enter')
+  await xtermHas('ran: zz12')
+  await expectVisible(page.locator('aside.sidebar'))
+  await page.keyboard.press('Control+Alt+1')
+  await expectHidden(page.locator('aside.sidebar'))
+  await page.keyboard.press('Control+Alt+1')
+  await expectVisible(page.locator('aside.sidebar'))
+  // Ctrl+Shift+F: find in terminal
+  await page.locator('.xterm:visible').first().click()
+  await page.keyboard.press('Control+Shift+F')
+  const find = page.getByTestId('terminal-find')
+  await expectVisible(find)
+  await find.locator('input').fill('zz12')
+  await find.locator('input').press('Enter')
+  await page.waitForFunction(() => document.querySelector('.terminal-find-status')?.textContent === '', null, { timeout: 3000 })
+  await find.locator('input').fill('no-such-text-xyz')
+  await find.locator('input').press('Enter')
+  await expectVisible(find.getByText('No matches'))
+  await cjkScan('terminal find')
+  await find.locator('input').press('Escape')
+  await expectHidden(find)
+})
+
+await step('H1: host right-click menu order, Copy user@host, SFTP / toolbox auto-connect, multi-select', async () => {
+  await page.keyboard.press('Escape')
+  const host = page.locator('aside').first().getByText('e2e-local', { exact: true }).last()
+  await host.click({ button: 'right' })
+  const m = page.getByTestId('host-menu')
+  await expectVisible(m)
+  const order = await m.locator('[data-ctx]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ctx')))
+  const want = ['connect', 'connectNew', 'sftp', 'monitor', 'toolbox']
+  assert(JSON.stringify(order.slice(0, 5)) === JSON.stringify(want), 'order ' + order.join(','))
+  assert(order[order.length - 1] === 'delete', 'delete is last')
+  assert((await m.locator('[data-ctx="delete"]').getAttribute('class')).includes('danger'), 'delete is red')
+  await cjkScan('host menu')
+  await m.getByRole('menuitem', { name: 'Copy user@host' }).click()
+  await expectVisible(page.getByTestId('toast').filter({ hasText: 'Copied' }))
+  const clip = await app.evaluate(({ clipboard }) => clipboard.readText())
+  assert(clip.startsWith('e2e@127.0.0.1'), 'clipboard: ' + clip)
+  await host.click({ button: 'right' })
+  await page.getByTestId('host-menu').getByRole('menuitem', { name: 'SFTP files' }).click()
+  await expectVisible(page.locator('.tab-bar .tab').filter({ hasText: 'SFTP files' }), 15000)
+  await host.click({ button: 'right' })
+  await page.getByTestId('host-menu').getByRole('menuitem', { name: 'Server toolbox' }).click()
+  await expectVisible(page.locator('.st-panel'), 15000)
+  await page.keyboard.press('Escape')
+  await expectHidden(page.locator('.st-panel'))
+  // multi-select with Ctrl+click → reduced menu
+  const other = page.locator('aside').first().getByText('e2e-monitor', { exact: true }).last()
+  await host.click()
+  await other.click({ modifiers: ['Control'] })
+  await other.click({ button: 'right' })
+  const mm = page.getByTestId('host-menu-multi')
+  await expectVisible(mm)
+  await expectVisible(mm.getByRole('menuitem', { name: /Connect all \(2\)/ }))
+  await expectVisible(mm.getByRole('menuitem', { name: /Delete 2/ }))
+  await cjkScan('multi host menu')
+  await page.keyboard.press('Escape')
+  await expectHidden(mm)
+  await host.click()
+})
+
+await step('H2: host status dot + latency for reachable host', async () => {
+  const row = page.locator('aside .profile-row--host').filter({ hasText: 'e2e-local' }).first()
+  await expectVisible(row.locator('.host-status-dot[data-status="online"], .host-status-dot[data-status="slow"]'), 20000)
+  await expectVisible(row.locator('.host-status-ms'))
+  assert(((await row.locator('.host-status-dot').getAttribute('title')) || '').startsWith('Online'), 'tooltip')
+  await page.getByRole('button', { name: 'View', exact: true }).click()
+  await page.locator('.titlebar-menu-dropdown [data-action="toggleHostStatus"]').click()
+  await expectHidden(row.locator('.host-status-dot'))
+  await page.getByRole('button', { name: 'View', exact: true }).click()
+  await page.locator('.titlebar-menu-dropdown [data-action="toggleHostStatus"]').click()
+  await expectVisible(row.locator('.host-status-dot'))
+})
+
 await step("What's new dialog appears once after an upgrade", async () => {
   await page.evaluate(() => localStorage.setItem('aiss.lastSeenVersion', '0.0.1'))
   await page.reload()
@@ -806,7 +928,7 @@ await step("What's new dialog appears once after an upgrade", async () => {
   const dlg = page.locator('.wn-panel')
   await expectVisible(dlg, 15000)
   await cjkScan("what's new")
-  await dlg.locator('.wn-item').filter({ hasText: 'Command palette' }).getByRole('button', { name: 'Try it' }).click()
+  await dlg.locator('.wn-where--link', { hasText: 'Command palette' }).click()
   await expectVisible(page.locator('.cmdp-input'))
   await page.keyboard.press('Escape')
   await page.reload()

@@ -19,6 +19,8 @@ export type BatchSessionOption = {
 type Props = {
   open: boolean
   sessions: BatchSessionOption[]
+  /** session ids to tick when opening (e.g. hosts multi-selected in the sidebar) */
+  preselect?: string[]
   onClose: () => void
 }
 
@@ -31,7 +33,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   'no-sessions': 'batch.errNoSessions'
 }
 
-export default function BatchExecuteModal({ open, sessions, onClose }: Props) {
+export default function BatchExecuteModal({ open, sessions, preselect, onClose }: Props) {
   const { t } = useI18n()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [command, setCommand] = useState('')
@@ -42,12 +44,13 @@ export default function BatchExecuteModal({ open, sessions, onClose }: Props) {
 
   useEffect(() => {
     if (open && !wasOpen.current) {
-      setSelected(new Set(sessions.map((s) => s.sessionId)))
+      const pre = preselect?.filter((id) => sessions.some((s) => s.sessionId === id))
+      setSelected(new Set(pre?.length ? pre : sessions.map((s) => s.sessionId)))
       setFormError(null)
       setResult(null)
     }
     wasOpen.current = open
-  }, [open, sessions])
+  }, [open, sessions, preselect])
 
   const selectedCount = useMemo(
     () => sessions.filter((s) => selected.has(s.sessionId)).length,
