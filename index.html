@@ -84,12 +84,14 @@ const F=[["🤖","AI 助手 Core-A","AI assistant (Core-A)","自动读取终端�
 ["⚡","批量执行","Batch execute","选中多个已连接会话，一键下发同一命令，分别查看结果。","Run one command across selected sessions, with per-session results.",1],
 ["⌨️","命令历史与补全","Command history","本地保存最近 200 条命令，↑ 键回溯与输入建议。","Up to 200 recent commands stored locally; Up-arrow and suggestions.",1],
 ["⭐","最近连接与书签","Recent & bookmarks","记录成功连接并支持收藏，不保存密码和密钥。","Recent connections with bookmarks; no passwords or keys stored.",1],
-["🌐","中英双语界面","Chinese / English UI","简体中文（默认）与英文；AI 助手、主机指纹、SFTP 等主要界面均已完整英文化。","Simplified Chinese (default) and full English for the AI assistant, host-key dialog, SFTP and more.","0.3.7"],
+["🌐","中英双语界面","Chinese / English UI","简体中文（默认）与完整英文界面，包括 Docker、MCP 指南、主机知识库、连接与 AI 配置等。","Simplified Chinese (default) and a complete English UI, including Docker, MCP guide, host inventory, connection and AI settings.","0.3.8"],
 ["🚨","危险命令拦截","Dangerous-command guard","rm -rf /、mkfs、dd 写盘、关机重启、DROP DATABASE 等命令发送前弹窗确认。","rm -rf /, mkfs, dd to disks, reboot, DROP DATABASE and more require confirmation before sending.","0.3.7"],
 ["🏷️","会话标签","Session tags","为会话打标签（prod / web…），侧栏显示标签，搜索框输入 #标签 过滤。","Tag sessions (prod / web…), see tag chips in the sidebar and filter with #tag.","0.3.7"],
 ["🐳","Docker 面板与主题","Docker panel & themes","Docker 面板、终端字体与主题自定义。","Docker panel plus terminal font and theme customization."],
 ["📁","SFTP 文件传输","SFTP","在当前 SSH 会话中浏览、上传、下载、新建目录与重命名（端到端测试覆盖）。","Browse, upload, download, create folders and rename over the active session (covered by e2e tests)."],
-["🛡️","跳板机与端口转发","ProxyJump & forwarding","ProxyJump 跳板、本地/远程端口转发、主机指纹 TOFU 校验。","Bastion hops, local/remote forwarding, host-key TOFU."],
+["🛡️","跳板机与端口转发","ProxyJump & forwarding","ProxyJump 跳板、主机指纹 TOFU 校验；端口转发管理面板可随时添加/停止转发，显示连接数与流量。","Bastion hops and host-key TOFU; a port-forwarding panel to add/stop forwards at runtime with connection and traffic stats.","0.3.8"],
+["💡","命令解释","Command explanation","输入命令时离线解释程序与常用参数（支持管道），危险命令实时标红。","Explains programs and common flags as you type (pipes included), offline; dangerous commands are flagged live.","0.3.8"],
+["📦","三平台安装包","Windows / macOS / Linux builds","打 tag 后 GitHub Actions 自动构建 Windows、macOS、Linux 安装包并上传到 Release。","Tag pushes build Windows, macOS and Linux installers via GitHub Actions and attach them to the Release.","0.3.8"],
 ["🔐","加密存储","Encrypted secrets","密码、口令与 API Key 由 Electron safeStorage 加密。","Secrets encrypted via Electron safeStorage."],
 ["📥","会话导入导出","Import / export","支持 Xshell .xsh、OpenSSH config、PuTTY；另有片段、录制、本地 Shell。","Xshell .xsh, OpenSSH config, PuTTY; plus snippets, recording, local shell."]];
 const T={nf:"Features",ns:"Get started",sub:"A multi-session SSH client in the spirit of Xshell, with a built-in AI assistant. Observe → plan → commands run only after you confirm.",dl:"⬇ Download latest",ft:"Features",mt:"Host inventory + MCP",md:"Host profiles live on local disk (default ~/.ai-ssh-pro/inventory). The in-app AI and a standalone stdio MCP server share the same files — plug into Cursor, Claude Desktop and more.",st:"Get started",sd:"Grab an installer from Releases, or run from source. AI works with any OpenAI-compatible provider (e.g. DashScope).",pv:"🔒 Privacy: SSH passwords, keys and API keys stay on your machine, encrypted with OS secure storage. No cloud sync, no account.",is:"Report an issue"};
