@@ -84,15 +84,17 @@ const F=[["🤖","AI 助手 Core-A","AI assistant (Core-A)","自动读取终端�
 ["⚡","批量执行","Batch execute","选中多个已连接会话，一键下发同一命令，分别查看结果。","Run one command across selected sessions, with per-session results.",1],
 ["⌨️","命令历史与补全","Command history","本地保存最近 200 条命令，↑ 键回溯与输入建议。","Up to 200 recent commands stored locally; Up-arrow and suggestions.",1],
 ["⭐","最近连接与书签","Recent & bookmarks","记录成功连接并支持收藏，不保存密码和密钥。","Recent connections with bookmarks; no passwords or keys stored.",1],
-["🌐","中英双语界面","Chinese / English UI","简体中文（默认）与英文，选择保存在本机。","Simplified Chinese (default) and English, saved locally.",1],
+["🌐","中英双语界面","Chinese / English UI","简体中文（默认）与英文；AI 助手、主机指纹、SFTP 等主要界面均已完整英文化。","Simplified Chinese (default) and full English for the AI assistant, host-key dialog, SFTP and more.","0.3.7"],
+["🚨","危险命令拦截","Dangerous-command guard","rm -rf /、mkfs、dd 写盘、关机重启、DROP DATABASE 等命令发送前弹窗确认。","rm -rf /, mkfs, dd to disks, reboot, DROP DATABASE and more require confirmation before sending.","0.3.7"],
+["🏷️","会话标签","Session tags","为会话打标签（prod / web…），侧栏显示标签，搜索框输入 #标签 过滤。","Tag sessions (prod / web…), see tag chips in the sidebar and filter with #tag.","0.3.7"],
 ["🐳","Docker 面板与主题","Docker panel & themes","Docker 面板、终端字体与主题自定义。","Docker panel plus terminal font and theme customization."],
-["📁","SFTP 文件传输","SFTP","在当前 SSH 会话中浏览与传输文件。","Browse and transfer files over the active session."],
+["📁","SFTP 文件传输","SFTP","在当前 SSH 会话中浏览、上传、下载、新建目录与重命名（端到端测试覆盖）。","Browse, upload, download, create folders and rename over the active session (covered by e2e tests)."],
 ["🛡️","跳板机与端口转发","ProxyJump & forwarding","ProxyJump 跳板、本地/远程端口转发、主机指纹 TOFU 校验。","Bastion hops, local/remote forwarding, host-key TOFU."],
 ["🔐","加密存储","Encrypted secrets","密码、口令与 API Key 由 Electron safeStorage 加密。","Secrets encrypted via Electron safeStorage."],
 ["📥","会话导入导出","Import / export","支持 Xshell .xsh、OpenSSH config、PuTTY；另有片段、录制、本地 Shell。","Xshell .xsh, OpenSSH config, PuTTY; plus snippets, recording, local shell."]];
 const T={nf:"Features",ns:"Get started",sub:"A multi-session SSH client in the spirit of Xshell, with a built-in AI assistant. Observe → plan → commands run only after you confirm.",dl:"⬇ Download latest",ft:"Features",mt:"Host inventory + MCP",md:"Host profiles live on local disk (default ~/.ai-ssh-pro/inventory). The in-app AI and a standalone stdio MCP server share the same files — plug into Cursor, Claude Desktop and more.",st:"Get started",sd:"Grab an installer from Releases, or run from source. AI works with any OpenAI-compatible provider (e.g. DashScope).",pv:"🔒 Privacy: SSH passwords, keys and API keys stay on your machine, encrypted with OS secure storage. No cloud sync, no account.",is:"Report an issue"};
 const Z={};document.querySelectorAll("[data-i]").forEach(e=>Z[e.dataset.i]=e.innerHTML);
-let en=false;function r(){document.getElementById("fg").innerHTML=F.map(f=>`<div class="c"><div class="ic">${f[0]}</div><h3>${en?f[2]:f[1]}${f[5]?'<span class="new">0.3.0</span>':''}</h3><p>${en?f[4]:f[3]}</p></div>`).join("");
+let en=false;function r(){document.getElementById("fg").innerHTML=F.map(f=>`<div class="c"><div class="ic">${f[0]}</div><h3>${en?f[2]:f[1]}${f[5]?'<span class="new">'+(typeof f[5]==='string'?f[5]:'0.3.0')+'</span>':''}</h3><p>${en?f[4]:f[3]}</p></div>`).join("");
 document.querySelectorAll("[data-i]").forEach(e=>e.innerHTML=en?T[e.dataset.i]:Z[e.dataset.i]);document.documentElement.lang=en?"en":"zh-CN";document.getElementById("lang").textContent=en?"中文":"EN";}
 document.getElementById("lang").onclick=()=>{en=!en;localStorage.lang=en?"en":"zh";r()};en=localStorage.lang==="en"||(!localStorage.lang&&!navigator.language.startsWith("zh"));r();
 </script></body></html>
