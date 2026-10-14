@@ -236,7 +236,14 @@ function parseReplicas(replicas: string): { running: number; desired: number } {
   return { running: Number(m[1]), desired: Number(m[2]) }
 }
 
-function swarmShortStatus(running: number, desired: number): string {
+function swarmShortStatus(
+  running: number,
+  desired: number,
+  updateState?: string
+): string {
+  const us = (updateState || '').toLowerCase()
+  // 滚动更新 / 回滚期间副本数可能仍相等，也要标成 starting 以便加快刷新
+  if (us === 'updating' || us === 'rollback_started') return 'starting'
   if (desired === 0) return 'exited'
   if (running === 0) return 'exited'
   if (running < desired) return 'starting'
@@ -340,6 +347,7 @@ export async function listSwarmServices(client: Client): Promise<DockerSwarmInfo
     const labels = parseLabelMap(spec.Labels)
     const endpoint = obj(detail?.Endpoint)
     const ports = mapSwarmPorts(endpoint.Ports ?? obj(spec.EndpointSpec).Ports)
+    const updateState = str(obj(detail?.UpdateStatus).State)
     const stack = labels[STACK_LABEL]?.trim() || undefined
     services.push({
       id,
@@ -349,7 +357,7 @@ export async function listSwarmServices(client: Client): Promise<DockerSwarmInfo
       replicas,
       runningTasks: running,
       desiredTasks: desired,
-      shortStatus: swarmShortStatus(running, desired),
+      shortStatus: swarmShortStatus(running, desired, updateState),
       ports,
       containers: [],
       ...(stack ? { stack } : {})
@@ -925,4 +933,141 @@ export async function composeAction(
   if (!cmd) throw new Error(`不支持的 compose 操作: ${action}`)
   const r = await sshExec(client, cmd)
   if (r.code !== 0) throw new Error(trimErr(r.stdout, r.stderr, r.code))
+}
+
+/** 容器/服务生命周期变化时触发；用于侧栏与面板近实时刷新 */
+export type DockerEventsNotify = (hint?: { type?: string; action?: string }) => void
+
+/** 不过滤 type：多 filter 在部分环境下易踩坑；在客户端筛 container/service */
+const DOCKER_EVENTS_CMD = `docker events --format '{{json .}}'`
+
+const INTERESTING_EVENT_TYPES = new Set(['container', 'service', 'network', 'daemon'])
+/** 过碎、不必为此刷整棵树 */
+const NOISY_ACTIONS = /^(exec_|attach|detach|commit|export|import|top|resize)/
+
+/**
+ * 在 SSH 会话上订阅 docker events。返回 stop 函数。
+ * 事件可能非常密集，内部做短防抖后再回调；断线会自动重连。
+ */
+export function watchDockerEvents(
+  client: Client,
+  onChange: DockerEventsNotify,
+  opts?: { debounceMs?: number }
+): () => void {
+  const debounceMs = opts?.debounceMs ?? 350
+  let stopped = false
+  let buffer = ''
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingHint: { type?: string; action?: string } | undefined
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let stream: any = null
+
+  const flush = () => {
+    debounceTimer = null
+    if (stopped) return
+    const hint = pendingHint
+    pendingHint = undefined
+    try {
+      onChange(hint)
+    } catch {
+      /* ignore notifier errors */
+    }
+  }
+
+  const schedule = (hint?: { type?: string; action?: string }) => {
+    if (hint?.type || hint?.action) pendingHint = hint
+    if (debounceTimer != null) return
+    debounceTimer = setTimeout(flush, debounceMs)
+  }
+
+  const handleChunk = (chunk: string) => {
+    buffer += chunk
+    const parts = buffer.split(/\r?\n/)
+    buffer = parts.pop() ?? ''
+    for (const line of parts) {
+      const t = line.trim()
+      if (!t) continue
+      try {
+        const ev = JSON.parse(t) as {
+          Type?: string
+          Action?: string
+          status?: string
+          from?: string
+        }
+        const type = String(ev.Type || '').toLowerCase()
+        const action = String(ev.Action || ev.status || '').toLowerCase()
+        // 旧格式偶发没有 Type，但有 status=start/die 等
+        const inferredType = type || (action && !ev.from ? 'container' : '')
+        if (inferredType && !INTERESTING_EVENT_TYPES.has(inferredType)) continue
+        if (action && NOISY_ACTIONS.test(action)) continue
+        schedule({ type: inferredType || type, action })
+      } catch {
+        // 非 JSON：经典文本事件行，含 container/service 关键字时也触发
+        if (/\b(container|service)\b/i.test(t) && /\b(start|stop|die|kill|create|destroy|update|remove)\b/i.test(t)) {
+          schedule({ type: 'container', action: 'change' })
+        }
+      }
+    }
+  }
+
+  const start = () => {
+    if (stopped) return
+    client.exec(DOCKER_EVENTS_CMD, (err, ch) => {
+      if (err || stopped) {
+        if (ch) {
+          try {
+            ch.close()
+          } catch {
+            /* ignore */
+          }
+        }
+        if (!stopped) {
+          reconnectTimer = setTimeout(start, 2500)
+        }
+        return
+      }
+      stream = ch
+      ch.on('data', (d: Buffer) => {
+        if (!stopped) handleChunk(d.toString('utf8'))
+      })
+      ch.stderr?.on('data', (d: Buffer) => {
+        const msg = d.toString('utf8').trim()
+        if (msg) console.warn('[docker-events]', msg.slice(0, 300))
+      })
+      ch.on('close', () => {
+        stream = null
+        if (stopped) return
+        // 被远端掐断时自动重连，避免只能靠手动刷新
+        reconnectTimer = setTimeout(start, 1500)
+      })
+    })
+  }
+
+  start()
+
+  return () => {
+    stopped = true
+    if (debounceTimer != null) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+    }
+    if (reconnectTimer != null) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (stream) {
+      try {
+        stream.close()
+      } catch {
+        /* ignore */
+      }
+      try {
+        stream.destroy?.()
+      } catch {
+        /* ignore */
+      }
+      stream = null
+    }
+  }
 }

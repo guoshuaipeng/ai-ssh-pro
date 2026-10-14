@@ -32,7 +32,8 @@ const MENUS: MenuDef[] = [
       { type: 'item', id: 'debug', label: 'AI 助手调试…' },
       { type: 'sep' },
       { type: 'item', id: 'snippets', label: '命令片段' },
-      { type: 'item', id: 'inventory', label: '主机档案', shortcut: 'Ctrl+Shift+H' }
+      { type: 'item', id: 'inventory', label: '主机档案', shortcut: 'Ctrl+Shift+H' },
+      { type: 'item', id: 'mcpGuide', label: 'MCP 安装指南…' }
     ]
   },
   {
@@ -64,6 +65,11 @@ const MENUS: MenuDef[] = [
     id: 'file',
     label: '文件',
     items: [{ type: 'item', id: 'quit', label: '退出', shortcut: 'Alt+F4' }]
+  },
+  {
+    id: 'help',
+    label: '帮助',
+    items: [{ type: 'item', id: 'about', label: '关于 AI-SSH-Pro' }]
   }
 ]
 

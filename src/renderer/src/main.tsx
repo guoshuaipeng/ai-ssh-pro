@@ -35,6 +35,7 @@ function AppGate(): React.ReactElement {
     const line = `[renderer] mount: window.aiss = ${w.aiss === undefined ? 'undefined' : typeof w.aiss}`
     console.warn(line)
     setDiag(`${line}\n页面 URL: ${href}\n\n请查看运行「npm run dev」或调试启动的终端里以 [main] / [preload] 开头的日志。`)
+    if (w.aiss) applyUiTheme(loadUiThemeId())
   }, [])
 
   if (!api) {

@@ -20,6 +20,22 @@ export type AppDialogKind =
   | 'toggleSplit'
   | 'toggleBroadcast'
   | 'toggleRecording'
+  | 'mcpGuide'
+  | 'about'
+
+/** MCP 安装指南：主进程解析的本机路径与仓库信息 */
+export type McpGuideInfo = {
+  /** 绝对路径；打包版可能为 null（需自行克隆源码） */
+  scriptPath: string | null
+  inventoryRoot: string
+  sshKeyPath: string
+  platform: NodeJS.Platform
+  isPackaged: boolean
+  githubUrl: string
+  /** 供 JSON 配置粘贴用的 Windows 友好路径（正斜杠） */
+  scriptPathJson: string | null
+  inventoryRootJson: string
+}
 
 /** 跳板机认证（与目标主机字段同形，不含再嵌套 jump） */
 export type SshJumpHostOptions = {
@@ -260,6 +276,13 @@ export type DockerTreeResult = {
   swarm: DockerSwarmInfo
   containersError?: string
   composeError?: string
+}
+
+/** main → renderer：docker events 触发的变更通知（已防抖） */
+export type DockerChangedEvent = {
+  sessionId: string
+  type?: string
+  action?: string
 }
 
 export type DockerKeyValue = {

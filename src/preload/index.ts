@@ -27,7 +27,9 @@ import type {
   DockerComposeService,
   DockerSwarmAction,
   DockerSwarmServiceDetail,
-  AppUpdateCheckResult
+  DockerChangedEvent,
+  AppUpdateCheckResult,
+  McpGuideInfo
 } from '../shared/ipc'
 import type {
   HostInventoryIndexEntry,
@@ -52,7 +54,13 @@ const api = {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
     checkUpdate: (): Promise<AppUpdateCheckResult> => ipcRenderer.invoke('app:checkUpdate'),
     openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('app:openExternal', url),
-    openGithub: (): Promise<boolean> => ipcRenderer.invoke('app:openGithub')
+    openGithub: (): Promise<boolean> => ipcRenderer.invoke('app:openGithub'),
+    getMcpGuideInfo: (): Promise<McpGuideInfo> => ipcRenderer.invoke('app:getMcpGuideInfo'),
+    setUiChrome: (chrome: {
+      backgroundColor: string
+      overlayColor: string
+      symbolColor: string
+    }): Promise<boolean> => ipcRenderer.invoke('app:setUiChrome', chrome)
   },
   ssh: {
     connect: (opts: SshConnectOptions): Promise<SshConnectResult> => ipcRenderer.invoke('ssh:connect', opts),
@@ -131,6 +139,16 @@ const api = {
   docker: {
     listTree: (sessionId: string): Promise<DockerTreeResult> =>
       ipcRenderer.invoke('docker:listTree', sessionId),
+    watchEvents: (sessionId: string): Promise<boolean> =>
+      ipcRenderer.invoke('docker:watchEvents', sessionId),
+    unwatchEvents: (sessionId: string): Promise<boolean> =>
+      ipcRenderer.invoke('docker:unwatchEvents', sessionId),
+    onChanged: (cb: (payload: DockerChangedEvent) => void): (() => void) => {
+      const fn = (_e: IpcRendererEvent, ...args: unknown[]) =>
+        cb(args[0] as DockerChangedEvent)
+      ipcRenderer.on('docker:changed', fn)
+      return () => unsub('docker:changed', fn)
+    },
     containerAction: (
       sessionId: string,
       containerId: string,

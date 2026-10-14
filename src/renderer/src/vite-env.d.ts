@@ -28,7 +28,9 @@ import type {
   DockerComposeService,
   DockerSwarmAction,
   DockerSwarmServiceDetail,
-  AppUpdateCheckResult
+  DockerChangedEvent,
+  AppUpdateCheckResult,
+  McpGuideInfo
 } from '@shared/ipc'
 import type {
   HostInventoryIndexEntry,
@@ -44,6 +46,12 @@ export type AissPreload = {
     checkUpdate: () => Promise<AppUpdateCheckResult>
     openExternal: (url: string) => Promise<boolean>
     openGithub: () => Promise<boolean>
+    getMcpGuideInfo: () => Promise<McpGuideInfo>
+    setUiChrome: (chrome: {
+      backgroundColor: string
+      overlayColor: string
+      symbolColor: string
+    }) => Promise<boolean>
   }
   ssh: {
     connect: (opts: SshConnectOptions) => Promise<SshConnectResult>
@@ -91,6 +99,9 @@ export type AissPreload = {
   }
   docker: {
     listTree: (sessionId: string) => Promise<DockerTreeResult>
+    watchEvents: (sessionId: string) => Promise<boolean>
+    unwatchEvents: (sessionId: string) => Promise<boolean>
+    onChanged: (cb: (payload: DockerChangedEvent) => void) => () => void
     containerAction: (
       sessionId: string,
       containerId: string,

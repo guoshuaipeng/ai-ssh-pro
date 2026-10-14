@@ -28,7 +28,10 @@ export function installApplicationMenu(): void {
     template.push({
       label: app.name,
       submenu: [
-        { role: 'about' },
+        {
+          label: '关于 AI-SSH-Pro',
+          click: () => sendOpenDialog('about')
+        },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -112,6 +115,10 @@ export function installApplicationMenu(): void {
         label: '主机档案',
         accelerator: 'CmdOrCtrl+Shift+H',
         click: () => sendOpenDialog('inventory')
+      },
+      {
+        label: 'MCP 安装指南…',
+        click: () => sendOpenDialog('mcpGuide')
       }
     ]
   })
@@ -173,6 +180,16 @@ export function installApplicationMenu(): void {
       submenu: [{ role: 'quit' }]
     })
   }
+
+  template.push({
+    label: '帮助',
+    submenu: [
+      {
+        label: '关于 AI-SSH-Pro',
+        click: () => sendOpenDialog('about')
+      }
+    ]
+  })
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }

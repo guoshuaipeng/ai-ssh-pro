@@ -71,12 +71,42 @@ export function saveUiThemeId(id: UiThemeId): void {
   }
 }
 
-/** 应用到 <html data-ui-theme="…"> */
+export type UiChromeColors = {
+  /** BrowserWindow 背景 */
+  backgroundColor: string
+  /** Windows titleBarOverlay 底色 */
+  overlayColor: string
+  /** 窗控按钮符号色 */
+  symbolColor: string
+}
+
+const UI_CHROME: Record<UiThemeId, UiChromeColors> = {
+  'github-dark': { backgroundColor: '#0f1117', overlayColor: '#161b22', symbolColor: '#e6edf3' },
+  slate: { backgroundColor: '#1c1f26', overlayColor: '#252a33', symbolColor: '#e8ecf1' },
+  ocean: { backgroundColor: '#0b1220', overlayColor: '#121a2b', symbolColor: '#e2e8f0' },
+  forest: { backgroundColor: '#0f1410', overlayColor: '#171e18', symbolColor: '#e6ede6' },
+  light: { backgroundColor: '#f4f6f8', overlayColor: '#ffffff', symbolColor: '#1f2328' },
+  sand: { backgroundColor: '#f3eee6', overlayColor: '#faf7f2', symbolColor: '#292524' }
+}
+
+export function getUiChromeColors(id: UiThemeId): UiChromeColors {
+  return UI_CHROME[isUiThemeId(id) ? id : UI_THEME_DEFAULT]
+}
+
+/** 应用到 <html data-ui-theme="…">，并同步 Windows 窗控底色 */
 export function applyUiTheme(id: UiThemeId): void {
   const next = isUiThemeId(id) ? id : UI_THEME_DEFAULT
   document.documentElement.setAttribute('data-ui-theme', next)
   saveUiThemeId(next)
   window.dispatchEvent(new CustomEvent('aiss-ui-theme', { detail: next }))
+  // 窗控 overlay 在主进程，切主题时必须跟着改，否则浅色下右上角仍是黑底
+  const chrome = getUiChromeColors(next)
+  const sync = window.aiss?.app?.setUiChrome
+  if (typeof sync === 'function') {
+    void sync(chrome).catch(() => {
+      /* ignore */
+    })
+  }
 }
 
 export function isLightUiTheme(id: UiThemeId): boolean {

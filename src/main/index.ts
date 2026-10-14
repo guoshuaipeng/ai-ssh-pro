@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
 import { existsSync, statSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
+import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
 import {
@@ -33,7 +34,8 @@ import {
   checkForAppUpdate,
   getAppVersion,
   openExternalUrl,
-  openGithubRepo
+  openGithubRepo,
+  GITHUB_REPO_URL
 } from './app-updater'
 import type {
   SavedSessionsState,
@@ -48,7 +50,8 @@ import type {
   AiChatMessage,
   DockerContainerAction,
   DockerComposeAction,
-  DockerSwarmAction
+  DockerSwarmAction,
+  McpGuideInfo
 } from '../shared/ipc'
 import type { HostInventoryUpsertInput, HostService } from '../shared/inventory'
 
@@ -62,6 +65,24 @@ if (process.platform === 'win32') {
 const sshManager = new SshSessionManager()
 const localShellManager = new LocalShellManager()
 
+/** sessionId → stop docker events watch */
+const dockerEventStops = new Map<string, () => void>()
+
+function stopDockerEventsWatch(sessionId: string): void {
+  const stop = dockerEventStops.get(sessionId)
+  if (!stop) return
+  dockerEventStops.delete(sessionId)
+  try {
+    stop()
+  } catch {
+    /* ignore */
+  }
+}
+
+function stopAllDockerEventsWatches(): void {
+  for (const id of [...dockerEventStops.keys()]) stopDockerEventsWatch(id)
+}
+
 function isLocalSessionId(sessionId: string): boolean {
   return sessionId.startsWith('local:')
 }
@@ -71,6 +92,37 @@ function appIconPath(): string {
     return join(process.resourcesPath, 'icon.ico')
   }
   return join(__dirname, '../../build/icon.ico')
+}
+
+function toJsonPath(p: string): string {
+  return p.replace(/\\/g, '/')
+}
+
+function resolveMcpGuideInfo(): McpGuideInfo {
+  const inventoryRoot =
+    process.env.AISS_INVENTORY_ROOT?.trim() || join(homedir(), '.ai-ssh-pro', 'inventory')
+  const sshKeyPath =
+    process.env.AISS_SSH_KEY?.trim() || join(homedir(), '.ai-ssh-pro', 'keys', 'aiss_ed25519')
+
+  let scriptPath: string | null = null
+  if (!app.isPackaged) {
+    const candidate = join(__dirname, '../../scripts/mcp-inventory-server.mjs')
+    if (existsSync(candidate)) scriptPath = resolve(candidate)
+  } else {
+    const fromResources = join(process.resourcesPath, 'scripts', 'mcp-inventory-server.mjs')
+    if (existsSync(fromResources)) scriptPath = resolve(fromResources)
+  }
+
+  return {
+    scriptPath,
+    inventoryRoot,
+    sshKeyPath,
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    githubUrl: GITHUB_REPO_URL,
+    scriptPathJson: scriptPath ? toJsonPath(scriptPath) : null,
+    inventoryRootJson: toJsonPath(inventoryRoot)
+  }
 }
 
 function preloadPath(): string {
@@ -303,6 +355,7 @@ function registerIpc(): void {
 
   ipcMain.handle('ssh:disconnect', (_e, sessionId: string) => {
     stopRecording(sessionId)
+    stopDockerEventsWatch(sessionId)
     if (isLocalSessionId(sessionId)) localShellManager.disconnect(sessionId)
     else sshManager.disconnect(sessionId)
   })
@@ -487,6 +540,27 @@ function registerIpc(): void {
   ipcMain.handle('docker:listTree', async (_e, sessionId: string) => {
     return await dockerManager.listTree(requireSshClient(sessionId))
   })
+  ipcMain.handle('docker:watchEvents', (event, sessionId: string) => {
+    const id = String(sessionId || '')
+    if (!id) return false
+    stopDockerEventsWatch(id)
+    const client = requireSshClient(id)
+    const owner = event.sender
+    const stop = dockerManager.watchDockerEvents(client, (hint) => {
+      if (owner.isDestroyed()) return
+      owner.send('docker:changed', {
+        sessionId: id,
+        ...(hint?.type ? { type: hint.type } : {}),
+        ...(hint?.action ? { action: hint.action } : {})
+      })
+    })
+    dockerEventStops.set(id, stop)
+    return true
+  })
+  ipcMain.handle('docker:unwatchEvents', (_e, sessionId: string) => {
+    stopDockerEventsWatch(String(sessionId || ''))
+    return true
+  })
   ipcMain.handle(
     'docker:containerAction',
     async (_e, sessionId: string, containerId: string, action: DockerContainerAction) => {
@@ -556,6 +630,47 @@ function registerIpc(): void {
   ipcMain.handle('app:checkUpdate', () => checkForAppUpdate())
   ipcMain.handle('app:openExternal', (_e, url: string) => openExternalUrl(String(url || '')))
   ipcMain.handle('app:openGithub', () => openGithubRepo())
+  ipcMain.handle('app:getMcpGuideInfo', () => resolveMcpGuideInfo())
+  ipcMain.handle(
+    'app:setUiChrome',
+    (
+      _e,
+      chrome: { backgroundColor?: string; overlayColor?: string; symbolColor?: string }
+    ) => {
+      const bg =
+        typeof chrome?.backgroundColor === 'string' && chrome.backgroundColor.trim()
+          ? chrome.backgroundColor.trim()
+          : '#0f1117'
+      const overlay =
+        typeof chrome?.overlayColor === 'string' && chrome.overlayColor.trim()
+          ? chrome.overlayColor.trim()
+          : '#161b22'
+      const symbol =
+        typeof chrome?.symbolColor === 'string' && chrome.symbolColor.trim()
+          ? chrome.symbolColor.trim()
+          : '#e6edf3'
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (win.isDestroyed()) continue
+        try {
+          win.setBackgroundColor(bg)
+        } catch {
+          /* ignore */
+        }
+        if (process.platform === 'win32') {
+          try {
+            win.setTitleBarOverlay({
+              color: overlay,
+              symbolColor: symbol,
+              height: 36
+            })
+          } catch {
+            /* ignore older Electron */
+          }
+        }
+      }
+      return true
+    }
+  )
 
   ipcMain.handle('sessions:list', () => getSavedSessionsState())
   ipcMain.handle('sessions:save', (_e, state: SavedSessionsState) => {
@@ -658,6 +773,11 @@ if (!gotSingleInstanceLock) {
   }
 
   const cleanupSessions = () => {
+    try {
+      stopAllDockerEventsWatches()
+    } catch {
+      /* ignore */
+    }
     try {
       stopAllRecordings()
     } catch {

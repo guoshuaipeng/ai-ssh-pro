@@ -16,6 +16,7 @@ import AppToolbar from './components/AppToolbar'
 import type { TitlebarMenuAction } from './components/TitlebarMenus'
 import AiConfigModal from './components/AiConfigModal'
 import ConnectionConfigModal from './components/ConnectionConfigModal'
+import AboutModal from './components/AboutModal'
 import HostKeyConfirmModal from './components/HostKeyConfirmModal'
 import SessionSearchBar from './components/SessionSearchBar'
 import { exportSessionsAndCopy } from './components/SessionExportButtons'
@@ -27,6 +28,7 @@ import RemoteTextEditor from './components/RemoteTextEditor'
 import DockerPanel from './components/DockerPanel'
 import SessionDockerBranch, { type DockerTreeCache } from './components/SessionDockerBranch'
 import HostInventoryModal, { type HostInventoryLink } from './components/HostInventoryModal'
+import McpGuidePanel from './components/McpGuidePanel'
 import LayoutResizer from './components/LayoutResizer'
 import { filterProfiles } from './lib/session-filter'
 import { clearRemoteFileDirty, isRemoteFileDirty } from './lib/remote-file-dirty'
@@ -70,14 +72,16 @@ type TabView =
   | 'uiTheme'
   | 'snippets'
   | 'docker'
+  | 'mcpGuide'
 
-type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets'
+type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide'
 
 const SETTINGS_TAB_TITLES: Record<SettingsTabView, string> = {
   ai: 'AI 配置',
   terminalPrefs: '终端外观',
   uiTheme: '界面主题',
-  snippets: '命令片段'
+  snippets: '命令片段',
+  mcpGuide: 'MCP 安装指南'
 }
 
 const WORKSPACE_TAB_VIEWS = new Set<TabView>([
@@ -89,7 +93,8 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'terminalPrefs',
   'uiTheme',
   'snippets',
-  'docker'
+  'docker',
+  'mcpGuide'
 ])
 
 type Tab = {
@@ -210,9 +215,23 @@ export default function App() {
   const [dockerTreeByProfileId, setDockerTreeByProfileId] = useState<Record<string, DockerTreeCache>>({})
   const dockerTreeByProfileIdRef = useRef(dockerTreeByProfileId)
   dockerTreeByProfileIdRef.current = dockerTreeByProfileId
+  /** 静默刷新进行中的 profile，避免轮询叠请求 */
+  const dockerPollInFlightRef = useRef(new Set<string>())
+  /** 刷新进行中时又来了请求：结束后补刷一次，避免漏掉启停 */
+  const dockerPollPendingRef = useRef(new Set<string>())
+  /** 已对 session 订阅 docker events 的 profile → sessionId */
+  const dockerEventsWatchingRef = useRef(new Map<string, string>())
+  const expandedHostsRef = useRef(expandedHosts)
+  expandedHostsRef.current = expandedHosts
+  const profilesRef = useRef(profiles)
+  profilesRef.current = profiles
+  const silentRefreshDockerTreeRef = useRef<(profile: SavedSessionProfile) => Promise<void>>(
+    async () => undefined
+  )
   const [sideInfo, setSideInfo] = useState<string | null>(null)
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [hostKeyPrompt, setHostKeyPrompt] = useState<SshHostKeyPromptEvent | null>(null)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
@@ -530,7 +549,8 @@ export default function App() {
       view === 'terminalPrefs' ||
       view === 'uiTheme' ||
       view === 'snippets' ||
-      view === 'docker'
+      view === 'docker' ||
+      view === 'mcpGuide'
     ) {
       setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
       setActiveTabId((cur) => (cur === tabId ? null : cur))
@@ -841,10 +861,61 @@ export default function App() {
     [activeTab, tabs]
   )
 
+  /**
+   * 静默刷新 Docker 树：不改 connecting/loading，避免侧栏闪烁。
+   * 用于轮询、docker events 与操作后刷新。
+   */
+  const silentRefreshDockerTree = useCallback(
+    async (profile: SavedSessionProfile) => {
+      const cached = dockerTreeByProfileIdRef.current[profile.id]
+      if (cached?.status === 'connecting') return
+      const sessionId =
+        cached?.sessionId || findConnectedSessionForProfile(profile)?.sessionId
+      if (!sessionId) return
+      if (dockerPollInFlightRef.current.has(profile.id)) {
+        dockerPollPendingRef.current.add(profile.id)
+        return
+      }
+
+      dockerPollInFlightRef.current.add(profile.id)
+      try {
+        const data = await window.aiss.docker.listTree(sessionId)
+        setDockerTreeByProfileId((prev) => {
+          const cur = prev[profile.id]
+          if (cur?.sessionId && cur.sessionId !== sessionId) return prev
+          return {
+            ...prev,
+            [profile.id]: { status: 'ready', data, sessionId }
+          }
+        })
+      } catch {
+        /* 轮询失败保留旧数据 */
+      } finally {
+        dockerPollInFlightRef.current.delete(profile.id)
+        if (dockerPollPendingRef.current.has(profile.id)) {
+          dockerPollPendingRef.current.delete(profile.id)
+          // 用最新函数再刷，避免闭包过期
+          void silentRefreshDockerTreeRef.current(profile)
+        }
+      }
+    },
+    [findConnectedSessionForProfile]
+  )
+  silentRefreshDockerTreeRef.current = silentRefreshDockerTree
+
   const loadDockerTreeForProfile = useCallback(
     async (profile: SavedSessionProfile, force = false, opts?: { expandWhenReady?: boolean }) => {
       const expandWhenReady = Boolean(opts?.expandWhenReady)
       const cached = dockerTreeByProfileIdRef.current[profile.id]
+
+      // 已有树且强制刷新：静默拉取，不闪 loading（用于操作后 / 手动刷新）
+      if (force && cached?.sessionId && (cached.status === 'ready' || cached.data)) {
+        if (expandWhenReady) {
+          setExpandedHosts((prev) => ({ ...prev, [profile.id]: true }))
+        }
+        await silentRefreshDockerTree(profile)
+        return
+      }
 
       if (!force && cached?.status === 'ready' && cached.data) {
         if (expandWhenReady) {
@@ -942,8 +1013,93 @@ export default function App() {
         }
       }
     },
-    [applyProfileToForm, findConnectedSessionForProfile, openSession]
+    [applyProfileToForm, findConnectedSessionForProfile, openSession, silentRefreshDockerTree]
   )
+
+  /**
+   * 已展开主机：稳定 2s 轮询（用 ref，不因 tabs/回调重建而重置定时器）。
+   * 另用 docker events 近实时推送。
+   */
+  useEffect(() => {
+    const tick = () => {
+      const expanded = expandedHostsRef.current
+      for (const id of Object.keys(expanded)) {
+        if (!expanded[id]) continue
+        const profile = profilesRef.current.find((p) => p.id === id)
+        if (!profile) continue
+        const cached = dockerTreeByProfileIdRef.current[id]
+        if (cached?.status === 'connecting' || cached?.status === 'loading') continue
+        if (!cached?.sessionId) continue
+        void silentRefreshDockerTreeRef.current(profile)
+      }
+    }
+    const timer = window.setInterval(tick, 2000)
+    // 展开后尽快刷一次
+    const first = window.setTimeout(tick, 800)
+    return () => {
+      window.clearInterval(timer)
+      window.clearTimeout(first)
+    }
+  }, [])
+
+  /** session 就绪且主机展开时订阅 docker events；data 刷新不重订阅 */
+  const dockerEventsWatchKey = useMemo(() => {
+    return Object.keys(expandedHosts)
+      .filter((id) => expandedHosts[id])
+      .map((id) => {
+        const t = dockerTreeByProfileId[id]
+        return `${id}:${t?.sessionId ?? ''}:${t?.status ?? ''}`
+      })
+      .sort()
+      .join('|')
+  }, [dockerTreeByProfileId, expandedHosts])
+
+  useEffect(() => {
+    const wanted = new Map<string, string>()
+    for (const id of Object.keys(expandedHostsRef.current)) {
+      if (!expandedHostsRef.current[id]) continue
+      const cached = dockerTreeByProfileIdRef.current[id]
+      if (!cached?.sessionId) continue
+      if (cached.status !== 'ready' && cached.status !== 'error') continue
+      wanted.set(id, cached.sessionId)
+    }
+
+    for (const [pid, sid] of [...dockerEventsWatchingRef.current]) {
+      if (wanted.get(pid) === sid) continue
+      void window.aiss.docker.unwatchEvents(sid)
+      dockerEventsWatchingRef.current.delete(pid)
+    }
+    for (const [pid, sid] of wanted) {
+      if (dockerEventsWatchingRef.current.get(pid) === sid) continue
+      dockerEventsWatchingRef.current.set(pid, sid)
+      void window.aiss.docker.watchEvents(sid).catch(() => {
+        dockerEventsWatchingRef.current.delete(pid)
+      })
+    }
+  }, [dockerEventsWatchKey])
+
+  useEffect(() => {
+    return () => {
+      for (const [, sid] of dockerEventsWatchingRef.current) {
+        void window.aiss.docker.unwatchEvents(sid)
+      }
+      dockerEventsWatchingRef.current.clear()
+    }
+  }, [])
+
+  /** docker events → 静默刷新（稳定订阅，读 ref） */
+  useEffect(() => {
+    return window.aiss.docker.onChanged((ev) => {
+      const sessionId = ev.sessionId
+      if (!sessionId) return
+      for (const [profileId, cache] of Object.entries(dockerTreeByProfileIdRef.current)) {
+        if (cache.sessionId !== sessionId) continue
+        if (!expandedHostsRef.current[profileId]) continue
+        const profile = profilesRef.current.find((p) => p.id === profileId)
+        if (profile) void silentRefreshDockerTreeRef.current(profile)
+      }
+    })
+  }, [])
 
   const toggleHostExpanded = useCallback(
     (profile: SavedSessionProfile) => {
@@ -956,15 +1112,21 @@ export default function App() {
         return
       }
 
-      // 有缓存：直接展开，不再请求
+      // 有缓存：直接展开，并立刻静默刷新一次拿到最新状态
       if (tree?.status === 'ready' && tree.data) {
         setExpandedHosts((prev) => ({ ...prev, [profile.id]: true }))
+        void silentRefreshDockerTree(profile)
         return
       }
 
       void loadDockerTreeForProfile(profile, false, { expandWhenReady: true })
     },
-    [dockerTreeByProfileId, expandedHosts, loadDockerTreeForProfile]
+    [
+      dockerTreeByProfileId,
+      expandedHosts,
+      loadDockerTreeForProfile,
+      silentRefreshDockerTree
+    ]
   )
 
   const openDockerDetail = useCallback(
@@ -1481,7 +1643,11 @@ export default function App() {
         )
         return
       }
-      if (kind === 'ai' || kind === 'terminalPrefs' || kind === 'uiTheme' || kind === 'snippets') {
+      if (kind === 'about') {
+        setAboutOpen(true)
+        return
+      }
+      if (kind === 'ai' || kind === 'terminalPrefs' || kind === 'uiTheme' || kind === 'snippets' || kind === 'mcpGuide') {
         openSettingsTab(kind)
         return
       }
@@ -1642,7 +1808,11 @@ export default function App() {
         )
         return
       }
-      if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets') {
+      if (action === 'about') {
+        setAboutOpen(true)
+        return
+      }
+      if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets' || action === 'mcpGuide') {
         openSettingsTab(action)
       }
     },
@@ -1957,7 +2127,11 @@ export default function App() {
                       const pid = t.profileId
                       if (!pid) return
                       const profile = profiles.find((p) => p.id === pid)
-                      if (profile) void loadDockerTreeForProfile(profile, true)
+                      if (!profile) return
+                      void loadDockerTreeForProfile(profile, true)
+                      // Swarm / compose 启停后任务可能稍晚才落盘，补刷两次
+                      window.setTimeout(() => void silentRefreshDockerTree(profile), 1200)
+                      window.setTimeout(() => void silentRefreshDockerTree(profile), 3200)
                     }}
                     onOpenShell={() => {
                       if (t.dockerKind !== 'container' || !t.boundSessionId || !t.dockerResourceId) return
@@ -1984,6 +2158,8 @@ export default function App() {
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     activeSessionId={activeSessionId}
                   />
+                ) : t.view === 'mcpGuide' ? (
+                  <McpGuidePanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.status === 'connecting' ? (
                   <div className="terminal-disconnected-placeholder">正在建立 SSH 连接…</div>
                 ) : t.status === 'connected' ? (
@@ -2035,6 +2211,7 @@ export default function App() {
       </div>
 
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
 
       {sessionMenu && (
         <div

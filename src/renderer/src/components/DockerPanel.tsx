@@ -265,6 +265,24 @@ export default function DockerPanel({
     }
   }, [fetchLogs, findContainerMeta, kind, resourceId, sessionId])
 
+  /** 仅刷新状态元数据（不重拉 inspect 配置），用于 follow / events */
+  const refreshStatus = useCallback(async () => {
+    try {
+      if (kind === 'container') {
+        const { hit } = await findContainerMeta()
+        if (hit) setContainer(hit)
+      } else if (kind === 'swarm') {
+        const d = await window.aiss.docker.swarmInspect(sessionId, resourceId)
+        setSwarmDetail(d)
+      } else {
+        const r = await window.aiss.docker.composePs(sessionId, resourceId)
+        setServices(r.services)
+      }
+    } catch {
+      /* 状态轮询失败保留旧数据 */
+    }
+  }, [findContainerMeta, kind, resourceId, sessionId])
+
   const filteredLogs = useMemo(() => {
     const q = logFilter.trim().toLowerCase()
     if (!logs) return { text: '', total: 0, matched: 0 }
@@ -296,14 +314,34 @@ export default function DockerPanel({
   }, [refresh])
 
   useEffect(() => {
-    if (kind === 'compose' || !follow) return
+    if (!follow) return
     const timer = window.setInterval(() => {
-      void fetchLogs().catch((e) => {
-        setError(e instanceof Error ? e.message : String(e))
-      })
+      if (kind !== 'compose') {
+        void fetchLogs().catch((e) => {
+          setError(e instanceof Error ? e.message : String(e))
+        })
+      }
+      void refreshStatus()
     }, FOLLOW_INTERVAL_MS)
     return () => window.clearInterval(timer)
-  }, [fetchLogs, follow, kind])
+  }, [fetchLogs, follow, kind, refreshStatus])
+
+  /** 未开 follow 时仍周期刷新状态，避免启停后面板卡住 */
+  useEffect(() => {
+    if (follow) return
+    const timer = window.setInterval(() => {
+      void refreshStatus()
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [follow, refreshStatus])
+
+  /** docker events：面板状态立刻跟上启停/扩缩 */
+  useEffect(() => {
+    return window.aiss.docker.onChanged((ev) => {
+      if (ev.sessionId !== sessionId) return
+      void refreshStatus()
+    })
+  }, [refreshStatus, sessionId])
 
   useEffect(() => {
     if (!follow || !stickToBottomRef.current) return
