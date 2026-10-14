@@ -1,7 +1,7 @@
 /** v0.4.0-m2: playbooks, sync vault, blocks, jump chain, file pin, audit export, recordings. */
 import { readFileSync } from 'node:fs'
 import { changelogFor } from '../src/shared/changelog'
-import { KEYMAP } from '../src/shared/keymap'
+import { KEYMAP, matchKeymap } from '../src/shared/keymap'
 import { SHARED_MENUS } from '../src/shared/menus'
 import {
   ensureSamples,
@@ -116,6 +116,50 @@ ok(skNeedsAgent('sk-ed25519', 'key') && !skNeedsAgent('sk-ed25519', 'agent'), 's
 const ids = SHARED_MENUS.flatMap((m) => m.items.filter((it) => it.type === 'item').map((it) => it.id))
 ok(ids.includes('playbooks') && ids.includes('cloudSync') && ids.includes('sessionRecordings') && ids.includes('toggleBlocks'), 'm2 menus')
 ok(KEYMAP.some((k) => k.id === 'playbooks' && k.keys === 'Ctrl+Alt+P'), 'playbook shortcut')
+
+const menuIds = (id: string) =>
+  SHARED_MENUS.find((m) => m.id === id)!.items.map((it) => (it.type === 'sep' ? '|' : it.id))
+const sessionIds = menuIds('session')
+const viewIds = menuIds('view')
+const opsIds = menuIds('ops')
+ok(sessionIds.includes('sessionRecordings') && sessionIds.includes('toggleBlocks'), 'recordings and blocks live under Session')
+ok(!opsIds.includes('sessionRecordings'), 'ops does not list session recordings')
+ok(!viewIds.includes('toggleBlocks'), 'view stays shell-only')
+ok(opsIds.join(',').includes('alertWorkbench,|,playbooks,runPlaybook'), 'ops order is alerts then playbooks')
+ok(!KEYMAP.some((k) => k.id === 'toggleBlocks'), 'blocks toggle has no global shortcut')
+ok(
+  KEYMAP.some((k) => k.id === 'explainBlock' && k.keys === 'Ctrl+Shift+E' && k.scope === 'terminalBlocks'),
+  'Ctrl+Shift+E explains a block'
+)
+ok(
+  matchKeymap({ key: 'E', code: 'KeyE', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false }, false) === undefined &&
+    matchKeymap({ key: 'E', code: 'KeyE', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false }, true) === undefined,
+  'Ctrl+Shift+E is not a global binding'
+)
+
+const palette = readFileSync('src/renderer/src/lib/palette.ts', 'utf8')
+ok(!palette.includes('vault'), 'palette does not alias cloud sync as vault')
+const appSrc = readFileSync('src/renderer/src/App.tsx', 'utf8')
+ok(appSrc.includes('runCloudSync') && !appSrc.includes("action === 'cloudSync' || action === 'syncNow'"), 'sync now is not the settings opener')
+ok(appSrc.includes('runFolderSyncDurable') && !appSrc.includes("new CustomEvent('aiss-run-sync'"), 'pinned preview starts sync without a dead event')
+ok(appSrc.includes('beforeRemoteWrite') && appSrc.includes('remoteWritesBlocked'), 'remote editor is given the write gate')
+const editor = readFileSync('src/renderer/src/components/RemoteTextEditor.tsx', 'utf8')
+const doSave = editor.slice(editor.indexOf('const doSave'), editor.indexOf('const requestSave'))
+ok(doSave.includes('await beforeRemoteWrite()') && doSave.indexOf('await beforeRemoteWrite()') < doSave.indexOf('sftp.writeText'), 'editor save is gated')
+const runner = readFileSync('src/renderer/src/lib/folder-sync-run.ts', 'utf8')
+const durable = runner.slice(runner.indexOf('export async function runFolderSyncDurable'))
+ok(
+  durable.includes('await beforeRemoteWrite()') &&
+    durable.indexOf('await beforeRemoteWrite()') < durable.indexOf('sftp.transfer') &&
+    durable.indexOf('await beforeRemoteWrite()') < durable.indexOf('sftp.remove'),
+  'durable folder sync is gated'
+)
+ok(readFileSync('src/renderer/src/components/SftpPanel.tsx', 'utf8').includes('registerFolderSyncRunner'), 'sftp panel registers a durable runner')
+const recordings = readFileSync('src/renderer/src/components/RecordingsTab.tsx', 'utf8')
+ok(recordings.includes('askConfirm') && recordings.includes('danger: true') && recordings.indexOf('askConfirm') < recordings.indexOf('recordings.delete'), 'delete asks first')
+const blocks = readFileSync('src/renderer/src/components/TerminalBlocks.tsx', 'utf8')
+ok(blocks.includes('snippets.save') && blocks.includes("e.key.toLowerCase() !== 'e'"), 'snippet save is real and explain is block-scoped')
+ok(readFileSync('src/renderer/src/components/JumpChainEditor.tsx', 'utf8').includes('jump-chips'), 'jump chain has a chip row')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
 ok(pkg.version === '0.4.0-m2', 'package version m2')

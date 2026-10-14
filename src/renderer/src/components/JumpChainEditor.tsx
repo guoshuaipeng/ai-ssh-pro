@@ -26,6 +26,17 @@ export default function JumpChainEditor({
         <span className="l7-meta">{hops.length}/5</span>
       </div>
       {hops.length ? <p className="l4-hint">{chainTooltip(hops)} → {targetHost || '…'}</p> : <p className="l4-hint">{tg('m2.jumpEmpty')}</p>}
+      {hops.length ? (
+        <div className="jump-chips" data-testid="jump-chips">
+          {hops.map((hop, i) => (
+            <span key={hop.id} className="jump-chip" title={hop.host || tg('m2.hopEmpty')}>
+              {i + 1} {hop.username ? `${hop.username}@` : ''}
+              {hop.host || '…'}:{hop.port || 22}
+            </span>
+          ))}
+          {targetHost ? <span className="jump-chip is-target">{targetHost}</span> : null}
+        </div>
+      ) : null}
       {hops.map((hop, i) => (
         <div key={hop.id} className="jump-hop">
           <div className="jump-hop-title">

@@ -271,6 +271,13 @@ body {
   background: rgba(88, 166, 255, 0.18);
 }
 
+.titlebar-menu-item.is-disabled,
+.titlebar-menu-item.is-disabled:hover {
+  opacity: 0.45;
+  background: transparent;
+  cursor: not-allowed;
+}
+
 .titlebar-menu-shortcut {
   color: var(--muted);
   font-size: 11px;

@@ -32,7 +32,7 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   auditLog: 'shenji audit log',
   playbooks: 'playbook juben jb yunwei',
   runPlaybook: 'playbook run juben',
-  cloudSync: 'sync yun tongbu ybtb vault',
+  cloudSync: 'sync yun tongbu ybtb',
   syncNow: 'sync now tongbu',
   sessionRecordings: 'record replay luzhi lz',
   toggleBlocks: 'blocks fenkuai output',

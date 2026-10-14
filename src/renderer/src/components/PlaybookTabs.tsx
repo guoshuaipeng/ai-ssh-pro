@@ -31,6 +31,7 @@ import { askConfirm, askText } from '../lib/dialogs'
 
 function persist(list: Playbook[]) {
   savePlaybooks(list)
+  window.dispatchEvent(new Event('aiss-playbooks'))
 }
 
 export function loadLastResult(): PlaybookRunResult | null {

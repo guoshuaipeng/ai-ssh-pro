@@ -25,6 +25,7 @@ import { tg } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askText, confirmDialog } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
+import { registerFolderSyncRunner } from '../lib/folder-sync-run'
 import { registerSftpCloseGuard, takeFolderSync } from '../lib/sftp-activity'
 import { loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import { openContextMenu } from './ContextMenu'
@@ -127,14 +128,10 @@ export default function SftpPanel({
   const rootRef = useRef<HTMLDivElement>(null)
   const runSyncRef = useRef<(plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => void>(() => {})
   useEffect(() => {
-    const onRun = (e: Event) => {
-      const plan = (e as CustomEvent<{ direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean; sessionId?: string }>).detail
-      if (!plan) return
-      if (plan.sessionId && plan.sessionId !== sessionId) return
+    if (!sessionId) return
+    return registerFolderSyncRunner(sessionId, (plan) => {
       runSyncRef.current(plan)
-    }
-    window.addEventListener('aiss-run-sync', onRun)
-    return () => window.removeEventListener('aiss-run-sync', onRun)
+    })
   }, [sessionId])
   const [narrow, setNarrow] = useState(false)
   const [winW, setWinW] = useState(() => (typeof window === 'undefined' ? 1400 : window.innerWidth))

@@ -11,10 +11,13 @@ type Props = {
   onAction: (action: TitlebarMenuAction) => void
   /** current on/off state of toggle items, shown as ☑ (UX-10) */
   toggles?: Partial<Record<MenuAction, boolean>>
+  /** greyed items stay visible; the tooltip explains why they do not run */
+  disabled?: Partial<Record<MenuAction, boolean>>
+  hints?: Partial<Record<MenuAction, string | undefined>>
 }
 
 /** 标题栏内嵌菜单（替代被隐藏的系统菜单栏） */
-export default function TitlebarMenus({ onAction, toggles }: Props) {
+export default function TitlebarMenus({ onAction, toggles, disabled, hints }: Props) {
   const { locale } = useI18n()
   const [openId, setOpenId] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -62,11 +65,14 @@ export default function TitlebarMenus({ onAction, toggles }: Props) {
                     <button
                       key={item.id}
                       type="button"
-                      className="titlebar-menu-item"
+                      className={`titlebar-menu-item${disabled?.[item.id] ? ' is-disabled' : ''}`}
                       role={item.toggle ? 'menuitemcheckbox' : 'menuitem'}
                       aria-checked={item.toggle ? Boolean(toggles?.[item.id]) : undefined}
+                      aria-disabled={disabled?.[item.id] || undefined}
+                      title={disabled?.[item.id] ? hints?.[item.id] : undefined}
                       data-action={item.id}
                       onClick={() => {
+                        if (disabled?.[item.id]) return
                         setOpenId(null)
                         onAction(item.id)
                       }}

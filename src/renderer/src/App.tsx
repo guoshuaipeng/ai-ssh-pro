@@ -111,7 +111,9 @@ import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks } from '@shared/playbook'
-import { statusGlyph } from '@shared/sync-vault'
+import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
+import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
+import { runFolderSyncDurable } from './lib/folder-sync-run'
 import { connectOptsFromProfile } from './lib/connect-opts'
 import StartupSettingsModal from './components/StartupSettingsModal'
 import ProtectionSection, { ProtectionLevelField } from './components/ProtectionSection'
@@ -325,6 +327,13 @@ function formatDuration(ms: number): string {
   return `${m}:${String(s2).padStart(2, '0')}`
 }
 
+function syncPhaseKey(phase: SyncPhase): MessageKey {
+  if (phase === 'syncing') return 'm2.phase.syncing'
+  if (phase === 'conflict') return 'm2.phase.conflict'
+  if (phase === 'error') return 'm2.phase.error'
+  return 'm2.phase.synced'
+}
+
 export default function App() {
   const { t: tr, locale, setLocale } = useI18n()
   const [tabs, setTabs] = useState<Tab[]>([])
@@ -394,6 +403,25 @@ export default function App() {
   const [blocksOn, setBlocksOn] = useState(() => blocksEnabled())
   const [jumpFail, setJumpFail] = useState<{ hop: number; total: number; name: string; profileId?: string } | null>(null)
   const syncMeta = useSyncPhase()
+  const [syncReady, setSyncReady] = useState(false)
+  const [hasPlaybooks, setHasPlaybooks] = useState(() => loadPlaybooks().length > 0)
+  useEffect(() => {
+    const refreshSync = () => {
+      void window.aiss?.sync
+        ?.getConfig?.()
+        .then((cfg) => setSyncReady(syncIsConfigured(cfg)))
+        .catch(() => setSyncReady(false))
+    }
+    const refreshBooks = () => setHasPlaybooks(loadPlaybooks().length > 0)
+    refreshSync()
+    refreshBooks()
+    window.addEventListener('aiss-sync-meta', refreshSync)
+    window.addEventListener('aiss-playbooks', refreshBooks)
+    return () => {
+      window.removeEventListener('aiss-sync-meta', refreshSync)
+      window.removeEventListener('aiss-playbooks', refreshBooks)
+    }
+  }, [])
   const [sessionsReady, setSessionsReady] = useState(false)
   const [inventoryScroll, setInventoryScroll] = useState(false)
   const breachingRef = useRef(new Set<string>())
@@ -3090,12 +3118,34 @@ export default function App() {
         openAudit()
         return
       }
-      if (action === 'playbooks' || action === 'runPlaybook') {
+      if (action === 'playbooks') {
         openM2('playbook-list', tg('m2.playbooks'))
         return
       }
-      if (action === 'cloudSync' || action === 'syncNow') {
+      if (action === 'runPlaybook') {
+        const books = loadPlaybooks()
+        if (!books.length) {
+          showToast(tg('m2.noPlaybooks'))
+          return
+        }
+        const latest = books.reduce((a, b) => ((b.updatedAt || 0) >= (a.updatedAt || 0) ? b : a))
+        openM2('playbook-run', tg('m2.run'), { playbookId: latest.id })
+        return
+      }
+      if (action === 'cloudSync') {
         openM2('sync-settings', tg('m2.cloudSync'))
+        return
+      }
+      if (action === 'syncNow') {
+        void (async () => {
+          const cfg = await window.aiss.sync.getConfig()
+          if (!syncIsConfigured(cfg)) {
+            showToast(tg('m2.syncNeedSetup'))
+            return
+          }
+          const snippets = await window.aiss.snippets.list().catch(() => [])
+          await runCloudSync(profilesRef.current, snippets, () => openM2('sync-conflicts', tg('m2.conflicts')))
+        })()
         return
       }
       if (action === 'sessionRecordings') {
@@ -3675,7 +3725,6 @@ export default function App() {
       const inTerminal = Boolean(el?.closest('.xterm'))
       const action = matchKeymap(e, inTerminal)
       if (!action) return
-      if (action === 'toggleBlocks' && !blocksEnabled()) return
       e.preventDefault()
       e.stopPropagation()
       // UX-45: ops shortcuts toast instead of running while a Confirm/Prompt is open
@@ -3724,6 +3773,14 @@ export default function App() {
           toggleBlocks: blocksOn,
           smartComplete: smartOn,
           sftpComfort
+        }}
+        disabled={{
+          syncNow: !syncReady,
+          runPlaybook: !hasPlaybooks
+        }}
+        hints={{
+          syncNow: syncReady ? undefined : tg('m2.syncNeedSetup'),
+          runPlaybook: hasPlaybooks ? undefined : tg('m2.noPlaybooks')
         }}
       />
 
@@ -4514,7 +4571,22 @@ export default function App() {
                   <SyncPreviewTab
                     plan={t.syncPlan}
                     onStart={(plan) => {
-                      window.dispatchEvent(new CustomEvent('aiss-run-sync', { detail: plan }))
+                      const sid = plan.sessionId || t.boundSessionId
+                      void runFolderSyncDurable({ ...plan, sessionId: sid }, async () => {
+                        if (!sid) return false
+                        const g = guardForSession(sid)
+                        return runGuardedCommand({
+                          level: g.level,
+                          hostName: g.hostName || t.connectOpts.host,
+                          hostLabel: g.hostLabel,
+                          elevated: g.elevated,
+                          profileId: g.profile?.id,
+                          channel: 'sftp',
+                          dangerous: false,
+                          command: 'folder-sync',
+                          source: 'user'
+                        })
+                      })
                     }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
@@ -4644,6 +4716,25 @@ export default function App() {
                     tabId={t.tabId}
                     sessionId={t.boundSessionId}
                     remotePath={t.remotePath}
+                    remoteWritesBlocked={(() => {
+                      const g = guardForSession(t.boundSessionId)
+                      return g.level === 'readonly' && !g.elevated
+                    })()}
+                    beforeRemoteWrite={async () => {
+                      if (!t.boundSessionId) return false
+                      const g = guardForSession(t.boundSessionId)
+                      return runGuardedCommand({
+                        level: g.level,
+                        hostName: g.hostName || t.connectOpts.host,
+                        hostLabel: g.hostLabel,
+                        elevated: g.elevated,
+                        profileId: g.profile?.id,
+                        channel: 'sftp',
+                        dangerous: false,
+                        command: 'remote-edit',
+                        source: 'user'
+                      })
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     onTitleChange={(title) => {
                       setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, title } : x)))
@@ -4849,7 +4940,13 @@ export default function App() {
       ) : null}
       {syncMeta.enabled ? (
         <button type="button" className="sync-status" data-testid="sync-status" onClick={() => openM2(syncMeta.phase === 'conflict' ? 'sync-conflicts' : 'sync-settings', tg('m2.cloudSync'))}>
-          {statusGlyph(syncMeta.phase) || '✓'} {syncMeta.phase}
+          <span className="sync-cloud" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16">
+              <path fill="currentColor" d="M12.5 13H4.2A3.2 3.2 0 0 1 4 6.6 4 4 0 0 1 11.7 5.2 2.8 2.8 0 0 1 12.5 13z" />
+            </svg>
+          </span>
+          <span>{statusGlyph(syncMeta.phase) || '✓'}</span>
+          <span>{tg(syncPhaseKey(syncMeta.phase))}</span>
         </button>
       ) : null}
 

@@ -155,7 +155,6 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('terminalPrefs', '终端外观…', 'Terminal appearance…'),
       it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),
       it('sftpComfort', 'SFTP 舒适密度', 'SFTP comfort density', { toggle: true }),
-      it('toggleBlocks', '输出分块', 'Output blocks', { toggle: true }),
       it('clearHostHistory', '清除本主机命令历史…', 'Clear history for this host…'),
       it('startupSettings', '启动设置…', 'Startup settings…'),
       it('toggleLanguage', '切换语言（English）', 'Switch language (Chinese)')
@@ -174,7 +173,9 @@ export const SHARED_MENUS: SharedMenu[] = [
       sep,
       it('toggleBroadcast', '广播输入', 'Broadcast input', { toggle: true }),
       it('broadcastTargets', '选择广播目标…', 'Choose broadcast targets…'),
-      it('toggleRecording', '录制', 'Recording', { toggle: true, needsSession: true })
+      it('toggleRecording', '录制', 'Recording', { toggle: true, needsSession: true }),
+      it('sessionRecordings', '会话录制', 'Session recordings'),
+      it('toggleBlocks', '输出分块', 'Output blocks', { toggle: true })
     ]
   },
   {
@@ -183,20 +184,22 @@ export const SHARED_MENUS: SharedMenu[] = [
     items: [
       it('opsHome', '运维首页', 'Ops home'),
       it('alertWorkbench', '告警工作台', 'Alert workbench'),
+      sep,
+      it('playbooks', '运维剧本', 'Playbooks'),
+      it('runPlaybook', '运行剧本…', 'Run playbook…'),
+      sep,
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
       it('dashboard', '多主机看板', 'Multi-host dashboard'),
-      it('alertRules', '告警规则…', 'Alert rules…'),
-      it('alertHistory', '告警历史', 'Alert history'),
-      it('auditLog', '审计日志', 'Audit log'),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
       it('refreshDocker', '刷新 Docker', 'Refresh Docker'),
       sep,
       it('batchExec', '批量执行…', 'Batch run…'),
       it('snippets', '命令片段', 'Snippets'),
-      it('playbooks', '运维剧本', 'Playbooks'),
-      it('runPlaybook', '运行剧本…', 'Run playbook…'),
-      it('sessionRecordings', '会话录制', 'Session recordings'),
-      it('inventory', '主机档案', 'Host inventory')
+      it('inventory', '主机档案', 'Host inventory'),
+      sep,
+      it('alertRules', '告警规则…', 'Alert rules…'),
+      it('alertHistory', '告警历史', 'Alert history'),
+      it('auditLog', '审计日志', 'Audit log')
     ]
   },
   {

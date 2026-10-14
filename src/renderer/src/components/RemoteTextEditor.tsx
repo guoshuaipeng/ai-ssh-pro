@@ -12,6 +12,9 @@ type Props = {
   remotePath: string
   onClose: () => void
   onTitleChange?: (title: string) => void
+  /** Same C1 gate as SFTP mkdir/rename. Read-only hosts must not write. */
+  beforeRemoteWrite?: () => Promise<boolean>
+  remoteWritesBlocked?: boolean
 }
 
 const TEXT_EXT =
@@ -40,7 +43,15 @@ function basename(path: string): string {
 const SHOW_DIFF_KEY = 'aiss.editor.showDiffBeforeSave'
 const BAK_KEY = 'aiss.editor.bakOnSave'
 
-export default function RemoteTextEditor({ tabId, sessionId, remotePath, onClose, onTitleChange }: Props) {
+export default function RemoteTextEditor({
+  tabId,
+  sessionId,
+  remotePath,
+  onClose,
+  onTitleChange,
+  beforeRemoteWrite,
+  remoteWritesBlocked = false
+}: Props) {
   const { locale } = useI18n()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -106,6 +117,16 @@ export default function RemoteTextEditor({ tabId, sessionId, remotePath, onClose
     setError(null)
     setStatus(tg('ui.260'))
     try {
+      if (beforeRemoteWrite && !(await beforeRemoteWrite())) {
+        setError(remoteWritesBlocked ? tg('l4.readonlyBlocked') : null)
+        setStatus(null)
+        return
+      }
+      if (!beforeRemoteWrite && remoteWritesBlocked) {
+        setError(tg('l4.readonlyBlocked'))
+        setStatus(null)
+        return
+      }
       if (bakPref) {
         try {
           await window.aiss.sftp.writeText(sessionId, `${remotePath}.bak`, baseline)
@@ -125,7 +146,7 @@ export default function RemoteTextEditor({ tabId, sessionId, remotePath, onClose
     } finally {
       setSaving(false)
     }
-  }, [bakPref, baseline, content, loading, locale, meta?.truncated, remotePath, saving, sessionId, tabId])
+  }, [bakPref, baseline, beforeRemoteWrite, content, loading, locale, meta?.truncated, remotePath, remoteWritesBlocked, saving, sessionId, tabId])
 
   const requestSave = useCallback(() => {
     if (!dirty || saving || loading || meta?.truncated) return
@@ -213,7 +234,8 @@ export default function RemoteTextEditor({ tabId, sessionId, remotePath, onClose
               <button
                 type="button"
                 className="primary"
-                disabled={loading || saving || !dirty || Boolean(meta?.truncated)}
+                disabled={loading || saving || !dirty || Boolean(meta?.truncated) || remoteWritesBlocked}
+                title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
                 onClick={() => requestSave()}
               >
                 {saving ? tg('ui.185') : tg('ui.265')}
@@ -227,7 +249,13 @@ export default function RemoteTextEditor({ tabId, sessionId, remotePath, onClose
               <button type="button" onClick={() => setMode('edit')}>
                 {tg('d4.backEdit')}
               </button>
-              <button type="button" className="primary" disabled={saving} onClick={() => void doSave()}>
+              <button
+                type="button"
+                className="primary"
+                disabled={saving || remoteWritesBlocked}
+                title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
+                onClick={() => void doSave()}
+              >
                 {saving ? tg('ui.185') : tg('d4.saveServer')}
               </button>
             </>

@@ -53,16 +53,43 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
     }
   }, [on, sessionId])
   if (!on || !sessionId || blocks.length === 0) return null
+  const explain = (b: TermBlock) => {
+    window.dispatchEvent(new CustomEvent('aiss-ai-explain', { detail: { sessionId, text: b.output || b.command, source: 'palette' } }))
+  }
+  const saveSnippet = (b: TermBlock) => {
+    const snip = snippetFromBlock(b)
+    void window.aiss.snippets
+      .list()
+      .then((list) =>
+        window.aiss.snippets.save([
+          ...list,
+          { id: `blk-${Date.now().toString(36)}`, title: snip.title, body: snip.body }
+        ])
+      )
+      .then(() => showToast(tg('m2.savedSnippet')))
+      .catch(() => showToast(tg('m2.snippetFail')))
+  }
   return (
     <div className="term-blocks" data-testid="terminal-blocks">
       {blocks.map((b) => (
-        <div key={b.id} className={`term-block${b.collapsed ? ' is-collapsed' : ''}`}>
+        <div
+          key={b.id}
+          className={`term-block${b.collapsed ? ' is-collapsed' : ''}`}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey)) return
+            if (e.key.toLowerCase() !== 'e') return
+            e.preventDefault()
+            e.stopPropagation()
+            explain(b)
+          }}
+        >
           <div className="term-block-bar">
             <button type="button" onClick={() => setBlocks((cur) => toggleBlock(cur, b.id))}>{b.collapsed ? '▸' : '▾'}</button>
             <code>{b.command}</code>
-            <button type="button" title={tg('m2.explain')} onClick={() => window.dispatchEvent(new CustomEvent('aiss-ai-explain', { detail: { sessionId, text: b.output || b.command, source: 'palette' } }))}>✨</button>
+            <button type="button" title={tg('m2.explain')} onClick={() => explain(b)}>✨</button>
             <button type="button" onClick={() => void navigator.clipboard.writeText(snippetFromBlock(b).body)}>{tg('m2.copy')}</button>
-            <button type="button" onClick={() => showToast(tg('m2.savedSnippet'))}>{tg('m2.saveSnippet')}</button>
+            <button type="button" onClick={() => saveSnippet(b)}>{tg('m2.saveSnippet')}</button>
           </div>
           {b.collapsed ? null : <pre>{b.large ? b.output.slice(0, 4000) : b.output}</pre>}
         </div>
