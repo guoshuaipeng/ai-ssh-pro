@@ -428,3 +428,15 @@ export function normalizeTabTitle(raw: string): string | null {
   const s = String(raw ?? '').replace(/\s+/g, ' ').trim()
   return s ? s.slice(0, 60) : null
 }
+
+/** Parses "prod, web  #db" style input into unique, lower-case tags (max 12, 24 chars each). */
+export function normalizeTags(input: unknown): string[] {
+  const raw = Array.isArray(input) ? input.map((x) => String(x ?? '')) : String(input ?? '').split(/[,，;；\s]+/)
+  const out: string[] = []
+  for (const r of raw) {
+    const t = r.trim().replace(/^#+/, '').toLowerCase().slice(0, 24)
+    if (t && !out.includes(t)) out.push(t)
+    if (out.length >= 12) break
+  }
+  return out
+}

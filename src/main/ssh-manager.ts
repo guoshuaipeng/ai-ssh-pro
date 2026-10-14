@@ -1,3 +1,4 @@
+import { mt } from './main-i18n'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -134,7 +135,7 @@ function connectClient(client: Client, config: ConnectConfig): Promise<void> {
     client.once('error', (err) => {
       const msg = err instanceof Error ? err.message : String(err)
       if (/verification failed|host key/i.test(msg)) {
-        fail(new Error('主机密钥未通过验证（已取消连接或指纹不匹配）'))
+        fail(new Error(mt('主机密钥未通过验证（已取消连接或指纹不匹配）', 'Host key not verified (cancelled or fingerprint mismatch)')))
         return
       }
       fail(err instanceof Error ? err : new Error(String(err)))
@@ -156,7 +157,7 @@ function forwardOutToTarget(
   return new Promise((resolve, reject) => {
     jumpClient.forwardOut('127.0.0.1', 0, targetHost, targetPort, (err, stream) => {
       if (err || !stream) {
-        reject(err ?? new Error('跳板机无法转发到目标主机'))
+        reject(err ?? new Error(mt('跳板机无法转发到目标主机', 'Jump host could not forward to the target')))
         return
       }
       resolve(stream)
@@ -278,7 +279,7 @@ export class SshSessionManager {
       if (child.ownsClient || child.client !== s.client) continue
       this.sessions.delete(id)
       if (!child.owner.isDestroyed()) {
-        const st: SshStatusEvent = { sessionId: id, status: 'closed', message: '父连接已断开' }
+        const st: SshStatusEvent = { sessionId: id, status: 'closed', message: mt('父连接已断开', 'Parent connection closed') }
         child.owner.send('ssh:status', st)
       }
       try {
@@ -294,7 +295,7 @@ export class SshSessionManager {
     const port = opts.port ?? 22
     const username = opts.username.trim()
     if (!host || !username) {
-      throw new Error('host 与 username 不能为空')
+      throw new Error(mt('host 与 username 不能为空', 'Host and username are required'))
     }
 
     const cols = opts.termCols ?? DEFAULT_COLS
@@ -350,7 +351,7 @@ export class SshSessionManager {
         await applyAuth(jumpConfig, jump as SshJumpHostOptions, { allowDefaultKey: true })
         if (!jumpConfig.password && !jumpConfig.privateKey) {
           throw new Error(
-            '跳板机请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置默认私钥'
+            mt('跳板机请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置默认私钥', 'Jump host needs a password or private key path; or put a default key in ~/.ssh')
           )
         }
         await connectClient(jumpClient, jumpConfig)
@@ -368,7 +369,7 @@ export class SshSessionManager {
         await applyAuth(targetConfig, opts, { allowDefaultKey: true })
         if (!targetConfig.password && !targetConfig.privateKey) {
           throw new Error(
-            '请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）'
+            mt('请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）', 'Provide a password or private key path, or put id_ed25519 / id_rsa / id_ecdsa in ~/.ssh (same as OpenSSH)')
           )
         }
         await connectClient(targetClient, targetConfig)
@@ -385,7 +386,7 @@ export class SshSessionManager {
         await applyAuth(connectConfig, opts, { allowDefaultKey: true })
         if (!connectConfig.password && !connectConfig.privateKey) {
           throw new Error(
-            '请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）'
+            mt('请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置 id_ed25519、id_rsa 或 id_ecdsa（与 OpenSSH 默认行为一致）', 'Provide a password or private key path, or put id_ed25519 / id_rsa / id_ecdsa in ~/.ssh (same as OpenSSH)')
           )
         }
         await connectClient(targetClient, connectConfig)
@@ -421,7 +422,7 @@ export class SshSessionManager {
         },
         (err, stream) => {
           if (err || !stream) {
-            fail(err ?? new Error('无法打开 shell'))
+            fail(err ?? new Error(mt('无法打开 shell', 'Could not open shell')))
             return
           }
 
@@ -460,7 +461,7 @@ export class SshSessionManager {
             if (this.sessions.get(sessionId) !== session) return
             ring.flushPartial()
             if (!owner.isDestroyed()) {
-              const st: SshStatusEvent = { sessionId, status: 'closed', message: '连接已断开' }
+              const st: SshStatusEvent = { sessionId, status: 'closed', message: mt('连接已断开', 'Disconnected') }
               owner.send('ssh:status', st)
             }
             this.teardownSession(sessionId, session)
@@ -494,7 +495,7 @@ export class SshSessionManager {
               const st: SshStatusEvent = {
                 sessionId,
                 status: 'closed',
-                message: reason === 'closed' ? '连接已断开' : `连接已断开：${reason}`,
+                message: reason === 'closed' ? mt('连接已断开', 'Disconnected') : mt(`连接已断开：${reason}`, `Disconnected: ${reason}`),
                 unexpected: reason !== 'closed'
               }
               owner.send('ssh:status', st)
@@ -566,7 +567,7 @@ export class SshSessionManager {
     opts?: { termCols?: number; termRows?: number; label?: string }
   ): Promise<SshConnectResult> {
     const parent = this.sessions.get(parentSessionId)
-    if (!parent) throw new Error('父 SSH 会话不存在或未连接')
+    if (!parent) throw new Error(mt('父 SSH 会话不存在或未连接', 'Parent SSH session is missing or disconnected'))
 
     const id = assertSafeDockerId(containerId, '容器')
     const cols = opts?.termCols ?? parent.meta.termCols ?? DEFAULT_COLS
@@ -607,7 +608,7 @@ export class SshSessionManager {
         },
         (err, stream) => {
           if (err || !stream) {
-            fail(err ?? new Error('无法打开 docker exec'))
+            fail(err ?? new Error(mt('无法打开 docker exec', 'Could not open docker exec')))
             return
           }
 
@@ -653,7 +654,7 @@ export class SshSessionManager {
             if (this.sessions.get(sessionId) !== session) return
             ring.flushPartial()
             if (!owner.isDestroyed()) {
-              const st: SshStatusEvent = { sessionId, status: 'closed', message: '容器终端已退出' }
+              const st: SshStatusEvent = { sessionId, status: 'closed', message: mt('容器终端已退出', 'Container terminal exited') }
               owner.send('ssh:status', st)
             }
             this.teardownSession(sessionId, session)

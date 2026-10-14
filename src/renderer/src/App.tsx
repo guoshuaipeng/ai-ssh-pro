@@ -40,9 +40,11 @@ import LayoutResizer from './components/LayoutResizer'
 import BatchExecuteModal, { type BatchSessionOption } from './components/BatchExecuteModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
-import { useI18n } from './lib/i18n'
+import { useI18n, tg, type MessageKey } from './lib/i18n'
+import { askText, DialogHost } from './lib/dialogs'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
+import { normalizeTags } from '@shared/workspace-features'
 import { filterProfiles, folderMatches } from './lib/session-filter'
 import { clearRemoteFileDirty, isRemoteFileDirty } from './lib/remote-file-dirty'
 import {
@@ -64,8 +66,8 @@ function profileSidebarTitle(p: SavedSessionProfile): string {
   const lines = [
     name,
     `${p.username}@${p.host}:${p.port}`,
-    p.privateKeyPath ? `密钥：${p.privateKeyPath}` : null,
-    '双击连接，右键打开菜单'
+    p.privateKeyPath ? tg('app.keyPath', { path: p.privateKeyPath }) : null,
+    tg('app.profileTip')
   ].filter(Boolean)
   return lines.join('\n')
 }
@@ -89,12 +91,12 @@ type TabView =
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide'
 
-const SETTINGS_TAB_TITLES: Record<SettingsTabView, string> = {
-  ai: 'AI 配置',
-  terminalPrefs: '终端外观',
-  uiTheme: '界面主题',
-  snippets: '命令片段',
-  mcpGuide: 'MCP 安装指南'
+const SETTINGS_TAB_TITLES: Record<SettingsTabView, MessageKey> = {
+  ai: 'app.tab.ai',
+  terminalPrefs: 'app.tab.terminalPrefs',
+  uiTheme: 'app.tab.uiTheme',
+  snippets: 'app.tab.snippets',
+  mcpGuide: 'app.tab.mcpGuide'
 }
 
 const WORKSPACE_TAB_VIEWS = new Set<TabView>([
@@ -710,7 +712,7 @@ export default function App() {
     }
     if (view === 'remote-file') {
       if (isRemoteFileDirty(tabId)) {
-        if (!window.confirm('有未保存的修改，确定关闭？')) return
+        if (!window.confirm(tg('app.unsavedClose'))) return
       }
       clearRemoteFileDirty(tabId)
       setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
@@ -759,7 +761,7 @@ export default function App() {
 
   const saveProfile = useCallback(() => {
     if (!host.trim() || !username.trim()) {
-      setError('保存前请填写主机与用户名')
+      setError(tg('app.needHostUser'))
       return
     }
     const h = host.trim()
@@ -843,7 +845,7 @@ export default function App() {
       } else {
         setEditingSavedId(null)
       }
-      const title = profile ? `编辑 ${profileSidebarLabel(profile)}` : '新建连接'
+      const title = profile ? tg('app.editProfile', { name: profileSidebarLabel(profile) }) : tg('app.newConnection')
       const existing = tabs.find((t) => t.view === 'connection')
       if (existing) {
         setTabs((prev) => prev.map((t) => (t.tabId === existing.tabId ? { ...t, title } : t)))
@@ -872,10 +874,10 @@ export default function App() {
       ensureMainVisible()
       setInventoryLink(link)
       const title = link?.host?.trim()
-        ? `主机档案 · ${link.host.trim()}`
+        ? `${tg('app.inventory')} · ${link.host.trim()}`
         : link?.label?.trim()
-          ? `主机档案 · ${link.label.trim()}`
-          : '主机档案'
+          ? `${tg('app.inventory')} · ${link.label.trim()}`
+          : tg('app.inventory')
       const existing = tabs.find((t) => t.view === 'inventory')
       if (existing) {
         setTabs((prev) => prev.map((t) => (t.tabId === existing.tabId ? { ...t, title } : t)))
@@ -918,11 +920,11 @@ export default function App() {
     )
     const bound = sshTab ?? fallback
     if (!bound) {
-      setError('请先连接一个 SSH 会话，再打开文件传输')
+      setError(tg('app.needSshSftp'))
       return
     }
     setError(null)
-    const title = `文件传输 · ${bound.title}`
+    const title = `${tg('sftp.title')} · ${bound.title}`
     const existing = tabs.find((t) => t.view === 'sftp')
     if (existing) {
       setTabs((prev) =>
@@ -954,7 +956,7 @@ export default function App() {
   const openSettingsTab = useCallback(
     (view: SettingsTabView) => {
       ensureMainVisible()
-      const title = SETTINGS_TAB_TITLES[view]
+      const title = tg(SETTINGS_TAB_TITLES[view])
       const existing = tabs.find((t) => t.view === view)
       if (existing) {
         setActiveTabId(existing.tabId)
@@ -1139,7 +1141,7 @@ export default function App() {
             ...prev,
             [profile.id]: {
               status: 'error',
-              error: '连接失败，无法加载 Docker',
+              error: tg('app.dockerConnFail'),
               data: prev[profile.id]?.data
             }
           }))
@@ -1315,7 +1317,7 @@ export default function App() {
     }) => {
       const bound = findConnectedSessionForProfile(info.profile)
       if (!bound?.sessionId) {
-        setError('请先连接该主机，再打开 Docker 详情')
+        setError(tg('app.needSshDocker'))
         return
       }
       ensureMainVisible()
@@ -1334,7 +1336,7 @@ export default function App() {
       const tabId = uuid()
       const title =
         info.kind === 'container'
-          ? `容器 · ${info.resourceName}`
+          ? `${tg('app.container')} · ${info.resourceName}`
           : info.kind === 'swarm'
             ? `Swarm · ${info.resourceName}`
             : `Compose · ${info.resourceName}`
@@ -1370,7 +1372,7 @@ export default function App() {
       ensureMainVisible()
       setError(null)
       const tabId = uuid()
-      const title = `容器壳 · ${info.containerName}`
+      const title = `${tg('app.containerShell')} · ${info.containerName}`
       cancelledConnectingTabsRef.current.delete(tabId)
       setTabs((prev) => [
         ...prev,
@@ -1440,7 +1442,7 @@ export default function App() {
           p.username === sessionTab.connectOpts.username
       )
     if (!profile) {
-      setError('请先打开并激活一个已保存主机的 SSH 会话，再刷新 Docker')
+      setError(tg('app.needSshRefreshDocker'))
       return
     }
     if (expandedHosts[profile.id]) {
@@ -1615,7 +1617,7 @@ export default function App() {
     try {
       const path = await window.aiss.ssh.startRecording(activeSessionId)
       if (path) setRecordingSessionId(activeSessionId)
-      else setError('无法开始录制')
+      else setError(tg('app.recordFail'))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -1677,8 +1679,8 @@ export default function App() {
     saveSidebarExpandPrefs({ folders: expandedFolders })
   }, [expandedFolders])
 
-  const addFolder = useCallback(() => {
-    const name = window.prompt('新建文件夹名称', '新文件夹')?.trim()
+  const addFolder = useCallback(async () => {
+    const name = (await askText(tg('app.newFolderName'), tg('app.newFolderDefault')))?.trim()
     if (!name) return
     const id = uuid()
     void persistSessionState({ folders: [...folders, { id, name }], profiles })
@@ -1686,8 +1688,8 @@ export default function App() {
   }, [folders, persistSessionState, profiles])
 
   const renameFolder = useCallback(
-    (folderId: string, currentName: string) => {
-      const name = window.prompt('重命名文件夹', currentName)?.trim()
+    async (folderId: string, currentName: string) => {
+      const name = (await askText(tg('app.renameFolder'), currentName))?.trim()
       if (!name) return
       void persistSessionState({
         folders: folders.map((f) => (f.id === folderId ? { ...f, name } : f)),
@@ -1710,6 +1712,24 @@ export default function App() {
         profiles: nextProfiles
       })
       setFolderMenu(null)
+    },
+    [folders, persistSessionState, profiles]
+  )
+
+  const editProfileTags = useCallback(
+    async (profileId: string) => {
+      setSessionMenu(null)
+      const cur = profiles.find((p) => p.id === profileId)
+      if (!cur) return
+      const input = await askText(tg('tags.prompt'), (cur.tags ?? []).join(', '))
+      if (input == null) return
+      const tags = normalizeTags(input)
+      const next = profiles.map((p) => {
+        if (p.id !== profileId) return p
+        const { tags: _old, ...rest } = p
+        return tags.length ? { ...rest, tags } : (rest as SavedSessionProfile)
+      })
+      void persistSessionState({ folders, profiles: next })
     },
     [folders, persistSessionState, profiles]
   )
@@ -1761,7 +1781,7 @@ export default function App() {
       if (additions.length) {
         void persistSessionState({ folders, profiles: [...profiles, ...additions] })
       }
-      const tail = additions.length ? `已添加 ${additions.length} 条。` : '未添加新会话（可能已全部存在）。'
+      const tail = additions.length ? tg('app.importAdded', { n: additions.length }) : tg('app.importNone')
       setSideInfo([...notes, tail].join(' '))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -1783,7 +1803,7 @@ export default function App() {
         void (async () => {
           try {
             await exportSessionsAndCopy(format)
-            setSideInfo(`已导出并复制到剪贴板（${format}）`)
+            setSideInfo(tg('exp.copied', { format }))
           } catch (e) {
             setError(e instanceof Error ? e.message : String(e))
           }
@@ -1939,7 +1959,7 @@ export default function App() {
         void (async () => {
           try {
             await exportSessionsAndCopy(format)
-            setSideInfo(`已导出并复制到剪贴板（${format}）`)
+            setSideInfo(tg('exp.copied', { format }))
           } catch (e) {
             setError(e instanceof Error ? e.message : String(e))
           }
@@ -1994,7 +2014,7 @@ export default function App() {
         try {
           const d = window.aiss?.debug
           if (!d?.openWindow) {
-            window.alert('调试接口未加载：请执行 npm run build 后重启应用。')
+            window.alert(tg('app.debugMissing'))
             return
           }
           void d.openWindow()
@@ -2120,7 +2140,7 @@ export default function App() {
                         className="session-folder-row"
                         role="button"
                         tabIndex={0}
-                        title="单击展开/折叠，右键管理文件夹"
+                        title={tg('app.folderTip')}
                         onClick={() => toggleFolderExpanded(f.id)}
                         onContextMenu={(e) => {
                           e.preventDefault()
@@ -2149,14 +2169,14 @@ export default function App() {
             </aside>
             {layout.showMain ? (
               <LayoutResizer
-                title="拖动调整左侧宽度"
+                title={tg('app.dragLeft')}
                 onDrag={(dx) =>
                   updateLayout((p) => ({ ...p, sidebarWidth: clampSidebarWidth(p.sidebarWidth + dx) }))
                 }
               />
             ) : layout.showAi ? (
               <LayoutResizer
-                title="拖动调整左右宽度"
+                title={tg('app.dragResize')}
                 onDrag={(dx) =>
                   updateLayout((p) => ({
                     ...p,
@@ -2347,8 +2367,8 @@ export default function App() {
               <div key={t.tabId} className={`terminal-layer ${t.tabId === activeTabId ? 'active' : ''}`}>
                 {t.view === 'connection' ? (
                   <ConnectionConfigModal
-                    title={editingSavedId ? '编辑已保存会话' : '新建连接'}
-                    saveProfileButtonLabel={editingSavedId ? '保存修改' : '保存到列表'}
+                    title={editingSavedId ? tg('app.editSaved') : tg('app.newConnection')}
+                    saveProfileButtonLabel={editingSavedId ? tg('app.saveChanges') : tg('app.saveToList')}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     error={error}
                     host={host}
@@ -2417,7 +2437,7 @@ export default function App() {
                   <SftpPanel
                     key={t.boundSessionId || t.tabId}
                     sessionId={t.boundSessionId || null}
-                    sessionTitle={t.title.replace(/^文件传输 · /, '')}
+                    sessionTitle={t.title.replace(/^[^·]+ · /, '')}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     onOpenRemoteFile={(info) => {
                       if (!t.boundSessionId) return
@@ -2510,7 +2530,7 @@ export default function App() {
 
         {layout.showMain && layout.showAi ? (
           <LayoutResizer
-            title="拖动调整 AI 面板宽度"
+            title={tg('app.dragAi')}
             onDrag={(dx) => updateLayout((p) => ({ ...p, aiWidth: clampAiWidth(p.aiWidth - dx) }))}
           />
         ) : null}
@@ -2538,6 +2558,7 @@ export default function App() {
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <DialogHost />
       <BatchExecuteModal open={batchOpen} sessions={connectedSshSessions} onClose={() => setBatchOpen(false)} />
 
       {sessionMenu && (
@@ -2556,7 +2577,7 @@ export default function App() {
               setSessionMenu(null)
             }}
           >
-            连接
+            {tg('app.connect')}
           </button>
           <button
             type="button"
@@ -2572,7 +2593,7 @@ export default function App() {
               setSessionMenu(null)
             }}
           >
-            {expandedHosts[sessionMenu.profile.id] ? '收起 Docker' : '展开 Docker'}
+            {expandedHosts[sessionMenu.profile.id] ? tg('app.collapseDocker') : tg('app.expandDocker')}
           </button>
           <button
             type="button"
@@ -2583,7 +2604,15 @@ export default function App() {
               setSessionMenu(null)
             }}
           >
-            编辑
+            {tg('app.edit')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item"
+            onClick={() => void editProfileTags(sessionMenu.profile.id)}
+          >
+            {tg('tags.edit')}
           </button>
           <button
             type="button"
@@ -2602,13 +2631,13 @@ export default function App() {
               setSessionMenu(null)
             }}
           >
-            主机档案
+            {tg('app.inventory')}
           </button>
           <div
             className={`session-context-submenu-wrap${sessionMenu.x > window.innerWidth - 320 ? ' open-left' : ''}`}
           >
             <button type="button" role="menuitem" className="session-context-menu-item session-context-menu-item--submenu">
-              <span>移动到</span>
+              <span>{tg('app.moveTo')}</span>
               <span className="session-context-menu-caret" aria-hidden>
                 ›
               </span>
@@ -2621,10 +2650,10 @@ export default function App() {
                 disabled={!sessionMenu.profile.folderId}
                 onClick={() => moveProfileToFolder(sessionMenu.profile.id, undefined)}
               >
-                未分组
+                {tg('app.ungrouped')}
               </button>
               {folders.length === 0 ? (
-                <div className="session-context-submenu-empty">暂无文件夹</div>
+                <div className="session-context-submenu-empty">{tg('app.noFolders')}</div>
               ) : (
                 folders.map((f) => (
                   <button
@@ -2648,13 +2677,13 @@ export default function App() {
             className="session-context-menu-item danger"
             onClick={() => {
               const p = sessionMenu.profile
-              const name = p.label?.trim() || `${p.username}@${p.host}` || p.host || '该连接'
-              if (!window.confirm(`确定删除连接「${name}」？\n删除后无法从列表恢复。`)) return
+              const name = p.label?.trim() || `${p.username}@${p.host}` || p.host || tg('app.thisConn')
+              if (!window.confirm(tg('app.confirmDeleteConn', { name }))) return
               removeProfile(p.id)
               setSessionMenu(null)
             }}
           >
-            删除
+            {tg('app.delete')}
           </button>
         </div>
       )}
@@ -2672,7 +2701,7 @@ export default function App() {
             className="session-context-menu-item"
             onClick={() => renameFolder(folderMenu.folderId, folderMenu.folderName)}
           >
-            重命名…
+            {tg('app.renameEllipsis')}
           </button>
           <button
             type="button"
@@ -2680,7 +2709,7 @@ export default function App() {
             className="session-context-menu-item danger"
             onClick={() => deleteFolder(folderMenu.folderId)}
           >
-            删除文件夹（会话移至未分组）
+            {tg('app.deleteFolder')}
           </button>
         </div>
       )}

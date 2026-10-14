@@ -5,6 +5,8 @@ import { useI18n, type MessageKey } from '../lib/i18n'
 import { notifyHistoryChanged } from '../lib/workspace-events'
 import Modal from './Modal'
 import CommandInput from './CommandInput'
+import { assessCommandRisk } from '../../../shared/command-risk'
+import { askConfirm } from '../lib/dialogs'
 
 export type BatchSessionOption = {
   sessionId: string
@@ -71,6 +73,14 @@ export default function BatchExecuteModal({ open, sessions, onClose }: Props) {
     if (ids.length === 0) {
       setFormError(t('batch.needSelection'))
       return
+    }
+    const risk = assessCommandRisk(line)
+    if (risk) {
+      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${line}`, { danger: true, okLabel: t('risk.run') })
+      if (!ok) {
+        setFormError(t('risk.blocked'))
+        return
+      }
     }
     setFormError(null)
     setRunning(true)

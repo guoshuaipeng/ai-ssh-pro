@@ -1,3 +1,4 @@
+import { mt } from './main-i18n'
 import { existsSync } from 'node:fs'
 import { basename } from 'node:path'
 import { Client, type SFTPWrapper, type TransferOptions } from 'ssh2'
@@ -29,7 +30,7 @@ function getSftp(client: Client): Promise<SFTPWrapper> {
   return new Promise((resolve, reject) => {
     client.sftp((err, sftp) => {
       if (err || !sftp) {
-        reject(err ?? new Error('无法打开 SFTP'))
+        reject(err ?? new Error(mt('无法打开 SFTP', 'Could not open SFTP')))
         return
       }
       resolve(sftp)
@@ -100,7 +101,7 @@ export async function home(client: Client): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       sftp.realpath('.', (err, abs) => {
         if (err || !abs) {
-          reject(err ?? new Error('无法解析家目录'))
+          reject(err ?? new Error(mt('无法解析家目录', 'Could not resolve home directory')))
           return
         }
         resolve(normalizeRemotePath(abs))
@@ -151,7 +152,7 @@ export async function upload(
 ): Promise<void> {
   const remote = normalizeRemotePath(remotePath)
   if (!existsSync(localPath)) {
-    throw new Error(`本地文件不存在: ${localPath}`)
+    throw new Error(mt(`本地文件不存在: ${localPath}`, `Local file not found: ${localPath}`))
   }
   await withSftp(client, async (sftp) => {
     await new Promise<void>((resolve, reject) => {
@@ -248,11 +249,11 @@ export async function readText(
     const size = await new Promise<number>((resolve, reject) => {
       sftp.stat(path, (err, st) => {
         if (err || !st) {
-          reject(err ?? new Error('无法获取文件信息'))
+          reject(err ?? new Error(mt('无法获取文件信息', 'Could not stat file')))
           return
         }
         if (typeof st.isDirectory === 'function' && st.isDirectory()) {
-          reject(new Error('不能打开目录'))
+          reject(new Error(mt('不能打开目录', 'Cannot open a directory')))
           return
         }
         resolve(typeof st.size === 'number' ? st.size : 0)
@@ -284,7 +285,7 @@ export async function readText(
     })
 
     if (buf.includes(0)) {
-      throw new Error('该文件疑似二进制，不适合文本预览/编辑')
+      throw new Error(mt('该文件疑似二进制，不适合文本预览/编辑', 'File looks binary and cannot be edited as text'))
     }
 
     const content = buf.toString('utf8')

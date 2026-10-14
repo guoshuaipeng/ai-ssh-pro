@@ -392,6 +392,8 @@ export type SavedSessionProfile = {
   forwards?: LocalPortForward[]
   /** 关联主机知识库档案 id */
   hostInventoryId?: string
+  /** User tags, e.g. prod / web; search with #tag */
+  tags?: string[]
 }
 
 /** 侧栏已保存会话与分组（持久化） */

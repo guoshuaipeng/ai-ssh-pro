@@ -3207,3 +3207,19 @@ body:has(.debug-window-root) #root {
 button.danger {
   color: var(--danger, #f85149);
 }
+
+.profile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.profile-tag {
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent-soft, rgba(99, 102, 241, 0.18));
+  color: var(--text-muted, inherit);
+}
+

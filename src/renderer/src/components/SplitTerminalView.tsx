@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tg } from '../lib/i18n'
 import type { TerminalPrefs } from '@shared/ipc'
 import TerminalPane from './TerminalPane'
 
@@ -43,17 +44,17 @@ export default function SplitTerminalView({
           color: 'var(--muted)'
         }}
       >
-        <span>分屏终端</span>
+        <span>{tg('split.title')}</span>
         <button
           type="button"
           className="ai-fill-cmd-btn"
           onClick={() => setOrientation((o) => (o === 'horizontal' ? 'vertical' : 'horizontal'))}
-          title="切换左右 / 上下布局"
+          title={tg('split.toggleTip')}
         >
-          {orientation === 'horizontal' ? '左右' : '上下'}
+          {orientation === 'horizontal' ? tg('split.horizontal') : tg('split.vertical')}
         </button>
         <span style={{ marginLeft: 'auto' }}>
-          {broadcastEnabled ? '广播输入：开（两侧均可键入）' : '广播输入：关（仅主屏可键入）'}
+          {broadcastEnabled ? tg('split.bcOn') : tg('split.bcOff')}
         </span>
       </div>
       <div

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { tg } from '../lib/i18n'
+import { askConfirm, askText } from '../lib/dialogs'
 import type { SftpListEntry, SftpListResult, SftpProgressEvent } from '@shared/ipc'
 import { isLikelyTextFile } from './RemoteTextEditor'
 
@@ -91,12 +93,12 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
   const refresh = useCallback(
     async (path: string) => {
       if (!sessionId) {
-        setError('无活动 SSH 会话')
+        setError(tg('sftp.noSession'))
         return
       }
       const api = getSftpApi()
       if (!api) {
-        setError('SFTP API 未就绪，请重启应用')
+        setError(tg('sftp.notReadyRestart'))
         return
       }
       setLoading(true)
@@ -186,7 +188,7 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     if (onOpenRemoteFile) {
       if (
         window.confirm(
-          `「${entry.name}」可能不是常见文本文件。仍要以文本方式打开预览/编辑吗？`
+          tg('sftp.notText', { name: entry.name })
         )
       ) {
         onOpenRemoteFile({ remotePath: entry.path, name: entry.name, size: entry.size })
@@ -208,14 +210,14 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     if (!sessionId || !files.length) return
     await runBusy(async () => {
       const api = getSftpApi()
-      if (!api) throw new Error('SFTP API 未就绪')
+      if (!api) throw new Error(tg('sftp.notReady'))
       for (const localPath of files) {
         const name = localPath.replace(/\\/g, '/').split('/').pop() || 'upload.bin'
         const remote = cwd === '/' ? `/${name}` : `${cwd.replace(/\/+$/, '')}/${name}`
         const transferId = `ul-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         await api.upload(sessionId, localPath, remote, transferId)
       }
-      setHint(`已上传 ${files.length} 个文件`)
+      setHint(tg('sftp.uploaded', { n: files.length }))
     })
   }
 
@@ -234,12 +236,12 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     if (!sessionId || entry.isDirectory) return
     void runBusy(async () => {
       const api = getSftpApi()
-      if (!api) throw new Error('SFTP API 未就绪')
+      if (!api) throw new Error(tg('sftp.notReady'))
       const local = await api.pickDownloadPath(entry.name)
       if (!local) return
       const transferId = `dl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       await api.download(sessionId, entry.path, local, transferId)
-      setHint(`已下载 ${entry.name}`)
+      setHint(tg('sftp.downloadedOne', { name: entry.name }))
     }, true)
   }
 
@@ -248,16 +250,16 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     if (!sessionId || files.length === 0) return
     void runBusy(async () => {
       const api = getSftpApi()
-      if (!api) throw new Error('SFTP API 未就绪')
+      if (!api) throw new Error(tg('sftp.notReady'))
       if (files.length === 1) {
         const local = await api.pickDownloadPath(files[0]!.name)
         if (!local) return
         const transferId = `dl-${Date.now()}`
         await api.download(sessionId, files[0]!.path, local, transferId)
-        setHint(`已下载 ${files[0]!.name}`)
+        setHint(tg('sftp.downloadedOne', { name: files[0]!.name }))
         return
       }
-      if (!api.pickSavePaths) throw new Error('请更新应用以支持批量下载')
+      if (!api.pickSavePaths) throw new Error(tg('sftp.needUpdate'))
       const locals = await api.pickSavePaths(files.map((f) => f.name))
       if (!locals?.length) return
       for (let i = 0; i < files.length; i++) {
@@ -267,17 +269,17 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
         const transferId = `dl-${Date.now()}-${i}`
         await api.download(sessionId, f.path, local, transferId)
       }
-      setHint(`已下载 ${files.length} 个文件`)
+      setHint(tg('sftp.downloaded', { n: files.length }))
     }, true)
   }
 
-  const onMkdir = () => {
+  const onMkdir = async () => {
     if (!sessionId) return
-    const name = window.prompt('新目录名称')
+    const name = await askText(tg('sftp.newDirName'))
     if (!name?.trim()) return
     void runBusy(async () => {
       const api = getSftpApi()
-      if (!api) throw new Error('SFTP API 未就绪')
+      if (!api) throw new Error(tg('sftp.notReady'))
       const remote = cwd === '/' ? `/${name.trim()}` : `${cwd.replace(/\/+$/, '')}/${name.trim()}`
       await api.mkdir(sessionId, remote)
     })
@@ -285,21 +287,21 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
 
   const onRemove = (entry: SftpListEntry) => {
     if (!sessionId) return
-    if (!window.confirm(`确定删除「${entry.name}」？`)) return
+    if (!window.confirm(tg('sftp.confirmDelete', { name: entry.name }))) return
     void runBusy(async () => {
       const api = getSftpApi()
-      if (!api) throw new Error('SFTP API 未就绪')
+      if (!api) throw new Error(tg('sftp.notReady'))
       await api.remove(sessionId, entry.path)
     })
   }
 
-  const onRename = (entry: SftpListEntry) => {
+  const onRename = async (entry: SftpListEntry) => {
     if (!sessionId) return
-    const next = window.prompt('新名称', entry.name)
+    const next = await askText(tg('sftp.newName'), entry.name)
     if (!next?.trim() || next.trim() === entry.name) return
     void runBusy(async () => {
       const api = getSftpApi()
-      if (!api) throw new Error('SFTP API 未就绪')
+      if (!api) throw new Error(tg('sftp.notReady'))
       const to = cwd === '/' ? `/${next.trim()}` : `${cwd.replace(/\/+$/, '')}/${next.trim()}`
       await api.rename(sessionId, entry.path, to)
     })
@@ -318,7 +320,7 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
       .map((f) => window.aiss.fs.pathForFile?.(f) || (f as File & { path?: string }).path)
       .filter((p): p is string => Boolean(p))
     if (!paths.length) {
-      setError('拖放上传需要本机文件路径（请从资源管理器拖入）')
+      setError(tg('sftp.dropNeedPath'))
       return
     }
     void uploadLocals(paths)
@@ -328,42 +330,42 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     <div className="workspace-panel workspace-panel--sftp">
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">
-          文件传输{sessionTitle ? ` · ${sessionTitle}` : ''}
+          {tg('sftp.title')}{sessionTitle ? ` · ${sessionTitle}` : ''}
         </h2>
         <div className="workspace-panel-actions">
           <button type="button" disabled={!sessionId || busy} onClick={() => void goHome()}>
-            家目录
+            {tg('sftp.home')}
           </button>
           <button type="button" disabled={!sessionId || busy} onClick={() => void refresh(cwd)}>
-            刷新
+            {tg('sftp.refresh')}
           </button>
           <button type="button" disabled={!sessionId || busy} onClick={onMkdir}>
-            新建目录
+            {tg('sftp.mkdir')}
           </button>
           <button
             type="button"
             disabled={!sessionId || busy || selectedEntries.every((e) => e.isDirectory)}
             onClick={onDownloadSelected}
           >
-            下载选中
+            {tg('sftp.downloadSel')}
           </button>
           <button type="button" className="primary" disabled={!sessionId || busy} onClick={onUpload}>
-            上传
+            {tg('sftp.upload')}
           </button>
           <button type="button" onClick={onClose} disabled={busy}>
-            关闭
+            {tg('common.close')}
           </button>
         </div>
       </div>
 
       <div className="workspace-panel-body workspace-panel-body--sftp">
         {!sessionId ? (
-          <p className="sftp-empty">请先打开并激活一个 SSH 会话，再使用文件传输。</p>
+          <p className="sftp-empty">{tg('sftp.needSession')}</p>
         ) : (
           <>
             <div className="sftp-pathbar">
               <button type="button" disabled={cwd === '/' || loading || busy} onClick={goUp}>
-                上级
+                {tg('sftp.up')}
               </button>
               <input
                 value={pathInput}
@@ -371,17 +373,17 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') submitPath()
                 }}
-                aria-label="远端路径"
+                aria-label={tg('sftp.remotePath')}
                 spellCheck={false}
               />
               <button type="button" disabled={busy || loading} onClick={submitPath}>
-                转到
+                {tg('sftp.go')}
               </button>
             </div>
 
             <p className="sftp-hint">
-              双击文本文件可预览/编辑，保存后写回服务器。也支持拖放上传；远端 <code>sz</code> / <code>rz</code>{' '}
-              走终端 Zmodem。
+              {tg('sftp.hintA')} <code>sz</code> / <code>rz</code>{' '}
+              {tg('sftp.hintB')}
             </p>
 
             {error ? <div className="sftp-error">{error}</div> : null}
@@ -401,18 +403,18 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
               onDrop={onDropFiles}
             >
               {loading ? (
-                <div className="sftp-empty">加载中…</div>
+                <div className="sftp-empty">{tg('common.loading')}</div>
               ) : entries.length === 0 ? (
-                <div className="sftp-empty">目录为空 — 可将本地文件拖到此处上传</div>
+                <div className="sftp-empty">{tg('sftp.empty')}</div>
               ) : (
                 <table className="sftp-table">
                   <thead>
                     <tr>
                       <th style={{ width: 36 }} />
-                      <th>名称</th>
-                      <th style={{ width: 100 }}>大小</th>
-                      <th style={{ width: 160 }}>修改时间</th>
-                      <th style={{ width: 220 }}>操作</th>
+                      <th>{tg('sftp.colName')}</th>
+                      <th style={{ width: 100 }}>{tg('sftp.colSize')}</th>
+                      <th style={{ width: 160 }}>{tg('sftp.colTime')}</th>
+                      <th style={{ width: 220 }}>{tg('sftp.colActions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -459,18 +461,18 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
                                     })
                                   }
                                 >
-                                  {isLikelyTextFile(e.name) ? '编辑' : '预览'}
+                                  {isLikelyTextFile(e.name) ? tg('sftp.edit') : tg('sftp.preview')}
                                 </button>
                                 <button type="button" disabled={busy} onClick={() => onDownloadOne(e)}>
-                                  下载
+                                  {tg('sftp.download')}
                                 </button>
                               </>
                             ) : null}
                             <button type="button" disabled={busy} onClick={() => onRename(e)}>
-                              重命名
+                              {tg('sftp.rename')}
                             </button>
                             <button type="button" disabled={busy} onClick={() => onRemove(e)}>
-                              删除
+                              {tg('sftp.delete')}
                             </button>
                           </div>
                         </td>
@@ -483,7 +485,7 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
 
             {transfers.length > 0 ? (
               <div className="sftp-transfers">
-                <div className="sftp-transfers-title">传输任务</div>
+                <div className="sftp-transfers-title">{tg('sftp.transfers')}</div>
                 <ul>
                   {transfers.map((t) => (
                     <li key={t.id}>
@@ -493,9 +495,9 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
                         </span>
                         <span>
                           {t.status === 'error'
-                            ? t.error || '失败'
+                            ? t.error || tg('sftp.failed')
                             : t.status === 'done'
-                              ? '完成'
+                              ? tg('sftp.done')
                               : `${pct(t.transferred, t.total)}%`}
                         </span>
                       </div>

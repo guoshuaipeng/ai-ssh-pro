@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { tg } from '../lib/i18n'
 
 type Props = {
   /** 拖动时回调：向右为正（px） */
@@ -7,7 +8,8 @@ type Props = {
 }
 
 /** 水平拖拽分隔条 */
-export default function LayoutResizer({ onDrag, title = '拖动调整宽度' }: Props) {
+export default function LayoutResizer({ onDrag, title }: Props) {
+  title = title ?? tg('app.dragResize')
   const dragging = useRef(false)
   const lastX = useRef(0)
   const onDragRef = useRef(onDrag)

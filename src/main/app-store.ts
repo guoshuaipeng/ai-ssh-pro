@@ -1,3 +1,4 @@
+import { normalizeTags } from '../shared/workspace-features'
 import Store from 'electron-store'
 import type {
   SavedSessionProfile,
@@ -56,7 +57,7 @@ export const AI_SETTINGS_DEFAULTS: AiSettings = {
   providers: [
     {
       id: 'dashscope',
-      name: 'DashScope（兼容 OpenAI）',
+      name: 'DashScope (OpenAI-compatible)',
       baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
       apiKey: '',
       modelList: DEFAULT_MODEL_LIST
@@ -202,7 +203,7 @@ function normalizeAi(merged: AiSettings): AiSettings {
     providers = [
       {
         id: 'default',
-        name: '默认 Provider',
+        name: 'Default provider',
         baseURL: legacyBaseURL,
         apiKey: legacyApiKey,
         modelList
@@ -226,7 +227,7 @@ function normalizeAi(merged: AiSettings): AiSettings {
           baseURL: legacyBaseURL,
           apiKey: legacyApiKey,
           modelList,
-          name: '默认 Provider'
+          name: 'Default provider'
         }
       }
     }
@@ -321,6 +322,8 @@ function normalizeSavedSessionsRaw(raw: unknown): SavedSessionsState {
     if (typeof o.hostInventoryId === 'string' && o.hostInventoryId.trim()) {
       row.hostInventoryId = o.hostInventoryId.trim()
     }
+    const tags = normalizeTags(o.tags)
+    if (Array.isArray(o.tags) && tags.length) row.tags = tags
     return row
   }
 

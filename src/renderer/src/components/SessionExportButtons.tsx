@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tg } from '../lib/i18n'
 import type { SessionExportFormat } from '@shared/ipc'
 
 type SessionsExportApi = {
@@ -56,7 +57,7 @@ export default function SessionExportButtons({ onExported }: Props) {
       setPreview(content)
       setLastFormat(format)
       const copied = await copyText(content)
-      setMessage(copied ? `已导出并复制到剪贴板（${format}）` : `已导出（${format}），可手动复制下方内容`)
+      setMessage(copied ? tg('exp.copied', { format }) : tg('exp.done', { format }))
       onExported?.(format, content)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -74,7 +75,7 @@ export default function SessionExportButtons({ onExported }: Props) {
           disabled={busy}
           onClick={() => void runExport('openssh')}
         >
-          导出 OpenSSH
+          {tg('exp.openssh')}
         </button>
         <button
           type="button"
@@ -82,7 +83,7 @@ export default function SessionExportButtons({ onExported }: Props) {
           disabled={busy}
           onClick={() => void runExport('json')}
         >
-          导出 JSON
+          {tg('exp.json')}
         </button>
         {preview && lastFormat ? (
           <button
@@ -91,7 +92,7 @@ export default function SessionExportButtons({ onExported }: Props) {
             disabled={busy}
             onClick={() => downloadText(preview, lastFormat)}
           >
-            下载文件
+            {tg('exp.download')}
           </button>
         ) : null}
       </div>
@@ -106,7 +107,7 @@ export default function SessionExportButtons({ onExported }: Props) {
           readOnly
           value={preview}
           rows={8}
-          aria-label="导出内容预览"
+          aria-label={tg('exp.preview')}
           style={{ width: '100%', resize: 'vertical', fontSize: 11, fontFamily: 'ui-monospace, monospace' }}
         />
       ) : null}

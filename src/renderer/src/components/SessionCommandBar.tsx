@@ -3,6 +3,8 @@ import { LATENCY_POLL_MS, classifyLatency } from '@shared/workspace-features'
 import { useI18n } from '../lib/i18n'
 import { notifyHistoryChanged } from '../lib/workspace-events'
 import CommandInput from './CommandInput'
+import { assessCommandRisk } from '../../../shared/command-risk'
+import { askConfirm } from '../lib/dialogs'
 
 type Props = {
   sessionId: string
@@ -38,6 +40,14 @@ export default function SessionCommandBar({ sessionId }: Props) {
   }, [sessionId])
 
   const onSubmit = async (command: string) => {
+    const risk = assessCommandRisk(command)
+    if (risk) {
+      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${command}`, { danger: true, okLabel: t('risk.run') })
+      if (!ok) {
+        setError(t('risk.blocked'))
+        return
+      }
+    }
     setBusy(true)
     setError(null)
     try {

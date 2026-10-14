@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { tg } from '../lib/i18n'
 
 type Props = {
   open: boolean
@@ -36,7 +37,7 @@ export default function Modal({ open, title, onClose, children, width = 520, foo
           <h2 id="modal-title" className="modal-title">
             {title}
           </h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="关闭">
+          <button type="button" className="modal-close" onClick={onClose} aria-label={tg('common.close')}>
             ×
           </button>
         </div>

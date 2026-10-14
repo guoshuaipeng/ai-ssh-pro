@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { tg } from '../lib/i18n'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { parseAiAssistantReply } from '@shared/ipc'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
@@ -220,7 +221,7 @@ export default function AIPanel({
         setPendingConfirm(null)
         setLines((prev) => {
           const next = [...prev]
-          const msg = ev.message?.trim() ? ev.message.trim() : '已取消'
+          const msg = ev.message?.trim() ? ev.message.trim() : tg('ai.cancelled')
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
             next[next.length - 1] = { role: 'assistant', content: msg }
@@ -237,9 +238,9 @@ export default function AIPanel({
           const next = [...prev]
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
-            next[next.length - 1] = { role: 'assistant', content: `错误：${ev.message}` }
+            next[next.length - 1] = { role: 'assistant', content: tg('ai.errorMsg', { message: String(ev.message ?? '') }) }
           } else {
-            next.push({ role: 'assistant', content: `错误：${ev.message}` })
+            next.push({ role: 'assistant', content: tg('ai.errorMsg', { message: String(ev.message ?? '') }) })
           }
           return next
         })
@@ -274,7 +275,7 @@ export default function AIPanel({
             } else {
               next[next.length - 1] = {
                 role: 'assistant',
-                content: raw || '（模型未返回可解析的 JSON）'
+                content: raw || tg('ai.badJson')
               }
             }
           } else if (last?.role === 'user') {
@@ -282,7 +283,7 @@ export default function AIPanel({
               if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed })
               else next.push({ role: 'assistant', content: raw })
             } else {
-              next.push({ role: 'assistant', content: '（无回复）' })
+              next.push({ role: 'assistant', content: tg('ai.noReply') })
             }
           }
           return next
@@ -325,13 +326,13 @@ export default function AIPanel({
           ...prev,
           {
             role: 'assistant',
-            content: '（当前终端暂无缓冲输出。请先连接 SSH，在终端产生输出后再试。）'
+            content: tg('ai.noBuffer')
           }
         ])
         return
       }
       const text =
-        '【已附带当前终端输出】请分析并说明当前状态、异常或风险，并给出建议的下一步（只读排查优先）。'
+        tg('ai.analyzePrompt')
       await submitToAi(text, snap.trim())
     } finally {
       setSnapshotBusy(false)
@@ -393,10 +394,10 @@ export default function AIPanel({
   return (
     <aside className="ai-panel">
       <div className="ai-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <span>AI 助手</span>
+        <span>{tg('ai.title')}</span>
         {providers.length > 0 && (
           <label style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>当前 Provider</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>{tg('ai.provider')}</span>
             <select
               value={providers.some((p) => p.id === activeProviderId) ? activeProviderId : providers[0]?.id ?? ''}
               onChange={(e) => onProviderChange(e.target.value)}
@@ -414,7 +415,7 @@ export default function AIPanel({
 
         {modelList.length > 0 && (
           <label style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>当前模型</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>{tg('ai.model')}</span>
             <select
               value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
               onChange={(e) => onModelChange(e.target.value)}
@@ -430,27 +431,27 @@ export default function AIPanel({
           </label>
         )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <button type="button" className="ai-fill-cmd-btn" disabled={!busy} onClick={stopGeneration} title="中断当前模型请求或等待中的确认">
-            停止生成
+          <button type="button" className="ai-fill-cmd-btn" disabled={!busy} onClick={stopGeneration} title={tg('ai.stopTip')}>
+            {tg('ai.stop')}
           </button>
           <button type="button" className="ai-fill-cmd-btn" disabled={busy} onClick={clearConversation}>
-            清空对话
+            {tg('ai.clear')}
           </button>
-          <button type="button" className="ai-fill-cmd-btn" disabled={busy || lines.length === 0} onClick={undoLastRound} title="去掉上一轮用户消息及之后助手回复，并把该条问题填回输入框">
-            撤回上一轮
+          <button type="button" className="ai-fill-cmd-btn" disabled={busy || lines.length === 0} onClick={undoLastRound} title={tg('ai.undoTip')}>
+            {tg('ai.undo')}
           </button>
         </div>
       </div>
       {!hasApiKey && (
         <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-          请先在「会话 → AI 配置」为当前 Provider 填写 API Key；也可以在配置里创建多个 Provider（ChatGPT / DeepSeek / Qwen 等）。
+          {tg('ai.needKey')}
         </div>
       )}
 
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="msg assistant" style={{ opacity: 0.85 }}>
-            助手会分步给出说明；读取终端快照（tool_call）会自动执行，执行命令（command）需你确认后再写入当前 SSH 标签页。
+            {tg('ai.intro')}
           </div>
         )}
         {lines.map((l, i) => {
@@ -464,7 +465,7 @@ export default function AIPanel({
           if (l.streaming) {
             return (
               <div key={i} className="msg assistant">
-                正在生成…
+                {tg('ai.generating')}
               </div>
             )
           }
@@ -474,27 +475,27 @@ export default function AIPanel({
             return (
               <div key={i} className="msg assistant ai-structured">
                 <div className="ai-reply-desc">{s.description}</div>
-                <div className={`ai-risk-badge ${riskClass(s.riskLevel)}`}>风险：{s.riskLevel}</div>
+                <div className={`ai-risk-badge ${riskClass(s.riskLevel)}`}>{tg('ai.risk', { level: String(s.riskLevel) })}</div>
                 {s.notes && <div className="ai-reply-notes">{s.notes}</div>}
                 {s.action === 'tool_call' && l.requestId ? (
                   <div className="ai-reply-cmd">
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                      需要调用工具：<code>{s.toolName ?? '(unknown)'}</code>
+                      {tg('ai.needTool')}<code>{s.toolName ?? '(unknown)'}</code>
                       {s.toolInput?.maxLines ? <span style={{ marginLeft: 8 }}>maxLines：{s.toolInput.maxLines}</span> : null}
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
-                        同意并继续
+                        {tg('ai.approveContinue')}
                       </button>
                       <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
-                        不同意
+                        {tg('ai.deny')}
                       </button>
                     </div>
                   </div>
                 ) : null}
                 {s.action === 'tool_call' && !l.requestId ? (
                   <div className="ai-reply-cmd" style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    已自动读取终端快照
+                    {tg('ai.autoSnapshot')}
                     {s.toolName ? (
                       <>
                         ：<code>{s.toolName}</code>
@@ -507,10 +508,10 @@ export default function AIPanel({
                     <code className="ai-reply-cmd-code">{s.command}</code>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
-                        同意并执行
+                        {tg('ai.approveRun')}
                       </button>
                       <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
-                        不同意
+                        {tg('ai.deny')}
                       </button>
                     </div>
                   </div>
@@ -518,7 +519,7 @@ export default function AIPanel({
                 {s.action === 'command' && s.command?.trim() && l.autoApproved ? (
                   <div className="ai-reply-cmd">
                     <code className="ai-reply-cmd-code">{s.command}</code>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>已自动执行</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>{tg('ai.autoRan')}</div>
                   </div>
                 ) : null}
                 {/* Legacy fallback：无 requestId 且非自动批准时，允许用户手动执行建议命令 */}
@@ -529,10 +530,10 @@ export default function AIPanel({
                       type="button"
                       className="ai-fill-cmd-btn"
                       disabled={!activeSessionId}
-                      title={activeSessionId ? '写入当前 SSH 终端当前行并回车执行' : '请先连接并选中 SSH 标签页'}
+                      title={activeSessionId ? tg('ai.runTip') : tg('ai.needTab')}
                       onClick={() => runSuggestedCommand(s.command!)}
                     >
-                      执行
+                      {tg('ai.run')}
                     </button>
                   </div>
                 ) : null}
@@ -557,7 +558,7 @@ export default function AIPanel({
               onChange={(e) => setIncludeTerminal(e.target.checked)}
               disabled={!activeSessionId}
             />
-            附带最近终端输出
+            {tg('ai.attachOutput')}
           </label>
           <button
             type="button"
@@ -565,21 +566,21 @@ export default function AIPanel({
             disabled={!activeSessionId || busy || snapshotBusy}
             title={
               activeSessionId
-                ? '抓取当前 SSH 终端最近约 1200 行并发送给 AI 分析（不依赖上方勾选）'
-                : '请先连接并选中 SSH 标签页'
+                ? tg('ai.sendConsoleTip')
+                : tg('ai.needTab')
             }
             onClick={() => void sendConsoleToAi()}
           >
-            {snapshotBusy ? '读取终端…' : '发送控制台给 AI'}
+            {snapshotBusy ? tg('ai.readingTerm') : tg('ai.sendConsole')}
           </button>
-          {!activeSessionId && <span style={{ color: 'var(--muted)', fontSize: 12 }}>（需先连接 SSH）</span>}
+          {!activeSessionId && <span style={{ color: 'var(--muted)', fontSize: 12 }}>{tg('ai.needSsh')}</span>}
         </div>
         <textarea
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="例如：解释上面报错、给出安全的排查命令…"
-          title="松开鼠标后自动复制选中文本；右键可复制/粘贴"
+          placeholder={tg('ai.placeholder')}
+          title={tg('ai.inputTip')}
           onMouseUp={() => {
             const ta = inputRef.current
             if (!ta) return
@@ -601,7 +602,7 @@ export default function AIPanel({
           }}
         />
         <button type="button" className="primary" disabled={busy || !input.trim()} onClick={() => void send()}>
-          {busy ? '生成中…' : '发送 (Enter)'}
+          {busy ? tg('ai.busy') : tg('ai.send')}
         </button>
       </div>
       {inputMenu ? (
@@ -627,7 +628,7 @@ export default function AIPanel({
               setInputMenu(null)
             }}
           >
-            复制
+            {tg('common.copy')}
           </button>
           <button
             type="button"
@@ -654,7 +655,7 @@ export default function AIPanel({
               })
             }}
           >
-            粘贴
+            {tg('common.paste')}
           </button>
         </div>
       ) : null}

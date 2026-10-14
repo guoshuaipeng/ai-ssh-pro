@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
+import { tg } from '../lib/i18n'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -271,7 +272,7 @@ export default function TerminalPane({
   return (
     <>
       <div className="terminal-pane-wrap">
-        <div ref={wrapRef} className="terminal-pane-xterm" title="选中后松开鼠标自动复制；右键可复制/粘贴" />
+        <div ref={wrapRef} className="terminal-pane-xterm" title={tg('term.tip')} />
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
       </div>
       {termMenu ? (
@@ -290,7 +291,7 @@ export default function TerminalPane({
               setTermMenu(null)
             }}
           >
-            复制
+            {tg('common.copy')}
           </button>
           <button
             type="button"
@@ -303,7 +304,7 @@ export default function TerminalPane({
               setTermMenu(null)
             }}
           >
-            粘贴
+            {tg('common.paste')}
           </button>
         </div>
       ) : null}

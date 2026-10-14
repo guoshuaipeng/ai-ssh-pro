@@ -11,7 +11,14 @@ function matches(value: string | undefined, q: string): boolean {
 
 /** 会话自身字段（名称 / 主机 / 用户）是否命中 */
 export function profileMatches(p: SavedSessionProfile, q: string): boolean {
+  const tags = p.tags ?? []
+  // "#tag" matches tags only (prefix); plain tokens also look at tags
+  if (q.startsWith('#')) {
+    const t = q.slice(1)
+    return t ? tags.some((x) => x.toLowerCase().startsWith(t)) : tags.length > 0
+  }
   return (
+    tags.some((x) => x.toLowerCase().includes(q)) ||
     matches(p.label, q) ||
     matches(p.host, q) ||
     matches(p.username, q) ||

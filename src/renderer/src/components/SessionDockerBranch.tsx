@@ -1,3 +1,4 @@
+import { tg } from '../lib/i18n'
 import { useMemo } from 'react'
 import type { MouseEvent } from 'react'
 import type {
@@ -59,7 +60,7 @@ function toneFromStatus(shortStatus?: string, status?: string): StatusTone {
 
 function statusLabel(shortStatus?: string, status?: string): string {
   const tone = toneFromStatus(shortStatus, status)
-  if (tone === 'starting') return status?.trim() || '启动中'
+  if (tone === 'starting') return status?.trim() || tg('db.starting')
   return status || shortStatus || tone
 }
 
@@ -164,7 +165,7 @@ export default function SessionDockerBranch({
           <button
             type="button"
             className="session-docker-chevron-btn"
-            title={open ? '折叠任务容器' : '展开任务容器'}
+            title={open ? tg('db.collapseTasks') : tg('db.expandTasks')}
             disabled={svc.containers.length === 0}
             onClick={() => onToggleSwarmNode(`svc:${svc.name}`)}
           >
@@ -173,16 +174,16 @@ export default function SessionDockerBranch({
           <button
             type="button"
             className="session-docker-leaf session-docker-leaf--project"
-            title={`${svc.image}\n副本 ${svc.replicas}${
+            title={`${svc.image}\n${tg('db.replicas', { n: String(svc.replicas) })}${
               published.length > 0
-                ? `\n发布端口 ${published
+                ? `\n${tg('db.published', { ports: '' })}${published
                     .map((p) => `${p.publishedPort}→${p.targetPort}/${p.protocol}`)
                     .join(', ')}`
-                : '\n未发布端口'
+                : `\n${tg('db.unpublished')}`
             }`}
             onClick={() => onOpenSwarmService(svc.name)}
           >
-            <StatusIcon tone={tone} title={`副本 ${svc.replicas}`} />
+            <StatusIcon tone={tone} title={tg('db.replicas', { n: String(svc.replicas) })} />
             <span className="session-docker-leaf-name">{svc.name}</span>
             {published.length > 0 ? (
               <span className="session-docker-port-badge">
@@ -211,7 +212,7 @@ export default function SessionDockerBranch({
                     {c.name.startsWith(`${svc.name}.`) ? c.name.slice(svc.name.length + 1) : c.name}
                   </span>
                   {ct === 'starting' ? (
-                    <span className="session-docker-leaf-badge">启动中</span>
+                    <span className="session-docker-leaf-badge">{tg('db.starting')}</span>
                   ) : null}
                 </button>
               )
@@ -226,7 +227,7 @@ export default function SessionDockerBranch({
     <div className={`session-host-block${inFolder ? ' session-host-block--in-folder' : ''}`}>
       <div
         className={`profile-row profile-row--host${selected ? ' is-selected' : ''}${inFolder ? ' profile-row--in-folder' : ''}${busy && !hostExpanded ? ' is-docker-loading' : ''}`}
-        title={`${profile.username}@${profile.host}:${profile.port} · 单击选中 · 双击连接 · 右键可展开 Docker`}
+        title={`${tg('db.rowTitle', { target: `${profile.username}@${profile.host}:${profile.port}` })}${profile.tags?.length ? `\n${tg('tags.title', { tags: profile.tags.join(', ') })}` : ''}`}
         onClick={onSelect}
         onDoubleClick={onConnect}
         onContextMenu={onContextMenu}
@@ -236,12 +237,12 @@ export default function SessionDockerBranch({
           className="session-host-chevron"
           title={
             busy && !hostExpanded
-              ? '正在加载 Docker…'
+              ? tg('db.loading')
               : hostExpanded
-                ? '折叠'
-                : '展开 Docker（自动连接）'
+                ? tg('db.collapse')
+                : tg('db.expandAuto')
           }
-          aria-label={hostExpanded ? '折叠' : '展开'}
+          aria-label={hostExpanded ? tg('db.collapse') : tg('db.expand')}
           disabled={busy && !hostExpanded}
           onClick={(e) => {
             e.stopPropagation()
@@ -258,12 +259,21 @@ export default function SessionDockerBranch({
         </button>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+          {profile.tags?.length ? (
+            <div className="profile-tags">
+              {profile.tags.map((tag) => (
+                <span key={tag} className="profile-tag">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         {hostExpanded ? (
           <button
             type="button"
             className="session-host-refresh"
-            title="刷新 Docker"
+            title={tg('db.refresh')}
             disabled={busy}
             onClick={(e) => {
               e.stopPropagation()
@@ -278,7 +288,7 @@ export default function SessionDockerBranch({
       {showTree ? (
         <div className="session-docker-tree">
           {tree?.status === 'error' ? (
-            <div className="session-docker-msg session-docker-msg--error">{tree.error || '加载失败'}</div>
+            <div className="session-docker-msg session-docker-msg--error">{tree.error || tg('db.loadFailed')}</div>
           ) : null}
           {tree?.status === 'ready' && tree.data ? (
             <>
@@ -298,7 +308,7 @@ export default function SessionDockerBranch({
                     {tree.data.composeError ? (
                       <div className="session-docker-msg session-docker-msg--error">{tree.data.composeError}</div>
                     ) : view.projects.length === 0 ? (
-                      <div className="session-docker-msg">{searching ? '无匹配项目' : '无 compose 项目'}</div>
+                      <div className="session-docker-msg">{searching ? tg('db.noMatchProjects') : tg('db.noProjects')}</div>
                     ) : (
                       view.projects.map((p) => {
                         const tone = toneFromStatus(undefined, p.status)
@@ -309,7 +319,7 @@ export default function SessionDockerBranch({
                               <button
                                 type="button"
                                 className="session-docker-chevron-btn"
-                                title={open ? '折叠容器' : '展开容器'}
+                                title={open ? tg('db.collapseContainers') : tg('db.expandContainers')}
                                 onClick={() => onToggleComposeProject(p.name)}
                               >
                                 {open ? '▼' : '▶'}
@@ -328,7 +338,7 @@ export default function SessionDockerBranch({
                             {open ? (
                               <div className="session-docker-project-children">
                                 {p.containers.length === 0 ? (
-                                  <div className="session-docker-msg">无容器</div>
+                                  <div className="session-docker-msg">{tg('db.noContainers')}</div>
                                 ) : (
                                   p.containers.map((c) => {
                                     const ct = toneFromStatus(c.shortStatus, c.status)
@@ -345,7 +355,7 @@ export default function SessionDockerBranch({
                                           {c.composeService || c.name}
                                         </span>
                                         {ct === 'starting' ? (
-                                          <span className="session-docker-leaf-badge">启动中</span>
+                                          <span className="session-docker-leaf-badge">{tg('db.starting')}</span>
                                         ) : null}
                                       </button>
                                     )
@@ -381,7 +391,7 @@ export default function SessionDockerBranch({
                         </div>
                       ) : swarmCount === 0 ? (
                         <div className="session-docker-msg">
-                          {searching ? '无匹配服务' : '无 Swarm 服务'}
+                          {searching ? tg('db.noMatchServices') : tg('db.noServices')}
                         </div>
                       ) : (
                         view.stacks.map((stack) => {
@@ -397,7 +407,7 @@ export default function SessionDockerBranch({
                                 <button
                                   type="button"
                                   className="session-docker-chevron-btn"
-                                  title={open ? '折叠服务' : '展开服务'}
+                                  title={open ? tg('db.collapseService') : tg('db.expandService')}
                                   onClick={() => onToggleSwarmNode(`stack:${stack.name}`)}
                                 >
                                   {open ? '▼' : '▶'}
@@ -439,7 +449,7 @@ export default function SessionDockerBranch({
                       <div className="session-docker-msg session-docker-msg--error">{tree.data.containersError}</div>
                     ) : standaloneCount === 0 ? (
                       <div className="session-docker-msg">
-                        {searching ? '无匹配容器' : '无独立容器（compose 内容已归入上方）'}
+                        {searching ? tg('db.noMatchContainers') : tg('db.noStandalone')}
                       </div>
                     ) : (
                       view.containers.map((c) => {
@@ -455,7 +465,7 @@ export default function SessionDockerBranch({
                             <StatusIcon tone={ct} title={statusLabel(c.shortStatus, c.status)} />
                             <span className="session-docker-leaf-name">{c.name}</span>
                             {ct === 'starting' ? (
-                              <span className="session-docker-leaf-badge">启动中</span>
+                              <span className="session-docker-leaf-badge">{tg('db.starting')}</span>
                             ) : null}
                           </button>
                         )

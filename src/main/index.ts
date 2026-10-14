@@ -1,3 +1,6 @@
+import { mt, setMainLocaleGetter } from './main-i18n'
+import { getLocale as getMainLocale } from './app-store'
+setMainLocaleGetter(() => getMainLocale())
 import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
 import { existsSync, statSync } from 'node:fs'
@@ -520,18 +523,18 @@ function registerIpc(): void {
   ipcMain.handle('sftp:pickDownloadPath', async (_e, defaultName?: string) => {
     const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
     const { canceled, filePath } = parent
-      ? await dialog.showSaveDialog(parent, { title: '下载到…', defaultPath: defaultName || 'download.bin' })
-      : await dialog.showSaveDialog({ title: '下载到…', defaultPath: defaultName || 'download.bin' })
+      ? await dialog.showSaveDialog(parent, { title: mt('下载到…', 'Download to…'), defaultPath: defaultName || 'download.bin' })
+      : await dialog.showSaveDialog({ title: mt('下载到…', 'Download to…'), defaultPath: defaultName || 'download.bin' })
     return canceled || !filePath ? null : filePath
   })
   ipcMain.handle('sftp:pickUploadFiles', async () => {
     const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
     const { canceled, filePaths } = parent
       ? await dialog.showOpenDialog(parent, {
-          title: '上传文件',
+          title: mt('上传文件', 'Upload files'),
           properties: ['openFile', 'multiSelections']
         })
-      : await dialog.showOpenDialog({ title: '上传文件', properties: ['openFile', 'multiSelections'] })
+      : await dialog.showOpenDialog({ title: mt('上传文件', 'Upload files'), properties: ['openFile', 'multiSelections'] })
     return canceled || !filePaths?.length ? null : filePaths
   })
   ipcMain.handle('sftp:pickSavePaths', async (_e, names: string[]) => {
