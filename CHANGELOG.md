@@ -10,6 +10,7 @@
 - **Tour placement (UX-38)** — welcome cards prefer the right side and avoid action areas; ← / → move between steps.
 - **Upright tab titles (UX-42b)** — workspace, connecting, and disconnected tabs use the same roman face.
 - **Host picker (UX-43b)** — Chinese title no longer inserts a stray space; rows show the online dot, latency, and folder.
+- **已知限制** — History and sync profiles stay in localStorage. Closing the SFTP tab closes the transfer-queue UI (the main-process transfer can continue). Folder-sync deletes are best-effort and are not queued as their own tasks.
 
 ## v0.3.17
 
