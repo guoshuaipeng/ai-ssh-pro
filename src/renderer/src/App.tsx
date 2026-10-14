@@ -4443,6 +4443,11 @@ export default function App() {
                       if (!t.boundSessionId) return
                       void openFileCompare({ ...info, sessionId: t.boundSessionId })
                     }}
+                    remoteWritesBlocked={(() => {
+                      if (!t.boundSessionId) return false
+                      const g = guardForSession(t.boundSessionId)
+                      return g.level === 'readonly' && !g.elevated
+                    })()}
                     beforeRemoteWrite={async () => {
                       if (!t.boundSessionId) return false
                       const g = guardForSession(t.boundSessionId)
