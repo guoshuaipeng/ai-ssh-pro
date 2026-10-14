@@ -250,6 +250,7 @@ const api = {
     }
   },
   workspace: {
+    ping: (sessionId: string): Promise<number | null> => ipcRenderer.invoke('workspace:ping', sessionId),
     batchExec: (payload: BatchExecRequest): Promise<BatchExecResult> =>
       ipcRenderer.invoke('workspace:batchExec', payload),
     commandHistory: {

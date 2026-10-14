@@ -251,3 +251,22 @@ export function normalizeBatchRequest(
   if (sessionIds.length === 0) return { error: 'no-sessions' }
   return { command, sessionIds, timeoutMs: clampBatchTimeout(o.timeoutMs) }
 }
+
+export type LatencyLevel = 'good' | 'fair' | 'poor' | 'down'
+export const LATENCY_TIMEOUT_MS = 5000
+export const LATENCY_POLL_MS = 15_000
+
+/** Round-trip of a no-op exec on the session's SSH connection; null means unreachable / timed out. */
+export function classifyLatency(ms: number | null | undefined): LatencyLevel {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return 'down'
+  if (ms < 150) return 'good'
+  if (ms < 500) return 'fair'
+  return 'poor'
+}
+
+/** IPC input guard: a non-empty session id of sane length, else null. */
+export function normalizeSessionId(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const id = raw.trim()
+  return id && id.length <= 128 ? id : null
+}

@@ -12,7 +12,28 @@ import {
   setLocale
 } from './app-store'
 import type { BatchExecResult, BatchExecSessionResult, LocaleId } from '../shared/workspace-features'
-import { normalizeBatchRequest, normalizeLocale } from '../shared/workspace-features'
+import {
+  LATENCY_TIMEOUT_MS,
+  normalizeBatchRequest,
+  normalizeLocale,
+  normalizeSessionId
+} from '../shared/workspace-features'
+
+/** Measures one SSH round-trip with a no-op exec. Returns ms, or null when not connected / failed / timed out. */
+export async function pingSession(sshManager: SshSessionManager, raw: unknown): Promise<number | null> {
+  const id = normalizeSessionId(raw)
+  if (!id) return null
+  const session = sshManager.get(id)
+  if (!session) return null
+  const started = Date.now()
+  try {
+    const r = await execBounded(session.client, 'true', LATENCY_TIMEOUT_MS, 256)
+    if (r.timedOut) return null
+    return Date.now() - started
+  } catch {
+    return null
+  }
+}
 
 function shortExecError(err: unknown, command: string): string {
   const message = err instanceof Error ? err.message : ''
@@ -94,6 +115,7 @@ export async function runBatchExec(sshManager: SshSessionManager, raw: unknown):
 }
 
 export function registerWorkspaceIpc(sshManager: SshSessionManager): void {
+  ipcMain.handle('workspace:ping', async (_e, sessionId: unknown) => pingSession(sshManager, sessionId))
   ipcMain.handle('workspace:batchExec', async (_e, payload: unknown) => runBatchExec(sshManager, payload))
 
   ipcMain.handle('workspace:commandHistory:list', () => getCommandHistory())

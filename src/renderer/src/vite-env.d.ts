@@ -181,6 +181,7 @@ export type AissPreload = {
     onPush: (cb: (payload: AiDebugStreamPayload) => void) => () => void
   }
   workspace: {
+    ping: (sessionId: string) => Promise<number | null>
     batchExec: (payload: BatchExecRequest) => Promise<BatchExecResult>
     commandHistory: {
       list: () => Promise<string[]>

@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import type { WebContents } from 'electron'
 import { Client, type ClientChannel, type ConnectConfig } from 'ssh2'
 import { randomUUID } from 'node:crypto'
+import { StringDecoder } from 'node:string_decoder'
+import { attachClientGuards } from './ssh-guards'
 import type {
   SshConnectOptions,
   SshConnectResult,
@@ -267,9 +269,24 @@ export class SshSessionManager {
   }
 
   private teardownSession(sessionId: string, s: ManagedSession): void {
+    if (this.sessions.get(sessionId) === s) this.sessions.delete(sessionId)
     this.runForwardCleanups(s)
-    if (s.ownsClient) this.endClients(s)
-    this.sessions.delete(sessionId)
+    if (!s.ownsClient) return
+    this.endClients(s)
+    // docker exec tabs ride on this client; close them too instead of leaving dead tabs behind
+    for (const [id, child] of [...this.sessions]) {
+      if (child.ownsClient || child.client !== s.client) continue
+      this.sessions.delete(id)
+      if (!child.owner.isDestroyed()) {
+        const st: SshStatusEvent = { sessionId: id, status: 'closed', message: '父连接已断开' }
+        child.owner.send('ssh:status', st)
+      }
+      try {
+        child.stream.close()
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   async connect(opts: SshConnectOptions, owner: WebContents): Promise<SshConnectResult> {
@@ -409,6 +426,9 @@ export class SshSessionManager {
           }
 
           const ring = new RingBuffer(RING_MAX_LINES)
+          // Per-stream decoders: a multi-byte char split across chunks must not become U+FFFD in history/recordings.
+          const outDec = new StringDecoder('utf8')
+          const errDec = new StringDecoder('utf8')
           const forwardCleanups: Array<() => void> = []
 
           const session: ManagedSession = {
@@ -427,7 +447,7 @@ export class SshSessionManager {
           }
 
           stream.on('data', (buf: Buffer) => {
-            const asText = buf.toString('utf8')
+            const asText = outDec.write(buf)
             ring.appendUtf8(asText)
             appendRecording(sessionId, asText)
             if (!owner.isDestroyed()) {
@@ -437,6 +457,7 @@ export class SshSessionManager {
           })
 
           stream.on('close', () => {
+            if (this.sessions.get(sessionId) !== session) return
             ring.flushPartial()
             if (!owner.isDestroyed()) {
               const st: SshStatusEvent = { sessionId, status: 'closed', message: '连接已断开' }
@@ -446,7 +467,7 @@ export class SshSessionManager {
           })
 
           stream.stderr?.on('data', (buf: Buffer) => {
-            const asText = buf.toString('utf8')
+            const asText = errDec.write(buf)
             ring.appendUtf8(asText)
             appendRecording(sessionId, asText)
             if (!owner.isDestroyed()) {
@@ -465,6 +486,22 @@ export class SshSessionManager {
           }
 
           this.sessions.set(sessionId, session)
+
+          const onLost = (reason: string) => {
+            if (this.sessions.get(sessionId) !== session) return
+            ring.flushPartial()
+            if (!owner.isDestroyed()) {
+              const st: SshStatusEvent = {
+                sessionId,
+                status: 'closed',
+                message: reason === 'closed' ? '连接已断开' : `连接已断开：${reason}`
+              }
+              owner.send('ssh:status', st)
+            }
+            this.teardownSession(sessionId, session)
+          }
+          attachClientGuards(targetClient, 'target', onLost)
+          if (jumpClient) attachClientGuards(jumpClient, 'jump', onLost)
 
           if (!owner.isDestroyed()) {
             owner.send('ssh:status', {
@@ -510,14 +547,12 @@ export class SshSessionManager {
   disconnect(sessionId: string): void {
     const s = this.sessions.get(sessionId)
     if (!s) return
-    this.runForwardCleanups(s)
     try {
       s.stream.close()
     } catch {
       /* ignore */
     }
-    if (s.ownsClient) this.endClients(s)
-    this.sessions.delete(sessionId)
+    this.teardownSession(sessionId, s)
   }
 
   /**
@@ -576,6 +611,9 @@ export class SshSessionManager {
           }
 
           const ring = new RingBuffer(RING_MAX_LINES)
+          // Per-stream decoders: a multi-byte char split across chunks must not become U+FFFD in history/recordings.
+          const outDec = new StringDecoder('utf8')
+          const errDec = new StringDecoder('utf8')
           const session: ManagedSession = {
             sessionId,
             meta,
@@ -592,7 +630,7 @@ export class SshSessionManager {
           }
 
           stream.on('data', (buf: Buffer) => {
-            const asText = buf.toString('utf8')
+            const asText = outDec.write(buf)
             ring.appendUtf8(asText)
             appendRecording(sessionId, asText)
             if (!owner.isDestroyed()) {
@@ -602,7 +640,7 @@ export class SshSessionManager {
           })
 
           stream.stderr?.on('data', (buf: Buffer) => {
-            const asText = buf.toString('utf8')
+            const asText = errDec.write(buf)
             ring.appendUtf8(asText)
             appendRecording(sessionId, asText)
             if (!owner.isDestroyed()) {
@@ -611,6 +649,7 @@ export class SshSessionManager {
           })
 
           stream.on('close', () => {
+            if (this.sessions.get(sessionId) !== session) return
             ring.flushPartial()
             if (!owner.isDestroyed()) {
               const st: SshStatusEvent = { sessionId, status: 'closed', message: '容器终端已退出' }

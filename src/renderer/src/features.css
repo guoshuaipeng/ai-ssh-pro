@@ -312,3 +312,14 @@
   min-width: 42px;
   justify-content: center;
 }
+
+.session-latency {
+  font-size: 12px;
+  align-self: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.session-latency-good { color: #3fb950; }
+.session-latency-fair { color: #d29922; }
+.session-latency-poor { color: #f85149; }
+.session-latency-down { color: var(--danger, #f85149); }
