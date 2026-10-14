@@ -1,3 +1,5 @@
+import { tg } from './i18n'
+
 export type UiThemeId =
   | 'github-dark'
   | 'slate'
@@ -16,32 +18,32 @@ export type UiThemeDef = {
 export const UI_THEME_OPTIONS: UiThemeDef[] = [
   {
     id: 'github-dark',
-    label: '深色',
+    get label() { return tg('ui.283') },
     swatch: { bg: '#0f1117', panel: '#161b22', accent: '#58a6ff', text: '#e6edf3' }
   },
   {
     id: 'slate',
-    label: '石墨',
+    get label() { return tg('ui.284') },
     swatch: { bg: '#1c1f26', panel: '#252a33', accent: '#7aa2f7', text: '#e8ecf1' }
   },
   {
     id: 'ocean',
-    label: '海雾',
+    get label() { return tg('ui.285') },
     swatch: { bg: '#0b1220', panel: '#121a2b', accent: '#38bdf8', text: '#e2e8f0' }
   },
   {
     id: 'forest',
-    label: '松林',
+    get label() { return tg('ui.286') },
     swatch: { bg: '#0f1410', panel: '#171e18', accent: '#3fb950', text: '#e6ede6' }
   },
   {
     id: 'light',
-    label: '浅色',
+    get label() { return tg('ui.287') },
     swatch: { bg: '#f4f6f8', panel: '#ffffff', accent: '#0969da', text: '#1f2328' }
   },
   {
     id: 'sand',
-    label: '暖沙',
+    get label() { return tg('ui.288') },
     swatch: { bg: '#f3eee6', panel: '#faf7f2', accent: '#b45309', text: '#292524' }
   }
 ]

@@ -7,6 +7,7 @@ import type {
   HostServiceKind
 } from '@shared/inventory'
 import NotesMarkdownPreview from './NotesMarkdownPreview'
+import { tg } from '../lib/i18n'
 export type HostInventoryLink = {
   profileId?: string
   host?: string
@@ -37,7 +38,7 @@ const SERVICE_KINDS: HostServiceKind[] = ['systemd', 'docker', 'k8s', 'binary', 
 function getInventoryApi(): InventoryApi {
   const api = (window.aiss as unknown as { inventory?: InventoryApi }).inventory
   if (!api?.list || !api?.get || !api?.search || !api?.upsert || !api?.remove || !api?.getRoot) {
-    throw new Error('inventory API 尚未接线（window.aiss.inventory）')
+    throw new Error(tg('ui.154'))
   }
   return api
 }
@@ -127,7 +128,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
       const api = getInventoryApi()
       const rec = await api.get(id)
       if (!rec) {
-        setError(`未找到档案：${id}`)
+        setError(tg('ui.155', { 0: String(id) }))
         return
       }
       applyRecord(rec)
@@ -233,7 +234,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
       .filter(Boolean)
     return {
       id: form.id || undefined,
-      title: form.title.trim() || form.host.trim() || '未命名主机',
+      title: form.title.trim() || form.host.trim() || tg('ui.156'),
       host: form.host.trim() || undefined,
       port: Number(form.port) || 22,
       username: form.username.trim() || undefined,
@@ -264,10 +265,10 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
   const onDelete = async () => {
     const id = form.id || selectedId
     if (!id) {
-      setError('请先选择要删除的档案')
+      setError(tg('ui.157'))
       return
     }
-    if (!window.confirm(`确定删除主机档案「${form.title || id}」？`)) return
+    if (!window.confirm(tg('ui.158', { 0: String(form.title || id) }))) return
     setSaving(true)
     setError(null)
     try {
@@ -285,7 +286,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
 
   const onLinkCurrent = async () => {
     if (!link) {
-      setError('当前无会话可关联')
+      setError(tg('ui.159'))
       return
     }
     setForm((prev) => ({
@@ -310,7 +311,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
           form.title.trim() ||
           link.label?.trim() ||
           link.host?.trim() ||
-          '未命名主机',
+          tg('ui.156'),
         host: link.host?.trim() || form.host.trim() || undefined,
         port: link.port ?? (Number(form.port) || 22),
         username: link.username?.trim() || form.username.trim() || undefined,
@@ -334,7 +335,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
   const commitService = () => {
     const name = svcDraft.name.trim()
     if (!name) {
-      setError('服务名称不能为空')
+      setError(tg('ui.160'))
       return
     }
     setError(null)
@@ -375,22 +376,22 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
   const canLink = Boolean(link && (link.host || link.profileId || link.username))
   const panelTitle =
     focused && (form.title.trim() || form.host.trim() || link?.label || link?.host)
-      ? `主机档案 · ${form.title.trim() || form.host.trim() || link?.label || link?.host}`
-      : '主机档案'
+      ? tg('ui.161', { 0: String(form.title.trim() || form.host.trim() || link?.label || link?.host) })
+      : tg('ui.162')
 
   const metaFields = (
     <>
       <div className="field">
-        <label>标题</label>
+        <label>{tg('ui.163')}</label>
         <input
           value={form.title}
           onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-          placeholder="展示名"
+          placeholder={tg('ui.164')}
         />
       </div>
       <div className="inventory-grid-2">
         <div className="field">
-          <label>主机</label>
+          <label>{tg('ui.43')}</label>
           <input
             value={form.host}
             onChange={(e) => setForm((p) => ({ ...p, host: e.target.value }))}
@@ -398,7 +399,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
           />
         </div>
         <div className="field">
-          <label>端口</label>
+          <label>{tg('ui.44')}</label>
           <input
             type="number"
             min={1}
@@ -410,14 +411,14 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
       </div>
       <div className="inventory-grid-2">
         <div className="field">
-          <label>用户</label>
+          <label>{tg('ui.125')}</label>
           <input
             value={form.username}
             onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
           />
         </div>
         <div className="field">
-          <label>环境</label>
+          <label>{tg('ui.165')}</label>
           <input
             value={form.env}
             onChange={(e) => setForm((p) => ({ ...p, env: e.target.value }))}
@@ -426,7 +427,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
         </div>
       </div>
       <div className="field">
-        <label>标签（逗号分隔）</label>
+        <label>{tg('ui.166')}</label>
         <input
           value={form.tags}
           onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))}
@@ -435,16 +436,16 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
       </div>
       {!focused ? (
         <div className="field">
-          <label>关联会话 profileId</label>
+          <label>{tg('ui.167')}</label>
           <input
             value={form.profileId}
             onChange={(e) => setForm((p) => ({ ...p, profileId: e.target.value }))}
-            placeholder="可选"
+            placeholder={tg('ui.42')}
           />
         </div>
       ) : null}
       <div className="field">
-        <label>本机私钥路径</label>
+        <label>{tg('ui.168')}</label>
         <input
           value={form.privateKeyPath}
           onChange={(e) => setForm((p) => ({ ...p, privateKeyPath: e.target.value }))}
@@ -452,10 +453,10 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
         />
       </div>
 
-      <h3 className="modal-section-title">服务清单</h3>
+      <h3 className="modal-section-title">{tg('ui.169')}</h3>
       <ul className="inventory-svc-list">
         {form.services.length === 0 ? (
-          <li style={{ fontSize: 12, color: 'var(--muted)' }}>暂无服务</li>
+          <li style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.170')}</li>
         ) : (
           form.services.map((s, idx) => (
             <li key={`${s.name}-${idx}`} className="inventory-svc-row">
@@ -465,10 +466,10 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
               </span>
               <span style={{ display: 'flex', gap: 4 }}>
                 <button type="button" onClick={() => editService(idx)}>
-                  编辑
+                  {tg('ui.171')}
                 </button>
                 <button type="button" onClick={() => removeService(idx)}>
-                  删
+                  {tg('ui.172')}
                 </button>
               </span>
             </li>
@@ -479,7 +480,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
         <input
           value={svcDraft.name}
           onChange={(e) => setSvcDraft((p) => ({ ...p, name: e.target.value }))}
-          placeholder="服务名"
+          placeholder={tg('ui.173')}
         />
         <select
           value={svcDraft.kind}
@@ -494,10 +495,10 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
         <input
           value={svcDraft.notes}
           onChange={(e) => setSvcDraft((p) => ({ ...p, notes: e.target.value }))}
-          placeholder="备注"
+          placeholder={tg('ui.174')}
         />
         <button type="button" onClick={commitService}>
-          {editingSvcIdx != null ? '更新服务' : '添加服务'}
+          {editingSvcIdx != null ? tg('ui.175') : tg('ui.176')}
         </button>
       </div>
     </>
@@ -507,17 +508,17 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
     <section className="inventory-notes-pane">
       <div className="notes-toolbar">
         <div className="notes-toolbar-left">
-          <strong>运维备注</strong>
+          <strong>{tg('ui.177')}</strong>
           <span className="notes-meta">
-            {notesLines} 行 · {notesChars} 字
+            {notesLines} {' '}{tg('ui.178')}{' '} {notesChars} {' '}{tg('ui.179')}
           </span>
         </div>
-        <div className="notes-mode-seg" role="group" aria-label="备注显示模式">
+        <div className="notes-mode-seg" role="group" aria-label={tg('ui.180')}>
           {(
             [
-              ['preview', '预览'],
-              ['edit', '编辑'],
-              ['split', '分栏']
+              ['preview', tg('ui.181')],
+              ['edit', tg('ui.171')],
+              ['split', tg('ui.182')]
             ] as const
           ).map(([mode, label]) => (
             <button
@@ -537,7 +538,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
             className="notes-editor"
             value={form.notesMarkdown}
             onChange={(e) => setForm((p) => ({ ...p, notesMarkdown: e.target.value }))}
-            placeholder={'支持 Markdown，例如：\n# 角色\n- 用途\n\n## 排障\n```bash\nsystemctl status xxx\n```'}
+            placeholder={tg('ui.183')}
             spellCheck={false}
           />
         ) : null}
@@ -553,7 +554,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
         <div className="workspace-panel-actions">
           {rootHint ? (
             <span className="workspace-panel-hint" title={rootHint}>
-              目录：{rootHint}
+              {tg('ui.184')}{rootHint}
             </span>
           ) : null}
           <button
@@ -561,13 +562,13 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
             disabled={saving || !(form.id || selectedId)}
             onClick={() => void onDelete()}
           >
-            删除
+            {tg('ui.8')}
           </button>
           <button type="button" className="primary" disabled={saving || loading} onClick={() => void onSave()}>
-            {saving ? '保存中…' : '保存'}
+            {saving ? tg('ui.185') : tg('ui.25')}
           </button>
           <button type="button" onClick={onClose} disabled={saving}>
-            关闭
+            {tg('ui.27')}
           </button>
         </div>
       </div>
@@ -578,7 +579,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
         {error ? (
           <p style={{ margin: '0 0 10px', color: 'var(--danger, #f85149)', fontSize: 12 }}>{error}</p>
         ) : null}
-        {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>加载中…</p> : null}
+        {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.186')}</p> : null}
 
         {focused ? (
           <div className="inventory-focus-split">
@@ -595,11 +596,11 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void onSearch()
                   }}
-                  placeholder="搜索标题/主机/备注…"
-                  aria-label="搜索主机档案"
+                  placeholder={tg('ui.187')}
+                  aria-label={tg('ui.188')}
                 />
                 <button type="button" onClick={() => void onSearch()} disabled={loading}>
-                  搜索
+                  {tg('ui.189')}
                 </button>
               </div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
@@ -608,7 +609,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
                 </button>
               </div>
               {!loading && entries.length === 0 ? (
-                <p style={{ fontSize: 12, color: 'var(--muted)' }}>暂无档案</p>
+                <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.190')}</p>
               ) : null}
               <ul className="inventory-host-list">
                 {entries.map((e) => (
@@ -636,7 +637,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted }: Props)
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                 {!focused && canLink ? (
                   <button type="button" disabled={saving} onClick={() => void onLinkCurrent()}>
-                    关联当前会话
+                    {tg('ui.191')}
                   </button>
                 ) : null}
               </div>

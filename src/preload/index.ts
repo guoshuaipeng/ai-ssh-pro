@@ -1,3 +1,4 @@
+import type { ActiveForward, AddForwardRequest } from '../shared/ipc'
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type {
   SshConnectOptions,
@@ -261,6 +262,11 @@ const api = {
     ping: (sessionId: string): Promise<number | null> => ipcRenderer.invoke('workspace:ping', sessionId),
     batchExec: (payload: BatchExecRequest): Promise<BatchExecResult> =>
       ipcRenderer.invoke('workspace:batchExec', payload),
+    forwards: {
+      list: (sessionId?: string): Promise<ActiveForward[]> => ipcRenderer.invoke('workspace:forwards:list', sessionId),
+      add: (req: AddForwardRequest): Promise<ActiveForward> => ipcRenderer.invoke('workspace:forwards:add', req),
+      remove: (id: string): Promise<boolean> => ipcRenderer.invoke('workspace:forwards:remove', id)
+    },
     commandHistory: {
       list: (): Promise<string[]> => ipcRenderer.invoke('workspace:commandHistory:list'),
       push: (command: string): Promise<string[]> => ipcRenderer.invoke('workspace:commandHistory:push', command),

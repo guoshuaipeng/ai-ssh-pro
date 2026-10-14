@@ -38,6 +38,7 @@ import HostInventoryModal, { type HostInventoryLink } from './components/HostInv
 import McpGuidePanel from './components/McpGuidePanel'
 import LayoutResizer from './components/LayoutResizer'
 import BatchExecuteModal, { type BatchSessionOption } from './components/BatchExecuteModal'
+import PortForwardModal from './components/PortForwardModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
@@ -311,6 +312,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   const [batchOpen, setBatchOpen] = useState(false)
+  const [portForwardOpen, setPortForwardOpen] = useState(false)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
@@ -2052,6 +2054,10 @@ export default function App() {
         setBatchOpen(true)
         return
       }
+      if (action === 'portForward') {
+        setPortForwardOpen(true)
+        return
+      }
       if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets' || action === 'mcpGuide') {
         openSettingsTab(action)
       }
@@ -2560,6 +2566,12 @@ export default function App() {
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <DialogHost />
       <BatchExecuteModal open={batchOpen} sessions={connectedSshSessions} onClose={() => setBatchOpen(false)} />
+      <PortForwardModal
+        open={portForwardOpen}
+        sessions={connectedSshSessions}
+        activeSessionId={activeSessionId ?? null}
+        onClose={() => setPortForwardOpen(false)}
+      />
 
       {sessionMenu && (
         <div

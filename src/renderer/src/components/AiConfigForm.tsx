@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiProvider, AiSettings } from '@shared/ipc'
+import { tg } from '../lib/i18n'
 
 const MASK = '••••••••'
 
@@ -110,7 +111,7 @@ export default function AiConfigForm() {
     const id = `provider_${Date.now()}`
     const p: AiProvider = {
       id,
-      name: '新 Provider',
+      name: tg('ui.2'),
       baseURL: '',
       apiKey: '',
       modelList: ['qwen-max']
@@ -142,7 +143,7 @@ export default function AiConfigForm() {
 
   const save = useCallback(async () => {
     if (!baseURL.trim()) {
-      setSavedHint('Base URL 不能为空')
+      setSavedHint(tg('ui.3'))
       setTimeout(() => setSavedHint(null), 2000)
       return
     }
@@ -170,7 +171,7 @@ export default function AiConfigForm() {
     }
 
     await window.aiss.ai.setSettings(partial)
-    setSavedHint('已保存')
+    setSavedHint(tg('ui.4'))
     setTimeout(() => setSavedHint(null), 2000)
     load()
     window.dispatchEvent(new CustomEvent('aiss-ai-settings-saved'))
@@ -179,13 +180,13 @@ export default function AiConfigForm() {
   return (
     <>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-        支持创建多个 Provider（例如 ChatGPT / DeepSeek / Qwen）。API Key 仅存于本机主进程，需自行在各平台创建。
+        {tg('ui.5')}
       </p>
 
       {providers.length > 0 && (
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="field" style={{ margin: 0, flex: '1 1 280px' }}>
-            <label>当前 Provider</label>
+            <label>{tg('ui.6')}</label>
             <select
               value={providers.some((p) => p.id === activeProviderId) ? activeProviderId : providers[0]!.id}
               onChange={(e) => selectProvider(e.target.value)}
@@ -200,17 +201,17 @@ export default function AiConfigForm() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={() => addProvider()}>
-              添加 Provider
+              {tg('ui.7')}
             </button>
             <button type="button" onClick={() => removeActiveProvider()} disabled={providers.length <= 1}>
-              删除
+              {tg('ui.8')}
             </button>
           </div>
         </div>
       )}
 
       <div className="field">
-        <label>Provider 名称（界面展示）</label>
+        <label>{tg('ui.9')}</label>
         <input value={providerName} onChange={(e) => setProviderName(e.target.value)} placeholder="ChatGPT / DeepSeek / Qwen" />
       </div>
 
@@ -220,7 +221,7 @@ export default function AiConfigForm() {
       </div>
 
       <div className="field">
-        <label>模型列表（每行一个模型 ID）</label>
+        <label>{tg('ui.10')}</label>
         <textarea
           value={modelListText}
           onChange={(e) => setModelListText(e.target.value)}
@@ -231,14 +232,14 @@ export default function AiConfigForm() {
       </div>
 
       <div className="field">
-        <label>当前使用的模型</label>
+        <label>{tg('ui.11')}</label>
         <select
           value={parsedModelList.includes(model) ? model : parsedModelList[0] ?? ''}
           onChange={(e) => setModel(e.target.value)}
           disabled={parsedModelList.length === 0}
           style={{ width: '100%' }}
         >
-          {parsedModelList.length === 0 ? <option value="">请先填写上方列表</option> : null}
+          {parsedModelList.length === 0 ? <option value="">{tg('ui.12')}</option> : null}
           {parsedModelList.map((m) => (
             <option key={m} value={m}>
               {m}
@@ -246,7 +247,7 @@ export default function AiConfigForm() {
           ))}
         </select>
         <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted)' }}>
-          侧栏「AI 助手」顶部也可快速切换，无需打开本窗口。
+          {tg('ui.13')}
         </p>
       </div>
 
@@ -255,14 +256,14 @@ export default function AiConfigForm() {
         <input
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder="不填则使用当前已保存值（或清空）"
+          placeholder={tg('ui.14')}
           type="password"
           autoComplete="off"
         />
       </div>
 
       <div className="field">
-        <label>对话温度（0–2）</label>
+        <label>{tg('ui.15')}</label>
         <input
           type="number"
           min={0}
@@ -281,9 +282,9 @@ export default function AiConfigForm() {
             style={{ marginTop: 3 }}
           />
           <span>
-            使用内置 OpenClaw 风格核心（Core-A）
+            {tg('ui.16')}
             <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 4 }}>
-              启用：分步 Observe→Plan→Act、Skills 注入、会话记忆持久化、命令后自动读终端。关闭则单次流式直连模型。
+              {tg('ui.17')}
             </span>
           </span>
         </label>
@@ -297,23 +298,23 @@ export default function AiConfigForm() {
             style={{ marginTop: 3 }}
           />
           <span>
-            低风险命令自动执行
+            {tg('ui.18')}
             <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 4 }}>
-              当助手给出 riskLevel=low 的 command 时跳过确认并直接写入终端（仍会在对话中标注「已自动执行」）。
+              {tg('ui.19')}
             </span>
           </span>
         </label>
       </div>
       <div className="field">
-        <label>SSH 智能填表 · 自定义拆分说明（可选）</label>
+        <label>{tg('ui.20')}</label>
         <textarea
           value={sshParseInstructions}
           onChange={(e) => setSshParseInstructions(e.target.value)}
           placeholder={
-            '例如：\n' +
-            '• 第一行是会话显示名\n' +
-            '• 「IP」「主机」后面是地址；端口单独一行写「端口: 2222」\n' +
-            '• 用户名单独在「账号」后'
+            tg('ui.21') +
+            tg('ui.22') +
+            tg('ui.23') +
+            tg('ui.24')
           }
           rows={5}
           style={{ width: '100%', resize: 'vertical', minHeight: 88 }}
@@ -321,7 +322,7 @@ export default function AiConfigForm() {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button type="button" className="primary" onClick={() => void save()}>
-          保存
+          {tg('ui.25')}
         </button>
         {savedHint && <span style={{ fontSize: 12, color: 'var(--accent)' }}>{savedHint}</span>}
       </div>

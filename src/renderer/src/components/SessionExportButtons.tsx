@@ -9,7 +9,7 @@ type SessionsExportApi = {
 function getExportApi(): SessionsExportApi['export'] {
   const sessions = window.aiss.sessions as typeof window.aiss.sessions & Partial<SessionsExportApi>
   if (!sessions.export) {
-    throw new Error('sessions.export 尚未接线（Phase2：window.aiss.sessions.export）')
+    throw new Error(tg('ui.273'))
   }
   return sessions.export.bind(sessions)
 }

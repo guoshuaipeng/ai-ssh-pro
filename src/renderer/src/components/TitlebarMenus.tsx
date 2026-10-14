@@ -12,6 +12,7 @@ export type TitlebarMenuAction =
   | 'paste'
   | 'selectAll'
   | 'batchExec'
+  | 'portForward'
   | 'shortcuts'
 
 type MenuItem =
@@ -31,6 +32,7 @@ const MENUS: MenuDef[] = [
       { type: 'item', id: 'refreshDocker', label: 'menu.refreshDocker', shortcut: 'Ctrl+Shift+D' },
       { type: 'sep' },
       { type: 'item', id: 'batchExec', label: 'menu.batchExec' },
+      { type: 'item', id: 'portForward', label: 'menu.portForward' },
       { type: 'sep' },
       { type: 'item', id: 'newFolder', label: 'menu.newFolder' },
       { type: 'item', id: 'importSessions', label: 'menu.importSessions' },

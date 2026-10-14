@@ -3223,3 +3223,86 @@ button.danger {
   color: var(--text-muted, inherit);
 }
 
+
+.session-command-bar {
+  flex-wrap: wrap;
+}
+.cmd-explain {
+  flex-basis: 100%;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted, #8b949e);
+  padding: 2px 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmd-explain code {
+  color: var(--accent, #58a6ff);
+  font-size: 11px;
+}
+.cmd-explain-pipe {
+  margin: 0 6px;
+  opacity: 0.6;
+}
+.cmd-explain-risk {
+  margin-left: 8px;
+  color: #f85149;
+  font-weight: 600;
+}
+.pf-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pf-hint,
+.pf-empty {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.pf-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.pf-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.pf-form input {
+  width: 110px;
+}
+.pf-error {
+  margin: 0;
+  color: #f85149;
+  font-size: 12px;
+}
+.pf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pf-table th,
+.pf-table td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+.pf-addr {
+  font-family: ui-monospace, monospace;
+}
+.pf-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.18);
+}
+.pf-actions {
+  display: flex;
+  gap: 4px;
+}

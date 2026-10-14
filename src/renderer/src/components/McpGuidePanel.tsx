@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { McpGuideInfo } from '@shared/ipc'
+import { tg, type MessageKey } from '../lib/i18n'
+
+/** Steps hold message keys (ui.*) or literal text such as "command: node". */
+const stepText = (s: string): string => (s.startsWith('ui.') ? tg(s as MessageKey) : s)
 
 type Props = {
   onClose: () => void
@@ -14,84 +18,83 @@ type AgentSection = {
 }
 
 const TOOLS = [
-  { name: 'list_hosts', desc: '列出主机档案' },
-  { name: 'get_host', desc: '按 id 读取完整档案' },
-  { name: 'search_hosts', desc: '按服务名 / 标签 / 备注搜索' },
-  { name: 'upsert_host', desc: '新建或更新主机档案' },
-  { name: 'upsert_service', desc: '写入主机上的服务信息' },
-  { name: 'append_note', desc: '追加笔记到 notes.md' },
-  { name: 'ssh_test', desc: '测试密钥登录' },
-  { name: 'ssh_exec', desc: '在远端执行命令（密钥认证）' },
-  { name: 'ssh_upload', desc: 'SFTP 上传本地文件' }
+  { name: 'list_hosts', get desc() { return tg('ui.192') } },
+  { name: 'get_host', get desc() { return tg('ui.193') } },
+  { name: 'search_hosts', get desc() { return tg('ui.194') } },
+  { name: 'upsert_host', get desc() { return tg('ui.195') } },
+  { name: 'upsert_service', get desc() { return tg('ui.196') } },
+  { name: 'append_note', get desc() { return tg('ui.197') } },
+  { name: 'ssh_test', get desc() { return tg('ui.198') } },
+  { name: 'ssh_exec', get desc() { return tg('ui.199') } },
+  { name: 'ssh_upload', get desc() { return tg('ui.200') } }
 ]
 
 const AGENTS: AgentSection[] = [
   {
     id: 'cursor',
     title: 'Cursor',
-    where: '用户级：~/.cursor/mcp.json · 或项目级：.cursor/mcp.json',
+    get where() { return tg('ui.201') },
     steps: [
-      '打开 Cursor Settings → MCP，或直接编辑 mcp.json',
-      '粘贴下方配置（已按本机路径填好）',
-      '保存后在 MCP 面板 Reload / 重启 Cursor',
-      '确认出现 ai-ssh-inventory 工具列表'
+      'ui.202',
+      'ui.203',
+      'ui.204',
+      'ui.205'
     ],
     configKey: 'cursor'
   },
   {
     id: 'claude-desktop',
     title: 'Claude Desktop',
-    where:
-      'macOS：~/Library/Application Support/Claude/claude_desktop_config.json · Windows：%APPDATA%\\Claude\\claude_desktop_config.json',
+    get where() { return tg('ui.206') },
     steps: [
-      '打开配置文件，合并 mcpServers 段（不要覆盖其它服务器）',
-      '完全退出并重新打开 Claude Desktop',
-      '在对话里确认可调用 list_hosts 等工具'
+      'ui.207',
+      'ui.208',
+      'ui.209'
     ],
     configKey: 'claudeDesktop'
   },
   {
     id: 'claude-code',
     title: 'Claude Code / CLI',
-    where: '项目或用户 MCP 配置（claude mcp add / .mcp.json，以当前 CLI 文档为准）',
+    get where() { return tg('ui.210') },
     steps: [
-      '确保本机已安装 Node.js，且能执行 node <脚本路径>',
-      '用 CLI 添加 stdio 服务器，或写入等价 JSON',
-      '新开会话后用 /mcp 或工具列表确认已加载'
+      'ui.211',
+      'ui.212',
+      'ui.213'
     ],
     configKey: 'claudeCode'
   },
   {
     id: 'windsurf',
     title: 'Windsurf',
-    where: 'Cascade → MCP / 插件设置中的 MCP Servers',
+    get where() { return tg('ui.214') },
     steps: [
-      '新增 stdio MCP：command = node，args = 脚本绝对路径',
-      '环境变量填 AISS_INVENTORY_ROOT（可选 AISS_SSH_KEY）',
-      '保存并刷新 MCP'
+      'ui.215',
+      'ui.216',
+      'ui.217'
     ],
     configKey: 'generic'
   },
   {
     id: 'vscode',
-    title: 'VS Code（Cline / Continue 等）',
-    where: '各扩展自己的 MCP / Tools 配置页',
+    get title() { return tg('ui.218') },
+    get where() { return tg('ui.219') },
     steps: [
-      '选择 stdio 传输，启动命令为 node',
-      '参数填 mcp-inventory-server.mjs 的绝对路径',
-      '与 Cursor 相同的 env 字段即可共享同一份主机档案'
+      'ui.220',
+      'ui.221',
+      'ui.222'
     ],
     configKey: 'generic'
   },
   {
     id: 'other',
-    title: '其它兼容 MCP 的智能体',
-    where: '凡支持 Model Context Protocol stdio 的客户端',
+    get title() { return tg('ui.223') },
+    get where() { return tg('ui.224') },
     steps: [
       'command: node',
-      'args: [脚本绝对路径]',
-      'env: AISS_INVENTORY_ROOT（及可选 AISS_SSH_KEY）',
-      '与本应用「主机档案」读写同一目录，无需二次同步'
+      'ui.225',
+      'ui.226',
+      'ui.227'
     ],
     configKey: 'generic'
   }
@@ -116,7 +119,7 @@ function buildMcpJson(info: McpGuideInfo, scriptFallback: string): string {
   return JSON.stringify(block, null, 2)
 }
 
-function CopyButton({ text, label = '复制' }: { text: string; label?: string }) {
+function CopyButton({ text, label = tg('ui.228') }: { text: string; label?: string }) {
   const [ok, setOk] = useState(false)
   const onCopy = useCallback(async () => {
     try {
@@ -124,12 +127,12 @@ function CopyButton({ text, label = '复制' }: { text: string; label?: string }
       setOk(true)
       window.setTimeout(() => setOk(false), 1600)
     } catch {
-      window.alert('复制失败，请手动选择文本复制')
+      window.alert(tg('ui.229'))
     }
   }, [text])
   return (
     <button type="button" className="mcp-guide-copy" onClick={() => void onCopy()}>
-      {ok ? '已复制' : label}
+      {ok ? tg('ui.230') : label}
     </button>
   )
 }
@@ -169,59 +172,58 @@ export default function McpGuidePanel({ onClose }: Props) {
   return (
     <div className="workspace-panel workspace-panel--settings">
       <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">MCP 安装指南</h2>
+        <h2 className="workspace-panel-title">{tg('ui.231')}</h2>
         <div className="workspace-panel-actions">
           <button type="button" onClick={onClose}>
-            关闭
+            {tg('ui.27')}
           </button>
         </div>
       </div>
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--mcp-guide">
           <p className="mcp-guide-lead">
-            将本仓库的 <code>ai-ssh-inventory</code> 以 MCP（stdio）挂到 Cursor、Claude Desktop
-            等智能体后，它们可直接读写与本应用相同的主机档案，并可选执行 SSH 探测 / 命令 / 上传。
+            {tg('ui.232')}{' '} <code>ai-ssh-inventory</code> {' '}{tg('ui.233')}
           </p>
 
           {error ? <p className="mcp-guide-error">{error}</p> : null}
 
           <section className="mcp-guide-section">
-            <h3>前提</h3>
+            <h3>{tg('ui.234')}</h3>
             <ul>
-              <li>已安装 Node.js（建议 18+），终端可运行 <code>node -v</code></li>
+              <li>{tg('ui.235')}{' '} <code>node -v</code></li>
               <li>
-                需要源码中的 <code>scripts/mcp-inventory-server.mjs</code>
+                {tg('ui.236')}{' '} <code>scripts/mcp-inventory-server.mjs</code>
                 {info?.isPackaged && !info.scriptPath
-                  ? '（当前为安装包运行，请先克隆仓库或从 GitHub 取得脚本）'
+                  ? tg('ui.237')
                   : null}
               </li>
               <li>
-                主机档案目录默认 <code>~/.ai-ssh-pro/inventory</code>，可用环境变量{' '}
-                <code>AISS_INVENTORY_ROOT</code> 覆盖
+                {tg('ui.238')}{' '} <code>~/.ai-ssh-pro/inventory</code>{tg('ui.239')}{' '}
+                <code>AISS_INVENTORY_ROOT</code> {' '}{tg('ui.240')}
               </li>
             </ul>
             {info ? (
               <div className="mcp-guide-paths">
                 <div className="mcp-guide-path-row">
-                  <span className="mcp-guide-path-label">脚本</span>
+                  <span className="mcp-guide-path-label">{tg('ui.241')}</span>
                   <code className="mcp-guide-path-value">
-                    {info.scriptPath ?? '（未找到，请手动填写克隆后的绝对路径）'}
+                    {info.scriptPath ?? tg('ui.242')}
                   </code>
                   {info.scriptPath ? <CopyButton text={info.scriptPath} /> : null}
                 </div>
                 <div className="mcp-guide-path-row">
-                  <span className="mcp-guide-path-label">档案目录</span>
+                  <span className="mcp-guide-path-label">{tg('ui.243')}</span>
                   <code className="mcp-guide-path-value">{info.inventoryRoot}</code>
                   <CopyButton text={info.inventoryRoot} />
                 </div>
                 <div className="mcp-guide-path-row">
-                  <span className="mcp-guide-path-label">默认密钥</span>
+                  <span className="mcp-guide-path-label">{tg('ui.244')}</span>
                   <code className="mcp-guide-path-value">{info.sshKeyPath}</code>
                   <CopyButton text={info.sshKeyPath} />
                 </div>
               </div>
             ) : (
-              <p className="mcp-guide-muted">正在读取本机路径…</p>
+              <p className="mcp-guide-muted">{tg('ui.245')}</p>
             )}
             <div className="mcp-guide-actions-row">
               <button
@@ -232,16 +234,16 @@ export default function McpGuidePanel({ onClose }: Props) {
                   })
                 }}
               >
-                打开 GitHub 仓库
+                {tg('ui.246')}
               </button>
               {info?.scriptPath ? (
-                <CopyButton text={smokeCmd} label="复制自检命令" />
+                <CopyButton text={smokeCmd} label={tg('ui.247')} />
               ) : null}
             </div>
           </section>
 
           <section className="mcp-guide-section">
-            <h3>按智能体安装</h3>
+            <h3>{tg('ui.248')}</h3>
             <div className="mcp-guide-agent-tabs" role="tablist">
               {AGENTS.map((a) => (
                 <button
@@ -258,19 +260,19 @@ export default function McpGuidePanel({ onClose }: Props) {
             </div>
             <div className="mcp-guide-agent-body" role="tabpanel">
               <p className="mcp-guide-where">
-                <strong>配置位置：</strong>
+                <strong>{tg('ui.249')}</strong>
                 {active.where}
               </p>
               <ol>
                 {active.steps.map((s) => (
-                  <li key={s}>{s}</li>
+                  <li key={s}>{stepText(s)}</li>
                 ))}
               </ol>
               {active.configKey && configJson ? (
                 <div className="mcp-guide-code-wrap">
                   <div className="mcp-guide-code-toolbar">
-                    <span>通用 MCP JSON</span>
-                    <CopyButton text={configJson} label="复制配置" />
+                    <span>{tg('ui.250')}</span>
+                    <CopyButton text={configJson} label={tg('ui.251')} />
                   </div>
                   <pre className="mcp-guide-code">{configJson}</pre>
                 </div>
@@ -279,7 +281,7 @@ export default function McpGuidePanel({ onClose }: Props) {
           </section>
 
           <section className="mcp-guide-section">
-            <h3>可用工具</h3>
+            <h3>{tg('ui.252')}</h3>
             <ul className="mcp-guide-tools">
               {TOOLS.map((t) => (
                 <li key={t.name}>
@@ -291,8 +293,8 @@ export default function McpGuidePanel({ onClose }: Props) {
           </section>
 
           <section className="mcp-guide-section">
-            <h3>命令行自检</h3>
-            <p className="mcp-guide-muted">不启动 MCP 客户端时，可用 CLI 验证档案与脚本：</p>
+            <h3>{tg('ui.253')}</h3>
+            <p className="mcp-guide-muted">{tg('ui.254')}</p>
             <div className="mcp-guide-code-wrap">
               <div className="mcp-guide-code-toolbar">
                 <span>Shell</span>
@@ -301,7 +303,7 @@ export default function McpGuidePanel({ onClose }: Props) {
               <pre className="mcp-guide-code">{smokeCmd}</pre>
             </div>
             <p className="mcp-guide-muted">
-              仓库内也可执行 <code>npm run mcp:inventory</code>（stdio 模式，供客户端拉起）。
+              {tg('ui.255')}{' '} <code>npm run mcp:inventory</code>{tg('ui.256')}
             </p>
           </section>
         </div>

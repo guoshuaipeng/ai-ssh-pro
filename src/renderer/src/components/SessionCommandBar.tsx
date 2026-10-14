@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LATENCY_POLL_MS, classifyLatency } from '@shared/workspace-features'
 import { useI18n } from '../lib/i18n'
 import { notifyHistoryChanged } from '../lib/workspace-events'
 import CommandInput from './CommandInput'
 import { assessCommandRisk } from '../../../shared/command-risk'
+import { explainCommand } from '../../../shared/command-explain'
 import { askConfirm } from '../lib/dialogs'
 
 type Props = {
@@ -12,7 +13,12 @@ type Props = {
 
 /** Sends one line to the active terminal via the existing ssh.write path. */
 export default function SessionCommandBar({ sessionId }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
+  const [draft, setDraft] = useState('')
+  const explain = useMemo(() => {
+    const e = explainCommand(draft, locale)
+    return e && (e.risk || e.segments.some((x) => x.known)) ? e : null
+  }, [draft, locale])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [latency, setLatency] = useState<number | null | undefined>(undefined)
@@ -69,7 +75,7 @@ export default function SessionCommandBar({ sessionId }: Props) {
 
   return (
     <div className="session-command-bar">
-      <CommandInput submitOnEnter disabled={busy} onSubmit={(command) => void onSubmit(command)} />
+      <CommandInput submitOnEnter disabled={busy} value={draft} onValueChange={setDraft} onSubmit={(command) => void onSubmit(command)} />
       <button type="button" className="session-command-clear" onClick={() => void clearHistory()}>
         {t('history.clear')}
       </button>
@@ -79,6 +85,26 @@ export default function SessionCommandBar({ sessionId }: Props) {
         </span>
       ) : null}
       {error ? <span className="session-command-error">{error}</span> : null}
+      {explain ? (
+        <div className={`cmd-explain${explain.risk ? ' is-risky' : ''}`} data-testid="cmd-explain" aria-live="polite">
+          {explain.segments.map((seg, i) => (
+            <span key={i} className="cmd-explain-seg">
+              {i > 0 ? <span className="cmd-explain-pipe">│</span> : null}
+              <code>{seg.program}</code> {seg.known ? seg.text : t('explain.unknown')}
+              {seg.prefixes.map((p) => (
+                <em key={p}> · {p}</em>
+              ))}
+              {seg.flags.map((f) => (
+                <span key={f.flag}>
+                  {' '}
+                  · <code>{f.flag}</code> {f.text}
+                </span>
+              ))}
+            </span>
+          ))}
+          {explain.risk ? <span className="cmd-explain-risk">⚠ {t(explain.risk)}</span> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

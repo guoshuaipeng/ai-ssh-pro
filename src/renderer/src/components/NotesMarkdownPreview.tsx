@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { tg } from '../lib/i18n'
 
 type Props = {
   markdown: string
@@ -12,7 +13,7 @@ export default function NotesMarkdownPreview({ markdown, className }: Props) {
   if (!src) {
     return (
       <div className={`notes-preview md-body ${className ?? ''}`.trim()}>
-        <p className="md-empty">暂无备注。支持 Markdown（标题、列表、表格、代码块、任务清单等）。</p>
+        <p className="md-empty">{tg('ui.257')}</p>
       </div>
     )
   }

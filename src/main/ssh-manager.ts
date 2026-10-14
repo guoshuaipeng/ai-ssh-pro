@@ -20,7 +20,7 @@ import type {
 import { RingBuffer } from './ring-buffer'
 import { checkHostKey, trustHostKey } from './known-hosts'
 import { promptHostKey } from './host-key-prompt'
-import { startLocalPortForwards } from './port-forward'
+import { startTrackedForward, stopSessionForwards } from './forward-manager'
 import { appendRecording } from './session-recorder'
 import { assertSafeDockerId } from './docker-manager'
 
@@ -478,12 +478,16 @@ export class SshSessionManager {
 
           // 目标机 ready 后建立本地端口转发
           if (opts.forwards?.length) {
-            try {
-              const cleanups = startLocalPortForwards(targetClient, opts.forwards)
-              forwardCleanups.push(...cleanups)
-            } catch (e) {
-              console.error('[ssh] port forwards failed:', e)
+            for (const fwd of opts.forwards) {
+              try {
+                void startTrackedForward(sessionId, targetClient, fwd, 'profile').catch((e) =>
+                  console.error('[ssh] port forward failed:', e instanceof Error ? e.message : e)
+                )
+              } catch (e) {
+                console.error('[ssh] port forward rejected:', e instanceof Error ? e.message : e)
+              }
             }
+            forwardCleanups.push(() => stopSessionForwards(sessionId))
           }
 
           this.sessions.set(sessionId, session)

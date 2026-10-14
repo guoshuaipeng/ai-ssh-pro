@@ -1,4 +1,5 @@
 import AiConfigForm from './AiConfigForm'
+import { tg } from '../lib/i18n'
 
 type Props = {
   onClose: () => void
@@ -8,10 +9,10 @@ export default function AiConfigModal({ onClose }: Props) {
   return (
     <div className="workspace-panel workspace-panel--settings">
       <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">AI 配置</h2>
+        <h2 className="workspace-panel-title">{tg('ui.26')}</h2>
         <div className="workspace-panel-actions">
           <button type="button" onClick={onClose}>
-            关闭
+            {tg('ui.27')}
           </button>
         </div>
       </div>

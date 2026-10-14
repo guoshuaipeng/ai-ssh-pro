@@ -1,3 +1,5 @@
+import { listForwards, startTrackedForward, stopForward, stopSessionForwards } from './forward-manager'
+import { mt } from './main-i18n'
 import { ipcMain } from 'electron'
 import type { SshSessionManager } from './ssh-manager'
 import { execBounded } from './ssh-batch'
@@ -117,6 +119,20 @@ export async function runBatchExec(sshManager: SshSessionManager, raw: unknown):
 export function registerWorkspaceIpc(sshManager: SshSessionManager): void {
   ipcMain.handle('workspace:ping', async (_e, sessionId: unknown) => pingSession(sshManager, sessionId))
   ipcMain.handle('workspace:batchExec', async (_e, payload: unknown) => runBatchExec(sshManager, payload))
+  ipcMain.handle('workspace:forwards:list', (_e, sessionId: unknown) =>
+    listForwards(typeof sessionId === 'string' && sessionId ? sessionId : undefined)
+  )
+  ipcMain.handle('workspace:forwards:add', async (_e, payload: unknown) => {
+    const o = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>
+    const sessionId = typeof o.sessionId === 'string' ? o.sessionId : ''
+    const session = sshManager.get(sessionId)
+    const client = sshManager.getClient(sessionId)
+    if (!session || !client) throw new Error(mt('会话未连接或不支持端口转发', 'Session is not connected or does not support port forwarding'))
+    const fwd = await startTrackedForward(sessionId, client, o, 'manual')
+    session.forwardCleanups.push(() => stopSessionForwards(sessionId))
+    return fwd
+  })
+  ipcMain.handle('workspace:forwards:remove', (_e, id: unknown) => stopForward(String(id ?? '')))
 
   ipcMain.handle('workspace:commandHistory:list', () => getCommandHistory())
   ipcMain.handle('workspace:commandHistory:push', (_e, command: string) => pushCommandHistory(String(command ?? '')))

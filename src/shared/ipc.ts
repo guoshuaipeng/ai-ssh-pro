@@ -690,3 +690,22 @@ export type AppUpdateCheckResult = {
   releaseName?: string
   message: string
 }
+
+/** A live local port forward (127.0.0.1:localPort → remoteHost:remotePort through an SSH session). */
+export type ActiveForward = {
+  id: string
+  sessionId: string
+  source: 'profile' | 'manual'
+  localPort: number
+  remoteHost: string
+  remotePort: number
+  status: 'starting' | 'listening' | 'error'
+  lastError?: string
+  connections: number
+  totalConnections: number
+  bytesIn: number
+  bytesOut: number
+  createdAt: number
+}
+
+export type AddForwardRequest = { sessionId: string; localPort: number; remoteHost: string; remotePort: number }

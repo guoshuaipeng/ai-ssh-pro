@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { TerminalPrefs, TerminalThemeId } from '@shared/ipc'
 import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
 import { TERMINAL_THEME_OPTIONS } from '../lib/terminal-themes'
+import { tg } from '../lib/i18n'
 
 type Props = {
   onClose: () => void
@@ -36,7 +37,7 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
         scrollback: Math.min(100000, Math.max(100, Math.round(scrollback) || 4000))
       })
       onSaved?.(next)
-      setHint('已保存')
+      setHint(tg('ui.4'))
     } finally {
       setBusy(false)
     }
@@ -45,20 +46,20 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
   return (
     <div className="workspace-panel workspace-panel--settings">
       <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">终端外观</h2>
+        <h2 className="workspace-panel-title">{tg('ui.275')}</h2>
         <div className="workspace-panel-actions">
           <button type="button" onClick={onClose} disabled={busy}>
-            关闭
+            {tg('ui.27')}
           </button>
           <button type="button" className="primary" onClick={() => void save()} disabled={busy}>
-            {busy ? '保存中…' : '保存'}
+            {busy ? tg('ui.185') : tg('ui.25')}
           </button>
         </div>
       </div>
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings">
           <div className="field">
-            <label>主题</label>
+            <label>{tg('ui.276')}</label>
             <select
               value={themeId}
               onChange={(e) => setThemeId(e.target.value as TerminalThemeId)}
@@ -72,7 +73,7 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
             </select>
           </div>
           <div className="field">
-            <label>字体</label>
+            <label>{tg('ui.277')}</label>
             <input
               value={fontFamily}
               onChange={(e) => setFontFamily(e.target.value)}
@@ -80,7 +81,7 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
             />
           </div>
           <div className="field">
-            <label>字号（px）</label>
+            <label>{tg('ui.278')}</label>
             <input
               type="number"
               min={8}
@@ -91,7 +92,7 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
             />
           </div>
           <div className="field">
-            <label>回滚行数（scrollback）</label>
+            <label>{tg('ui.279')}</label>
             <input
               type="number"
               min={100}

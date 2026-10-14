@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SftpReadTextResult } from '@shared/ipc'
 import { clearRemoteFileDirty, setRemoteFileDirty } from '../lib/remote-file-dirty'
+import { tg } from '../lib/i18n'
 
 type Props = {
   tabId: string
@@ -76,7 +77,7 @@ export default function RemoteTextEditor({
       setMeta({ size: res.size, truncated: res.truncated })
       setRemoteFileDirty(tabId, false)
       if (res.truncated) {
-        setStatus(`文件过大，仅预览前 ${formatSize(res.content.length)}（只读，请用下载查看完整文件）`)
+        setStatus(tg('ui.258', { 0: String(formatSize(res.content.length)) }))
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -96,18 +97,18 @@ export default function RemoteTextEditor({
   const save = useCallback(async () => {
     if (saving || loading) return
     if (meta?.truncated) {
-      setError('大文件预览为只读，不能保存回服务器')
+      setError(tg('ui.259'))
       return
     }
     setSaving(true)
     setError(null)
-    setStatus('正在保存到服务器…')
+    setStatus(tg('ui.260'))
     try {
       await window.aiss.sftp.writeText(sessionId, remotePath, content)
       setBaseline(content)
       setRemoteFileDirty(tabId, false)
       setMeta((m) => (m ? { ...m, size: new TextEncoder().encode(content).length, truncated: false } : m))
-      setStatus(`已保存 ${new Date().toLocaleTimeString()}`)
+      setStatus(tg('ui.261', { 0: String(new Date().toLocaleTimeString()) }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setStatus(null)
@@ -141,7 +142,7 @@ export default function RemoteTextEditor({
   }, [save])
 
   const requestClose = () => {
-    if (dirty && !window.confirm('有未保存的修改，确定关闭？')) return
+    if (dirty && !window.confirm(tg('ui.262'))) return
     clearRemoteFileDirty(tabId)
     onClose()
   }
@@ -165,10 +166,10 @@ export default function RemoteTextEditor({
               disabled={Boolean(meta?.truncated)}
               onChange={(e) => setAutoSave(e.target.checked)}
             />
-            自动保存
+            {tg('ui.263')}
           </label>
           <button type="button" disabled={loading || saving} onClick={() => void load()}>
-            重新加载
+            {tg('ui.264')}
           </button>
           <button
             type="button"
@@ -176,30 +177,30 @@ export default function RemoteTextEditor({
             disabled={loading || saving || !dirty || Boolean(meta?.truncated)}
             onClick={() => void save()}
           >
-            {saving ? '保存中…' : '保存到服务器'}
+            {saving ? tg('ui.185') : tg('ui.265')}
           </button>
           <button type="button" onClick={requestClose} disabled={saving}>
-            关闭
+            {tg('ui.27')}
           </button>
         </div>
       </div>
 
       <div className="remote-file-statusbar">
-        <span>{dirty ? '未保存' : '已同步'}</span>
+        <span>{dirty ? tg('ui.266') : tg('ui.267')}</span>
         <span>UTF-8</span>
-        <span>{lines} 行</span>
+        <span>{lines} {' '}{tg('ui.268')}</span>
         {meta ? <span>{formatSize(meta.size)}</span> : null}
         {status ? <span className="remote-file-status-msg">{status}</span> : null}
-        <span className="remote-file-shortcut">Ctrl+S 保存</span>
+        <span className="remote-file-shortcut">{tg('ui.269')}</span>
       </div>
 
       {error ? <div className="remote-file-error">{error}</div> : null}
 
       <div className="remote-file-editor-wrap">
         {loading ? (
-          <div className="remote-file-loading">正在从服务器加载…</div>
+          <div className="remote-file-loading">{tg('ui.270')}</div>
         ) : error && !content ? (
-          <div className="remote-file-loading">无法打开该文件</div>
+          <div className="remote-file-loading">{tg('ui.271')}</div>
         ) : (
           <textarea
             ref={textareaRef}
@@ -209,7 +210,7 @@ export default function RemoteTextEditor({
             spellCheck={false}
             wrap="off"
             readOnly={Boolean(meta?.truncated)}
-            aria-label={`编辑 ${fileName}`}
+            aria-label={tg('ui.272', { 0: String(fileName) })}
           />
         )}
       </div>

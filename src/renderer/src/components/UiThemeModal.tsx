@@ -5,6 +5,7 @@ import {
   UI_THEME_OPTIONS,
   type UiThemeId
 } from '../lib/ui-themes'
+import { tg } from '../lib/i18n'
 
 type Props = {
   onClose: () => void
@@ -25,17 +26,17 @@ export default function UiThemeModal({ onClose }: Props) {
   return (
     <div className="workspace-panel workspace-panel--settings">
       <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">界面主题</h2>
+        <h2 className="workspace-panel-title">{tg('ui.280')}</h2>
         <div className="workspace-panel-actions">
           <button type="button" className="primary" onClick={onClose}>
-            完成
+            {tg('ui.281')}
           </button>
         </div>
       </div>
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings">
           <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-            选择应用界面配色（立即生效，并记住本机偏好）。终端配色请在「终端外观」中单独设置。
+            {tg('ui.282')}
           </p>
           <div className="ui-theme-grid">
             {UI_THEME_OPTIONS.map((t) => {

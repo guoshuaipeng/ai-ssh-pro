@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tg } from '../lib/i18n'
 
 export type ConnectionConfigModalProps = {
   /** 默认「新建连接」；编辑已保存会话时可传入更明确的标题 */
@@ -50,8 +51,8 @@ export type ConnectionConfigModalProps = {
 }
 
 export default function ConnectionConfigModal({
-  title = '新建连接',
-  saveProfileButtonLabel = '保存到列表',
+  title = tg('ui.30'),
+  saveProfileButtonLabel = tg('ui.31'),
   onClose,
   error,
   host,
@@ -105,13 +106,13 @@ export default function ConnectionConfigModal({
         <h2 className="workspace-panel-title">{title}</h2>
         <div className="workspace-panel-actions">
           <button type="button" onClick={onClose}>
-            关闭
+            {tg('ui.27')}
           </button>
           <button type="button" onClick={onSaveProfile}>
             {saveProfileButtonLabel}
           </button>
           <button type="button" className="primary" disabled={connecting} onClick={() => void onConnect()}>
-            {connecting ? '连接中…' : '连接'}
+            {connecting ? tg('ui.32') : tg('ui.33')}
           </button>
         </div>
       </div>
@@ -122,12 +123,12 @@ export default function ConnectionConfigModal({
           open={smartOpen}
           onToggle={(e) => setSmartOpen((e.target as HTMLDetailsElement).open)}
         >
-          <summary>智能填表（粘贴工单 / ssh 命令后 AI 解析）</summary>
+          <summary>{tg('ui.34')}</summary>
           <div className="ws-collapse-body">
             <textarea
               value={smartPaste}
               onChange={(e) => setSmartPaste(e.target.value)}
-              placeholder={'例如：\n测试机 test_nlp01\n172.19.161.225 root\n端口 22'}
+              placeholder={tg('ui.35')}
               rows={3}
               className="ws-textarea-compact"
             />
@@ -138,10 +139,10 @@ export default function ConnectionConfigModal({
                 disabled={aiParsing || !smartPaste.trim()}
                 onClick={() => void onParseAndFill()}
               >
-                {aiParsing ? '解析中…' : 'AI 解析并填入'}
+                {aiParsing ? tg('ui.36') : tg('ui.37')}
               </button>
             </div>
-            {parseNotes ? <div className="ws-parse-notes">模型备注：{parseNotes}</div> : null}
+            {parseNotes ? <div className="ws-parse-notes">{tg('ui.38')}{parseNotes}</div> : null}
           </div>
         </details>
 
@@ -149,37 +150,37 @@ export default function ConnectionConfigModal({
 
         <div className="conn-layout">
           <section className="conn-card">
-            <h3 className="conn-card-title">连接参数</h3>
-            <p className="conn-card-hint">保存会写入本机列表（含密码/口令，勿在共享电脑使用）。</p>
+            <h3 className="conn-card-title">{tg('ui.39')}</h3>
+            <p className="conn-card-hint">{tg('ui.40')}</p>
             <div className="field-grid">
               <div className="field field--span2">
-                <label>显示名</label>
-                <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="可选" />
+                <label>{tg('ui.41')}</label>
+                <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={tg('ui.42')} />
               </div>
               <div className="field field--span2">
-                <label>主机</label>
+                <label>{tg('ui.43')}</label>
                 <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="172.19.161.225" />
               </div>
               <div className="field">
-                <label>端口</label>
+                <label>{tg('ui.44')}</label>
                 <input value={port} onChange={(e) => setPort(e.target.value)} />
               </div>
               <div className="field">
-                <label>用户名</label>
+                <label>{tg('ui.45')}</label>
                 <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="root" />
               </div>
               <div className="field field--span2">
-                <label>密码</label>
+                <label>{tg('ui.46')}</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="与私钥二选一"
+                  placeholder={tg('ui.47')}
                   autoComplete="off"
                 />
               </div>
               <div className="field field--span2">
-                <label>私钥路径</label>
+                <label>{tg('ui.48')}</label>
                 <input
                   value={privateKeyPath}
                   onChange={(e) => setPrivateKeyPath(e.target.value)}
@@ -187,7 +188,7 @@ export default function ConnectionConfigModal({
                 />
               </div>
               <div className="field field--span2">
-                <label>私钥口令</label>
+                <label>{tg('ui.49')}</label>
                 <input
                   type="password"
                   value={passphrase}
@@ -200,11 +201,11 @@ export default function ConnectionConfigModal({
 
           <div className="conn-side">
             <details className="ws-collapse conn-card" open={hasJump}>
-              <summary>跳板机（可选）</summary>
+              <summary>{tg('ui.50')}</summary>
               <div className="ws-collapse-body">
                 <div className="field-grid">
                   <div className="field field--span2">
-                    <label>跳板主机</label>
+                    <label>{tg('ui.51')}</label>
                     <input
                       value={jumpHost}
                       onChange={(e) => setJumpHost?.(e.target.value)}
@@ -212,15 +213,15 @@ export default function ConnectionConfigModal({
                     />
                   </div>
                   <div className="field">
-                    <label>端口</label>
+                    <label>{tg('ui.44')}</label>
                     <input value={jumpPort} onChange={(e) => setJumpPort?.(e.target.value)} />
                   </div>
                   <div className="field">
-                    <label>用户名</label>
+                    <label>{tg('ui.45')}</label>
                     <input value={jumpUsername} onChange={(e) => setJumpUsername?.(e.target.value)} />
                   </div>
                   <div className="field field--span2">
-                    <label>密码</label>
+                    <label>{tg('ui.46')}</label>
                     <input
                       type="password"
                       value={jumpPassword}
@@ -229,15 +230,15 @@ export default function ConnectionConfigModal({
                     />
                   </div>
                   <div className="field field--span2">
-                    <label>私钥路径</label>
+                    <label>{tg('ui.48')}</label>
                     <input
                       value={jumpPrivateKeyPath}
                       onChange={(e) => setJumpPrivateKeyPath?.(e.target.value)}
-                      placeholder="可选"
+                      placeholder={tg('ui.42')}
                     />
                   </div>
                   <div className="field field--span2">
-                    <label>私钥口令</label>
+                    <label>{tg('ui.49')}</label>
                     <input
                       type="password"
                       value={jumpPassphrase}
@@ -250,12 +251,12 @@ export default function ConnectionConfigModal({
             </details>
 
             <details className="ws-collapse conn-card" open={hasForward}>
-              <summary>本地端口转发（可选）</summary>
+              <summary>{tg('ui.52')}</summary>
               <div className="ws-collapse-body">
-                <p className="conn-card-hint">本机 127.0.0.1:本地端口 → 远端主机:端口</p>
+                <p className="conn-card-hint">{tg('ui.53')}</p>
                 <div className="field-grid">
                   <div className="field">
-                    <label>本地端口</label>
+                    <label>{tg('ui.54')}</label>
                     <input
                       value={forwardLocalPort}
                       onChange={(e) => setForwardLocalPort?.(e.target.value)}
@@ -263,7 +264,7 @@ export default function ConnectionConfigModal({
                     />
                   </div>
                   <div className="field">
-                    <label>远端端口</label>
+                    <label>{tg('ui.55')}</label>
                     <input
                       value={forwardRemotePort}
                       onChange={(e) => setForwardRemotePort?.(e.target.value)}
@@ -271,7 +272,7 @@ export default function ConnectionConfigModal({
                     />
                   </div>
                   <div className="field field--span2">
-                    <label>远端主机</label>
+                    <label>{tg('ui.56')}</label>
                     <input
                       value={forwardRemoteHost}
                       onChange={(e) => setForwardRemoteHost?.(e.target.value)}

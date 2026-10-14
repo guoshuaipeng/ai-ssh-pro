@@ -1,6 +1,6 @@
 {
   "name": "ai-ssh-pro",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "类 Xshell 的多会话 SSH 客户端，集成 AI 对话（方案 B：Electron + TypeScript）",
   "main": "out/main/index.js",
   "type": "module",
@@ -14,7 +14,8 @@
     "mcp:inventory": "node scripts/mcp-inventory-server.mjs",
     "smoke": "npx tsx scripts/smoke-test.ts",
     "e2e": "node scripts/e2e.mjs",
-    "test": "npx tsx scripts/test-workspace-features.ts && npx tsx scripts/test-ssh-batch.ts && npx tsx scripts/test-robustness.ts && npx tsx scripts/test-round5.ts && npx tsx scripts/test-session-filter.ts && npx tsx scripts/test-round6.ts && npx tsx scripts/test-import-extra.ts && npx tsx scripts/test-round8.ts && npx tsx scripts/smoke-test.ts"
+    "test": "npx tsx scripts/test-workspace-features.ts && npx tsx scripts/test-ssh-batch.ts && npx tsx scripts/test-robustness.ts && npx tsx scripts/test-round5.ts && npx tsx scripts/test-session-filter.ts && npx tsx scripts/test-round6.ts && npx tsx scripts/test-import-extra.ts && npx tsx scripts/test-round8.ts && npx tsx scripts/test-round9.ts && npx tsx scripts/smoke-test.ts",
+    "dist:ci": "electron-builder --publish always"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -75,15 +76,29 @@
     },
     "mac": {
       "target": [
-        "dmg"
-      ]
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "identity": null
     },
     "publish": [
       {
         "provider": "github",
         "owner": "guoshuaipeng",
-        "repo": "ai-ssh-pro"
+        "repo": "ai-ssh-pro",
+        "releaseType": "draft"
       }
-    ]
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "icon": "build/icon.png",
+      "category": "Network"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }

@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSyn
 import { tmpdir } from 'node:os'
 import { join, resolve, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import net from 'node:net'
 import { createRequire } from 'node:module'
 import { _electron } from 'playwright-core'
 
@@ -69,6 +70,12 @@ const ssh = new Server({ hostKeys: [hostKey] }, (client) => {
     else ctx.reject(['password'])
   })
   client.on('ready', () => {
+    // direct-tcpip (local port forwarding): echo back with a prefix
+    client.on('tcpip', (accept, _reject, info) => {
+      const ch = accept()
+      ch.on('data', (d) => ch.write(`echo:${info.destPort}:${d}`))
+      ch.on('end', () => ch.end())
+    })
     client.on('session', (accept) => {
       const session = accept()
       session.on('pty', (ok) => ok && ok())
@@ -383,6 +390,95 @@ await step('session tags: edit via in-app dialog, chip, #tag search, persisted',
   const prof = saved.savedSessions.profiles.find((x) => x.id === 'p1')
   assert(JSON.stringify(prof.tags) === JSON.stringify(['prod', 'web']), 'tags persisted: ' + JSON.stringify(prof.tags))
 })
+
+const menu = async (top, item) => {
+  await page.getByRole('button', { name: top, exact: true }).click()
+  await page.getByText(item, { exact: true }).first().click()
+}
+
+await step('port forwarding panel: add (auto local port), traffic through SSH, stop', async () => {
+  await menu('Session', 'Port forwarding…')
+  await expectVisible(page.locator('.pf-panel'))
+  await page.getByLabel('Remote port').fill('7777')
+  await page.getByRole('button', { name: 'Add forward', exact: true }).click()
+  const row = page.locator('.pf-table tbody tr').filter({ hasText: '127.0.0.1:7777' })
+  await expectVisible(row, 10000)
+  await expectVisible(row.getByText('Listening'))
+  const local = (await row.locator('.pf-addr').first().textContent()) || ''
+  const port = Number(local.split(':')[1])
+  assert(port > 0 && port !== 7777, 'auto local port: ' + local)
+  const reply = await new Promise((res, rej) => {
+    const sock = net.connect(port, '127.0.0.1', () => sock.write('ping'))
+    sock.setTimeout(8000, () => { sock.destroy(); rej(new Error('forward timeout')) })
+    sock.on('data', (d) => { res(String(d)); sock.end() })
+    sock.on('error', rej)
+  })
+  assert(reply === 'echo:7777:ping', 'forward reply: ' + reply)
+  await expectVisible(row.locator('td').nth(3).filter({ hasText: /\/ [1-9]/ }), 5000)
+  await cjkScan('port forwarding panel')
+  await page.getByLabel('Local port').fill(String(port))
+  await page.getByLabel('Remote port').fill('7778')
+  await page.getByRole('button', { name: 'Add forward', exact: true }).click()
+  await expectVisible(page.locator('.pf-error').filter({ hasText: 'already in use' }))
+  await row.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expectVisible(page.getByText('No active forwards'))
+  const closed = await new Promise((res) => {
+    const sock = net.connect(port, '127.0.0.1', () => { sock.destroy(); res(false) })
+    sock.on('error', () => res(true))
+  })
+  assert(closed, 'local port still open after stop')
+  await page.keyboard.press('Escape')
+  await expectHidden(page.locator('.pf-panel'))
+})
+
+await step('command bar explains commands offline (flags, pipes, risk)', async () => {
+  await page.locator('.tab-bar .tab').filter({ hasText: 'Renamed SSH' }).first().click()
+  const input = page.locator('.session-command-bar input, .session-command-bar textarea').first()
+  await input.fill('sudo tail -f /var/log/syslog | grep -i error')
+  const ex = page.getByTestId('cmd-explain')
+  await expectVisible(ex)
+  const txt = (await ex.textContent()) || ''
+  for (const w of ['Show the end of a file', 'follow new output', 'run as root', 'Search text by pattern', 'ignore case']) assert(txt.includes(w), 'explain missing: ' + w + ' in ' + txt)
+  await cjkScan('command explanation')
+  await input.fill('rm -rf /')
+  await expectVisible(ex.locator('.cmd-explain-risk').filter({ hasText: 'Recursively deletes the root' }))
+  await input.fill('')
+  await expectHidden(ex)
+})
+
+await step('main window title is AI-SSH-Pro and the window is visible', async () => {
+  const wins = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => ({ title: w.getTitle(), visible: w.isVisible() })))
+  assert(wins.length >= 1 && wins[0].title === 'AI-SSH-Pro' && wins[0].visible, 'window: ' + JSON.stringify(wins))
+  assert((await page.title()) === 'AI-SSH-Pro', 'document title')
+})
+
+await step('English UI: remote editor has no CJK text', async () => {
+  await page.locator('.tab-bar .tab').filter({ hasText: 'File transfer' }).first().click()
+  const r = page.locator('tr').filter({ has: page.locator('.sftp-name-btn', { hasText: 'hello.txt' }) })
+  await r.getByRole('button', { name: 'Edit', exact: true }).click()
+  await expectVisible(page.getByText('hello from e2e sftp', { exact: false }), 15000)
+  await page.waitForTimeout(500)
+  await cjkScan('remote editor')
+  await page.keyboard.press('Escape')
+})
+
+for (const [top, item, label] of [
+  ['Session', 'New connection', 'connection config'],
+  ['Session', 'AI settings', 'AI config form'],
+  ['Session', 'Host inventory', 'host inventory'],
+  ['Session', 'MCP setup guide…', 'MCP guide'],
+  ['View', 'Terminal appearance', 'terminal prefs'],
+  ['View', 'UI theme', 'UI theme']
+]) {
+  await step('English UI: ' + label + ' has no CJK text', async () => {
+    await page.keyboard.press('Escape')
+    await menu(top, item)
+    await page.waitForTimeout(900)
+    await cjkScan(label)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+  })
+}
 
 await app.close().catch(() => {})
 ssh.close()

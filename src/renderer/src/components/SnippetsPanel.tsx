@@ -9,6 +9,7 @@ import {
   filterSnippets,
   mergeSnippetsImport
 } from '@shared/workspace-features'
+import { tg } from '../lib/i18n'
 
 type Props = {
   onClose: () => void
@@ -23,7 +24,7 @@ type SnippetsApi = {
 function getSnippetsApi(): SnippetsApi {
   const api = (window.aiss as unknown as { snippets?: SnippetsApi }).snippets
   if (!api?.list || !api?.save) {
-    throw new Error('snippets API 尚未接线（Phase2：window.aiss.snippets）')
+    throw new Error(tg('ui.274'))
   }
   return api
 }

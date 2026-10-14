@@ -184,6 +184,11 @@ export type AissPreload = {
   workspace: {
     ping: (sessionId: string) => Promise<number | null>
     batchExec: (payload: BatchExecRequest) => Promise<BatchExecResult>
+    forwards: {
+      list: (sessionId?: string) => Promise<import('@shared/ipc').ActiveForward[]>
+      add: (req: import('@shared/ipc').AddForwardRequest) => Promise<import('@shared/ipc').ActiveForward>
+      remove: (id: string) => Promise<boolean>
+    }
     commandHistory: {
       list: () => Promise<string[]>
       push: (command: string) => Promise<string[]>

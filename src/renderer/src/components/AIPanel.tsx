@@ -481,7 +481,7 @@ export default function AIPanel({
                   <div className="ai-reply-cmd">
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                       {tg('ai.needTool')}<code>{s.toolName ?? '(unknown)'}</code>
-                      {s.toolInput?.maxLines ? <span style={{ marginLeft: 8 }}>maxLines：{s.toolInput.maxLines}</span> : null}
+                      {s.toolInput?.maxLines ? <span style={{ marginLeft: 8 }}>{tg('ui.0')}{s.toolInput.maxLines}</span> : null}
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
@@ -498,7 +498,7 @@ export default function AIPanel({
                     {tg('ai.autoSnapshot')}
                     {s.toolName ? (
                       <>
-                        ：<code>{s.toolName}</code>
+                        {tg('ui.1')}<code>{s.toolName}</code>
                       </>
                     ) : null}
                   </div>

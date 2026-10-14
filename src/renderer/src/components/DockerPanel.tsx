@@ -11,6 +11,7 @@ import type {
   DockerSwarmServiceDetail
 } from '@shared/ipc'
 import { loadDockerPrefs, saveDockerPrefs } from '../lib/docker-prefs'
+import { tg } from '../lib/i18n'
 
 type Props = {
   sessionId: string
@@ -48,7 +49,7 @@ function EnvGroup({ total, visible, filter, onFilter, showSecrets, onShowSecrets
     <section className="docker-detail-group docker-detail-group--wide">
       <header className="docker-detail-group-header">
         <h4>
-          环境变量
+          {tg('ui.57')}
           <span className="docker-group-count">
             {filter.trim() ? `${visible.length}/${total}` : total}
           </span>
@@ -59,8 +60,8 @@ function EnvGroup({ total, visible, filter, onFilter, showSecrets, onShowSecrets
             className="docker-group-filter"
             value={filter}
             onChange={(e) => onFilter(e.target.value)}
-            placeholder="过滤变量…"
-            aria-label="过滤环境变量"
+            placeholder={tg('ui.58')}
+            aria-label={tg('ui.59')}
           />
           <label className="docker-secret-toggle">
             <input
@@ -68,12 +69,12 @@ function EnvGroup({ total, visible, filter, onFilter, showSecrets, onShowSecrets
               checked={showSecrets}
               onChange={(e) => onShowSecrets(e.target.checked)}
             />
-            显示敏感值
+            {tg('ui.60')}
           </label>
         </div>
       </header>
       {visible.length === 0 ? (
-        <p className="docker-panel-muted">{total === 0 ? '无' : '无匹配项'}</p>
+        <p className="docker-panel-muted">{total === 0 ? tg('ui.61') : tg('ui.62')}</p>
       ) : (
         <dl className="docker-kv-list is-scroll">
           {visible.map((item) => {
@@ -82,7 +83,7 @@ function EnvGroup({ total, visible, filter, onFilter, showSecrets, onShowSecrets
               <div key={item.key} className="docker-kv-row">
                 <dt title={item.key}>{item.key}</dt>
                 <dd className={masked ? 'is-masked' : undefined}>
-                  {masked ? maskValue(item.value) : item.value || <em>（空）</em>}
+                  {masked ? maskValue(item.value) : item.value || <em>{tg('ui.63')}</em>}
                 </dd>
               </div>
             )
@@ -103,13 +104,13 @@ function LabelGroup({ title, items }: { title: string; items: DockerKeyValue[] }
         </h4>
       </header>
       {items.length === 0 ? (
-        <p className="docker-panel-muted">无</p>
+        <p className="docker-panel-muted">{tg('ui.61')}</p>
       ) : (
         <dl className="docker-kv-list is-scroll">
           {items.map((item) => (
             <div key={item.key} className="docker-kv-row">
               <dt title={item.key}>{item.key}</dt>
-              <dd>{item.value || <em>（空）</em>}</dd>
+              <dd>{item.value || <em>{tg('ui.63')}</em>}</dd>
             </div>
           ))}
         </dl>
@@ -123,21 +124,21 @@ function MountGroup({ mounts }: { mounts: DockerMount[] }) {
     <section className="docker-detail-group docker-detail-group--wide">
       <header className="docker-detail-group-header">
         <h4>
-          挂载卷<span className="docker-group-count">{mounts.length}</span>
+          {tg('ui.64')}<span className="docker-group-count">{mounts.length}</span>
         </h4>
       </header>
       {mounts.length === 0 ? (
-        <p className="docker-panel-muted">无</p>
+        <p className="docker-panel-muted">{tg('ui.61')}</p>
       ) : (
         <ul className="docker-detail-list is-scroll">
           {mounts.map((m, i) => (
             <li key={`${m.destination}-${i}`}>
-              <code>{m.source || `（匿名 ${m.type}）`}</code>
+              <code>{m.source || tg('ui.65', { 0: String(m.type) })}</code>
               <span className="docker-detail-arrow" aria-hidden="true">
                 →
               </span>
               <code>{m.destination}</code>
-              <span className="docker-detail-note">{m.readWrite ? '读写' : '只读'}</span>
+              <span className="docker-detail-note">{m.readWrite ? tg('ui.66') : tg('ui.67')}</span>
             </li>
           ))}
         </ul>
@@ -148,7 +149,7 @@ function MountGroup({ mounts }: { mounts: DockerMount[] }) {
 
 /** 服务级发布端口：宿主机端口 → 容器端口，并标注 ingress / host 模式 */
 function SwarmPortList({ ports }: { ports: DockerSwarmPort[] }) {
-  if (ports.length === 0) return <p className="docker-panel-muted">未发布端口</p>
+  if (ports.length === 0) return <p className="docker-panel-muted">{tg('ui.68')}</p>
   return (
     <ul className="docker-detail-list">
       {ports.map((p, i) => (
@@ -169,7 +170,7 @@ function SwarmPortList({ ports }: { ports: DockerSwarmPort[] }) {
             </code>
           )}
           <span className="docker-detail-note">
-            {p.publishMode === 'host' ? 'host 模式（仅所在节点）' : 'ingress（集群任意节点可达）'}
+            {p.publishMode === 'host' ? tg('ui.69') : tg('ui.70')}
           </span>
         </li>
       ))}
@@ -253,7 +254,7 @@ export default function DockerPanel({
         setSwarmDetail(d)
         await fetchLogs().catch((e) => {
           // 服务日志在部分环境不可用（如未启用日志驱动），不应挡住配置展示
-          setHint(`日志不可用：${e instanceof Error ? e.message : String(e)}`)
+          setHint(tg('ui.71', { 0: String(e instanceof Error ? e.message : String(e)) }))
         })
       } else {
         const r = await window.aiss.docker.composePs(sessionId, resourceId)
@@ -360,13 +361,13 @@ export default function DockerPanel({
   const runContainerAction = async (action: DockerContainerAction) => {
     if (busyRef.current) return
     if (action === 'rm') {
-      if (!window.confirm(`确定删除容器「${resourceName}」？此操作不可恢复。`)) return
+      if (!window.confirm(tg('ui.72', { 0: String(resourceName) }))) return
     }
     if (action === 'restart' && container?.swarmService) {
       if (
         !window.confirm(
-          `「${resourceName}」是 Swarm 服务「${container.swarmService}」的任务。\n` +
-            `将执行 docker service update --force（由 Swarm 重建任务），而不是 docker restart。\n继续？`
+          tg('ui.73', { 0: String(resourceName), 1: String(container.swarmService) }) +
+            tg('ui.74')
         )
       ) {
         return
@@ -378,13 +379,13 @@ export default function DockerPanel({
     if (action === 'start' || action === 'restart') {
       setContainer((prev) =>
         prev
-          ? { ...prev, state: 'starting', shortStatus: 'starting', status: '启动中…' }
+          ? { ...prev, state: 'starting', shortStatus: 'starting', status: tg('ui.75') }
           : {
               id: resourceId,
               name: resourceName,
               image: '',
               state: 'starting',
-              status: '启动中…',
+              status: tg('ui.75'),
               shortStatus: 'starting',
               ports: ''
             }
@@ -394,10 +395,10 @@ export default function DockerPanel({
       await window.aiss.docker.containerAction(sessionId, resourceId, action)
       setHint(
         action === 'rm'
-          ? '已删除'
+          ? tg('ui.76')
           : action === 'restart' && container?.swarmService
-            ? `已触发 Swarm 服务重建：${container.swarmService}`
-            : `已执行 ${action}`
+            ? tg('ui.77', { 0: String(container.swarmService) })
+            : tg('ui.78', { 0: String(action) })
       )
       onTreeDirty?.()
       if (action === 'rm') {
@@ -418,7 +419,7 @@ export default function DockerPanel({
     if (busyRef.current) return
     if (
       !window.confirm(
-        `确定重启 Swarm 服务「${resourceName}」？\n将执行 docker service update --force，由 Swarm 逐个重建任务。`
+        tg('ui.79', { 0: String(resourceName) })
       )
     ) {
       return
@@ -428,7 +429,7 @@ export default function DockerPanel({
     setError(null)
     try {
       await window.aiss.docker.swarmAction(sessionId, resourceId, 'restart')
-      setHint('已触发服务重建（update --force）')
+      setHint(tg('ui.80'))
       onTreeDirty?.()
       await refresh()
     } catch (e) {
@@ -442,11 +443,11 @@ export default function DockerPanel({
   const runSwarmScale = async () => {
     if (busyRef.current) return
     const current = swarmDetail?.replicas?.split('/')[1] ?? ''
-    const input = window.prompt(`将服务「${resourceName}」的副本数调整为：`, current)
+    const input = window.prompt(tg('ui.81', { 0: String(resourceName) }), current)
     if (input === null) return
     const n = Number(input.trim())
     if (!Number.isInteger(n) || n < 0 || n > 512) {
-      setError('副本数需为 0–512 的整数')
+      setError(tg('ui.82'))
       return
     }
     busyRef.current = true
@@ -454,7 +455,7 @@ export default function DockerPanel({
     setError(null)
     try {
       await window.aiss.docker.swarmAction(sessionId, resourceId, 'scale', n)
-      setHint(`已调整副本数为 ${n}`)
+      setHint(tg('ui.83', { 0: String(n) }))
       onTreeDirty?.()
       await refresh()
     } catch (e) {
@@ -467,12 +468,12 @@ export default function DockerPanel({
 
   const runComposeAction = async (action: DockerComposeAction) => {
     const label = action === 'up' ? 'up -d' : 'down'
-    if (!window.confirm(`确定对 compose 项目「${resourceName}」执行 ${label}？`)) return
+    if (!window.confirm(tg('ui.84', { 0: String(resourceName), 1: String(label) }))) return
     setBusy(true)
     setError(null)
     try {
       await window.aiss.docker.composeAction(sessionId, resourceId, action)
-      setHint(`已执行 compose ${label}`)
+      setHint(tg('ui.85', { 0: String(label) }))
       onTreeDirty?.()
       await refresh()
     } catch (e) {
@@ -485,15 +486,15 @@ export default function DockerPanel({
   const logsSection = (
     <>
       <div className="docker-logs-header">
-        <h3 className="docker-section-title">日志</h3>
+        <h3 className="docker-section-title">{tg('ui.86')}</h3>
         <div className="docker-logs-toolbar">
           <input
             type="search"
             className="docker-log-filter"
             value={logFilter}
             onChange={(e) => setLogFilter(e.target.value)}
-            placeholder="过滤关键字…"
-            aria-label="日志过滤"
+            placeholder={tg('ui.87')}
+            aria-label={tg('ui.88')}
           />
           {logFilter.trim() ? (
             <span className="docker-log-filter-count">
@@ -514,12 +515,12 @@ export default function DockerPanel({
                 }
               }}
             />
-            自动滚动更新
+            {tg('ui.89')}
           </label>
         </div>
       </div>
       <pre ref={logsRef} className="docker-logs" onScroll={onLogsScroll}>
-        {filteredLogs.text || (logs ? '（无匹配行）' : '（无输出）')}
+        {filteredLogs.text || (logs ? tg('ui.90') : tg('ui.91'))}
       </pre>
     </>
   )
@@ -530,14 +531,14 @@ export default function DockerPanel({
       type="button"
       className={`docker-config-bar${showConfig ? ' is-open' : ''}`}
       aria-expanded={showConfig}
-      title="记住选择，所有容器与 Swarm 服务共用"
+      title={tg('ui.92')}
       onClick={() => toggleShowConfig(!showConfig)}
     >
       <span className="docker-config-bar-chevron" aria-hidden>
         {showConfig ? '▼' : '▶'}
       </span>
-      <span className="docker-config-bar-title">配置</span>
-      <span className="docker-config-bar-hint">{showConfig ? '点击收起' : '点击展开'}</span>
+      <span className="docker-config-bar-title">{tg('ui.93')}</span>
+      <span className="docker-config-bar-hint">{showConfig ? tg('ui.94') : tg('ui.95')}</span>
     </button>
   )
 
@@ -545,45 +546,45 @@ export default function DockerPanel({
     <div className="workspace-panel workspace-panel--docker">
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">
-          {kind === 'container' ? '容器' : kind === 'swarm' ? 'Swarm 服务' : 'Compose'} ·{' '}
+          {kind === 'container' ? tg('ui.96') : kind === 'swarm' ? tg('ui.97') : 'Compose'} ·{' '}
           {resourceName}
         </h2>
         <div className="workspace-panel-actions">
           <button type="button" onClick={() => void refresh()} disabled={busy}>
-            刷新
+            {tg('ui.98')}
           </button>
           {kind === 'container' ? (
             <>
               <button type="button" className="primary" disabled={busy} onClick={() => onOpenShell?.()}>
-                进入容器
+                {tg('ui.99')}
               </button>
               <button
                 type="button"
                 disabled={busy || Boolean(container?.swarmService)}
-                title={container?.swarmService ? 'Swarm 任务请用「重启」（service update），勿直接启动' : undefined}
+                title={container?.swarmService ? tg('ui.100') : undefined}
                 onClick={() => void runContainerAction('start')}
               >
-                启动
+                {tg('ui.101')}
               </button>
               <button
                 type="button"
                 disabled={busy || Boolean(container?.swarmService)}
-                title={container?.swarmService ? 'Swarm 任务请勿直接停止，可用 service scale=0' : undefined}
+                title={container?.swarmService ? tg('ui.102') : undefined}
                 onClick={() => void runContainerAction('stop')}
               >
-                停止
+                {tg('ui.103')}
               </button>
               <button type="button" disabled={busy} onClick={() => void runContainerAction('restart')}>
-                重启
+                {tg('ui.104')}
               </button>
               <button
                 type="button"
                 className="danger"
                 disabled={busy || Boolean(container?.swarmService)}
-                title={container?.swarmService ? 'Swarm 任务请勿直接删除' : undefined}
+                title={container?.swarmService ? tg('ui.105') : undefined}
                 onClick={() => void runContainerAction('rm')}
               >
-                删除
+                {tg('ui.8')}
               </button>
             </>
           ) : kind === 'swarm' ? (
@@ -592,18 +593,18 @@ export default function DockerPanel({
                 type="button"
                 className="primary"
                 disabled={busy}
-                title="docker service update --force：由 Swarm 逐个重建任务"
+                title={tg('ui.106')}
                 onClick={() => void runSwarmRestart()}
               >
-                重启服务
+                {tg('ui.107')}
               </button>
               <button
                 type="button"
                 disabled={busy}
-                title="docker service scale：调整副本数（设为 0 即停服）"
+                title={tg('ui.108')}
                 onClick={() => void runSwarmScale()}
               >
-                副本数…
+                {tg('ui.109')}
               </button>
             </>
           ) : (
@@ -617,7 +618,7 @@ export default function DockerPanel({
             </>
           )}
           <button type="button" onClick={onClose} disabled={busy}>
-            关闭
+            {tg('ui.27')}
           </button>
         </div>
       </div>
@@ -636,31 +637,31 @@ export default function DockerPanel({
               <div className="docker-config-block">
                 <div className="docker-meta-grid">
                   <div className="docker-meta-item">
-                    <span className="docker-meta-label">状态</span>
+                    <span className="docker-meta-label">{tg('ui.110')}</span>
                     <span className="docker-meta-value">
                       {container?.shortStatus === 'starting'
-                        ? `启动中${container.status ? `（${container.status}）` : ''}`
+                        ? tg('ui.111', { 0: String(container.status ? tg('ui.112', { 0: String(container.status) }) : '') })
                         : container?.status || container?.shortStatus || '—'}
                     </span>
                   </div>
                   <div className="docker-meta-item">
-                    <span className="docker-meta-label">镜像</span>
+                    <span className="docker-meta-label">{tg('ui.113')}</span>
                     <span className="docker-meta-value is-mono" title={container?.image || ''}>
                       {container?.image || '—'}
                     </span>
                   </div>
                   <div className="docker-meta-item">
-                    <span className="docker-meta-label">编排</span>
+                    <span className="docker-meta-label">{tg('ui.114')}</span>
                     <span className="docker-meta-value">
                       {container?.swarmService
                         ? `Swarm · ${container.swarmService}`
                         : container?.composeProject
                           ? `Compose · ${container.composeProject}`
-                          : '普通容器'}
+                          : tg('ui.115')}
                     </span>
                   </div>
                   <div className="docker-meta-item">
-                    <span className="docker-meta-label">创建</span>
+                    <span className="docker-meta-label">{tg('ui.116')}</span>
                     <span className="docker-meta-value">{container?.createdAt || '—'}</span>
                   </div>
                   <div className="docker-meta-item">
@@ -675,7 +676,7 @@ export default function DockerPanel({
                 </div>
 
                 {!detail ? (
-                  <p className="docker-panel-muted">读取配置中…</p>
+                  <p className="docker-panel-muted">{tg('ui.117')}</p>
                 ) : (
                   <div className="docker-detail-groups">
                     <EnvGroup
@@ -691,13 +692,13 @@ export default function DockerPanel({
                       <section className="docker-detail-group docker-detail-group--wide">
                         <header className="docker-detail-group-header">
                           <h4>
-                            服务发布端口
+                            {tg('ui.118')}
                             <span className="docker-group-count">
                               {detail.swarm.publishedPorts.length}
                             </span>
                           </h4>
                           <span className="docker-detail-note">
-                            Swarm 服务 {detail.swarm.service}
+                            {tg('ui.97')}{' '} {detail.swarm.service}
                           </span>
                         </header>
                         {detail.swarm.error ? (
@@ -711,11 +712,11 @@ export default function DockerPanel({
                     <section className="docker-detail-group">
                       <header className="docker-detail-group-header">
                         <h4>
-                          容器端口<span className="docker-group-count">{detail.ports.length}</span>
+                          {tg('ui.119')}<span className="docker-group-count">{detail.ports.length}</span>
                         </h4>
                       </header>
                       {detail.ports.length === 0 ? (
-                        <p className="docker-panel-muted">无</p>
+                        <p className="docker-panel-muted">{tg('ui.61')}</p>
                       ) : (
                         <ul className="docker-detail-list">
                           {detail.ports.map((p, i) => (
@@ -734,7 +735,7 @@ export default function DockerPanel({
                               ) : (
                                 <>
                                   <code>{p.container}</code>
-                                  <span className="docker-detail-note">未映射</span>
+                                  <span className="docker-detail-note">{tg('ui.120')}</span>
                                 </>
                               )}
                             </li>
@@ -746,11 +747,11 @@ export default function DockerPanel({
                     <section className="docker-detail-group">
                       <header className="docker-detail-group-header">
                         <h4>
-                          网络<span className="docker-group-count">{detail.networks.length}</span>
+                          {tg('ui.121')}<span className="docker-group-count">{detail.networks.length}</span>
                         </h4>
                       </header>
                       {detail.networks.length === 0 ? (
-                        <p className="docker-panel-muted">无</p>
+                        <p className="docker-panel-muted">{tg('ui.61')}</p>
                       ) : (
                         <ul className="docker-detail-list">
                           {detail.networks.map((n) => (
@@ -767,37 +768,37 @@ export default function DockerPanel({
 
                     <section className="docker-detail-group">
                       <header className="docker-detail-group-header">
-                        <h4>运行配置</h4>
+                        <h4>{tg('ui.122')}</h4>
                       </header>
                       <dl className="docker-kv-list">
                         <div className="docker-kv-row">
-                          <dt>命令</dt>
+                          <dt>{tg('ui.123')}</dt>
                           <dd>{detail.command || '—'}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>工作目录</dt>
+                          <dt>{tg('ui.124')}</dt>
                           <dd>{detail.workingDir || '—'}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>用户</dt>
-                          <dd>{detail.user || '默认'}</dd>
+                          <dt>{tg('ui.125')}</dt>
+                          <dd>{detail.user || tg('ui.126')}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>重启策略</dt>
+                          <dt>{tg('ui.127')}</dt>
                           <dd>{detail.restartPolicy || '—'}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>健康检查</dt>
-                          <dd>{detail.health || '未配置'}</dd>
+                          <dt>{tg('ui.128')}</dt>
+                          <dd>{detail.health || tg('ui.129')}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>启动时间</dt>
+                          <dt>{tg('ui.130')}</dt>
                           <dd>{detail.startedAt || '—'}</dd>
                         </div>
                       </dl>
                     </section>
 
-                    <LabelGroup title="标签" items={detail.labels} />
+                    <LabelGroup title={tg('ui.131')} items={detail.labels} />
                   </div>
                 )}
               </div>
@@ -812,23 +813,23 @@ export default function DockerPanel({
               <div className="docker-config-block">
                 <div className="docker-meta-grid">
                   <div className="docker-meta-item">
-                    <span className="docker-meta-label">副本</span>
+                    <span className="docker-meta-label">{tg('ui.132')}</span>
                     <span className="docker-meta-value">
-                      {swarmDetail ? `${swarmDetail.replicas}（${swarmDetail.mode}）` : '—'}
+                      {swarmDetail ? tg('ui.133', { 0: String(swarmDetail.replicas), 1: String(swarmDetail.mode) }) : '—'}
                     </span>
                   </div>
                   <div className="docker-meta-item">
-                    <span className="docker-meta-label">镜像</span>
+                    <span className="docker-meta-label">{tg('ui.113')}</span>
                     <span className="docker-meta-value is-mono" title={swarmDetail?.image || ''}>
                       {swarmDetail?.image || '—'}
                     </span>
                   </div>
                   <div className="docker-meta-item">
                     <span className="docker-meta-label">Stack</span>
-                    <span className="docker-meta-value">{swarmDetail?.stack || '（未归属）'}</span>
+                    <span className="docker-meta-value">{swarmDetail?.stack || tg('ui.134')}</span>
                   </div>
                   <div className="docker-meta-item">
-                    <span className="docker-meta-label">最近更新</span>
+                    <span className="docker-meta-label">{tg('ui.135')}</span>
                     <span className="docker-meta-value" title={swarmDetail?.updatedAt || ''}>
                       {swarmDetail?.updatedAt || '—'}
                     </span>
@@ -842,17 +843,17 @@ export default function DockerPanel({
                 </div>
 
                 {!swarmDetail ? (
-                  <p className="docker-panel-muted">读取服务配置中…</p>
+                  <p className="docker-panel-muted">{tg('ui.136')}</p>
                 ) : (
                   <div className="docker-detail-groups">
                     <section className="docker-detail-group docker-detail-group--wide">
                       <header className="docker-detail-group-header">
                         <h4>
-                          发布端口
+                          {tg('ui.137')}
                           <span className="docker-group-count">{swarmDetail.ports.length}</span>
                         </h4>
                         <span className="docker-detail-note">
-                          端口在服务层发布，任务容器内看不到映射
+                          {tg('ui.138')}
                         </span>
                       </header>
                       <SwarmPortList ports={swarmDetail.ports} />
@@ -870,11 +871,11 @@ export default function DockerPanel({
                     <section className="docker-detail-group">
                       <header className="docker-detail-group-header">
                         <h4>
-                          网络<span className="docker-group-count">{swarmDetail.networks.length}</span>
+                          {tg('ui.121')}<span className="docker-group-count">{swarmDetail.networks.length}</span>
                         </h4>
                       </header>
                       {swarmDetail.networks.length === 0 ? (
-                        <p className="docker-panel-muted">无</p>
+                        <p className="docker-panel-muted">{tg('ui.61')}</p>
                       ) : (
                         <ul className="docker-detail-list">
                           {swarmDetail.networks.map((n) => (
@@ -888,33 +889,33 @@ export default function DockerPanel({
 
                     <section className="docker-detail-group">
                       <header className="docker-detail-group-header">
-                        <h4>调度与资源</h4>
+                        <h4>{tg('ui.139')}</h4>
                       </header>
                       <dl className="docker-kv-list">
                         <div className="docker-kv-row">
-                          <dt>放置约束</dt>
-                          <dd>{swarmDetail.constraints.join(' · ') || '无'}</dd>
+                          <dt>{tg('ui.140')}</dt>
+                          <dd>{swarmDetail.constraints.join(' · ') || tg('ui.61')}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>CPU 限制 / 预留</dt>
+                          <dt>{tg('ui.141')}</dt>
                           <dd>
                             {swarmDetail.resources?.limitCpu || '—'} /{' '}
                             {swarmDetail.resources?.reserveCpu || '—'}
                           </dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>内存 限制 / 预留</dt>
+                          <dt>{tg('ui.142')}</dt>
                           <dd>
                             {swarmDetail.resources?.limitMemory || '—'} /{' '}
                             {swarmDetail.resources?.reserveMemory || '—'}
                           </dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>更新策略</dt>
+                          <dt>{tg('ui.143')}</dt>
                           <dd>{swarmDetail.updatePolicy || '—'}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>重启策略</dt>
+                          <dt>{tg('ui.127')}</dt>
                           <dd>{swarmDetail.restartPolicy || '—'}</dd>
                         </div>
                       </dl>
@@ -924,31 +925,31 @@ export default function DockerPanel({
 
                     <section className="docker-detail-group">
                       <header className="docker-detail-group-header">
-                        <h4>运行配置</h4>
+                        <h4>{tg('ui.122')}</h4>
                       </header>
                       <dl className="docker-kv-list">
                         <div className="docker-kv-row">
-                          <dt>命令</dt>
+                          <dt>{tg('ui.123')}</dt>
                           <dd>{swarmDetail.command || '—'}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>工作目录</dt>
+                          <dt>{tg('ui.124')}</dt>
                           <dd>{swarmDetail.workingDir || '—'}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>用户</dt>
-                          <dd>{swarmDetail.user || '默认'}</dd>
+                          <dt>{tg('ui.125')}</dt>
+                          <dd>{swarmDetail.user || tg('ui.126')}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>健康检查</dt>
-                          <dd>{swarmDetail.healthcheck || '未配置'}</dd>
+                          <dt>{tg('ui.128')}</dt>
+                          <dd>{swarmDetail.healthcheck || tg('ui.129')}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>额外 hosts</dt>
-                          <dd>{swarmDetail.hosts.join('，') || '无'}</dd>
+                          <dt>{tg('ui.144')}</dt>
+                          <dd>{swarmDetail.hosts.join(tg('ui.145')) || tg('ui.61')}</dd>
                         </div>
                         <div className="docker-kv-row">
-                          <dt>创建时间</dt>
+                          <dt>{tg('ui.146')}</dt>
                           <dd>{swarmDetail.createdAt || '—'}</dd>
                         </div>
                       </dl>
@@ -957,12 +958,12 @@ export default function DockerPanel({
                     <section className="docker-detail-group docker-detail-group--wide">
                       <header className="docker-detail-group-header">
                         <h4>
-                          任务<span className="docker-group-count">{swarmDetail.tasks.length}</span>
+                          {tg('ui.147')}<span className="docker-group-count">{swarmDetail.tasks.length}</span>
                         </h4>
-                        <span className="docker-detail-note">含历史任务，按时间倒序</span>
+                        <span className="docker-detail-note">{tg('ui.148')}</span>
                       </header>
                       {swarmDetail.tasks.length === 0 ? (
-                        <p className="docker-panel-muted">无</p>
+                        <p className="docker-panel-muted">{tg('ui.61')}</p>
                       ) : (
                         <ul className="docker-detail-list is-scroll">
                           {swarmDetail.tasks.map((t) => (
@@ -987,8 +988,8 @@ export default function DockerPanel({
                       )}
                     </section>
 
-                    <LabelGroup title="服务标签" items={swarmDetail.labels} />
-                    <LabelGroup title="容器标签" items={swarmDetail.containerLabels} />
+                    <LabelGroup title={tg('ui.149')} items={swarmDetail.labels} />
+                    <LabelGroup title={tg('ui.150')} items={swarmDetail.containerLabels} />
                   </div>
                 )}
               </div>
@@ -998,15 +999,15 @@ export default function DockerPanel({
           </>
         ) : (
           <>
-            <h3 className="docker-section-title">服务 / 容器</h3>
+            <h3 className="docker-section-title">{tg('ui.151')}</h3>
             {services.length === 0 ? (
-              <p className="docker-panel-muted">暂无服务（或项目未启动）</p>
+              <p className="docker-panel-muted">{tg('ui.152')}</p>
             ) : (
               <table className="docker-table">
                 <thead>
                   <tr>
-                    <th>名称</th>
-                    <th>状态</th>
+                    <th>{tg('ui.153')}</th>
+                    <th>{tg('ui.110')}</th>
                     <th>ID</th>
                   </tr>
                 </thead>
