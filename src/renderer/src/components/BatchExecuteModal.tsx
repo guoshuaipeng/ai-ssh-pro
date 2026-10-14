@@ -21,6 +21,8 @@ type Props = {
   sessions: BatchSessionOption[]
   /** session ids to tick when opening (e.g. hosts multi-selected in the sidebar) */
   preselect?: string[]
+  /** UX-14: render inside a center tab */
+  embedded?: boolean
   onClose: () => void
 }
 
@@ -33,7 +35,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   'no-sessions': 'batch.errNoSessions'
 }
 
-export default function BatchExecuteModal({ open, sessions, preselect, onClose }: Props) {
+export default function BatchExecuteModal({ open, sessions, preselect, onClose, embedded }: Props) {
   const { t } = useI18n()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [command, setCommand] = useState('')
@@ -130,7 +132,9 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose }
 
   return (
     <Modal
-      open={open}
+      open={open || !!embedded}
+      embedded={embedded}
+      testId="batch-panel"
       title={t('batch.title')}
       onClose={() => {
         if (!running) onClose()

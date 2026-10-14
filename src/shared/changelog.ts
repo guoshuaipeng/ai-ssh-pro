@@ -13,6 +13,27 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
 
+  '0.3.15': [
+    {
+      icon: '🧰',
+      text: { zh: '服务器工具箱所有入口都在中间标签页打开（工具箱 · 主机），不再弹窗', en: 'Every server toolbox entry opens a center tab (Toolbox · host), no more dialog' },
+      where: { zh: '运维 → 服务器工具箱（Ctrl+Alt+T）', en: 'Ops → Server toolbox (Ctrl+Alt+T)' },
+      action: 'serverTools'
+    },
+    {
+      icon: '🔀',
+      text: { zh: '端口转发、批量执行也改为标签页', en: 'Port forwarding and Batch run open as tabs too' }
+    },
+    {
+      icon: '🎯',
+      text: { zh: '主机右键刚连上就打开监控/工具箱时，指向正确的主机', en: 'Host right-click Monitor / Toolbox targets the right host right after connecting' }
+    },
+    {
+      icon: '📑',
+      text: { zh: '标签很多时在标签栏内滚动，关闭工具标签回到对应主机终端', en: 'Many tabs scroll inside the tab bar; closing a tool tab returns to its host' }
+    }
+  ],
+
   '0.3.14': [
     {
       icon: '📑',

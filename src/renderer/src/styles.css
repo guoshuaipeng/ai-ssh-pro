@@ -1226,7 +1226,15 @@ body.layout-resizing {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  /* many tabs: scroll the bar, never widen the window */
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
+.tab-bar > .tab { flex-shrink: 0; }
+.main { min-width: 0; }
+
 
 .tab {
   display: inline-flex;

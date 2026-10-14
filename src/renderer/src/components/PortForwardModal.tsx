@@ -9,6 +9,8 @@ type Props = {
   open: boolean
   sessions: BatchSessionOption[]
   activeSessionId: string | null
+  /** UX-14: render inside a center tab */
+  embedded?: boolean
   onClose: () => void
 }
 
@@ -19,7 +21,7 @@ function fmtBytes(n: number): string {
 }
 
 /** Lists live local port forwards of connected SSH sessions; add / stop at runtime. */
-export default function PortForwardModal({ open, sessions, activeSessionId, onClose }: Props) {
+export default function PortForwardModal({ open, sessions, activeSessionId, onClose, embedded }: Props) {
   const { t } = useI18n()
   const [rows, setRows] = useState<ActiveForward[]>([])
   const [sessionId, setSessionId] = useState('')
@@ -93,7 +95,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
   }
 
   return (
-    <Modal open={open} title={t('pf.title')} onClose={onClose} width={760}>
+    <Modal open={open || !!embedded} title={t('pf.title')} onClose={onClose} width={760} embedded={embedded} testId="port-forward-panel">
       <div className="pf-panel">
         <p className="pf-hint">{t('pf.hint')}</p>
         {sessions.length === 0 ? <p className="pf-empty">{t('pf.noSessions')}</p> : null}

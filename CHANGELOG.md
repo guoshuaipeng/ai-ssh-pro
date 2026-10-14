@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.15
+
+- **Toolbox is a tab everywhere** — every entry (toolbar, Ops menu, Ctrl+Alt+T, Ctrl+K, host right-click, monitor's "Processes / services / logs…") opens the server toolbox as a center tab titled "Toolbox · host", one per host; no more modal dialog.
+- **Port forwarding and Batch run are tabs too** — Session → Port forwarding…, Ctrl+Shift+O, tab right-click, and Ops → Batch run… / multi-host batch open center tabs instead of dialogs.
+- **Right host every time** — opening Monitor / Toolbox from the host right-click menu right after connecting now targets that host, not another open session.
+- **Tab bar** — many tabs scroll inside the bar instead of widening the window; the active tab stays in view; closing a tool tab returns to its host's terminal.
 ## v0.3.14
 
 - **Tool tabs** — Resource monitor and server toolbox open as center tabs (deduped per host) instead of modal dialogs.

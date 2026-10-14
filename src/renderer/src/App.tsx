@@ -173,6 +173,8 @@ type Tab = {
   dockerKind?: 'container' | 'compose' | 'swarm'
   dockerResourceId?: string
   dockerResourceName?: string
+  /** batch tab: sessions to tick */
+  batchPreselect?: string[]
 }
 
 const PLACEHOLDER_CONNECT: SshConnectOptions = {
@@ -273,7 +275,6 @@ export default function App() {
     /** profile ids when the menu was opened on a multi-selection (H1) */
     multi?: string[]
   } | null>(null)
-  const [batchPreselect, setBatchPreselect] = useState<string[] | undefined>(undefined)
   const [inventoryLink, setInventoryLink] = useState<HostInventoryLink | undefined>(undefined)
   const sessionMenuRef = useRef<HTMLDivElement>(null)
   const [folderMenu, setFolderMenu] = useState<{
@@ -359,8 +360,6 @@ export default function App() {
       window.removeEventListener('keydown', onKey)
     }
   }, [tabMenu])
-  const [batchOpen, setBatchOpen] = useState(false)
-  const [portForwardOpen, setPortForwardOpen] = useState(false)
   const [resourceOpen, setResourceOpen] = useState(false)
   const [resourceTarget, setResourceTarget] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -423,11 +422,11 @@ export default function App() {
   const [multiSelected, setMultiSelected] = useState<string[]>([])
   const lastClickedProfileRef = useRef<string | null>(null)
   const [backupOpen, setBackupOpen] = useState(false)
-  const [serverToolsOpen, setServerToolsOpen] = useState(false)
-  const [serverToolsSession, setServerToolsSession] = useState<string | null>(null)
   const openToolTabRef = useRef<(
     kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch',
-    forSessionId?: string | null
+    forSessionId?: string | null,
+    preselect?: string[],
+    attempt?: number
   ) => void>(() => undefined)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
@@ -678,6 +677,12 @@ export default function App() {
   )
 
   const tabsRef = useRef(tabs)
+  // keep the active tab visible when the tab bar scrolls
+  useEffect(() => {
+    if (!activeTabId) return
+    const el = document.querySelector('.tab-bar .tab.active')
+    if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeTabId])
   tabsRef.current = tabs
   const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
   const [autoRetry, setAutoRetry] = useState<{ tabId: string; attempt: number; delayMs: number } | null>(null)
@@ -856,8 +861,15 @@ export default function App() {
       view === 'forward' ||
       view === 'batch'
     ) {
+      // focus the host session the tool belonged to, else the neighbour tab
+      const cur = tabsRef.current
+      const idx = cur.findIndex((t) => t.tabId === tabId)
+      const closing = cur[idx]
+      const rest = cur.filter((t) => t.tabId !== tabId)
+      const owner = closing?.boundSessionId ? rest.find((t) => t.sessionId === closing.boundSessionId) : undefined
+      const fallback = owner?.tabId ?? rest[Math.min(Math.max(idx, 0), rest.length - 1)]?.tabId ?? null
       setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
-      setActiveTabId((cur) => (cur === tabId ? null : cur))
+      setActiveTabId((c) => (c === tabId ? fallback : c))
       return
     }
     if (view === 'remote-file') {
@@ -1110,12 +1122,45 @@ export default function App() {
 
 
   const openToolTab = useCallback(
-    (kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch', forSessionId?: string | null) => {
+    (kind: 'monitor' | 'toolbox' | 'sftp' | 'forward' | 'batch', forSessionId?: string | null, preselect?: string[], attempt = 0) => {
       ensureMainVisible()
       const tabsNow = tabsRef.current
       if (kind === 'sftp') {
         openSftpTransfer(forSessionId || undefined)
         return
+      }
+      if (kind === 'batch') {
+        // one batch tab; re-opening focuses it (and updates the preselection)
+        const pre = preselect ?? (forSessionId ? [forSessionId] : undefined)
+        const ex = tabsNow.find((t) => t.view === 'batch')
+        if (ex) {
+          if (pre) setTabs((prev) => prev.map((t) => (t.tabId === ex.tabId ? { ...t, batchPreselect: pre } : t)))
+          setActiveTabId(ex.tabId)
+          return
+        }
+        const tabId = uuid()
+        setTabs((prev) => [
+          ...prev,
+          {
+            tabId,
+            sessionId: '',
+            title: tg('batch.title'),
+            connectOpts: PLACEHOLDER_CONNECT,
+            status: 'connected',
+            view: 'batch',
+            batchPreselect: pre
+          }
+        ])
+        setActiveTabId(tabId)
+        return
+      }
+      // a host that was just connected may not be in tabsRef yet: wait for it instead of
+      // falling back to another host's session
+      if (forSessionId && !tabsNow.some((t) => t.sessionId === forSessionId && t.status === 'connected')) {
+        if (attempt < 20) {
+          window.setTimeout(() => openToolTabRef.current(kind, forSessionId, preselect, attempt + 1), 150)
+          return
+        }
       }
       const bound =
         tabsNow.find(
@@ -1138,9 +1183,9 @@ export default function App() {
         return
       }
       const hostLabel = bound.title
-      const titlePrefix = kind === 'monitor' ? tg('tab.monitor') : tg('tab.toolbox')
+      const titlePrefix = kind === 'monitor' ? tg('tab.monitor') : kind === 'forward' ? tg('pf.title') : tg('tab.toolbox')
       const title = `${titlePrefix} · ${hostLabel}`.slice(0, 24)
-      const view: TabView = kind === 'monitor' ? 'monitor' : 'toolbox'
+      const view: TabView = kind
       const existing = tabsNow.find(
         (t) => t.view === view && (t.boundSessionId === bound.sessionId || (!!bound.profileId && t.profileId === bound.profileId))
       )
@@ -2275,11 +2320,11 @@ export default function App() {
         return
       }
       if (action === 'batchExec') {
-        setBatchOpen(true)
+        openToolTabRef.current('batch')
         return
       }
       if (action === 'portForward') {
-        setPortForwardOpen(true)
+        openToolTabRef.current('forward')
         return
       }
       if (action === 'resourceMonitor') {
@@ -2473,10 +2518,9 @@ export default function App() {
       else if (action === 'serverTools') {
         openToolTabRef.current('toolbox', sid)
       } else if (action === 'sftp') openSftpTransfer(sid)
-      else if (action === 'portForward') setPortForwardOpen(true)
+      else if (action === 'portForward') openToolTabRef.current('forward', sid)
       else if (action === 'batchExec') {
-        setBatchPreselect([sid])
-        setBatchOpen(true)
+        openToolTabRef.current('batch', sid)
       } else if (action === 'aiCommand') window.setTimeout(() => enterAiMode(sid), 120)
     },
     [openMonitorForSession, openSftpTransfer]
@@ -2883,8 +2927,7 @@ export default function App() {
                       disabled={!(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local')}
                       onClick={() => {
                         setTabMenu(null)
-                        setActiveTabId(tab.tabId)
-                        setPortForwardOpen(true)
+                        openToolTabRef.current('forward', tab.sessionId)
                       }}
                     >
                       {tr('menu.portForward')}
@@ -3071,6 +3114,23 @@ export default function App() {
                     activeSessionId={t.boundSessionId}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
+                ) : t.view === 'forward' ? (
+                  <PortForwardModal
+                    open
+                    embedded
+                    sessions={connectedSshSessions}
+                    activeSessionId={t.boundSessionId ?? activeSessionId ?? null}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
+                ) : t.view === 'batch' ? (
+                  <BatchExecuteModal
+                    key={`batch:${(t.batchPreselect ?? []).join(',')}`}
+                    open
+                    embedded
+                    sessions={connectedSshSessions}
+                    preselect={t.batchPreselect}
+                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                  />
                 ) : t.view === 'sftp' ? (
                   <SftpPanel
                     key={t.boundSessionId || t.tabId}
@@ -3227,21 +3287,6 @@ export default function App() {
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-      <BatchExecuteModal
-        open={batchOpen}
-        sessions={connectedSshSessions}
-        preselect={batchPreselect}
-        onClose={() => {
-          setBatchOpen(false)
-          setBatchPreselect(undefined)
-        }}
-      />
-      <PortForwardModal
-        open={portForwardOpen}
-        sessions={connectedSshSessions}
-        activeSessionId={activeSessionId ?? null}
-        onClose={() => setPortForwardOpen(false)}
-      />
       <ResourceMonitorModal
         open={resourceOpen}
         sessions={connectedSshSessions}
@@ -3252,15 +3297,8 @@ export default function App() {
         }}
         onOpenTools={(sid) => {
           setResourceOpen(false)
-          setServerToolsSession(sid)
-          setServerToolsOpen(true)
+          openToolTabRef.current('toolbox', sid)
         }}
-      />
-      <ServerToolsModal
-        open={serverToolsOpen}
-        sessions={connectedSshSessions}
-        activeSessionId={serverToolsSession ?? activeSessionId ?? null}
-        onClose={() => setServerToolsOpen(false)}
       />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onAction={handleTitlebarMenuAction} />
       <WhatsNewModal
@@ -3365,8 +3403,7 @@ export default function App() {
                     const sid = await ensureProfileSession(x)
                     if (sid) sids.push(sid)
                   }
-                  setBatchPreselect(sids)
-                  setBatchOpen(true)
+                  openToolTabRef.current('batch', null, sids)
                 })()
               })}
               {moveTo(multi)}
@@ -3399,8 +3436,7 @@ export default function App() {
             {item('monitor', tg('ctx.monitor'), () => void monitorProfile(p))}
             {item('toolbox', tg('ctx.toolbox'), () =>
               runForProfile(p, (sid) => {
-                setServerToolsSession(sid)
-                setServerToolsOpen(true)
+                openToolTabRef.current('toolbox', sid)
               })
             )}
             {item('docker', expandedHosts[p.id] ? tg('app.collapseDocker') : tg('app.expandDocker'), () => {

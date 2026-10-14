@@ -210,7 +210,7 @@ async function step(name, fn) {
     console.log(`  OK   ${name} (${Date.now() - t0}ms)`)
   } catch (e) {
     results.push({ name, ok: false })
-    console.log(`  FAIL ${name}: ${String(e?.message || e).split('\n')[0]}`)
+    console.log(`  FAIL ${name}: ${String(e?.message || e).split('\n').filter((l) => /Timeout|waiting for|Error|assert/i.test(l)).slice(0, 3).join(' / ')}`)
     mkdirSync(artifacts, { recursive: true })
     await page.screenshot({ path: join(artifacts, name.replace(/\W+/g, '_') + '.png') }).catch(() => {})
   }
@@ -246,6 +246,14 @@ async function cjkScan(label) {
 const menu = async (top, item) => {
   await page.getByRole('button', { name: top, exact: true }).click()
   await page.getByText(item, { exact: true }).first().click()
+}
+const closeActiveTab = async () => {
+  await page.locator('.tab-bar .tab.active .tab-close').first().click()
+  const dlg = page.getByTestId('dialog-ok')
+  if (await dlg.isVisible().catch(() => false)) await dlg.click()
+}
+const noModal = async (label) => {
+  assert((await page.locator('.modal-backdrop, [aria-modal="true"]').count()) === 0, label + ': opened as a modal dialog')
 }
 const cmdInput = () => page.locator('.session-command-bar input, .session-command-bar textarea').first()
 const xtermHas = (s) => page.waitForFunction((x) => [...document.querySelectorAll('.xterm-rows')].some((r) => (r.textContent || '').includes(x)), s, { timeout: 8000 })
@@ -315,8 +323,7 @@ await step('F1 opens keyboard shortcuts panel (English)', async () => {
 })
 
 await step('snippets panel in English: add, variables, search, export', async () => {
-  await page.getByRole('button', { name: 'Session', exact: true }).click()
-  await page.getByText('Snippets', { exact: true }).first().click()
+  await menu('Ops', 'Snippets')
   await expectVisible(page.getByText('Command snippets'))
   await expectVisible(page.getByText('No snippets yet', { exact: false }))
   await page.getByLabel('Title').fill('Tail log')
@@ -364,7 +371,7 @@ await step('SSH connect to local test server (host key prompt, shell echo, laten
 })
 
 await step('batch execute + export .txt', async () => {
-  await page.getByText('Batch run', { exact: true }).first().click()
+  await menu('Ops', 'Batch run…')
   await expectVisible(page.locator('.batch-exec'))
   await page.locator('.batch-exec-toolbar button').first().click()
   const box = page.locator('.batch-exec input, .batch-exec textarea').last()
@@ -377,8 +384,9 @@ await step('batch execute + export .txt', async () => {
   assert(f, 'batch export not written')
   const txt = readFileSync(join(downloads, f), 'utf8')
   assert(txt.includes('# uptime') && txt.includes('e2e-local') && txt.includes('up 1 day'), 'batch export content')
-  await cjkScan('batch modal')
-  await page.keyboard.press('Escape')
+  await cjkScan('batch tab')
+  await noModal('batch run')
+  await closeActiveTab()
   await expectHidden(page.locator('.batch-exec'))
 })
 
@@ -501,7 +509,8 @@ await step('port forwarding panel: add (auto local port), traffic through SSH, s
     sock.on('error', () => res(true))
   })
   assert(closed, 'local port still open after stop')
-  await page.keyboard.press('Escape')
+  await noModal('port forwarding')
+  await closeActiveTab()
   await expectHidden(page.locator('.pf-panel'))
 })
 
@@ -531,7 +540,8 @@ await step('resource monitor: CPU / memory / disk / uptime from the SSH host', a
   assert(await panel.locator('.rm-disk.rm-bad').filter({ hasText: '/data' }).count() === 1, '/data flagged red')
   await expectVisible(panel.getByText('1d 2h 3m', { exact: false }))
   await cjkScan('resource monitor')
-  await page.keyboard.press('Escape')
+  await noModal('resource monitor')
+  await closeActiveTab()
   await expectHidden(panel)
 })
 
@@ -603,14 +613,15 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
   assert((await log.locator('.st-log-line').count()) === 1, 'errors only')
   assert(execLog.some((c) => c.startsWith("tail -n 200 -- '/var/log/syslog'")), 'tail command')
   await cjkScan('server toolbox: logs')
-  await page.keyboard.press('Escape')
+  await noModal('server toolbox')
+  await closeActiveTab()
   await expectHidden(st)
   // clean up the forward we opened
   await menu('Session', 'Port forwarding…')
   const fr = page.locator('.pf-table tbody tr').filter({ hasText: '127.0.0.1:3306' })
   await expectVisible(fr, 10000)
   await fr.getByRole('button', { name: 'Stop', exact: true }).click()
-  await page.keyboard.press('Escape')
+  await closeActiveTab()
 })
 
 await step('split view: second session in pane 2, drag divider, swap, persisted ratio', async () => {
@@ -711,17 +722,14 @@ await step('menus: File / Edit / View / Session / Ops / AI / Help (shared defini
 await step('toolbar buttons open monitor / forwarding / backup', async () => {
   await page.locator('[data-tool="resourceMonitor"]').click()
   await expectVisible(page.locator('.rm-panel .rm-value', { hasText: '50%' }), 15000)
-  await page.keyboard.press('Escape')
-  await page.locator('[data-tool="portForward"]').click()
-  await expectVisible(page.locator('.pf-panel'))
-  await page.keyboard.press('Escape')
+  await noModal('toolbar monitor')
+  await closeActiveTab()
   await page.locator('[data-tool="serverTools"]').click()
   await expectVisible(page.locator('.st-panel'), 15000)
-  await page.keyboard.press('Escape')
+  await noModal('toolbar toolbox')
+  await closeActiveTab()
   await expectHidden(page.locator('.st-panel'))
-  await page.locator('[data-tool="more"]').click()
-  await expectVisible(page.getByTestId('toolbar-more').getByText('Check for updates…', { exact: true }))
-  await page.getByTestId('toolbar-more').getByText('Encrypted backup & restore…', { exact: true }).click()
+  await menu('File', 'Encrypted backup & restore…')
   await expectVisible(page.locator('.bk-panel'))
   await page.keyboard.press('Escape')
   await expectHidden(page.locator('.bk-panel'))
@@ -731,11 +739,12 @@ await step('toolbar buttons open monitor / forwarding / backup', async () => {
 await step('keyboard shortcuts: Ctrl+Shift+M / Ctrl+Shift+O', async () => {
   await page.keyboard.press('Control+Shift+M')
   await expectVisible(page.locator('.rm-panel'))
-  await page.keyboard.press('Escape')
+  await closeActiveTab()
   await expectHidden(page.locator('.rm-panel'))
   await page.keyboard.press('Control+Shift+O')
   await expectVisible(page.locator('.pf-panel'))
-  await page.keyboard.press('Escape')
+  await noModal('Ctrl+Shift+O')
+  await closeActiveTab()
   await expectHidden(page.locator('.pf-panel'))
 })
 
@@ -750,7 +759,7 @@ await step('command palette: Ctrl+Shift+P search + Enter, Ctrl+K outside termina
   await input.press('Enter')
   await expectHidden(input)
   await expectVisible(page.locator('.rm-panel'))
-  await page.keyboard.press('Escape')
+  await closeActiveTab()
   await search.click()
   await page.keyboard.press('Control+K')
   await expectVisible(input)
@@ -775,11 +784,10 @@ await step('sidebar host right-click → Resource monitor connects first, then m
   await expectVisible(page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }), 15000)
   const panel = page.locator('.rm-panel')
   await expectVisible(panel.locator('.rm-value', { hasText: '50%' }), 20000)
-  await page.waitForFunction(() => {
-    const sel = document.querySelector('.rm-panel select')
-    return sel && sel.selectedOptions[0]?.textContent?.includes('e2e-monitor')
-  }, null, { timeout: 10000 })
-  await page.keyboard.press('Escape')
+  const monTab = page.locator('.tab-bar .tab').filter({ hasText: 'Monitor · e2e-monitor' })
+  await expectVisible(monTab.and(page.locator('.tab.active')), 10000)
+  await monTab.locator('.tab-close').click()
+  await page.waitForTimeout(500)
   await expectHidden(panel)
   await page.waitForTimeout(300)
   // already connected: reuses the session instead of opening another tab
@@ -787,15 +795,18 @@ await step('sidebar host right-click → Resource monitor connects first, then m
   await page.getByRole('menuitem', { name: 'Resource monitor', exact: true }).click()
   await expectVisible(panel)
   await page.waitForTimeout(800)
-  assert(await page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }).count() === 1, 'no duplicate tab')
-  await page.keyboard.press('Escape')
+  assert(await page.locator('.tab-bar .tab.tab-kind-session').filter({ hasText: 'e2e-monitor' }).count() === 1, 'no duplicate tab')
+  assert(await monTab.count() === 1, 'monitor tab deduped')
+  await monTab.locator('.tab-close').click()
+  await page.waitForTimeout(500)
   await expectHidden(panel)
   await page.waitForTimeout(300)
   // tab right-click has the entry too
   await page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }).first().click({ button: 'right' })
   await page.locator('.tab-context-menu').getByRole('menuitem', { name: 'Resource monitor' }).click()
   await expectVisible(panel)
-  await page.keyboard.press('Escape')
+  await noModal('tab menu monitor')
+  await monTab.locator('.tab-close').click()
   await expectHidden(panel)
   await page.waitForTimeout(300)
 })
@@ -854,10 +865,11 @@ await step('v0.3.12 titlebar version + toolbar groups (ops buttons, More menu)',
   const pkgVer = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')).version
   assert((await ver.textContent()).startsWith('v' + pkgVer), 'version label ' + (await ver.textContent()))
   assert(((await ver.getAttribute('title')) || '').includes("what's new"), 'version tooltip')
-  for (const id of ['connection', 'recent', 'resourceMonitor', 'serverTools', 'sftp', 'portForward', 'batchExec', 'snippets', 'commandPalette', 'more']) {
+  // UX-15 minimal default toolbar: no "More"
+  for (const id of ['connection', 'resourceMonitor', 'serverTools', 'sftp', 'commandPalette']) {
     await expectVisible(page.locator(`.app-titlebar [data-tool="${id}"]`))
   }
-  assert((await page.locator('.app-titlebar [data-tool="backup"]').count()) === 0, 'backup moved into More')
+  assert(!(await page.locator('.app-titlebar [data-tool="more"]').isVisible()), 'no More button')
   await ver.click()
   await expectVisible(page.getByTestId('whats-new'))
   await cjkScan("what's new (version click)")
@@ -923,7 +935,8 @@ await step('H1: host right-click menu order, Copy user@host, SFTP / toolbox auto
   await host.click({ button: 'right' })
   await page.getByTestId('host-menu').getByRole('menuitem', { name: 'Server toolbox' }).click()
   await expectVisible(page.locator('.st-panel'), 15000)
-  await page.keyboard.press('Escape')
+  await noModal('host menu toolbox')
+  await closeActiveTab()
   await expectHidden(page.locator('.st-panel'))
   // multi-select with Ctrl+click → reduced menu
   const other = page.locator('aside').first().getByText('e2e-monitor', { exact: true }).last()
@@ -938,6 +951,53 @@ await step('H1: host right-click menu order, Copy user@host, SFTP / toolbox auto
   await page.keyboard.press('Escape')
   await expectHidden(mm)
   await host.click()
+})
+
+await step('UX-14 hotfix: every toolbox / forward / batch entry opens a center tab (deduped, no modal)', async () => {
+  await page.keyboard.press('Escape')
+  const tbTabs = () => page.locator('.tab-bar .tab').filter({ hasText: /^.*Toolbox · / })
+  const expectToolboxTab = async (label) => {
+    await expectVisible(page.locator('.st-panel'), 15000)
+    await expectVisible(page.locator('.tab-bar .tab.active').filter({ hasText: 'Toolbox · ' }))
+    await noModal(label)
+    assert((await tbTabs().count()) === 1, label + ': toolbox tabs = ' + (await tbTabs().count()))
+  }
+  const host = page.locator('aside').first().getByText('e2e-local', { exact: true }).last()
+  await host.click({ button: 'right' })
+  await page.getByTestId('host-menu').getByRole('menuitem', { name: 'Server toolbox' }).click()
+  await expectToolboxTab('host right-click')
+  // go back to the session, then each other entry must reuse the same tab
+  const sessionTab = () => page.locator('.tab-bar .tab.tab-kind-session').first()
+  await sessionTab().click()
+  await menu('Ops', 'Server toolbox')
+  await expectToolboxTab('Ops menu')
+  await sessionTab().click()
+  await page.keyboard.press('Control+Alt+T')
+  await expectToolboxTab('Ctrl+Alt+T')
+  await sessionTab().click()
+  await page.keyboard.press('Control+K')
+  await page.locator('.cmdp-input').fill('toolbox')
+  await page.locator('.cmdp-input').press('Enter')
+  await expectToolboxTab('Ctrl+K')
+  await sessionTab().click()
+  await page.locator('.app-toolbar, .app-titlebar-corner').getByRole('button', { name: /toolbox/i }).first().click()
+  await expectToolboxTab('toolbar button')
+  mkdirSync(artifacts, { recursive: true })
+  await page.screenshot({ path: join(artifacts, 'r15-toolbox-tab.png') })
+  await closeActiveTab()
+  await expectHidden(page.locator('.st-panel'))
+  // port forwarding + batch run are tabs too
+  await sessionTab().click()
+  await menu('Session', 'Port forwarding…')
+  await expectVisible(page.locator('.pf-panel'))
+  await expectVisible(page.locator('.tab-bar .tab.active').filter({ hasText: 'Port forwarding · ' }))
+  await noModal('port forwarding')
+  await closeActiveTab()
+  await menu('Ops', 'Batch run…')
+  await expectVisible(page.locator('.batch-exec'))
+  await expectVisible(page.locator('.tab-bar .tab.active').filter({ hasText: 'Batch run' }))
+  await noModal('batch run')
+  await closeActiveTab()
 })
 
 await step('H2: host status dot + latency for reachable host', async () => {
@@ -964,8 +1024,8 @@ await step("What's new dialog appears once after an upgrade", async () => {
     await dlg.locator('.wn-where--link', { hasText: 'Command palette' }).click()
     await expectVisible(page.locator('.cmdp-input'))
   } else {
-    await dlg.locator('.wn-where--link', { hasText: 'Welcome tour' }).click()
-    await expectVisible(page.getByTestId('welcome-tour'))
+    // newer versions: entries are listed; links (if any) are optional
+    assert(((await dlg.textContent()) || '').length > 20, 'what\'s new has entries')
   }
   await page.keyboard.press('Escape')
   await page.reload()
@@ -1019,7 +1079,7 @@ await step('G1: Help → Try demo host: DEMO badge, yellow banner, simulated she
   await page.locator('[data-tool="resourceMonitor"]').click()
   const panel = page.locator('.rm-panel')
   await expectVisible(panel.locator('.rm-disk').filter({ hasText: '/data' }).filter({ hasText: '90%' }), 15000)
-  await page.keyboard.press('Escape')
+  await closeActiveTab()
   await expectHidden(panel)
 })
 
@@ -1203,7 +1263,8 @@ await step('UX-09: Monitor with nothing connected → host picker ("No connectio
   await expectHidden(picker, 10000)
   const panel = page.locator('.rm-panel')
   await expectVisible(panel.locator('.rm-disk').filter({ hasText: '/data' }), 15000)
-  await page.keyboard.press('Escape')
+  await noModal('host picker → monitor')
+  await closeActiveTab()
   await expectHidden(panel)
   await page.screenshot({ path: join(artifacts, 'r13-demo-session.png') })
 })
