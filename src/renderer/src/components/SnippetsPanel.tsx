@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CommandSnippet } from '@shared/ipc'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
+import { extractSnippetVars, fillSnippetVars, filterSnippets } from '@shared/workspace-features'
 
 type Props = {
   onClose: () => void
@@ -32,6 +33,9 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [query, setQuery] = useState('')
+  const [pending, setPending] = useState<{ snippet: CommandSnippet; execute: boolean; vars: string[] } | null>(null)
+  const [varValues, setVarValues] = useState<Record<string, string>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -114,8 +118,27 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
       return
     }
     setError(null)
+    const vars = extractSnippetVars(s.body)
+    if (vars.length) {
+      setPending({ snippet: s, execute, vars })
+      setVarValues(Object.fromEntries(vars.map((v) => [v, ''])))
+      return
+    }
     dispatchInjectTerminal(activeSessionId, s.body, execute)
   }
+
+  const confirmVars = () => {
+    if (!pending || !activeSessionId) return
+    if (pending.vars.some((v) => !varValues[v]?.trim())) {
+      setError('请填写全部变量')
+      return
+    }
+    dispatchInjectTerminal(activeSessionId, fillSnippetVars(pending.snippet.body, varValues), pending.execute)
+    setPending(null)
+    setError(null)
+  }
+
+  const visible = filterSnippets(items, query)
 
   return (
     <div className="workspace-panel workspace-panel--settings">
@@ -165,13 +188,61 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
             ) : null}
           </div>
 
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 12px' }}>
+            {'提示：命令里写 {{变量名}}（字母/数字/下划线），注入前会弹出填写，例如 tail -n {{lines}} {{file}}'}
+          </p>
+
+          {pending ? (
+            <div className="snippet-vars" style={{ border: '1px solid var(--accent, #388bfd)', borderRadius: 6, padding: 10, marginBottom: 16 }}>
+              <h3 className="modal-section-title">填写变量：{pending.snippet.title}</h3>
+              {pending.vars.map((v, idx) => (
+                <div className="field" key={v}>
+                  <label htmlFor={`snippet-var-${v}`}>{v}</label>
+                  <input
+                    id={`snippet-var-${v}`}
+                    autoFocus={idx === 0}
+                    value={varValues[v] ?? ''}
+                    onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') confirmVars()
+                    }}
+                  />
+                </div>
+              ))}
+              <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', color: 'var(--muted)', margin: '0 0 8px' }}>
+                {fillSnippetVars(pending.snippet.body, Object.fromEntries(Object.entries(varValues).filter(([, x]) => x)))}
+              </pre>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="primary" onClick={confirmVars}>
+                  {pending.execute ? '注入并执行' : '注入'}
+                </button>
+                <button type="button" onClick={() => setPending(null)}>
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <h3 className="modal-section-title">已保存（{items.length}）</h3>
+          {items.length > 0 ? (
+            <div className="field">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="搜索片段（标题或命令，空格分隔多个关键词）"
+                aria-label="搜索片段"
+              />
+            </div>
+          ) : null}
+          {items.length > 0 && visible.length === 0 ? (
+            <p style={{ fontSize: 12, color: 'var(--muted)' }}>没有匹配的片段</p>
+          ) : null}
           {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>加载中…</p> : null}
           {!loading && items.length === 0 ? (
             <p style={{ fontSize: 12, color: 'var(--muted)' }}>暂无片段，添加后可一键注入当前终端。</p>
           ) : null}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {items.map((s) => (
+            {visible.map((s) => (
               <li
                 key={s.id}
                 style={{

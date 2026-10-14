@@ -18,6 +18,7 @@ import type { TitlebarMenuAction } from './components/TitlebarMenus'
 import AiConfigModal from './components/AiConfigModal'
 import ConnectionConfigModal from './components/ConnectionConfigModal'
 import AboutModal from './components/AboutModal'
+import ShortcutsModal from './components/ShortcutsModal'
 import HostKeyConfirmModal from './components/HostKeyConfirmModal'
 import SessionSearchBar from './components/SessionSearchBar'
 import { exportSessionsAndCopy } from './components/SessionExportButtons'
@@ -37,7 +38,7 @@ import SessionCommandBar from './components/SessionCommandBar'
 import { useI18n } from './lib/i18n'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
-import { filterProfiles } from './lib/session-filter'
+import { filterProfiles, folderMatches } from './lib/session-filter'
 import { clearRemoteFileDirty, isRemoteFileDirty } from './lib/remote-file-dirty'
 import {
   clampAiWidth,
@@ -240,6 +241,17 @@ export default function App() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [hostKeyPrompt, setHostKeyPrompt] = useState<SshHostKeyPromptEvent | null>(null)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault()
+        setShortcutsOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const [batchOpen, setBatchOpen] = useState(false)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
@@ -1931,6 +1943,10 @@ export default function App() {
         setAboutOpen(true)
         return
       }
+      if (action === 'shortcuts') {
+        setShortcutsOpen(true)
+        return
+      }
       if (action === 'batchExec') {
         setBatchOpen(true)
         return
@@ -2011,11 +2027,9 @@ export default function App() {
                 )}
 
                 {folders.map((f) => {
-                  const inFolder = filterProfiles(
-                    profilesInFolder(f.id),
-                    sessionSearch,
-                    treeDataForProfile
-                  )
+                  const inFolder = folderMatches(f.name, sessionSearch)
+                    ? profilesInFolder(f.id)
+                    : filterProfiles(profilesInFolder(f.id), sessionSearch, treeDataForProfile)
                   const expanded = sessionSearch.trim()
                     ? inFolder.length > 0
                     : expandedFolders[f.id] === true
@@ -2360,6 +2374,7 @@ export default function App() {
 
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <BatchExecuteModal open={batchOpen} sessions={connectedSshSessions} onClose={() => setBatchOpen(false)} />
 
       {sessionMenu && (

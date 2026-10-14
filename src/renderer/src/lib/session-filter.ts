@@ -1,4 +1,5 @@
 import type { DockerTreeResult, SavedSessionProfile } from '@shared/ipc'
+import { searchTokens } from '../../../shared/workspace-features'
 
 export function normalizeQuery(query: string): string {
   return query.trim().toLowerCase()
@@ -10,7 +11,12 @@ function matches(value: string | undefined, q: string): boolean {
 
 /** 会话自身字段（名称 / 主机 / 用户）是否命中 */
 export function profileMatches(p: SavedSessionProfile, q: string): boolean {
-  return matches(p.label, q) || matches(p.host, q) || matches(p.username, q)
+  return (
+    matches(p.label, q) ||
+    matches(p.host, q) ||
+    matches(p.username, q) ||
+    matches(`${p.username}@${p.host}:${p.port}`, q)
+  )
 }
 
 /** 已加载到树上的容器 / compose 项目是否命中；未展开过的主机没有数据，自然不参与匹配 */
@@ -33,7 +39,16 @@ export function filterProfiles(
   query: string,
   getTree?: (p: SavedSessionProfile) => DockerTreeResult | undefined
 ): SavedSessionProfile[] {
-  const q = normalizeQuery(query)
-  if (!q) return profiles
-  return profiles.filter((p) => profileMatches(p, q) || treeMatches(getTree?.(p), q))
+  const tokens = searchTokens(query)
+  if (!tokens.length) return profiles
+  // every whitespace-separated token must hit (label / host / user / user@host:port / loaded containers)
+  return profiles.filter((p) => tokens.every((q) => profileMatches(p, q) || treeMatches(getTree?.(p), q)))
+}
+
+/** Folder name matched by all tokens: show the whole folder. */
+export function folderMatches(name: string, query: string): boolean {
+  const tokens = searchTokens(query)
+  if (!tokens.length) return false
+  const n = name.toLowerCase()
+  return tokens.every((t) => n.includes(t))
 }

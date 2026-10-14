@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BatchExecResult } from '@shared/workspace-features'
-import { normalizeCommandLine } from '@shared/workspace-features'
+import { formatBatchReport, normalizeCommandLine } from '@shared/workspace-features'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { notifyHistoryChanged } from '../lib/workspace-events'
 import Modal from './Modal'
@@ -87,6 +87,28 @@ export default function BatchExecuteModal({ open, sessions, onClose }: Props) {
     }
   }
 
+  const [copied, setCopied] = useState(false)
+  const copyReport = async () => {
+    if (!result) return
+    try {
+      await navigator.clipboard.writeText(formatBatchReport(result))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const exportReport = () => {
+    if (!result) return
+    const blob = new Blob([formatBatchReport(result)], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `batch-${new Date(result.startedAt).toISOString().replace(/[:.]/g, '-')}.txt`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
   const errorText = (code?: string) => {
     if (!code) return ''
     const key = ERROR_KEYS[code]
@@ -103,6 +125,16 @@ export default function BatchExecuteModal({ open, sessions, onClose }: Props) {
       width={720}
       footer={
         <>
+          {result && result.results.length > 0 ? (
+            <>
+              <button type="button" onClick={() => void copyReport()} disabled={running}>
+                {copied ? t('batch.copied') : t('batch.copyReport')}
+              </button>
+              <button type="button" onClick={exportReport} disabled={running}>
+                {t('batch.exportReport')}
+              </button>
+            </>
+          ) : null}
           <button type="button" onClick={onClose} disabled={running}>
             {t('batch.close')}
           </button>

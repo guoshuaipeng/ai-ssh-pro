@@ -278,3 +278,76 @@ export function autoReconnectDelay(attempt: number): number | null {
   if (!Number.isInteger(attempt) || attempt < 1) return null
   return AUTO_RECONNECT_DELAYS_MS[attempt - 1] ?? null
 }
+
+// ---------- snippets: {{variable}} placeholders ----------
+const SNIPPET_VAR_RE = /\{\{\s*([A-Za-z_][\w-]{0,31})\s*\}\}/g
+
+/** Unique placeholder names in first-seen order, e.g. "tail -n {{lines}} {{file}}" -> ["lines","file"]. */
+export function extractSnippetVars(body: string): string[] {
+  const out: string[] = []
+  for (const m of String(body ?? '').matchAll(SNIPPET_VAR_RE)) {
+    const name = m[1]!
+    if (!out.includes(name)) out.push(name)
+  }
+  return out.slice(0, 12)
+}
+
+/** Replace placeholders; missing values are left as-is so nothing is silently dropped. */
+export function fillSnippetVars(body: string, values: Record<string, string>): string {
+  return String(body ?? '').replace(SNIPPET_VAR_RE, (whole, name: string) =>
+    Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : whole
+  )
+}
+
+export type SnippetLike = { title: string; body: string }
+
+/** Case-insensitive AND search over title + body. */
+export function filterSnippets<T extends SnippetLike>(items: T[], query: string): T[] {
+  const tokens = searchTokens(query)
+  if (!tokens.length) return items
+  return items.filter((s) => {
+    const hay = `${s.title}\n${s.body}`.toLowerCase()
+    return tokens.every((t) => hay.includes(t))
+  })
+}
+
+// ---------- search ----------
+export function searchTokens(query: string): string[] {
+  return String(query ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 8)
+}
+
+// ---------- batch report ----------
+export function formatBatchReport(result: BatchExecResult): string {
+  const lines: string[] = [`# ${result.command}`, `# ${new Date(result.startedAt).toISOString()}`, '']
+  for (const r of result.results) {
+    const who = r.username ? `${r.username}@${r.host}:${r.port}` : r.sessionId
+    const status = r.ok ? 'OK' : 'FAILED'
+    const code = r.code != null ? ` exit=${r.code}` : ''
+    lines.push(`== ${r.label || r.sessionId} (${who}) ${status}${code} ${r.elapsedMs}ms${r.error ? ` error=${r.error}` : ''}`)
+    if (r.stdout) lines.push(r.stdout.replace(/\s+$/, ''))
+    if (r.stderr) lines.push('[stderr]', r.stderr.replace(/\s+$/, ''))
+    if (r.truncated) lines.push('[truncated]')
+    lines.push('')
+  }
+  return lines.join('\n')
+}
+
+// ---------- keyboard shortcuts reference ----------
+export type ShortcutGroup = 'general' | 'session' | 'terminal' | 'view'
+export const SHORTCUTS: ReadonlyArray<{ keys: string; group: ShortcutGroup; id: string }> = [
+  { keys: 'F1', group: 'general', id: 'shortcuts' },
+  { keys: 'Ctrl+,', group: 'general', id: 'ai' },
+  { keys: 'Ctrl+Shift+N', group: 'session', id: 'newConnection' },
+  { keys: 'Ctrl+Shift+F', group: 'session', id: 'sftp' },
+  { keys: 'Ctrl+Shift+D', group: 'session', id: 'refreshDocker' },
+  { keys: 'Ctrl+Shift+H', group: 'session', id: 'inventory' },
+  { keys: 'Ctrl+Shift+C', group: 'terminal', id: 'copy' },
+  { keys: 'Ctrl+Shift+V', group: 'terminal', id: 'paste' },
+  { keys: 'Shift+Insert', group: 'terminal', id: 'pasteAlt' },
+  { keys: 'Ctrl+B', group: 'view', id: 'toggleSidebar' },
+  { keys: 'Ctrl+Alt+B', group: 'view', id: 'toggleAi' }
+]

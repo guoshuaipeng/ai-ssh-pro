@@ -9,6 +9,16 @@
 > part of this repository. Do not commit `.env`, key files, or exported session dumps that
 > contain secrets.
 
+## Screenshots
+
+> Demo data only (`scripts/screenshot-demo.mjs` renders the app with fake hosts in an isolated profile).
+
+| Dark | Light |
+| --- | --- |
+| ![Main window, dark](docs/screenshots/main-dark.png) | ![Main window, light](docs/screenshots/main-light.png) |
+
+![Keyboard shortcuts (F1)](docs/screenshots/shortcuts.png)
+
 ## Features
 
 - **Multi-tab SSH** — password / private-key auth, xterm terminal, session groups

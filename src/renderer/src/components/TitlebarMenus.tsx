@@ -12,6 +12,7 @@ export type TitlebarMenuAction =
   | 'paste'
   | 'selectAll'
   | 'batchExec'
+  | 'shortcuts'
 
 type MenuItem =
   | { type: 'item'; id: TitlebarMenuAction; label: MessageKey; shortcut?: string }
@@ -81,7 +82,10 @@ const MENUS: MenuDef[] = [
   {
     id: 'help',
     label: 'menu.help',
-    items: [{ type: 'item', id: 'about', label: 'menu.about' }]
+    items: [
+      { type: 'item', id: 'shortcuts', label: 'menu.shortcuts', shortcut: 'F1' },
+      { type: 'item', id: 'about', label: 'menu.about' }
+    ]
   }
 ]
 

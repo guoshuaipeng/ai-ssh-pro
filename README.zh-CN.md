@@ -17,6 +17,16 @@
 > part of this repository. Do not commit `.env`, key files, or exported session dumps that
 > contain secrets.
 
+## 截图
+
+> 均为演示数据（`scripts/screenshot-demo.mjs` 在隔离配置中用虚构主机渲染）。
+
+| 深色 | 浅色 |
+| --- | --- |
+| ![主界面（深色）](docs/screenshots/main-dark.png) | ![主界面（浅色）](docs/screenshots/main-light.png) |
+
+![键盘快捷键（F1）](docs/screenshots/shortcuts.png)
+
 ## 功能
 
 - **多标签 SSH** — 密码 / 私钥认证、xterm 终端、会话分组
