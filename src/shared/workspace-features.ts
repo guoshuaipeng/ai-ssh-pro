@@ -351,3 +351,78 @@ export const SHORTCUTS: ReadonlyArray<{ keys: string; group: ShortcutGroup; id: 
   { keys: 'Ctrl+B', group: 'view', id: 'toggleSidebar' },
   { keys: 'Ctrl+Alt+B', group: 'view', id: 'toggleAi' }
 ]
+
+// ---------- snippets import / export ----------
+export const SNIPPETS_EXPORT_KIND = 'ai-ssh-pro/snippets'
+export type SnippetRow = { id: string; title: string; body: string }
+
+export function buildSnippetsExport(items: SnippetLike[]): string {
+  return JSON.stringify(
+    { kind: SNIPPETS_EXPORT_KIND, version: 1, snippets: items.map((s) => ({ title: s.title, body: s.body })) },
+    null,
+    2
+  )
+}
+
+/**
+ * Parse an exported file (or a bare array) and merge into existing snippets.
+ * Skips invalid rows and exact title+body duplicates; caps sizes. Returns null for unrecognised input.
+ */
+export function mergeSnippetsImport(
+  existing: SnippetRow[],
+  text: string,
+  makeId: () => string
+): { list: SnippetRow[]; added: number; skipped: number } | null {
+  let data: unknown
+  try {
+    data = JSON.parse(text)
+  } catch {
+    return null
+  }
+  const rows = Array.isArray(data)
+    ? data
+    : data && typeof data === 'object' && Array.isArray((data as { snippets?: unknown }).snippets)
+      ? (data as { snippets: unknown[] }).snippets
+      : null
+  if (!rows) return null
+  const key = (s: SnippetLike) => `${s.title}\u0000${s.body}`
+  const seen = new Set(existing.map(key))
+  const list = [...existing]
+  let added = 0
+  let skipped = 0
+  for (const r of rows.slice(0, 1000)) {
+    const o = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>
+    const title = typeof o.title === 'string' ? o.title.trim().slice(0, 120) : ''
+    const body = typeof o.body === 'string' ? o.body.slice(0, 8000) : ''
+    if (!title || !body.trim()) {
+      skipped++
+      continue
+    }
+    const k = key({ title, body })
+    if (seen.has(k)) {
+      skipped++
+      continue
+    }
+    seen.add(k)
+    list.push({ id: makeId(), title, body })
+    added++
+  }
+  return { list, added, skipped }
+}
+
+// ---------- tabs ----------
+/** Move the item with id `from` to the position of id `to` (no-op for unknown ids). */
+export function moveById<T>(list: T[], getId: (x: T) => string, from: string, to: string): T[] {
+  const a = list.findIndex((x) => getId(x) === from)
+  const b = list.findIndex((x) => getId(x) === to)
+  if (a < 0 || b < 0 || a === b) return list
+  const next = [...list]
+  const [item] = next.splice(a, 1)
+  next.splice(b, 0, item!)
+  return next
+}
+
+export function normalizeTabTitle(raw: string): string | null {
+  const s = String(raw ?? '').replace(/\s+/g, ' ').trim()
+  return s ? s.slice(0, 60) : null
+}

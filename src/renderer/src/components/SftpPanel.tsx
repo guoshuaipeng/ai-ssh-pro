@@ -315,7 +315,7 @@ export default function SftpPanel({ sessionId, sessionTitle, onClose, onOpenRemo
     if (!sessionId || busy) return
     const list = Array.from(ev.dataTransfer.files || [])
     const paths = list
-      .map((f) => (f as File & { path?: string }).path)
+      .map((f) => window.aiss.fs.pathForFile?.(f) || (f as File & { path?: string }).path)
       .filter((p): p is string => Boolean(p))
     if (!paths.length) {
       setError('拖放上传需要本机文件路径（请从资源管理器拖入）')

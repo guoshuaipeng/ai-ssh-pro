@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useI18n } from '../lib/i18n'
 import type { CommandSnippet } from '@shared/ipc'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
-import { extractSnippetVars, fillSnippetVars, filterSnippets } from '@shared/workspace-features'
+import {
+  buildSnippetsExport,
+  extractSnippetVars,
+  fillSnippetVars,
+  filterSnippets,
+  mergeSnippetsImport
+} from '@shared/workspace-features'
 
 type Props = {
   onClose: () => void
@@ -26,6 +33,9 @@ function newId(): string {
 }
 
 export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
+  const { t } = useI18n()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [items, setItems] = useState<CommandSnippet[]>([])
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -85,15 +95,15 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   }
 
   const onSaveForm = async () => {
-    const t = title.trim()
+    const tt = title.trim()
     const b = body
-    if (!t || !b.trim()) {
-      setError('请填写标题与命令内容')
+    if (!tt || !b.trim()) {
+      setError(t('snip.needTitleBody'))
       return
     }
     const next = editingId
-      ? items.map((s) => (s.id === editingId ? { ...s, title: t, body: b } : s))
-      : [...items, { id: newId(), title: t, body: b }]
+      ? items.map((s) => (s.id === editingId ? { ...s, title: tt, body: b } : s))
+      : [...items, { id: newId(), title: tt, body: b }]
     try {
       await persist(next)
       resetForm()
@@ -114,7 +124,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
 
   const onInject = (s: CommandSnippet, execute: boolean) => {
     if (!activeSessionId) {
-      setError('请先打开一个终端会话再注入命令')
+      setError(t('snip.needSession'))
       return
     }
     setError(null)
@@ -130,7 +140,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   const confirmVars = () => {
     if (!pending || !activeSessionId) return
     if (pending.vars.some((v) => !varValues[v]?.trim())) {
-      setError('请填写全部变量')
+      setError(t('snip.needVars'))
       return
     }
     dispatchInjectTerminal(activeSessionId, fillSnippetVars(pending.snippet.body, varValues), pending.execute)
@@ -140,13 +150,56 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
 
   const visible = filterSnippets(items, query)
 
+  const onExport = () => {
+    const blob = new Blob([buildSnippetsExport(items)], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'ai-ssh-pro-snippets.json'
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const onImportFile = async (file: File | undefined) => {
+    if (!file) return
+    setNotice(null)
+    setError(null)
+    const merged = mergeSnippetsImport(items, await file.text(), newId)
+    if (!merged) {
+      setError(t('snip.importBad'))
+      return
+    }
+    try {
+      if (merged.added) await persist(merged.list)
+      setNotice(t('snip.imported', { added: String(merged.added), skipped: String(merged.skipped) }))
+    } catch {
+      /* error already set */
+    }
+  }
+
   return (
     <div className="workspace-panel workspace-panel--settings">
       <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">命令片段</h2>
+        <h2 className="workspace-panel-title">{t('snip.title')}</h2>
         <div className="workspace-panel-actions">
+          <button type="button" disabled={items.length === 0} onClick={onExport}>
+            {t('snip.export')}
+          </button>
+          <button type="button" disabled={saving} onClick={() => fileRef.current?.click()}>
+            {t('snip.import')}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              void onImportFile(e.target.files?.[0])
+              e.target.value = ''
+            }}
+          />
           <button type="button" onClick={onClose}>
-            关闭
+            {t('snip.close')}
           </button>
         </div>
       </div>
@@ -155,19 +208,20 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
           {error ? (
             <p style={{ margin: '0 0 10px', color: 'var(--danger, #f85149)', fontSize: 12 }}>{error}</p>
           ) : null}
+          {notice ? <p style={{ margin: '0 0 10px', color: 'var(--accent, #3fb950)', fontSize: 12 }}>{notice}</p> : null}
 
-          <h3 className="modal-section-title">{editingId ? '编辑片段' : '新建片段'}</h3>
+          <h3 className="modal-section-title">{editingId ? t('snip.edit') : t('snip.new')}</h3>
           <div className="field">
-            <label htmlFor="snippet-title">标题</label>
+            <label htmlFor="snippet-title">{t('snip.fieldTitle')}</label>
             <input
               id="snippet-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：查看磁盘"
+              placeholder={t('snip.titlePh')}
             />
           </div>
           <div className="field">
-            <label htmlFor="snippet-body">命令</label>
+            <label htmlFor="snippet-body">{t('snip.fieldBody')}</label>
             <textarea
               id="snippet-body"
               value={body}
@@ -179,22 +233,22 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
             <button type="button" className="primary" disabled={saving} onClick={() => void onSaveForm()}>
-              {editingId ? '保存修改' : '添加'}
+              {editingId ? t('snip.saveEdit') : t('snip.add')}
             </button>
             {editingId ? (
               <button type="button" disabled={saving} onClick={resetForm}>
-                取消编辑
+                {t('snip.cancelEdit')}
               </button>
             ) : null}
           </div>
 
           <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 12px' }}>
-            {'提示：命令里写 {{变量名}}（字母/数字/下划线），注入前会弹出填写，例如 tail -n {{lines}} {{file}}'}
+            {t('snip.varHint')}
           </p>
 
           {pending ? (
             <div className="snippet-vars" style={{ border: '1px solid var(--accent, #388bfd)', borderRadius: 6, padding: 10, marginBottom: 16 }}>
-              <h3 className="modal-section-title">填写变量：{pending.snippet.title}</h3>
+              <h3 className="modal-section-title">{t('snip.fillVars', { title: pending.snippet.title })}</h3>
               {pending.vars.map((v, idx) => (
                 <div className="field" key={v}>
                   <label htmlFor={`snippet-var-${v}`}>{v}</label>
@@ -214,32 +268,32 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
               </pre>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" className="primary" onClick={confirmVars}>
-                  {pending.execute ? '注入并执行' : '注入'}
+                  {pending.execute ? t('snip.injectRun') : t('snip.inject')}
                 </button>
                 <button type="button" onClick={() => setPending(null)}>
-                  取消
+                  {t('snip.cancel')}
                 </button>
               </div>
             </div>
           ) : null}
 
-          <h3 className="modal-section-title">已保存（{items.length}）</h3>
+          <h3 className="modal-section-title">{t('snip.saved', { n: String(items.length) })}</h3>
           {items.length > 0 ? (
             <div className="field">
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索片段（标题或命令，空格分隔多个关键词）"
-                aria-label="搜索片段"
+                placeholder={t('snip.searchPh')}
+                aria-label={t('snip.search')}
               />
             </div>
           ) : null}
           {items.length > 0 && visible.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--muted)' }}>没有匹配的片段</p>
+            <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.noMatch')}</p>
           ) : null}
-          {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>加载中…</p> : null}
+          {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.loading')}</p> : null}
           {!loading && items.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--muted)' }}>暂无片段，添加后可一键注入当前终端。</p>
+            <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.empty')}</p>
           ) : null}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {visible.map((s) => (
@@ -271,24 +325,24 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
                     type="button"
                     className="primary"
                     disabled={!activeSessionId}
-                    title={activeSessionId ? '粘贴到当前终端' : '无活动终端'}
+                    title={activeSessionId ? t('snip.injectTip') : t('snip.noTerminal')}
                     onClick={() => onInject(s, false)}
                   >
-                    注入
+                    {t('snip.inject')}
                   </button>
                   <button
                     type="button"
                     disabled={!activeSessionId}
-                    title={activeSessionId ? '注入并回车执行' : '无活动终端'}
+                    title={activeSessionId ? t('snip.injectRunTip') : t('snip.noTerminal')}
                     onClick={() => onInject(s, true)}
                   >
-                    注入并执行
+                    {t('snip.injectRun')}
                   </button>
                   <button type="button" onClick={() => onEdit(s)}>
-                    编辑
+                    {t('snip.editBtn')}
                   </button>
                   <button type="button" disabled={saving} onClick={() => void onDelete(s.id)}>
-                    删除
+                    {t('snip.delete')}
                   </button>
                 </div>
               </li>

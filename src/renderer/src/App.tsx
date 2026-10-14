@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AUTO_RECONNECT_DELAYS_MS, autoReconnectDelay } from '@shared/workspace-features'
+import {
+  AUTO_RECONNECT_DELAYS_MS,
+  autoReconnectDelay,
+  moveById,
+  normalizeTabTitle
+} from '@shared/workspace-features'
 import type {
   LocalPortForward,
   SavedSessionProfile,
@@ -242,6 +247,25 @@ export default function App() {
   const [hostKeyPrompt, setHostKeyPrompt] = useState<SshHostKeyPromptEvent | null>(null)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const dragTabIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!tabMenu) return
+    const close = () => setTabMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTabMenu(null)
+    }
+    window.addEventListener('click', close)
+    window.addEventListener('blur', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('blur', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [tabMenu])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -671,6 +695,31 @@ export default function App() {
     setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
     setActiveTabId((cur) => (cur === tabId ? null : cur))
   }, [])
+
+  const commitRename = useCallback(() => {
+    const id = renamingTabId
+    if (!id) return
+    const title = normalizeTabTitle(renameDraft)
+    if (title) setTabs((prev) => prev.map((t) => (t.tabId === id ? { ...t, title } : t)))
+    setRenamingTabId(null)
+  }, [renamingTabId, renameDraft])
+
+  const startRename = useCallback((tabId: string) => {
+    const tab = tabsRef.current.find((t) => t.tabId === tabId)
+    if (!tab) return
+    setRenameDraft(tab.title)
+    setRenamingTabId(tabId)
+  }, [])
+
+  const closeTabsWhere = useCallback(
+    (keep: (t: Tab, index: number) => boolean) => {
+      tabsRef.current.forEach((t, idx) => {
+        if (!keep(t, idx)) closeTab(t.tabId, t.sessionId, t.status, t.view)
+      })
+    },
+    [closeTab]
+  )
+
 
   const ensureMainVisible = useCallback(() => {
     updateLayout((p) => (p.showMain ? p : withPaneToggle(p, 'main', true)))
@@ -2100,7 +2149,47 @@ export default function App() {
                 type="button"
                 className={`tab ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${isSession && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
+                onDoubleClick={() => startRename(t.tabId)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setActiveTabId(t.tabId)
+                  setTabMenu({ tabId: t.tabId, x: e.clientX, y: e.clientY })
+                }}
+                draggable={renamingTabId !== t.tabId}
+                onDragStart={(e) => {
+                  dragTabIdRef.current = t.tabId
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(e) => {
+                  if (dragTabIdRef.current) e.preventDefault()
+                }}
+                onDrop={(e) => {
+                  const from = dragTabIdRef.current
+                  dragTabIdRef.current = null
+                  if (!from) return
+                  e.preventDefault()
+                  setTabs((prev) => moveById(prev, (x) => x.tabId, from, t.tabId))
+                }}
+                onDragEnd={() => {
+                  dragTabIdRef.current = null
+                }}
               >
+                {renamingTabId === t.tabId ? (
+                  <input
+                    className="tab-rename-input"
+                    autoFocus
+                    value={renameDraft}
+                    maxLength={60}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      e.stopPropagation()
+                      if (e.key === 'Enter') commitRename()
+                      if (e.key === 'Escape') setRenamingTabId(null)
+                    }}
+                  />
+                ) : (
                 <span className="tab-title">
                   {isSession && t.status === 'connecting'
                     ? tr('tab.connecting', { title: t.title })
@@ -2108,6 +2197,7 @@ export default function App() {
                       ? tr('tab.disconnected', { title: t.title })
                       : t.title}
                 </span>
+                )}
                 <span
                   role="button"
                   tabIndex={0}
@@ -2132,6 +2222,47 @@ export default function App() {
               )
             })}
           </div>
+          {tabMenu
+            ? (() => {
+                const idx = tabs.findIndex((x) => x.tabId === tabMenu.tabId)
+                const tab = tabs[idx]
+                if (!tab) return null
+                const canDuplicate = (!tab.view || tab.view === 'session') && tab.kind !== 'local' && Boolean(tab.connectOpts?.host)
+                return (
+                  <div
+                    className="tab-context-menu"
+                    role="menu"
+                    style={{ left: tabMenu.x, top: tabMenu.y }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button type="button" role="menuitem" onClick={() => { setTabMenu(null); startRename(tab.tabId) }}>
+                      {tr('tab.rename')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!canDuplicate}
+                      onClick={() => {
+                        setTabMenu(null)
+                        void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
+                      }}
+                    >
+                      {tr('tab.duplicate')}
+                    </button>
+                    <hr />
+                    <button type="button" role="menuitem" disabled={tabs.length < 2} onClick={() => { setTabMenu(null); closeTabsWhere((x) => x.tabId === tab.tabId) }}>
+                      {tr('tab.closeOthers')}
+                    </button>
+                    <button type="button" role="menuitem" disabled={idx >= tabs.length - 1} onClick={() => { setTabMenu(null); closeTabsWhere((_x, i) => i <= idx) }}>
+                      {tr('tab.closeRight')}
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => { setTabMenu(null); closeTab(tab.tabId, tab.sessionId, tab.status, tab.view) }}>
+                      {tr('tab.close')}
+                    </button>
+                  </div>
+                )
+              })()
+            : null}
 
           {activeIsSession && activeTab?.status === 'connecting' && (
             <div className="session-disconnect-banner session-connecting-banner" role="status">

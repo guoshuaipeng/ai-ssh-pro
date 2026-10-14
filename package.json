@@ -1,6 +1,6 @@
 {
   "name": "ai-ssh-pro",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "类 Xshell 的多会话 SSH 客户端，集成 AI 对话（方案 B：Electron + TypeScript）",
   "main": "out/main/index.js",
   "type": "module",
@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "mcp:inventory": "node scripts/mcp-inventory-server.mjs",
     "smoke": "npx tsx scripts/smoke-test.ts",
-    "test": "npx tsx scripts/test-workspace-features.ts && npx tsx scripts/test-ssh-batch.ts && npx tsx scripts/test-robustness.ts && npx tsx scripts/test-round5.ts && npx tsx scripts/test-session-filter.ts && npx tsx scripts/smoke-test.ts"
+    "test": "npx tsx scripts/test-workspace-features.ts && npx tsx scripts/test-ssh-batch.ts && npx tsx scripts/test-robustness.ts && npx tsx scripts/test-round5.ts && npx tsx scripts/test-session-filter.ts && npx tsx scripts/test-round6.ts && npx tsx scripts/smoke-test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

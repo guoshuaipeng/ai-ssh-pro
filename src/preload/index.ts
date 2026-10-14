@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type {
   SshConnectOptions,
   SshConnectResult,
@@ -192,6 +192,14 @@ const api = {
     ): Promise<SshConnectResult> => ipcRenderer.invoke('docker:openShell', sessionId, containerId, opts)
   },
   fs: {
+    /** Local path of a dropped File (Electron 32+ removed File.path). Empty string when not a disk file. */
+    pathForFile: (file: File): string => {
+      try {
+        return webUtils.getPathForFile(file)
+      } catch {
+        return ''
+      }
+    },
     writeFile: (filePath: string, data: number[] | Uint8Array): Promise<boolean> =>
       ipcRenderer.invoke('fs:writeFile', filePath, data)
   },

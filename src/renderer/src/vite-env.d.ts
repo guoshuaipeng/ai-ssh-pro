@@ -139,6 +139,7 @@ export type AissPreload = {
     ) => Promise<SshConnectResult>
   }
   fs: {
+    pathForFile: (file: File) => string
     writeFile: (filePath: string, data: number[] | Uint8Array) => Promise<boolean>
   }
   sessions: {
