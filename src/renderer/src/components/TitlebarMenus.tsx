@@ -17,14 +17,16 @@ export type TitlebarMenuAction =
   | 'serverTools'
   | 'backup'
   | 'shortcuts'
+  | 'commandPalette'
+  | 'whatsNew'
 
-type MenuItem =
+export type MenuItem =
   | { type: 'item'; id: TitlebarMenuAction; label: MessageKey; shortcut?: string }
   | { type: 'sep' }
 
 type MenuDef = { id: string; label: MessageKey; items: MenuItem[] }
 
-const MENUS: MenuDef[] = [
+export const MENUS: MenuDef[] = [
   {
     id: 'session',
     label: 'menu.session',
@@ -32,28 +34,39 @@ const MENUS: MenuDef[] = [
       { type: 'item', id: 'connection', label: 'menu.newConnection', shortcut: 'Ctrl+Shift+N' },
       { type: 'item', id: 'localShell', label: 'menu.localShell' },
       { type: 'item', id: 'sftp', label: 'menu.sftp', shortcut: 'Ctrl+Shift+F' },
-      { type: 'item', id: 'refreshDocker', label: 'menu.refreshDocker', shortcut: 'Ctrl+Shift+D' },
-      { type: 'sep' },
-      { type: 'item', id: 'batchExec', label: 'menu.batchExec' },
-      { type: 'item', id: 'portForward', label: 'menu.portForward' },
-      { type: 'item', id: 'resourceMonitor', label: 'menu.resourceMonitor' },
-      { type: 'item', id: 'serverTools', label: 'menu.serverTools', shortcut: 'Ctrl+Shift+T' },
       { type: 'sep' },
       { type: 'item', id: 'newFolder', label: 'menu.newFolder' },
       { type: 'item', id: 'importSessions', label: 'menu.importSessions' },
       { type: 'item', id: 'exportOpenssh', label: 'menu.exportOpenssh' },
       { type: 'item', id: 'exportJson', label: 'menu.exportJson' },
-      { type: 'item', id: 'backup', label: 'menu.backup' },
+      { type: 'item', id: 'backup', label: 'menu.backup' }
+    ]
+  },
+  {
+    id: 'tools',
+    label: 'menu.tools',
+    items: [
+      { type: 'item', id: 'commandPalette', label: 'menu.commandPalette', shortcut: 'Ctrl+Shift+P' },
+      { type: 'sep' },
+      { type: 'item', id: 'resourceMonitor', label: 'menu.resourceMonitor', shortcut: 'Ctrl+Shift+M' },
+      { type: 'item', id: 'serverTools', label: 'menu.serverTools', shortcut: 'Ctrl+Shift+T' },
+      { type: 'item', id: 'portForward', label: 'menu.portForward', shortcut: 'Ctrl+Shift+O' },
+      { type: 'item', id: 'batchExec', label: 'menu.batchExec', shortcut: 'Ctrl+Shift+B' },
+      { type: 'item', id: 'snippets', label: 'menu.snippets', shortcut: 'Ctrl+Shift+S' },
+      { type: 'item', id: 'inventory', label: 'menu.inventory', shortcut: 'Ctrl+Shift+H' },
+      { type: 'item', id: 'refreshDocker', label: 'menu.refreshDocker', shortcut: 'Ctrl+Shift+D' },
       { type: 'sep' },
       { type: 'item', id: 'toggleSplit', label: 'menu.split' },
       { type: 'item', id: 'toggleBroadcast', label: 'menu.broadcast' },
-      { type: 'item', id: 'toggleRecording', label: 'menu.recording' },
-      { type: 'sep' },
+      { type: 'item', id: 'toggleRecording', label: 'menu.recording' }
+    ]
+  },
+  {
+    id: 'aiMenu',
+    label: 'menu.aiMenu',
+    items: [
       { type: 'item', id: 'ai', label: 'menu.ai', shortcut: 'Ctrl+,' },
       { type: 'item', id: 'debug', label: 'menu.debug' },
-      { type: 'sep' },
-      { type: 'item', id: 'snippets', label: 'menu.snippets' },
-      { type: 'item', id: 'inventory', label: 'menu.inventory', shortcut: 'Ctrl+Shift+H' },
       { type: 'item', id: 'mcpGuide', label: 'menu.mcpGuide' }
     ]
   },
@@ -91,6 +104,8 @@ const MENUS: MenuDef[] = [
     id: 'help',
     label: 'menu.help',
     items: [
+      { type: 'item', id: 'commandPalette', label: 'menu.commandPalette', shortcut: 'Ctrl+K' },
+      { type: 'item', id: 'whatsNew', label: 'menu.whatsNew' },
       { type: 'item', id: 'shortcuts', label: 'menu.shortcuts', shortcut: 'F1' },
       { type: 'item', id: 'about', label: 'menu.about' }
     ]

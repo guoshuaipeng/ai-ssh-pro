@@ -133,7 +133,8 @@ writeFileSync(
         p('p1', 'demo-web-01', '10.0.0.11', 'f-web'),
         p('p2', 'demo-web-02', '10.0.0.12', 'f-web'),
         p('p4', 'demo-mysql-primary', '10.0.1.21', 'f-db', 'dba'),
-        p('p9', 'e2e-local', '127.0.0.1', undefined, 'e2e', sshPort, { password: 'e2e-pass' })
+        p('p9', 'e2e-local', '127.0.0.1', undefined, 'e2e', sshPort, { password: 'e2e-pass' }),
+        p('p10', 'e2e-monitor', '127.0.0.1', undefined, 'e2e', sshPort, { password: 'e2e-pass' })
       ]
     }
   })
@@ -438,7 +439,7 @@ const menu = async (top, item) => {
 }
 
 await step('port forwarding panel: add (auto local port), traffic through SSH, stop', async () => {
-  await menu('Session', 'Port forwarding…')
+  await menu('Tools', 'Port forwarding…')
   await expectVisible(page.locator('.pf-panel'))
   await page.getByLabel('Remote port').fill('7777')
   await page.getByRole('button', { name: 'Add forward', exact: true }).click()
@@ -489,7 +490,7 @@ await step('command bar explains commands offline (flags, pipes, risk)', async (
 
 await step('resource monitor: CPU / memory / disk / uptime from the SSH host', async () => {
   await page.keyboard.press('Escape')
-  await menu('Session', 'Resource monitor…')
+  await menu('Tools', 'Resource monitor…')
   const panel = page.locator('.rm-panel')
   await expectVisible(panel)
   await expectVisible(panel.locator('.rm-row').filter({ hasText: 'CPU' }).locator('.rm-value', { hasText: '50%' }), 15000)
@@ -503,7 +504,7 @@ await step('resource monitor: CPU / memory / disk / uptime from the SSH host', a
 })
 
 await step('resource monitor trend + server toolbox: processes, services, ports, logs', async () => {
-  await menu('Session', 'Resource monitor…')
+  await menu('Tools', 'Resource monitor…')
   const rm = page.locator('.rm-panel')
   await expectVisible(rm.getByTestId('rm-trend-cpu').getByText('50%', { exact: false }), 15000)
   assert((await rm.getByTestId('rm-trend-cpu').locator('polyline').count()) === 1, 'cpu sparkline drawn')
@@ -573,7 +574,7 @@ await step('resource monitor trend + server toolbox: processes, services, ports,
   await page.keyboard.press('Escape')
   await expectHidden(st)
   // clean up the forward we opened
-  await menu('Session', 'Port forwarding…')
+  await menu('Tools', 'Port forwarding…')
   const fr = page.locator('.pf-table tbody tr').filter({ hasText: '127.0.0.1:3306' })
   await expectVisible(fr, 10000)
   await fr.getByRole('button', { name: 'Stop', exact: true }).click()
@@ -586,7 +587,7 @@ await step('split view: second session in pane 2, drag divider, swap, persisted 
   if (await trust.isVisible({ timeout: 2500 }).catch(() => false)) await trust.click()
   await page.waitForFunction(() => document.querySelectorAll('.tab-bar .tab').length > 0)
   await page.waitForTimeout(2500)
-  await menu('Session', 'Split view')
+  await menu('Tools', 'Split view')
   const divider = page.locator('.split-divider')
   await expectVisible(divider)
   const sel = page.getByLabel('Second pane')
@@ -609,7 +610,7 @@ await step('split view: second session in pane 2, drag divider, swap, persisted 
   await cjkScan('split view')
   await divider.dblclick()
   assert(Number(await page.evaluate(() => localStorage.getItem('aiss.split.ratio'))) === 0.5, 'reset')
-  await menu('Session', 'Split view')
+  await menu('Tools', 'Split view')
   await expectHidden(divider)
 })
 
@@ -631,9 +632,9 @@ await step('English UI: remote editor has no CJK text', async () => {
 
 for (const [top, item, label] of [
   ['Session', 'New connection', 'connection config'],
-  ['Session', 'AI settings', 'AI config form'],
-  ['Session', 'Host inventory', 'host inventory'],
-  ['Session', 'MCP setup guide…', 'MCP guide'],
+  ['AI', 'AI settings', 'AI config form'],
+  ['Tools', 'Host inventory', 'host inventory'],
+  ['AI', 'MCP setup guide…', 'MCP guide'],
   ['View', 'Terminal appearance', 'terminal prefs'],
   ['View', 'UI theme', 'UI theme']
 ]) {
@@ -646,6 +647,110 @@ for (const [top, item, label] of [
     await page.waitForTimeout(300)
   })
 }
+
+await step('menus: Session / Tools / AI split; Tools lists the workspace features', async () => {
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Tools', exact: true }).click()
+  for (const item of ['Command palette…', 'Server toolbox…', 'Resource monitor…', 'Port forwarding…', 'Batch execute…', 'Split view']) {
+    await expectVisible(page.locator('.titlebar-menu-dropdown').getByText(item, { exact: true }))
+  }
+  await expectVisible(page.locator('.titlebar-menu-dropdown').getByText('Ctrl+Shift+M', { exact: true }))
+  await cjkScan('tools menu')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Session', exact: true }).click()
+  assert(await page.locator('.titlebar-menu-dropdown').getByText('Resource monitor…', { exact: true }).count() === 0, 'Session menu is shorter')
+  await page.keyboard.press('Escape')
+})
+
+await step('toolbar buttons open monitor / forwarding / backup', async () => {
+  await page.locator('[data-tool="resourceMonitor"]').click()
+  await expectVisible(page.locator('.rm-panel .rm-value', { hasText: '50%' }), 15000)
+  await page.keyboard.press('Escape')
+  await page.locator('[data-tool="portForward"]').click()
+  await expectVisible(page.locator('.pf-panel'))
+  await page.keyboard.press('Escape')
+  await page.locator('[data-tool="serverTools"]').click()
+  await expectVisible(page.locator('.st-panel'), 15000)
+  await page.keyboard.press('Escape')
+  await expectHidden(page.locator('.st-panel'))
+  await page.locator('[data-tool="backup"]').click()
+  await expectVisible(page.locator('.bk-panel'))
+  await page.keyboard.press('Escape')
+  await expectHidden(page.locator('.bk-panel'))
+  await cjkScan('toolbar')
+})
+
+await step('keyboard shortcuts: Ctrl+Shift+M / Ctrl+Shift+O', async () => {
+  await page.keyboard.press('Control+Shift+M')
+  await expectVisible(page.locator('.rm-panel'))
+  await page.keyboard.press('Escape')
+  await expectHidden(page.locator('.rm-panel'))
+  await page.keyboard.press('Control+Shift+O')
+  await expectVisible(page.locator('.pf-panel'))
+  await page.keyboard.press('Escape')
+  await expectHidden(page.locator('.pf-panel'))
+})
+
+await step('command palette: Ctrl+Shift+P search + Enter, Ctrl+K outside terminal', async () => {
+  await page.keyboard.press('Control+Shift+P')
+  const input = page.locator('.cmdp-input')
+  await expectVisible(input)
+  assert((await page.locator('.cmdp-item').count()) >= 20, 'lists all actions')
+  await cjkScan('command palette')
+  await input.fill('monitor')
+  await expectVisible(page.locator('.cmdp-item.is-active', { hasText: 'Resource monitor' }))
+  await input.press('Enter')
+  await expectHidden(input)
+  await expectVisible(page.locator('.rm-panel'))
+  await page.keyboard.press('Escape')
+  await search.click()
+  await page.keyboard.press('Control+K')
+  await expectVisible(input)
+  await input.fill('toolbox')
+  await expectVisible(page.locator('.cmdp-item.is-active', { hasText: 'Server toolbox' }))
+  await input.fill('zzz-nothing')
+  await expectVisible(page.locator('.cmdp-empty'))
+  await input.fill('encrypted')
+  await page.keyboard.press('Enter')
+  await expectVisible(page.locator('.bk-panel'))
+  await page.keyboard.press('Escape')
+  await expectHidden(page.locator('.bk-panel'))
+})
+
+await step('sidebar host right-click → Resource monitor connects first, then monitors that host', async () => {
+  const before = await page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }).count()
+  assert(before === 0, 'not connected yet')
+  await page.locator('aside').first().getByText('e2e-monitor', { exact: true }).last().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Resource monitor', exact: true }).click()
+  const trust = page.getByRole('button', { name: 'Trust and continue' })
+  if (await trust.isVisible({ timeout: 2000 }).catch(() => false)) await trust.click()
+  await expectVisible(page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }), 15000)
+  const panel = page.locator('.rm-panel')
+  await expectVisible(panel.locator('.rm-value', { hasText: '50%' }), 20000)
+  await page.waitForFunction(() => {
+    const sel = document.querySelector('.rm-panel select')
+    return sel && sel.selectedOptions[0]?.textContent?.includes('e2e-monitor')
+  }, null, { timeout: 10000 })
+  await page.keyboard.press('Escape')
+  await expectHidden(panel)
+  await page.waitForTimeout(300)
+  // already connected: reuses the session instead of opening another tab
+  await page.locator('aside').first().getByText('e2e-monitor', { exact: true }).last().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Resource monitor', exact: true }).click()
+  await expectVisible(panel)
+  await page.waitForTimeout(800)
+  assert(await page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }).count() === 1, 'no duplicate tab')
+  await page.keyboard.press('Escape')
+  await expectHidden(panel)
+  await page.waitForTimeout(300)
+  // tab right-click has the entry too
+  await page.locator('.tab-bar .tab').filter({ hasText: 'e2e-monitor' }).first().click({ button: 'right' })
+  await page.locator('.tab-context-menu').getByRole('menuitem', { name: 'Resource monitor…' }).click()
+  await expectVisible(panel)
+  await page.keyboard.press('Escape')
+  await expectHidden(panel)
+  await page.waitForTimeout(300)
+})
 
 await step('encrypted backup: export, wrong password rejected, import restores sessions', async () => {
   const bak = join(root, 'demo.aissbak')
@@ -692,6 +797,22 @@ await step('encrypted backup: export, wrong password rejected, import restores s
   assert(await tree.locator('.profile-tag', { hasText: '#changed' }).count() === 0, 'changed tag gone')
   const saved = JSON.parse(readFileSync(join(userData, 'ai-ssh-pro.json'), 'utf8'))
   assert(JSON.stringify(saved.savedSessions.profiles.find((x) => x.id === 'p1').tags) === '["prod","web"]', 'store restored')
+})
+
+await step("What's new dialog appears once after an upgrade", async () => {
+  await page.evaluate(() => localStorage.setItem('aiss.lastSeenVersion', '0.0.1'))
+  await page.reload()
+  await page.waitForLoadState('domcontentloaded')
+  const dlg = page.locator('.wn-panel')
+  await expectVisible(dlg, 15000)
+  await cjkScan("what's new")
+  await dlg.locator('.wn-item').filter({ hasText: 'Command palette' }).getByRole('button', { name: 'Try it' }).click()
+  await expectVisible(page.locator('.cmdp-input'))
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await page.waitForLoadState('domcontentloaded')
+  await page.waitForTimeout(2500)
+  assert(!(await dlg.isVisible()), 'shown only once')
 })
 
 await app.close().catch(() => {})

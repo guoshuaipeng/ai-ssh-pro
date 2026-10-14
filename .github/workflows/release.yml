@@ -1,7 +1,7 @@
 name: Release
 
 # Builds installers for Windows / macOS / Linux when a version tag is pushed
-# and uploads them to a draft GitHub Release for that tag (publish it manually).
+# and uploads them to a published GitHub Release for that tag (releaseType: release in package.json).
 on:
   push:
     tags: ['v*']

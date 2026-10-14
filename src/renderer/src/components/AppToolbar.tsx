@@ -227,6 +227,66 @@ export default function AppToolbar({
             <span>{t('toolbar.batch')}</span>
           </button>
         ) : null}
+        <button
+          type="button"
+          className="titlebar-icon-btn titlebar-tool-btn"
+          data-tool="resourceMonitor"
+          title={t('toolbar.monitorTitle')}
+          aria-label={t('toolbar.monitorTitle')}
+          onClick={() => onMenuAction('resourceMonitor')}
+        >
+          <span aria-hidden>📊</span> <span>{t('toolbar.monitor')}</span>
+        </button>
+        <button
+          type="button"
+          className="titlebar-icon-btn titlebar-tool-btn"
+          data-tool="serverTools"
+          title={t('toolbar.toolboxTitle')}
+          aria-label={t('toolbar.toolboxTitle')}
+          onClick={() => onMenuAction('serverTools')}
+        >
+          <span aria-hidden>🧰</span> <span>{t('toolbar.toolbox')}</span>
+        </button>
+        <button
+          type="button"
+          className="titlebar-icon-btn titlebar-tool-btn"
+          data-tool="portForward"
+          title={t('toolbar.forwardTitle')}
+          aria-label={t('toolbar.forwardTitle')}
+          onClick={() => onMenuAction('portForward')}
+        >
+          <span aria-hidden>🔀</span> <span>{t('toolbar.forward')}</span>
+        </button>
+        <button
+          type="button"
+          className="titlebar-icon-btn titlebar-tool-btn"
+          data-tool="snippets"
+          title={t('toolbar.snippetsTitle')}
+          aria-label={t('toolbar.snippetsTitle')}
+          onClick={() => onMenuAction('snippets')}
+        >
+          <span aria-hidden>📋</span> <span>{t('toolbar.snippets')}</span>
+        </button>
+        <button
+          type="button"
+          className="titlebar-icon-btn titlebar-tool-btn"
+          data-tool="backup"
+          title={t('toolbar.backupTitle')}
+          aria-label={t('toolbar.backupTitle')}
+          onClick={() => onMenuAction('backup')}
+        >
+          <span aria-hidden>🔐</span> <span>{t('toolbar.backup')}</span>
+        </button>
+        <button
+          type="button"
+          className="titlebar-icon-btn titlebar-tool-btn"
+          data-tool="commandPalette"
+          title={t('toolbar.paletteTitle')}
+          aria-label={t('toolbar.paletteTitle')}
+          onClick={() => onMenuAction('commandPalette')}
+        >
+          <span aria-hidden>⌘</span> <span>{t('toolbar.palette')}</span>
+        </button>
         {onQuickConnect ? (
           <div className="titlebar-popover-wrap" ref={recentRef}>
             <button

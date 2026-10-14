@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { pushSample, sparklinePoints } from '../../../shared/server-tools'
@@ -67,8 +67,18 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
   const [paused, setPaused] = useState(false)
   const [history, setHistory] = useState<Sample[]>([])
 
+  const appliedPref = useRef<string | null>(null)
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      appliedPref.current = null
+      return
+    }
+    // a target chosen from the sidebar may connect after the modal opened: switch to it once it appears
+    if (activeSessionId && appliedPref.current !== activeSessionId && sessions.some((s) => s.sessionId === activeSessionId)) {
+      appliedPref.current = activeSessionId
+      setSessionId(activeSessionId)
+      return
+    }
     setSessionId((cur) =>
       cur && sessions.some((s) => s.sessionId === cur)
         ? cur

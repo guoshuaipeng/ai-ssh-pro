@@ -40,6 +40,8 @@ import LayoutResizer from './components/LayoutResizer'
 import BatchExecuteModal, { type BatchSessionOption } from './components/BatchExecuteModal'
 import PortForwardModal from './components/PortForwardModal'
 import ResourceMonitorModal from './components/ResourceMonitorModal'
+import CommandPalette from './components/CommandPalette'
+import WhatsNewModal from './components/WhatsNewModal'
 import BackupModal from './components/BackupModal'
 import ServerToolsModal from './components/ServerToolsModal'
 import RecentConnections from './components/RecentConnections'
@@ -324,6 +326,22 @@ export default function App() {
   const [batchOpen, setBatchOpen] = useState(false)
   const [portForwardOpen, setPortForwardOpen] = useState(false)
   const [resourceOpen, setResourceOpen] = useState(false)
+  const [resourceTarget, setResourceTarget] = useState<string | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
+  useEffect(() => {
+    // "What's new" once after an upgrade (not on a fresh install)
+    void window.aiss.app
+      .getVersion()
+      .then((v) => {
+        setAppVersion(v)
+        const last = localStorage.getItem('aiss.lastSeenVersion')
+        if (last && last !== v) setWhatsNewOpen(true)
+        localStorage.setItem('aiss.lastSeenVersion', v)
+      })
+      .catch(() => {})
+  }, [])
   const [backupOpen, setBackupOpen] = useState(false)
   const [serverToolsOpen, setServerToolsOpen] = useState(false)
   const [serverToolsSession, setServerToolsSession] = useState<string | null>(null)
@@ -1471,7 +1489,7 @@ export default function App() {
   const connectProfile = useCallback(
     (p: SavedSessionProfile) => {
       applyProfileToForm(p)
-      void openSession(
+      return openSession(
         {
           host: p.host,
           port: p.port,
@@ -2073,7 +2091,16 @@ export default function App() {
         return
       }
       if (action === 'resourceMonitor') {
+        setResourceTarget(null)
         setResourceOpen(true)
+        return
+      }
+      if (action === 'commandPalette') {
+        setPaletteOpen(true)
+        return
+      }
+      if (action === 'whatsNew') {
+        setWhatsNewOpen(true)
         return
       }
       if (action === 'backup') {
@@ -2108,6 +2135,50 @@ export default function App() {
       activeTabId
     ]
   )
+
+  const openMonitorForSession = useCallback((sid: string | null) => {
+    setResourceTarget(sid)
+    setResourceOpen(true)
+  }, [])
+  const monitorProfile = useCallback(
+    async (p: SavedSessionProfile) => {
+      setSessionMenu(null)
+      const live = tabs.find(
+        (x) => x.profileId === p.id && x.status === 'connected' && x.sessionId && (!x.view || x.view === 'session')
+      )
+      if (live) return openMonitorForSession(live.sessionId)
+      const sid = await connectProfile(p)
+      if (sid) openMonitorForSession(sid)
+    },
+    [tabs, connectProfile, openMonitorForSession]
+  )
+  useEffect(() => {
+    const map: Record<string, TitlebarMenuAction> = {
+      KeyP: 'commandPalette',
+      KeyM: 'resourceMonitor',
+      KeyO: 'portForward',
+      KeyB: 'batchExec',
+      KeyS: 'snippets'
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey) return
+      let action: TitlebarMenuAction | undefined
+      if (e.shiftKey) action = map[e.code]
+      else if (e.code === 'KeyK') {
+        // plain Ctrl+K stays with the shell (kill-line) while a terminal has focus
+        const el = document.activeElement as HTMLElement | null
+        if (el?.closest('.xterm')) return
+        action = 'commandPalette'
+      }
+      if (!action) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (action === 'batchExec') setBatchOpen(true)
+      else handleTitlebarMenuAction(action)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [handleTitlebarMenuAction])
 
   return (
     <div className="app-root">
@@ -2333,6 +2404,30 @@ export default function App() {
                       }}
                     >
                       {tr('tab.duplicate')}
+                    </button>
+                    <hr />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local' && (!tab.view || tab.view === 'session'))}
+                      onClick={() => {
+                        setTabMenu(null)
+                        openMonitorForSession(tab.sessionId)
+                      }}
+                    >
+                      {tr('menu.resourceMonitor')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local')}
+                      onClick={() => {
+                        setTabMenu(null)
+                        setActiveTabId(tab.tabId)
+                        setPortForwardOpen(true)
+                      }}
+                    >
+                      {tr('menu.portForward')}
                     </button>
                     <hr />
                     <button type="button" role="menuitem" disabled={tabs.length < 2} onClick={() => { setTabMenu(null); closeTabsWhere((x) => x.tabId === tab.tabId) }}>
@@ -2604,8 +2699,11 @@ export default function App() {
       <ResourceMonitorModal
         open={resourceOpen}
         sessions={connectedSshSessions}
-        activeSessionId={activeSessionId ?? null}
-        onClose={() => setResourceOpen(false)}
+        activeSessionId={resourceTarget ?? activeSessionId ?? null}
+        onClose={() => {
+          setResourceOpen(false)
+          setResourceTarget(null)
+        }}
         onOpenTools={(sid) => {
           setResourceOpen(false)
           setServerToolsSession(sid)
@@ -2617,6 +2715,13 @@ export default function App() {
         sessions={connectedSshSessions}
         activeSessionId={serverToolsSession ?? activeSessionId ?? null}
         onClose={() => setServerToolsOpen(false)}
+      />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onAction={handleTitlebarMenuAction} />
+      <WhatsNewModal
+        open={whatsNewOpen}
+        version={appVersion}
+        onClose={() => setWhatsNewOpen(false)}
+        onAction={handleTitlebarMenuAction}
       />
       <BackupModal open={backupOpen} onClose={() => setBackupOpen(false)} />
       {/* last so confirm/prompt dialogs stack above any open modal */}
@@ -2674,6 +2779,14 @@ export default function App() {
             onClick={() => void editProfileTags(sessionMenu.profile.id)}
           >
             {tg('tags.edit')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="session-context-menu-item"
+            onClick={() => void monitorProfile(sessionMenu.profile)}
+          >
+            {tg('ctx.monitor')}
           </button>
           <button
             type="button"
