@@ -270,3 +270,11 @@ export function normalizeSessionId(raw: unknown): string | null {
   const id = raw.trim()
   return id && id.length <= 128 ? id : null
 }
+
+/** Backoff for automatic reconnect after an unexpected drop. attempt is 1-based; null = give up. */
+export const AUTO_RECONNECT_DELAYS_MS = [2000, 5000, 10_000] as const
+
+export function autoReconnectDelay(attempt: number): number | null {
+  if (!Number.isInteger(attempt) || attempt < 1) return null
+  return AUTO_RECONNECT_DELAYS_MS[attempt - 1] ?? null
+}

@@ -494,7 +494,8 @@ export class SshSessionManager {
               const st: SshStatusEvent = {
                 sessionId,
                 status: 'closed',
-                message: reason === 'closed' ? '连接已断开' : `连接已断开：${reason}`
+                message: reason === 'closed' ? '连接已断开' : `连接已断开：${reason}`,
+                unexpected: reason !== 'closed'
               }
               owner.send('ssh:status', st)
             }

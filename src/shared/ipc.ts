@@ -110,6 +110,8 @@ export type SshStatusEvent = {
   sessionId: string
   status: 'connected' | 'error' | 'closed'
   message?: string
+  /** closed by a network error / keepalive timeout (not by `exit` or the user): eligible for auto-reconnect */
+  unexpected?: boolean
 }
 
 /** 首次连接或主机密钥变更时，主进程推送给渲染进程的确认请求 */

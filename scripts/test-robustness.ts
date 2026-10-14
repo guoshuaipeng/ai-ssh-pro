@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { attachClientGuards } from '../src/main/ssh-guards'
-import { classifyLatency, normalizeSessionId } from '../src/shared/workspace-features'
+import {
+  AUTO_RECONNECT_DELAYS_MS,
+  autoReconnectDelay,
+  classifyLatency,
+  normalizeSessionId
+} from '../src/shared/workspace-features'
 
 // repeated errors after ready must not throw and onLost fires once
 const client = new EventEmitter()
@@ -39,5 +44,11 @@ assert.equal(normalizeSessionId(' abc '), 'abc')
 assert.equal(normalizeSessionId(''), null)
 assert.equal(normalizeSessionId(42), null)
 assert.equal(normalizeSessionId('x'.repeat(200)), null)
+
+assert.equal(autoReconnectDelay(1), 2000)
+assert.equal(autoReconnectDelay(3), 10_000)
+assert.equal(autoReconnectDelay(AUTO_RECONNECT_DELAYS_MS.length + 1), null)
+assert.equal(autoReconnectDelay(0), null)
+assert.equal(autoReconnectDelay(1.5), null)
 
 console.log('robustness ok')

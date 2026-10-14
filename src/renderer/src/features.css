@@ -323,3 +323,9 @@
 .session-latency-fair { color: #d29922; }
 .session-latency-poor { color: #f85149; }
 .session-latency-down { color: var(--danger, #f85149); }
+
+.session-autoretry {
+  font-size: 12px;
+  opacity: 0.85;
+  margin: 0 8px;
+}

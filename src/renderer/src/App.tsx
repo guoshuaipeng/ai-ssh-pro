@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AUTO_RECONNECT_DELAYS_MS, autoReconnectDelay } from '@shared/workspace-features'
 import type {
   LocalPortForward,
   SavedSessionProfile,
@@ -320,6 +321,10 @@ export default function App() {
         setError(st.message)
       }
       if (st.status === 'closed') {
+        if (st.unexpected) {
+          const tab = tabsRef.current.find((t) => t.sessionId === st.sessionId)
+          if (tab && tab.kind !== 'local') scheduleAutoReconnectRef.current(tab.tabId)
+        }
         setTabs((prev) =>
           prev.map((t) =>
             t.sessionId === st.sessionId ? { ...t, status: 'disconnected' as const } : t
@@ -456,10 +461,57 @@ export default function App() {
     []
   )
 
+  const tabsRef = useRef(tabs)
+  tabsRef.current = tabs
+  const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
+  const [autoRetry, setAutoRetry] = useState<{ tabId: string; attempt: number; delayMs: number } | null>(null)
+  const reconnectTabRef = useRef<(tabId: string) => Promise<boolean>>(async () => false)
+  const scheduleAutoReconnectRef = useRef<(tabId: string) => void>(() => {})
+
+  const cancelAutoReconnect = useCallback((tabId: string) => {
+    const cur = autoRetryRef.current.get(tabId)
+    if (cur) clearTimeout(cur.timer)
+    autoRetryRef.current.delete(tabId)
+    setAutoRetry((s) => (s?.tabId === tabId ? null : s))
+  }, [])
+
+  scheduleAutoReconnectRef.current = (tabId: string) => {
+    const prev = autoRetryRef.current.get(tabId)
+    if (prev) clearTimeout(prev.timer)
+    const attempt = (prev?.attempt ?? 0) + 1
+    const delayMs = autoReconnectDelay(attempt)
+    if (delayMs === null) {
+      autoRetryRef.current.delete(tabId)
+      setAutoRetry((s) => (s?.tabId === tabId ? null : s))
+      return
+    }
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (!tabsRef.current.some((t) => t.tabId === tabId && t.status === 'disconnected')) {
+          cancelAutoReconnect(tabId)
+          return
+        }
+        const ok = await reconnectTabRef.current(tabId)
+        if (ok) cancelAutoReconnect(tabId)
+        else if (autoRetryRef.current.has(tabId)) scheduleAutoReconnectRef.current(tabId)
+      })()
+    }, delayMs)
+    autoRetryRef.current.set(tabId, { attempt, timer })
+    setAutoRetry({ tabId, attempt, delayMs })
+  }
+
+  useEffect(() => {
+    const map = autoRetryRef.current
+    return () => {
+      for (const v of map.values()) clearTimeout(v.timer)
+      map.clear()
+    }
+  }, [])
+
   const reconnectTab = useCallback(
-    async (tabId: string) => {
-      const tab = tabs.find((t) => t.tabId === tabId)
-      if (!tab || tab.status !== 'disconnected') return
+    async (tabId: string): Promise<boolean> => {
+      const tab = tabsRef.current.find((t) => t.tabId === tabId)
+      if (!tab || tab.status !== 'disconnected') return false
       setError(null)
       setReconnectingTabId(tabId)
       try {
@@ -483,7 +535,7 @@ export default function App() {
                 : t
             )
           )
-          return
+          return true
         }
         const { sessionId, meta } = await window.aiss.ssh.connect({
           ...tab.connectOpts,
@@ -508,14 +560,17 @@ export default function App() {
           )
         )
         notifyRecentChanged()
+        return true
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
+        return false
       } finally {
         setReconnectingTabId(null)
       }
     },
-    [tabs]
+    []
   )
+  reconnectTabRef.current = reconnectTab
 
   const connectFromForm = useCallback(async () => {
     const p = Number(port) || 22
@@ -2077,11 +2132,28 @@ export default function App() {
           {activeIsSession && activeTab?.status === 'disconnected' && (
             <div className="session-disconnect-banner" role="status">
               <span>{tr('banner.disconnected')}</span>
+              {autoRetry?.tabId === activeTab.tabId ? (
+                <>
+                  <span className="session-autoretry">
+                    {tr('banner.autoReconnect', {
+                      sec: String(Math.round(autoRetry.delayMs / 1000)),
+                      n: String(autoRetry.attempt),
+                      max: String(AUTO_RECONNECT_DELAYS_MS.length)
+                    })}
+                  </span>
+                  <button type="button" onClick={() => cancelAutoReconnect(activeTab.tabId)}>
+                    {tr('banner.autoReconnectCancel')}
+                  </button>
+                </>
+              ) : null}
               <button
                 type="button"
                 className="primary"
                 disabled={reconnectingTabId === activeTab.tabId}
-                onClick={() => void reconnectTab(activeTab.tabId)}
+                onClick={() => {
+                  cancelAutoReconnect(activeTab.tabId)
+                  void reconnectTab(activeTab.tabId)
+                }}
               >
                 {reconnectingTabId === activeTab.tabId ? tr('banner.reconnecting') : tr('banner.reconnect')}
               </button>
