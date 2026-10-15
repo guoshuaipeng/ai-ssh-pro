@@ -69,8 +69,10 @@ export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
       }}
     >
       <span>{textOf(node, t)}</span>
-      {host && (node.hint || node.hintKey) ? (
-        <span className="session-context-menu-hint">{node.hint ?? (node.hintKey ? t(node.hintKey) : '')}</span>
+      {node.hint || node.hintKey ? (
+        <span className={host ? 'session-context-menu-hint' : 'tab-menu-hint'}>
+          {node.hint ?? (node.hintKey ? t(node.hintKey) : '')}
+        </span>
       ) : null}
     </button>
   )

@@ -392,7 +392,7 @@
   z-index: 10000;
   min-width: 168px;
   max-height: calc(100vh - 16px);
-  max-width: min(280px, calc(100vw - 16px));
+  max-width: min(480px, calc(100vw - 16px));
   overflow: auto;
   padding: 4px;
   background: var(--color-bg-elevated);
@@ -418,6 +418,13 @@
 .tab-context-menu button:hover:not(:disabled) { background: var(--color-row-hover-bg); }
 .tab-context-menu button:disabled { opacity: 0.45; }
 .tab-context-menu button.danger { color: var(--danger); }
+.tab-context-menu button .tab-menu-hint {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
 .tab-context-menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
 .tab-rename-input { width: 140px; font-size: 12px; padding: 1px 4px; }
 .tab[draggable='true'] { cursor: grab; }
@@ -1519,7 +1526,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .w5-warn { color: var(--color-warn); }
 
 /* v0.4.5 soft-start: maintenance, reminders, loop, diff, tabs */
-.tab-context-menu { white-space: nowrap; max-width: min(280px, calc(100vw - 16px)); }
+.tab-context-menu { white-space: nowrap; max-width: min(480px, calc(100vw - 16px)); }
 .tab-context-menu button { white-space: nowrap; }
 .tab.is-pinned .tab-pin { margin-right: 4px; flex: none; }
 .w7-loop { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; overflow: hidden; min-width: 0; }

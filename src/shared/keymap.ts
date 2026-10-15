@@ -49,6 +49,8 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'toggleAi', keys: 'Ctrl+Alt+B', scope: 'global', group: 'view', label: { zh: '显示/隐藏 AI 面板', en: 'Show/hide AI panel' } },
   { id: 'nextTab', keys: 'Ctrl+Tab', scope: 'display', group: 'view', label: { zh: '下一个标签', en: 'Next tab' } },
   { id: 'gotoTab', keys: 'Ctrl+1…9', scope: 'display', group: 'view', label: { zh: '切换到第 N 个标签（9 = 最后一个）', en: 'Go to tab N (9 = last)' } },
+  { id: 'closeTab', keys: 'Ctrl+W', scope: 'nonTerminal', group: 'view', label: { zh: '关闭当前标签（终端外）', en: 'Close current tab (outside a terminal)' } },
+  { id: 'closeTabTerminal', keys: 'Ctrl+Shift+W', scope: 'global', group: 'view', label: { zh: '关闭当前标签（终端内）', en: 'Close current tab (inside a terminal)' } },
   { id: 'toggleBroadcast', keys: 'Ctrl+Alt+I', scope: 'global', group: 'session', label: { zh: '广播输入开/关', en: 'Toggle broadcast input' } },
   { id: 'fixPlaybook', keys: 'Ctrl+Shift+Enter', scope: 'alertWorkbench', group: 'session', label: { zh: '为当前告警生成修复剧本', en: 'Create fix playbook for selected alert' } },
   { id: 'dryRunPlaybook', keys: 'Ctrl+Enter', scope: 'playbookRun', group: 'session', label: { zh: '试运行 / 开始执行', en: 'Dry run / start' } },
@@ -59,7 +61,8 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
 /** Actions that open the palette (both key combos map to the same action). */
 export const KEYMAP_ACTION_ALIAS: Readonly<Record<string, string>> = {
   commandPaletteAlt: 'commandPalette',
-  fileHistory: 'fileSnapshots'
+  fileHistory: 'fileSnapshots',
+  closeTabTerminal: 'closeTab'
 }
 
 export function keysFor(id: string): string | undefined {

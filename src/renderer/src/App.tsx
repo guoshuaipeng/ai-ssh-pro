@@ -81,6 +81,7 @@ import { loadSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT } from '@shared/sf
 import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind } from './lib/terminal-find'
 import { matchKeymap } from '@shared/keymap'
+import { closeControlTipKey } from '@shared/close-tab'
 import { changelogFor } from '@shared/changelog'
 import { tabLabel } from '@shared/tab-label'
 import { HOST_PROBE_INTERVAL_MS, type HostProbeResult } from '@shared/host-status'
@@ -5583,6 +5584,23 @@ export default function App() {
     return () => document.removeEventListener('contextmenu', onCtx, true)
   }, [])
 
+  // IX-6: close-control tooltip follows whether a terminal currently has keyboard focus.
+  const [terminalFocused, setTerminalFocused] = useState(false)
+  useEffect(() => {
+    const sync = () => {
+      const el = document.activeElement
+      const next = Boolean(el instanceof Element && el.closest('.xterm'))
+      setTerminalFocused((prev) => (prev === next ? prev : next))
+    }
+    const onBlur = () => setTerminalFocused(false)
+    document.addEventListener('focusin', sync, true)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      document.removeEventListener('focusin', sync, true)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
+
   // UX-01/UX-02: every shortcut comes from the keymap registry; plain Ctrl+letter stays with a focused terminal
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -5600,6 +5618,14 @@ export default function App() {
       if (!action) return
       e.preventDefault()
       e.stopPropagation()
+      // IX-6: Ctrl+W closes outside a terminal. Inside one, only Ctrl+Shift+W matches.
+      // A dialog that is already open is not a close, so the chord cannot kill a tab underneath it.
+      if (action === 'closeTab') {
+        if (isDialogOpen()) return
+        const tab = tabsRef.current.find((t) => t.tabId === activeTabIdRef.current)
+        if (tab) closeTabRef.current(tab.tabId, tab.sessionId, tab.status, tab.view)
+        return
+      }
       // UX-45: ops shortcuts toast instead of running while a Confirm/Prompt is open
       const opsBlocked = new Set([
         'resourceMonitor',
@@ -5703,6 +5729,8 @@ export default function App() {
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [product, dismissWelcome, closeTour, finishQuick])
+
+  const closeTip = tr(closeControlTipKey(terminalFocused))
 
   return (
     <div className="app-root">
@@ -6118,7 +6146,7 @@ export default function App() {
                   role="button"
                   tabIndex={0}
                   className="tab-close"
-                  title={tr('tab.close')}
+                  title={closeTip}
                   aria-label={tr('tab.closeLabel')}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -6264,6 +6292,7 @@ export default function App() {
                             <span
                               role="button"
                               className="tab-overflow-x"
+                              title={closeTip}
                               aria-label={tr('tab.close')}
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -7486,6 +7515,7 @@ export default function App() {
                       onGateInput={handleTermInput}
                       onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
                       onSecondaryChange={setSplitSecondary}
+                      primaryTitle={labelFor(t)}
                       peers={connectedSshSessions
                         .filter((x) => x.sessionId !== t.sessionId)
                         .map((x) => ({ sessionId: x.sessionId, title: x.title }))}
