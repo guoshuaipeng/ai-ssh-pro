@@ -2325,7 +2325,17 @@ const zhCN = {
   's4.rollbackDisabled': '只读模式下不可回滚',
   's4.sftpDisabled': '只读模式下不可用',
   's4.skipped': '只读，已跳过',
-  's4.tip': '保护：只读'
+  's4.tip': '保护：只读',
+  'l10.connectGroup': '连接此分组（{n}）',
+  'l10.fail': '未能连接 {host}：{reason}',
+  'l10.none': '先在侧栏选中主机，或右键一个分组',
+  'l10.emptyGroup': '这个分组里没有主机',
+  'l10.ungrouped': '当前主机不在分组里',
+  'l10.summary': '已连接 {ok} 台，{fail} 台失败',
+  'l10.done': '已连接 {n} 台',
+  'l10.busy': '正在连接上一批主机',
+  'l10.missing': '找不到这台主机',
+  'l10.cardTitle': '有 {n} 台没有连上'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4655,7 +4665,17 @@ const en: Record<MessageKey, string> = {
   's4.rollbackDisabled': 'Rollback unavailable in read-only',
   's4.sftpDisabled': 'Not available in read-only mode',
   's4.skipped': 'Read-only, skipped',
-  's4.tip': 'Protection: read-only'
+  's4.tip': 'Protection: read-only',
+  'l10.connectGroup': 'Connect this group ({n})',
+  'l10.fail': 'Could not connect to {host}: {reason}',
+  'l10.none': 'Select hosts in the sidebar, or right-click a group',
+  'l10.emptyGroup': 'This group has no hosts',
+  'l10.ungrouped': 'The current host is not in a group',
+  'l10.summary': 'Connected {ok}, {fail} failed',
+  'l10.done': 'Connected {n} hosts',
+  'l10.busy': 'Still connecting the previous batch',
+  'l10.missing': 'That host is no longer in the list',
+  'l10.cardTitle': '{n} hosts did not connect'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

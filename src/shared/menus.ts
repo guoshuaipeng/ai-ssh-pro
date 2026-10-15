@@ -108,6 +108,8 @@ export type MenuAction =
   | 'readonlyOn'
   | 'readonlyOff'
   | 'setProtection'
+  | 'batchConnect'
+  | 'batchConnectGroup'
 
 export type Bilingual = { zh: string; en: string }
 

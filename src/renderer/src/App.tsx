@@ -171,6 +171,20 @@ import {
   type ReconnectPolicy
 } from '@shared/reconnect-policy'
 import { gateTerminalChunk, readonlyActive, stricterLevel, writeToken } from '@shared/readonly-session'
+import {
+  BATCH_CONNECT_LIMIT,
+  advanceHostKey,
+  enqueueHostKey,
+  focusTabId,
+  hostsByIds,
+  hostsInFolder,
+  pickBatchTarget,
+  planPaletteGroup,
+  reconnectTabId,
+  runBatchConnect,
+  summarizeBatch,
+  type BatchHost
+} from '@shared/batch-connect'
 import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
 import { RESTORE_BIND_MS, snapshotWorkspace } from '@shared/session-restore'
 import { planColdStart, restoreWatchIds } from '@shared/cold-start'
@@ -681,6 +695,8 @@ export default function App() {
   const [sideInfo, setSideInfo] = useState<string | null>(null)
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [hostKeyPrompt, setHostKeyPrompt] = useState<SshHostKeyPromptEvent | null>(null)
+  const hostKeyShownRef = useRef<SshHostKeyPromptEvent | null>(null)
+  const hostKeyQueueRef = useRef<SshHostKeyPromptEvent[]>([])
   const [aboutOpen, setAboutOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
@@ -824,6 +840,9 @@ export default function App() {
   const [hostStatus, setHostStatus] = useState<Record<string, HostProbeResult>>({})
   // H1: multi-select in the sidebar (Ctrl/Shift+click)
   const [multiSelected, setMultiSelected] = useState<string[]>([])
+  const multiSelectedRef = useRef<string[]>([])
+  multiSelectedRef.current = multiSelected
+  const [batchFails, setBatchFails] = useState<{ id: string; label: string; reason: string }[]>([])
   const lastClickedProfileRef = useRef<string | null>(null)
   const [backupOpen, setBackupOpen] = useState(false)
   const openDashboardRef = useRef<() => void>(() => {})
@@ -880,6 +899,8 @@ export default function App() {
   const lastConnectErrorRef = useRef<string | null>(null)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
+  const batchBusyRef = useRef(false)
+  const connectManyRef = useRef<(hosts: BatchHost[]) => Promise<void>>(async () => {})
 
   const activeTab = tabs.find((t) => t.tabId === activeTabId) ?? null
   const activeIsSession = !activeTab?.view || activeTab.view === 'session'
@@ -1097,24 +1118,33 @@ export default function App() {
 
   useEffect(() => {
     return window.aiss.ssh.onHostKeyPrompt((payload) => {
-      setHostKeyPrompt(payload)
+      const next = enqueueHostKey(hostKeyShownRef.current, hostKeyQueueRef.current, payload)
+      hostKeyShownRef.current = next.current
+      hostKeyQueueRef.current = next.queue
+      setHostKeyPrompt(next.current)
     })
   }, [])
 
   useEffect(() => {
-    return window.aiss.ssh.onHop((payload) => setHopProgress(payload))
+    return window.aiss.ssh.onHop((payload) => {
+      if (batchBusyRef.current) return
+      setHopProgress(payload)
+    })
   }, [])
 
   const respondHostKey = useCallback(async (accept: boolean, alwaysTrust: boolean) => {
-    const prompt = hostKeyPrompt
-    setHostKeyPrompt(null)
+    const prompt = hostKeyShownRef.current
     if (!prompt) return
+    const advanced = advanceHostKey(hostKeyQueueRef.current)
+    hostKeyShownRef.current = advanced.current
+    hostKeyQueueRef.current = advanced.queue
+    setHostKeyPrompt(advanced.current)
     await window.aiss.ssh.respondHostKey({
       requestId: prompt.requestId,
       accept,
       alwaysTrust
     })
-  }, [hostKeyPrompt])
+  }, [])
 
   useEffect(() => {
     if (activeTabId && !tabs.some((t) => t.tabId === activeTabId)) {
@@ -1152,11 +1182,23 @@ export default function App() {
   const openSession = useCallback(
     async (
       opts: SshConnectOptions,
-      extra?: { profileId?: string; hostInventoryId?: string; kind?: 'ssh' | 'local' }
+      extra?: {
+        profileId?: string
+        hostInventoryId?: string
+        kind?: 'ssh' | 'local'
+        /** L10: per-host failure stays on the tab. Do not replace the sidebar error. */
+        quiet?: boolean
+        focus?: boolean
+        onError?: (message: string) => void
+      }
     ): Promise<string | null> => {
-      setError(null)
-      lastConnectErrorRef.current = null
-      setConnecting(true)
+      const quiet = Boolean(extra?.quiet)
+      const focus = extra?.focus ?? !quiet
+      if (!quiet) {
+        setError(null)
+        lastConnectErrorRef.current = null
+        setConnecting(true)
+      }
       const tabId = uuid()
       const title = opts.label?.trim() || `${opts.username}@${opts.host}`
       cancelledConnectingTabsRef.current.delete(tabId)
@@ -1173,7 +1215,7 @@ export default function App() {
           kind: extra?.kind ?? 'ssh'
         }
       ])
-      setActiveTabId(tabId)
+      if (focus) setActiveTabId(tabId)
       try {
         const policy = policyRef.current
         const { sessionId, meta } = await window.aiss.ssh.connect({
@@ -1230,11 +1272,13 @@ export default function App() {
             setRecordingStartedAt(Date.now())
           }
         }
-        setJumpFail(null)
-        setHopProgress(null)
+        if (!quiet) {
+          setJumpFail(null)
+          setHopProgress(null)
+        }
         if (quickOpenRef.current) setQuickStep(3)
         const kind = extra?.kind ?? meta.kind ?? 'ssh'
-        if (kind !== 'local') onFirstConnectRef.current()
+        if (!quiet && kind !== 'local') onFirstConnectRef.current()
         return sessionId
       } catch (e) {
         const raw = e instanceof Error ? e.message : String(e)
@@ -1243,22 +1287,25 @@ export default function App() {
         const shown = hop
           ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
           : friendlyErrorMessage(raw)
-        setHopProgress(null)
-        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: extra?.profileId } : null)
-        failedProfileIdRef.current = extra?.profileId ?? null
-        if (hop) {
-          setErrorKind('generic')
-          setErrorDetail(stripIpcPrefix(raw))
-          setError(shown)
-        } else noteFailure(raw)
-        lastConnectErrorRef.current = shown
-        setErrorRaw(raw)
+        if (!quiet) {
+          setHopProgress(null)
+          setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: extra?.profileId } : null)
+          failedProfileIdRef.current = extra?.profileId ?? null
+          if (hop) {
+            setErrorKind('generic')
+            setErrorDetail(stripIpcPrefix(raw))
+            setError(shown)
+          } else noteFailure(raw)
+          lastConnectErrorRef.current = shown
+          setErrorRaw(raw)
+        }
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected', failRaw: raw } : t))
         )
+        extra?.onError?.(shown)
         return null
       } finally {
-        setConnecting(false)
+        if (!quiet) setConnecting(false)
       }
     },
     []
@@ -1368,7 +1415,7 @@ export default function App() {
   const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null)
   const jumpFailRef = useRef(jumpFail)
   jumpFailRef.current = jumpFail
-  const reconnectTabRef = useRef<(tabId: string, how?: { full?: boolean }) => Promise<string | null>>(async () => null)
+  const reconnectTabRef = useRef<(tabId: string, how?: { full?: boolean; quiet?: boolean; onError?: (message: string) => void }) => Promise<string | null>>(async () => null)
   const scheduleAutoReconnectRef = useRef<(tabId: string) => void>(() => {})
 
   const cancelAutoReconnect = useCallback((tabId: string) => {
@@ -1475,10 +1522,11 @@ export default function App() {
   }, [tabs])
 
   const reconnectTab = useCallback(
-    async (tabId: string, how?: { full?: boolean }): Promise<string | null> => {
+    async (tabId: string, how?: { full?: boolean; quiet?: boolean; onError?: (message: string) => void }): Promise<string | null> => {
       const tab = tabsRef.current.find((t) => t.tabId === tabId)
       if (!tab || tab.status !== 'disconnected') return null
-      setError(null)
+      const quiet = Boolean(how?.quiet)
+      if (!quiet) setError(null)
       setReconnectingTabId(tabId)
       const policy = policyRef.current
       const hop = jumpFailRef.current
@@ -1536,8 +1584,10 @@ export default function App() {
           )
         )
         notifyRecentChanged()
-        setJumpFail(null)
-        setHopProgress(null)
+        if (!quiet) {
+          setJumpFail(null)
+          setHopProgress(null)
+        }
         discardOnReconnect()
         return sessionId
       } catch (e) {
@@ -1547,11 +1597,14 @@ export default function App() {
         const shown = hop
           ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
           : friendlyErrorMessage(raw)
-        setHopProgress(null)
-        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: tab.profileId } : null)
-        setErrorRaw(raw)
-        setError(shown)
+        if (!quiet) {
+          setHopProgress(null)
+          setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: tab.profileId } : null)
+          setErrorRaw(raw)
+          setError(shown)
+        }
         setTabs((prev) => prev.map((t) => (t.tabId === tabId ? { ...t, failRaw: raw } : t)))
+        how?.onError?.(shown)
         return null
       } finally {
         setReconnectingTabId(null)
@@ -4106,6 +4159,92 @@ export default function App() {
     }
   }, [smartPaste])
 
+  // L10-CONNECT-MANY-START
+  const connectMany = useCallback(async (hosts: BatchHost[]) => {
+    const list = hostsByIds(
+      hosts.map((host) => ({ id: host.id, label: host.label, folderId: host.folderId })),
+      hosts.map((host) => host.id)
+    )
+    if (!list.length) {
+      showToast(tg('l10.none'))
+      return
+    }
+    if (batchBusyRef.current) {
+      showToast(tg('l10.busy'))
+      return
+    }
+    batchBusyRef.current = true
+    ensureMainVisible()
+    const ids = new Set(list.map((host) => host.id))
+    setBatchFails((prev) => prev.filter((row) => !ids.has(row.id)))
+    let didFocus = false
+    const noteFail = (id: string, label: string, reason: string) => {
+      setBatchFails((prev) => [...prev.filter((row) => row.id !== id), { id, label, reason }])
+      showToast(tg('l10.fail', { host: label, reason }), { kind: 'error' })
+    }
+    try {
+      const results = await runBatchConnect(list, BATCH_CONNECT_LIMIT, async (host) => {
+        const shouldFocus = !didFocus
+        if (shouldFocus) didFocus = true
+        const profile = profilesRef.current.find((row) => row.id === host.id)
+        if (!profile) {
+          const reason = tg('l10.missing')
+          noteFail(host.id, host.label || host.id, reason)
+          return { ok: false, error: reason }
+        }
+        const label = profile.label?.trim() || host.label || `${profile.username}@${profile.host}`
+        const tabsNow = tabsRef.current
+        const target = pickBatchTarget(tabsNow, profile.id)
+        if (target !== 'open' && shouldFocus) {
+          const focusId = focusTabId(tabsNow, profile.id)
+          if (focusId) setActiveTabId(focusId)
+        }
+        if (target === 'reuse') {
+          setBatchFails((prev) => prev.filter((row) => row.id !== profile.id))
+          return { ok: true, reused: true }
+        }
+        let error = ''
+        const onError = (message: string) => {
+          error = message
+        }
+        if (target === 'reconnect') {
+          const tabId = reconnectTabId(tabsNow, profile.id)
+          if (!tabId) return { ok: false, error: tg('l10.missing') }
+          const sid = await reconnectTabRef.current(tabId, { full: false, quiet: true, onError })
+          if (sid) {
+            setBatchFails((prev) => prev.filter((row) => row.id !== profile.id))
+            return { ok: true }
+          }
+          if (!error) return { ok: true, skipped: true }
+          noteFail(profile.id, label, error)
+          return { ok: false, error }
+        }
+        const sid = await openSession(connectOptsFromProfile(profile), {
+          profileId: profile.id,
+          hostInventoryId: profile.hostInventoryId,
+          quiet: true,
+          focus: shouldFocus,
+          onError
+        })
+        if (sid) {
+          setBatchFails((prev) => prev.filter((row) => row.id !== profile.id))
+          return { ok: true }
+        }
+        if (!error) return { ok: true, skipped: true }
+        noteFail(profile.id, label, error)
+        return { ok: false, error }
+      })
+      const summary = summarizeBatch(results)
+      if (summary.fail > 1) showToast(tg('l10.summary', { ok: summary.ok, fail: summary.fail }), { kind: 'error' })
+      else if (summary.fail === 0 && summary.ok > 1) showToast(tg('l10.done', { n: summary.ok }))
+      if (results.some((row) => row.ok && !row.reused && !row.skipped)) onFirstConnectRef.current()
+    } finally {
+      batchBusyRef.current = false
+    }
+  }, [ensureMainVisible, openSession])
+  connectManyRef.current = connectMany
+  // L10-CONNECT-MANY-END
+
   const handleTitlebarMenuAction = useCallback(
     (action: TitlebarMenuAction) => {
       if (action === 'aiExplainError' || action === 'aiCommand' || action === 'aiInspect') {
@@ -4450,6 +4589,25 @@ export default function App() {
       }
       if (action === 'connection') {
         openConnectionEditor()
+        return
+      }
+      if (action === 'batchConnect') {
+        const ids = multiSelectedRef.current.length ? multiSelectedRef.current : selectedProfileId ? [selectedProfileId] : []
+        const hosts = hostsByIds(profilesRef.current, ids)
+        if (!hosts.length) {
+          showToast(tg('l10.none'))
+          return
+        }
+        void connectManyRef.current(hosts)
+        return
+      }
+      if (action === 'batchConnectGroup') {
+        const planned = planPaletteGroup(profilesRef.current, selectedProfileId)
+        if (!planned.ok) {
+          showToast(tg(planned.reason === 'ungrouped' ? 'l10.ungrouped' : 'l10.emptyGroup'))
+          return
+        }
+        void connectManyRef.current(planned.hosts)
         return
       }
       if (action === 'debug') {
@@ -6157,6 +6315,28 @@ export default function App() {
               })()
             : null}
 
+          {batchFails.length ? (
+            <div className="l10-errors" role="status" data-testid="l10-errors">
+              <div className="l10-error">
+                <span>{tg('l10.cardTitle', { n: batchFails.length })}</span>
+                <button type="button" onClick={() => setBatchFails([])}>{tg('g3.gotIt')}</button>
+              </div>
+              {batchFails.map((row) => (
+                <div key={row.id} className="l10-error" data-testid="l10-error">
+                  <span title={tg('l10.fail', { host: row.label, reason: row.reason })}>
+                    {tg('l10.fail', { host: row.label, reason: row.reason })}
+                  </span>
+                  <button type="button" onClick={() => void connectManyRef.current([{ id: row.id, label: row.label }])}>
+                    {tg('upd.retry')}
+                  </button>
+                  <button type="button" onClick={() => setBatchFails((prev) => prev.filter((item) => item.id !== row.id))}>
+                    {tg('g3.gotIt')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           {activeIsSession && activeTab?.status === 'connecting' && (
             <div className="session-disconnect-banner session-connecting-banner" role="status">
               <span>
@@ -7678,6 +7858,10 @@ export default function App() {
               role="menu"
               data-testid="host-menu-multi"
             >
+              {item('connectAll', tg('ctx.connectAll', { n: multi.length }), () => {
+                setSessionMenu(null)
+                void connectManyRef.current(hostsByIds(profilesRef.current, multi))
+              })}
               {item('maint', tg('l2d.openForSelected'), () => {
                 setSessionMenu(null)
                 openMaintenance(multi)
@@ -7788,7 +7972,22 @@ export default function App() {
           className="session-context-menu"
           style={{ left: folderMenu.x, top: folderMenu.y }}
           role="menu"
+          data-testid="folder-menu"
         >
+          <button
+            type="button"
+            role="menuitem"
+            data-ctx="connectGroup"
+            className="session-context-menu-item"
+            disabled={hostsInFolder(profiles, folderMenu.folderId).length === 0}
+            onClick={() => {
+              const hosts = hostsInFolder(profilesRef.current, folderMenu.folderId)
+              setFolderMenu(null)
+              void connectManyRef.current(hosts)
+            }}
+          >
+            {tg('l10.connectGroup', { n: hostsInFolder(profiles, folderMenu.folderId).length })}
+          </button>
           <button
             type="button"
             role="menuitem"

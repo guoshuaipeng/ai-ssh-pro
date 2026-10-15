@@ -1794,6 +1794,22 @@ body.layout-resizing {
 .l9-row span { flex: none; }
 .l9-row input, .l9-row select { min-width: 0; max-width: 280px; }
 .l9-error { color: #f85149; font-size: 12px; margin: 0; }
+.l10-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 96px;
+  overflow: auto;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  background: #3d1214;
+  color: #ffb4b4;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.l10-error { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.l10-error > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l10-error button { flex: none; white-space: nowrap; }
 .s4-block {
   display: flex;
   align-items: center;
