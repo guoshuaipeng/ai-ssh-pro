@@ -170,7 +170,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: strin
 ok(pkg.version === '0.4.0', 'package version')
 ok(changelogFor('0.4.0').some((e) => e.action === 'playbooks'), 'whats new 0.4.0')
 ok(changelogFor('0.4.0-m2').some((e) => e.action === 'playbooks'), 'whats new m2')
-const changelog = readFileSync('CHANGELOG.md', 'utf8')
+const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
 ok(changelog.includes('## v0.4.0\n') && changelog.includes('## v0.4.0-m2') && changelog.includes('## v0.4.0-m1'), 'changelog sections')
 
 const sftp = readFileSync('src/renderer/src/components/SftpPanel.tsx', 'utf8')
