@@ -1,0 +1,43 @@
+{
+  "id": "S9",
+  "title": "Chinese turn stores redis:6379; English follow-up still recalls it",
+  "sessionId": "eval-s9-bilingual",
+  "debugTurnId": "eval-s9",
+  "autoApproveLowRisk": false,
+  "phases": [
+    {
+      "user": "这台机 redis 监听端口是多少？记到工作记忆里。",
+      "snapshot": "user@web:~$\nuptime 4 days\nload average: 0.11\ntasks: 70\nmemory ok\nuser@web:~$",
+      "expectGoal": "redis",
+      "replies": [
+        {
+          "description": "redis 监听 6379（仅本机 127.0.0.1）。已记入工作记忆。",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      ]
+    },
+    {
+      "user": "Quick check — which port should the app use to reach Redis on this host? Answer in English please.",
+      "snapshot": "user@web:~$\nuptime 4 days\nload average: 0.11\ntasks: 70\nmemory ok\nuser@web:~$",
+      "expectGoal": "Redis",
+      "replies": [
+        {
+          "description": "Use port 6379. Working memory from the earlier Chinese turn still holds: Redis listens on 6379.",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "endMatches": ["6379"],
+    "lastPromptMatches": ["6379"],
+    "writes": [],
+    "maxSnapshots": 0,
+    "confirmCount": 0,
+    "requireContextSlices": true
+  }
+}

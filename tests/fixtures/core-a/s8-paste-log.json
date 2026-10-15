@@ -1,0 +1,38 @@
+{
+  "id": "S8",
+  "title": "Pasted Hikari log — use the paste, do not ask for it again",
+  "sessionId": "eval-s8-paste",
+  "debugTurnId": "eval-s8",
+  "autoApproveLowRisk": false,
+  "phases": [
+    {
+      "user": "我把终端里这段贴给你了，帮我判断是不是连接池打满：\n\n2026-10-15T13:40:01Z WARN  HikariPool-1 - Connection is not available, request timed out after 30000ms.\n2026-10-15T13:40:01Z ERROR com.app.db.DbClient - Failed to obtain JDBC connection from pool\n2026-10-15T13:41:15Z INFO  HikariPool-1 - Pool stats (total=20, active=20, idle=0, waiting=47)\n2026-10-15T13:41:16Z ERROR com.app.api.OrderController - GET /api/orders timed out\n2026-10-15T13:55:00Z INFO  HikariPool-1 - Pool stats (total=20, active=20, idle=0, waiting=63)",
+      "snapshot": "user@web:~$\nHikariPool-1 active=20 idle=0\nwaiting=63\nConnection is not available\nrequest timed out after 30000ms\nuser@web:~$",
+      "replies": [
+        {
+          "description": "用户消息已含 Hikari 池日志，只做一次轻量快照，不重复索要同一段日志",
+          "action": "tool_call",
+          "toolName": "get_terminal_snapshot",
+          "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+          "riskLevel": "low"
+        },
+        {
+          "description": "根据你粘贴的日志：HikariPool-1 total=20 且 active=20 idle=0，waiting 从 47 升到 63；多次 request timed out after 30000ms。判断为连接池打满。",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "maxModelCalls": 3,
+    "maxSnapshots": 1,
+    "goalMatches": "Hikari",
+    "endMatches": ["active=20", "idle=0", "30000ms"],
+    "endMustNot": ["请再贴一次", "把日志再发一遍", "我看不到日志"],
+    "writes": [],
+    "confirmCount": 0,
+    "requireContextSlices": true
+  }
+}

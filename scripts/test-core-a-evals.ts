@@ -51,13 +51,18 @@ type RecallExpect = {
 type Expectation = {
   minPlannerTurns?: number
   maxModelCalls?: number
+  maxSnapshots?: number
   goalMatches?: string
   constraintMatches?: string
   endMatches?: string[]
+  endMustNot?: string[]
   lastPromptMatches?: string[]
   writes?: string[]
+  forbiddenWrites?: string[]
   confirmCount?: number
   lowRiskConfirm?: boolean
+  highRiskConfirm?: boolean
+  denied?: boolean
   requireContextSlices?: boolean
   recall?: RecallExpect
 }
@@ -68,6 +73,8 @@ type Fixture = {
   sessionId: string
   debugTurnId: string
   autoApproveLowRisk: false
+  /** When false, confirmStep declines. Default is approve. */
+  confirm?: boolean
   phases: Phase[]
   expect: Expectation
 }
@@ -84,8 +91,12 @@ function loadFixtures(): Fixture[] {
   const dir = join(dirname(fileURLToPath(import.meta.url)), '../tests/fixtures/core-a')
   return readdirSync(dir)
     .filter((name) => name.endsWith('.json'))
-    .sort()
     .map((name) => JSON.parse(readFileSync(join(dir, name), 'utf8')) as Fixture)
+    .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+}
+
+function literalRegExp(pattern: string): RegExp {
+  return new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
 }
 
 function systemPrompt(messages: Array<{ role: string; content: string }>): string {
@@ -126,6 +137,7 @@ async function drive(input: {
   replies: Reply[]
   snapshot: () => string
   onWrite?: () => void
+  approve?: boolean
 }): Promise<DriveResult> {
   const events: AiStreamEvent[] = []
   const prompts: string[] = []
@@ -185,11 +197,11 @@ async function drive(input: {
       if (ev.type === 'step' && ev.requestId) {
         const before = writes.length
         const requestId = ev.requestId
-        assert.notEqual(ev.autoApproved, true, 'low-risk command must not be auto-approved')
+        assert.notEqual(ev.autoApproved, true, 'command must not be auto-approved')
         queueMicrotask(() => {
           try {
             assert.equal(writes.length, before, 'command must not be written before confirmStep')
-            agent.resolveAiConfirmStep(requestId, true)
+            agent.resolveAiConfirmStep(requestId, input.approve !== false)
           } catch (error) {
             confirmError = error instanceof Error ? error : new Error(String(error))
             agent.resolveAiConfirmStep(requestId, false)
@@ -249,8 +261,8 @@ function assertWorkingMemory(prompts: string[], goalPattern?: string, constraint
   assert.ok(prompts.length > 0, 'planner never ran')
   for (const prompt of prompts) {
     assert.match(goalLine(prompt), /\S/, 'working memory goal is missing from a planner turn')
-    if (goalPattern) assert.match(goalLine(prompt), new RegExp(goalPattern))
-    if (constraintPattern) assert.match(prompt, new RegExp(constraintPattern))
+    if (goalPattern) assert.match(goalLine(prompt), literalRegExp(goalPattern))
+    if (constraintPattern) assert.match(prompt, literalRegExp(constraintPattern))
   }
 }
 
@@ -262,7 +274,7 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
   const fixtures = loadFixtures()
   assert.deepEqual(
     fixtures.map((fixture) => fixture.id),
-    ['S1', 'S2', 'S3', 'S4']
+    ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12']
   )
 
   for (const fixture of fixtures) {
@@ -285,6 +297,7 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
           autoApproveLowRisk: fixture.autoApproveLowRisk,
           messages: history,
           replies: phase.replies,
+          approve: fixture.confirm !== false,
           onWrite: () => {
             stage += 1
           },
@@ -305,7 +318,7 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         events.push(...result.events)
         settings = result.settings
         if (phase.expectGoal) {
-          for (const prompt of result.prompts) assert.match(goalLine(prompt), new RegExp(phase.expectGoal))
+          for (const prompt of result.prompts) assert.match(goalLine(prompt), literalRegExp(phase.expectGoal))
         }
       }
 
@@ -316,21 +329,40 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         assert.ok(prompts.length >= expect.minPlannerTurns, `expected ${expect.minPlannerTurns}+ planner turns, got ${prompts.length}`)
       }
       if (expect.maxModelCalls != null) {
-        assert.ok(prompts.length <= expect.maxModelCalls, `snapshot loop made ${prompts.length} model calls`)
+        assert.ok(prompts.length <= expect.maxModelCalls, `planner made ${prompts.length} model calls`)
         assert.ok(prompts.length < 8)
       }
+      if (expect.maxSnapshots != null) {
+        const snaps = events.filter(
+          (event) =>
+            event.type === 'step' &&
+            event.structured.action === 'tool_call' &&
+            event.structured.toolName === 'get_terminal_snapshot'
+        )
+        assert.ok(snaps.length <= expect.maxSnapshots, `snapshot count ${snaps.length}`)
+      }
       if (expect.writes) assert.deepEqual(writes, expect.writes)
+      if (expect.forbiddenWrites) {
+        for (const write of writes) {
+          for (const blocked of expect.forbiddenWrites) {
+            assert.equal(write.includes(blocked), false, `forbidden command was written: ${blocked}`)
+          }
+        }
+      }
       if (expect.confirmCount != null) {
         assert.equal(events.filter((event) => event.type === 'step' && event.requestId).length, expect.confirmCount)
       }
       if (expect.endMatches) {
         const ended = [...events].reverse().find((event) => event.type === 'step' && event.structured.action === 'end')
         assert.ok(ended && ended.type === 'step')
-        for (const pattern of expect.endMatches) assert.match(ended.structured.description, new RegExp(pattern))
+        for (const pattern of expect.endMatches) assert.match(ended.structured.description, literalRegExp(pattern))
+        for (const pattern of expect.endMustNot ?? []) {
+          assert.doesNotMatch(ended.structured.description, literalRegExp(pattern))
+        }
       }
       if (expect.lastPromptMatches) {
         const last = prompts[prompts.length - 1] ?? ''
-        for (const pattern of expect.lastPromptMatches) assert.match(last, new RegExp(pattern))
+        for (const pattern of expect.lastPromptMatches) assert.match(last, literalRegExp(pattern))
       }
       if (expect.lowRiskConfirm) {
         const command = events.find((event) => event.type === 'step' && event.structured.action === 'command')
@@ -338,6 +370,18 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         assert.equal(command.structured.riskLevel, 'low')
         assert.ok(command.requestId, 'low-risk command did not wait for confirmStep')
         assert.notEqual(command.autoApproved, true)
+      }
+      if (expect.highRiskConfirm) {
+        const command = events.find((event) => event.type === 'step' && event.structured.action === 'command')
+        assert.ok(command && command.type === 'step')
+        assert.equal(command.structured.riskLevel, 'high')
+        assert.ok(command.requestId, 'high-risk command did not wait for confirmStep')
+        assert.notEqual(command.autoApproved, true)
+      }
+      if (expect.denied) {
+        assert.equal(writes.length, 0)
+        assert.ok(events.some((event) => event.type === 'cancelled'))
+        assert.equal(prompts.length, 1, 'planner continued after the user declined')
       }
       if (expect.requireContextSlices) assertContextSlices(events, fixture.debugTurnId)
       if (expect.recall) {
@@ -351,7 +395,11 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
           assert.match(body, new RegExp(expect.recall.fact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${slot} dropped ${expect.recall.fact}`)
         }
       }
-      assert.ok(events.some((event) => event.type === 'done'))
+      if (expect.denied) {
+        assert.equal(events.some((event) => event.type === 'error'), false)
+      } else {
+        assert.ok(events.some((event) => event.type === 'done'))
+      }
     })
   }
 })

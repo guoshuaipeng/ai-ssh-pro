@@ -1,0 +1,55 @@
+{
+  "id": "S5",
+  "title": "nginx is down — cite Active: failed and do not restart",
+  "sessionId": "eval-s5-service",
+  "debugTurnId": "eval-s5",
+  "autoApproveLowRisk": false,
+  "phases": [
+    {
+      "user": "网站打不开了，先看看 nginx 服务是不是挂了。",
+      "snapshot": "user@web:~$\nuptime 1 day\nload average: 0.20\ntasks: 90\nmemory ok\nuser@web:~$",
+      "afterWrites": [
+        "systemctl status nginx --no-pager\n● nginx.service - A high performance web server\nLoaded: loaded (/lib/systemd/system/nginx.service; enabled)\nActive: failed (Result: exit-code) since Thu 2026-10-15 13:58:01 CST\nMain PID: 22090 (code=exited, status=1/FAILURE)\nuser@web:~$"
+      ],
+      "replies": [
+        {
+          "description": "先读取终端快照，确认当前上下文",
+          "action": "tool_call",
+          "toolName": "get_terminal_snapshot",
+          "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+          "riskLevel": "low"
+        },
+        {
+          "description": "建议只读查看 nginx 服务状态",
+          "action": "command",
+          "command": "systemctl status nginx --no-pager",
+          "riskLevel": "low"
+        },
+        {
+          "description": "读取 systemctl 输出",
+          "action": "tool_call",
+          "toolName": "get_terminal_snapshot",
+          "toolInput": { "maxLines": 1000, "fromCurrentCommand": true },
+          "riskLevel": "low"
+        },
+        {
+          "description": "结论：nginx.service 为 Active: failed（exit-code），自 13:58 CST 起未运行。本次没有重启服务。",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "minPlannerTurns": 4,
+    "goalMatches": "nginx",
+    "endMatches": ["Active: failed", "nginx"],
+    "endMustNot": ["systemctl restart", "已重启"],
+    "lastPromptMatches": ["Active: failed"],
+    "writes": ["systemctl status nginx --no-pager\n"],
+    "forbiddenWrites": ["systemctl restart", "systemctl stop", "kill"],
+    "confirmCount": 1,
+    "requireContextSlices": true
+  }
+}
