@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.0
+
+2026-10-15 · 从 SSH 客户端到 AI 运维工作台 / From SSH client to AI ops workbench.
+
+- **运维首页 / Ops home (L7)** — a unique center tab with host health cards (at most 8, alerts first), an alert inbox, and shortcuts. New installs open it. View → Ops home, or Ctrl+Alt+H.
+- **告警工作台 / Alert workbench (L2)** — one list-and-detail tab for locate and AI read, with the privacy footnote in the detail. The bell and notification clicks open it on that alert. Ops → Alert workbench, or Ctrl+Alt+A.
+- **生产 / 只读防护 / Protection levels (S2)** — each host is normal, production, or read-only. Production asks for the host name before a dangerous command, an alert run, or an SFTP write (upload, delete, mkdir, rename). Read-only blocks those writes and still allows insert. Temporary unlock lasts 15 minutes.
+- **批量剧本 / Playbooks (L1)** — list, editor, and run wizard open as center tabs. Per-step confirm, stop-on-error, and timeout. Runs pick hosts, then parallel or serial, then a preview. Read-only hosts cannot be selected; production and dangerous steps still confirm. Results export; the audit log records `playbook.run`. Ctrl+Alt+P.
+- **加密云同步 / Cloud sync (L3)** — File → Cloud sync… with a private Gist or WebDAV. The vault is encrypted on this device; the passphrase never leaves it and credentials are off by default. Conflicts open in a center tab. Overwrite-local writes a backup first.
+- **终端命令块 / Terminal blocks (L5)** — off by default. When on, command chunks fold and offer AI explain, copy, and save as snippet. Turning them off keeps scrollback.
+- **文件工作流 / File workflow (L8)** — the folder-sync preview can pin into a center tab and pins itself above 50 changes. Starting the sync still passes the remote write gate.
+- **审计与录制 / Audit and recordings (L4)** — the audit tab searches and exports CSV or JSONL, including `playbook.run`, `alert.execute`, and `danger`. Session recording writes asciicast v2; auto-record is a real per-host switch.
+- **密度打磨 / Density (UX-51 / UX-51b / UX-53)** — alert preferences float from ⋯ and close on Esc or an outside click; a health card shows a single badge (production, otherwise read-only, otherwise demo).
+- **已知限制 / Known limits** — Jump hosts + OpenSSH certificates / sk-ed25519 (L6) are **deferred to v0.4.1**; the jump visualization and experimental cert options remain in the UI. With several center tabs open at 1366px the tab strip can wrap to two rows (UX-55, fixed in v0.4.1). “Last session” reconnects saved hosts only, not tool tabs. Alert history and the audit log stay in localStorage; this is not a server permission system.
+
 ## v0.4.0-m2
 
 Preview of the ops flagship. Package version stays `0.4.0-m2`. Do not tag this build.
