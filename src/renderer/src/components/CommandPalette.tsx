@@ -8,7 +8,7 @@ import { MENUS, type TitlebarMenuAction } from './TitlebarMenus'
 import { loadSyncProfiles } from './SftpPanel'
 import { buildPaletteEntries, type PaletteEntry } from '../lib/palette'
 import { layoutPalette } from '@shared/palette-rank'
-import { paletteKeyStep } from '@shared/palette-nav'
+import { paletteItemIndexes, paletteKeyStep } from '@shared/palette-nav'
 import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
@@ -86,6 +86,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
   const usage = useMemo(() => (open ? loadPaletteUsage() : {}), [open])
   const laid = useMemo(() => layoutPalette(entries, q, usage), [entries, q, usage])
   const filtered = laid.items
+  const indexes = paletteItemIndexes(laid.rows)
 
   useEffect(() => {
     if (!open) return
@@ -143,20 +144,20 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
               primary={{ label: t('pf4.paletteClear'), onClick: () => setQ('') }}
             />
           ) : null}
-          {laid.rows.map((row) => {
+          {laid.rows.map((row, rowAt) => {
             if (row.kind === 'header') {
               const key = CAT_KEY[row.id]
               return (
-                <div key={`h-${row.id}`} className="cmdp-head">
+                <div key={`h-${row.id}`} className="cmdp-head" data-palette-group={row.id}>
                   {key ? t(key) : row.id}
                 </div>
               )
             }
             const e = row.item
-            const i = filtered.indexOf(e)
+            const i = indexes[rowAt] ?? 0
             return (
               <button
-                key={e.syncId || `${e.id}-${e.order}`}
+                key={`${e.syncId ?? e.id}-${e.order}-${i}`}
                 type="button"
                 role="option"
                 aria-selected={i === sel}

@@ -1544,7 +1544,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
   .settings-nav { width: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
   .settings-search { display: none; }
 }
-.cmdp-head { font-size: 11px; color: var(--muted); padding: 8px 10px 2px; position: sticky; top: 0; background: var(--bg-panel); }
+.cmdp-head { font-size: 11px; color: var(--muted); padding: 8px 10px 2px; position: sticky; top: 0; background: var(--bg-panel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdp-item.is-disabled { opacity: 0.55; }
 .jump-fail-banner { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--color-danger-muted); flex-wrap: nowrap; }
 .jump-fail-banner span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

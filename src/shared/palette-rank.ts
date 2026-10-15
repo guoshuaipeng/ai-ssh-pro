@@ -155,8 +155,9 @@ export function layoutPalette<T extends { id: string; label: string; hay: string
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const withCat = entries.map((e) => ({ ...e, category: e.category ?? paletteCategory(e.id) }))
   if (!words.length) {
-    const pin = new Set(pinnedIds(usage))
-    const pinned = withCat.filter((e) => pin.has(e.id))
+    const pinOrder = pinnedIds(usage)
+    const pin = new Set(pinOrder)
+    const pinned = withCat.filter((e) => pin.has(e.id)).sort((a, b) => pinOrder.indexOf(a.id) - pinOrder.indexOf(b.id))
     const rows: RankRow<T>[] = []
     const items: T[] = []
     if (pinned.length) {
