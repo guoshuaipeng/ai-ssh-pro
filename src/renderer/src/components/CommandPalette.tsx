@@ -96,7 +96,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
 
   if (!open) return null
   const run = (e?: Entry) => {
-    if (!e) return
+    if (!e || e.disabled) return
     onClose()
     recordPaletteUse(e.id)
     window.setTimeout(() => {

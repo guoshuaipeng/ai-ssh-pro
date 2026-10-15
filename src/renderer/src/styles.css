@@ -1359,6 +1359,33 @@ body.layout-resizing {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+}
+.tab-overflow-search {
+  height: 28px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 4px;
+}
+.tab-overflow-row { position: relative; }
+.tab-overflow-x {
+  opacity: 0;
+  flex: none;
+  padding: 0 4px;
+}
+.tab-overflow-row:hover .tab-overflow-x,
+.tab-overflow-row.is-hot .tab-overflow-x,
+.tab-overflow-row:focus-within .tab-overflow-x { opacity: 1; }
+.tab-overflow-foot {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.tab-overflow-empty {
+  padding: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 .main { min-width: 0; }
 

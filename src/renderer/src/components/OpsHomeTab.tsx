@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import type { FiredAlert } from '@shared/alert-rules'
 import type { DashScope } from '@shared/dashboard-scope'
 import { pickHealthHosts } from '@shared/dashboard-scope'
+import { selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
 import type { ProtectionLevel } from '@shared/protection'
 import { useI18n } from '../lib/i18n'
+import { useHealthSampling, type SampleHost } from '../lib/health-sampling'
 import { AlertLine } from './AlertLine'
 import EmptyState from './EmptyState'
+import HealthProbeFields from './HealthProbeFields'
 import ScopePicker from './ScopePicker'
 
 export type HomeHost = {
@@ -20,6 +23,8 @@ export type HomeHost = {
   alerting: boolean
   folderId?: string
   via?: string
+  recent?: boolean
+  pinned?: boolean
 }
 
 type Snap = { cpu: number | null; mem: number | null; disk: number | null; error: string | null; loading: boolean }
@@ -60,7 +65,15 @@ export default function OpsHomeTab({
   recentPlaybooks,
   onOpenRecent,
   onOpenSftp,
-  onSyncFolder
+  onSyncFolder,
+  probePrefs,
+  onProbePrefs,
+  probeGrouped,
+  probeActive,
+  probeNonce,
+  onSample,
+  onSweep,
+  onRelease
 }: {
   hosts: HomeHost[]
   alerts: FiredAlert[]
@@ -96,6 +109,14 @@ export default function OpsHomeTab({
   onOpenRecent?: (id: string) => void
   onOpenSftp?: () => void
   onSyncFolder?: () => void
+  probePrefs: ProbePrefs
+  onProbePrefs: (patch: Partial<ProbePrefs>) => void
+  probeGrouped: boolean
+  probeActive: boolean
+  probeNonce: number
+  onSample: (host: SampleHost) => Promise<HealthProbeResult>
+  onSweep: (idleMs: number) => void
+  onRelease: () => void
 }) {
   const { t } = useI18n()
   const [snaps, setSnaps] = useState<Record<string, Snap>>({})
@@ -105,8 +126,52 @@ export default function OpsHomeTab({
   const [expanded, setExpanded] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [retryNonce, setRetryNonce] = useState(0)
-
-  const ranked = useMemo(() => pickHealthHosts(hosts, (h) => h.alerting, 8), [hosts])
+  const [probeOpen, setProbeOpen] = useState(false)
+  const sampleHosts = useMemo(
+    () =>
+      hosts.map((h, order) => ({
+        profileId: h.profileId,
+        folderId: h.folderId,
+        alerting: h.alerting,
+        order,
+        recent: h.recent,
+        pinned: h.pinned,
+        title: h.title,
+        demo: h.demo,
+        sessionId: h.sessionId
+      })),
+    [hosts]
+  )
+  const probeTargets = useMemo(
+    () => (probePrefs.enabled ? selectProbeTargets(sampleHosts, probePrefs, { grouped: probeGrouped }) : []),
+    [sampleHosts, probePrefs, probeGrouped, probePrefs.enabled]
+  )
+  const cardSource = useMemo(() => {
+    if (!probePrefs.enabled) return hosts
+    const ids = new Set(probeTargets.map((t) => t.profileId))
+    return hosts.filter((h) => ids.has(h.profileId))
+  }, [hosts, probePrefs.enabled, probeTargets])
+  const ranked = useMemo(() => pickHealthHosts(cardSource, (h) => h.alerting, 8), [cardSource])
+  const visibleSamples = useMemo<SampleHost[]>(
+    () =>
+      ranked.shown.map((h) => ({
+        profileId: h.profileId,
+        title: h.title,
+        demo: h.demo,
+        sessionId: h.sessionId
+      })),
+    [ranked.shown]
+  )
+  const sampling = useHealthSampling({
+    enabled: probePrefs.enabled,
+    hosts: visibleSamples,
+    maxConcurrent: probePrefs.maxConcurrent,
+    active: probeActive,
+    nonce: probeNonce + retryNonce,
+    onSample,
+    onSweep,
+    onRelease
+  })
   const inbox = useMemo(() => {
     const rows = alerts.filter((a) => (inboxFilter === 'all' ? true : a.status === (inboxFilter === 'ignored' ? 'ignored' : 'active')))
     return rows.slice(0, 40)
@@ -145,6 +210,7 @@ export default function OpsHomeTab({
   }, [])
 
   useEffect(() => {
+    if (probePrefs.enabled) return
     const ids = ranked.shown.map((h) => h.sessionId).filter((id): id is string => Boolean(id))
     if (!ids.length) return
     let timer = 0
@@ -166,7 +232,7 @@ export default function OpsHomeTab({
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVis)
     }
-  }, [ranked.shown, loadSnaps, retryNonce])
+  }, [ranked.shown, loadSnaps, retryNonce, probePrefs.enabled])
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 30000)
@@ -174,10 +240,11 @@ export default function OpsHomeTab({
   }, [])
 
   useEffect(() => {
-    if (!menu && !more) return
+    if (!menu && !more && !probeOpen) return
     const close = () => {
       setMenu(null)
       setMore(false)
+      setProbeOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -188,7 +255,7 @@ export default function OpsHomeTab({
       window.removeEventListener('click', close)
       window.removeEventListener('keydown', onKey)
     }
-  }, [menu, more])
+  }, [menu, more, probeOpen])
 
   if (hosts.length === 0 && scope.mode === 'all') {
     return (
@@ -287,6 +354,16 @@ export default function OpsHomeTab({
               <button type="button" onClick={() => { setMore(false); setRetryNonce((n) => n + 1) }}>
                 {t('l7.refresh')}
               </button>
+              <button
+                type="button"
+                data-testid="l7b-open-settings"
+                onClick={() => {
+                  setMore(false)
+                  setProbeOpen(true)
+                }}
+              >
+                {t('l7b.settings')}
+              </button>
               <div className="l7-rail-collapsed">
                 <button type="button" onClick={() => { setMore(false); onNewConnection() }}>
                   {t('l7.newConnection')}
@@ -312,6 +389,11 @@ export default function OpsHomeTab({
               </div>
             </div>
           ) : null}
+          {probeOpen ? (
+            <div className="l7-more l7b-settings" data-testid="l7b-settings" role="dialog" aria-label={t('l7b.settings')} onClick={(e) => e.stopPropagation()}>
+              <HealthProbeFields prefs={probePrefs} onChange={onProbePrefs} />
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="l7-body">
@@ -319,20 +401,31 @@ export default function OpsHomeTab({
           <header className="l7-col-head">
             <strong>{t('l7.health')}</strong>
             <ScopePicker scope={scope} folders={folders} hosts={hosts.map((h) => ({ id: h.profileId, title: h.title }))} onChange={onScope} />
+            <button type="button" data-testid="l7-health-refresh" onClick={() => setRetryNonce((n) => n + 1)}>
+              {t('l7.refresh')}
+            </button>
+            <span className="l7b-head-status">
+              {probePrefs.enabled
+                ? `${t('l7b.autoOn')} · ${sampling.lastOkAt ? (now - sampling.lastOkAt < 5000 ? t('l7b.justNow') : t('l7b.updatedAgo', { n: Math.max(0, Math.round((now - sampling.lastOkAt) / 1000)) })) : t('l7b.justNow')}`
+                : t('l7b.autoOffHint')}
+            </span>
           </header>
           {ranked.shown.length === 0 ? (
             <p className="l7-muted">{t('l7.scopeEmpty')}</p>
           ) : (
             <div className="l7-cards">
               {ranked.shown.map((h) => {
-                const snap = h.sessionId ? snaps[h.sessionId] : undefined
+                const sessionSnap = h.sessionId ? snaps[h.sessionId] : undefined
+                const probeSnap = sampling.snaps[h.profileId]
                 const protBadge = h.protection === 'production' || h.protection === 'readonly' ? h.protection : null
                 const showDemoBadge = Boolean(h.demo) && protBadge == null
-                const cardTitle = h.via ? `${h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title} · ${t('m2.via', { chain: h.via })}` : h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title
+                const failReason = probePrefs.enabled && probeSnap?.phase === 'fail' ? probeSnap.error : sessionSnap?.error
+                const cardTitle = [h.via ? `${h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title} · ${t('m2.via', { chain: h.via })}` : h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title, failReason].filter(Boolean).join(' — ')
+                const latency = h.latencyMs
                 return (
                   <article
                     key={h.profileId}
-                    className={`l7-card${h.alerting ? ' is-alert' : ''}${snap?.error ? ' is-err' : ''}`}
+                    className={`l7-card${h.alerting ? ' is-alert' : ''}${failReason ? ' is-err' : ''}`}
                     data-testid="l7-card"
                     title={cardTitle}
                     onClick={() => onOpenMonitor(h)}
@@ -347,37 +440,46 @@ export default function OpsHomeTab({
                   >
                     <div className="l7-card-top">
                       <span className={`l7-dot${h.online ? ' is-on' : ''}`} aria-hidden />
-                      <span className="l7-card-name">{h.title}</span>
+                      <span className="l7-card-name" data-testid="l7-card-title">{h.title}</span>
                       {protBadge ? (
                         <span className={`prot-badge prot-badge--${protBadge}`}>{t(protBadge === 'production' ? 'l4.production' : 'l4.readonly')}</span>
                       ) : showDemoBadge ? (
                         <span className="demo-badge">{t('l7.demo')}</span>
                       ) : null}
                     </div>
-                    <div className="l7-card-lat">{h.latencyMs != null ? `${h.latencyMs} ms` : h.online ? '—' : t('l7.offline')}</div>
-                    {snap?.error ? (
-                      <div className="l7-card-err">
-                        <span>{t('l7.unreachable')}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (h.sessionId) {
-                              setSnaps((prev) => ({ ...prev, [h.sessionId!]: { ...(prev[h.sessionId!] ?? snap), loading: true, error: null } }))
-                              void loadSnaps([h.sessionId])
-                            } else onConnect(h)
-                          }}
-                        >
-                          {t('upd.retry')}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="l7-metrics">
-                        <Metric label="CPU" value={snap?.cpu ?? null} />
-                        <Metric label={t('l7.mem')} value={snap?.mem ?? null} />
-                        <Metric label={t('l7.disk')} value={snap?.disk ?? null} />
-                      </div>
-                    )}
+                    <div className="l7-card-lat">{latency != null ? `${latency} ms` : h.online ? '—' : t('l7.offline')}</div>
+                    <CardMetrics
+                      enabled={probePrefs.enabled}
+                      sessionSnap={sessionSnap}
+                      probeSnap={probeSnap}
+                      hasSession={Boolean(h.sessionId)}
+                      memLabel={t('l7.mem')}
+                      diskLabel={t('l7.disk')}
+                      offHint={t('l7b.autoOffHint')}
+                      enableLabel={t('l7b.enable')}
+                      probing={t('l7b.probing')}
+                      probingShort={t('l7b.probingShort')}
+                      queued={t('l7b.queued')}
+                      fail={t('l7b.fail')}
+                      retry={t('l7b.retry')}
+                      unreachable={t('l7.unreachable')}
+                      ago={probeSnap?.at ? t('l7b.updatedAgo', { n: Math.max(0, Math.round((now - probeSnap.at) / 1000)) }) : ''}
+                      onEnable={(e) => {
+                        e.stopPropagation()
+                        onProbePrefs({ enabled: true })
+                      }}
+                      onRetry={(e) => {
+                        e.stopPropagation()
+                        if (probePrefs.enabled) sampling.retry(h.profileId)
+                        else if (h.sessionId) {
+                          setSnaps((prev) => ({
+                            ...prev,
+                            [h.sessionId!]: { ...(prev[h.sessionId!] ?? sessionSnap), cpu: sessionSnap?.cpu ?? null, mem: sessionSnap?.mem ?? null, disk: sessionSnap?.disk ?? null, error: null, loading: true }
+                          }))
+                          void loadSnaps([h.sessionId])
+                        } else onConnect(h)
+                      }}
+                    />
                     {h.alerting ? <span className="l7-alert-dot" title={t('o2.badge')} /> : null}
                   </article>
                 )
@@ -554,15 +656,116 @@ export default function OpsHomeTab({
 }
 
 function Metric({ label, value }: { label: string; value: number | null }) {
-  const p = value == null ? 0 : Math.max(0, Math.min(100, value))
+  const known = value != null
+  const p = known ? Math.max(0, Math.min(100, value)) : 0
   const tone = p >= 85 ? 'bad' : p >= 70 ? 'warn' : 'ok'
   return (
     <div className="l7-metric">
       <span>{label}</span>
-      <span className="l7-bar">
-        <span className={`l7-fill l7-${tone}`} style={{ width: `${p}%` }} />
+      <span className="l7-bar">{known ? <span className={`l7-fill l7-${tone}`} style={{ width: `${p}%` }} /> : null}</span>
+      <span>{known ? `${Math.round(value)}%` : '—'}</span>
+    </div>
+  )
+}
+
+function CardMetrics({
+  enabled,
+  sessionSnap,
+  probeSnap,
+  hasSession,
+  memLabel,
+  diskLabel,
+  offHint,
+  enableLabel,
+  probing,
+  probingShort,
+  queued,
+  fail,
+  retry,
+  unreachable,
+  ago,
+  onEnable,
+  onRetry
+}: {
+  enabled: boolean
+  sessionSnap?: { cpu: number | null; mem: number | null; disk: number | null; error: string | null }
+  probeSnap?: { phase: string; cpu: number | null; mem: number | null; disk: number | null; error: string | null }
+  hasSession: boolean
+  memLabel: string
+  diskLabel: string
+  offHint: string
+  enableLabel: string
+  probing: string
+  probingShort: string
+  queued: string
+  fail: string
+  retry: string
+  unreachable: string
+  ago: string
+  onEnable: (e: MouseEvent) => void
+  onRetry: (e: MouseEvent) => void
+}) {
+  if (!enabled) {
+    if (!hasSession) {
+      return (
+        <div className="l7b-status l7b-off">
+          <span>{offHint}</span>
+          <button type="button" onClick={onEnable}>
+            {enableLabel}
+          </button>
+        </div>
+      )
+    }
+    if (sessionSnap?.error) {
+      return (
+        <div className="l7-card-err">
+          <span>{unreachable}</span>
+          <button type="button" onClick={onRetry}>
+            {retry}
+          </button>
+        </div>
+      )
+    }
+    return (
+      <div className="l7-metrics">
+        <Metric label="CPU" value={sessionSnap?.cpu ?? null} />
+        <Metric label={memLabel} value={sessionSnap?.mem ?? null} />
+        <Metric label={diskLabel} value={sessionSnap?.disk ?? null} />
+      </div>
+    )
+  }
+  if (probeSnap?.phase === 'fail') {
+    return (
+      <div className="l7-card-err" title={probeSnap.error ?? fail}>
+        <span>{fail}</span>
+        <button type="button" data-testid="l7b-retry" onClick={onRetry}>
+          {retry}
+        </button>
+      </div>
+    )
+  }
+  if (probeSnap?.phase === 'ok') {
+    return (
+      <div className="l7-metrics">
+        <Metric label="CPU" value={probeSnap.cpu} />
+        <Metric label={memLabel} value={probeSnap.mem} />
+        <Metric label={diskLabel} value={probeSnap.disk} />
+        {ago ? <span className="l7b-ago">{ago}</span> : null}
+      </div>
+    )
+  }
+  if (probeSnap?.phase === 'queued') {
+    return <div className="l7b-status">{queued}</div>
+  }
+  return (
+    <div className="l7b-status" data-testid="l7b-probing">
+      <span className="l7b-skel" aria-hidden>
+        <i />
+        <i />
+        <i />
       </span>
-      <span>{value == null ? '—' : `${Math.round(value)}%`}</span>
+      <span className="l7b-long">{probing}</span>
+      <span className="l7b-short">{probingShort}</span>
     </div>
   )
 }

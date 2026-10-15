@@ -48,7 +48,7 @@ import AlertRulesModal from './components/AlertRulesModal'
 import UpdateChannelPanel from './components/UpdateChannelPanel'
 import ImportPreviewPanel from './components/ImportPreviewPanel'
 import FileDiffView from './components/FileDiffView'
-import RetentionTasks from './components/RetentionTasks'
+import FirstWeekChip from './components/FirstWeekChip'
 import BroadcastTargetPicker from './components/BroadcastTargetPicker'
 import InspectWizard, { type InspectReport } from './components/InspectWizard'
 import {
@@ -114,7 +114,10 @@ import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
 import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTab'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
-import { TAB_STRIP_NUDGE, tabStripWheelDelta } from '@shared/tab-overflow'
+import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabStripWheelDelta } from '@shared/tab-overflow'
+import { loadProbePrefs, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
+import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
+import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
@@ -435,6 +438,11 @@ export default function App() {
   const tabBarRef = useRef<HTMLDivElement>(null)
   const tabOverflowBtnRef = useRef<HTMLButtonElement>(null)
   const tabOverflowMenuRef = useRef<HTMLDivElement>(null)
+  const tabSearchRef = useRef<HTMLInputElement>(null)
+  const tabOverflowFromRef = useRef<'chevron' | 'palette'>('chevron')
+  const [tabQuery, setTabQuery] = useState('')
+  const [tabListIndex, setTabListIndex] = useState(0)
+  const [closingDisconnected, setClosingDisconnected] = useState(false)
   const syncMeta = useSyncPhase()
   const [syncReady, setSyncReady] = useState(false)
   const [hasPlaybooks, setHasPlaybooks] = useState(() => loadPlaybooks().length > 0)
@@ -678,7 +686,12 @@ export default function App() {
     toolboxTab?: ServerToolsTab
   ) => void>(() => undefined)
   const [taskState, setTaskState] = useState<TaskState>(() => loadTaskState())
-  const [tasksOpen, setTasksOpen] = useState(false)
+  const [tasksManual, setTasksManual] = useState(false)
+  const [tipsSnooze, setTipsSnooze] = useState(false)
+  const [tipsDismissed, setTipsDismissed] = useState(() => loadFirstWeekDismissed())
+  const [probePrefs, setProbePrefs] = useState<ProbePrefs>(() => loadProbePrefs())
+  const [probeNonce, setProbeNonce] = useState(0)
+  const [recentRows, setRecentRows] = useState<RecentConnection[]>([])
   const [importPreview, setImportPreview] = useState<ImportPreviewModel | null>(null)
   const [sftpComfort, setSftpComfort] = useState(() => loadSftpDensity() === 'comfort')
   const pendingLocateRef = useRef<ServerToolsTab | 'terminal' | null>(null)
@@ -724,6 +737,14 @@ export default function App() {
     [tabs, profiles]
   )
   const onlineSessionIds = useMemo(() => new Set(connectedSshSessions.map((s) => s.sessionId)), [connectedSshSessions])
+  const recentIdSet = useMemo(() => {
+    const keys = new Set(recentRows.map((r) => recentIdentity(r)))
+    return new Set(profiles.filter((p) => keys.has(recentIdentity(p))).map((p) => p.id))
+  }, [profiles, recentRows])
+  const pinnedIdSet = useMemo(() => {
+    const keys = new Set(recentRows.filter((r) => r.pinned).map((r) => recentIdentity(r)))
+    return new Set(profiles.filter((p) => keys.has(recentIdentity(p))).map((p) => p.id))
+  }, [profiles, recentRows])
   const homeHosts = useMemo<HomeHost[]>(() => {
     return profiles
       .filter((p) => hostInScope(dashScope, { profileId: p.id, folderId: p.folderId }))
@@ -745,10 +766,64 @@ export default function App() {
           demo: p.demo,
           alerting,
           folderId: p.folderId,
-          via: chainTooltip(chainFromProfile(p)) || undefined
+          via: chainTooltip(chainFromProfile(p)) || undefined,
+          recent: recentIdSet.has(p.id),
+          pinned: pinnedIdSet.has(p.id)
         }
       })
-  }, [profiles, dashScope, connectedSshSessions, hostStatus, activeAlertIds, alertHistory])
+  }, [profiles, dashScope, connectedSshSessions, hostStatus, activeAlertIds, alertHistory, recentIdSet, pinnedIdSet])
+  useEffect(() => {
+    let stop = false
+    const pull = () => {
+      void window.aiss.workspace.recent
+        .list()
+        .then((rows) => {
+          if (!stop) setRecentRows(rows)
+        })
+        .catch(() => undefined)
+    }
+    pull()
+    const id = window.setInterval(pull, 60_000)
+    return () => {
+      stop = true
+      window.clearInterval(id)
+    }
+  }, [])
+  const updateProbePrefs = useCallback((patch: Partial<ProbePrefs>) => {
+    setProbePrefs((prev) => {
+      const next = { ...prev, ...patch }
+      saveProbePrefs(next)
+      return next
+    })
+  }, [])
+  const sampleHomeHost = useCallback(async (host: { profileId: string; sessionId?: string }) => {
+    const p = profilesRef.current.find((x) => x.id === host.profileId)
+    const empty = {
+      profileId: host.profileId,
+      ok: false as const,
+      cpu: null,
+      mem: null,
+      disk: null,
+      latencyMs: null,
+      at: Date.now(),
+      via: 'none' as const,
+      kind: 'health-probe' as const,
+      code: 'other' as const,
+      error: 'missing'
+    }
+    if (!p || !window.aiss.workspace.healthProbe) return empty
+    try {
+      return await window.aiss.workspace.healthProbe({ ...connectOptsFromProfile(p), profileId: p.id, reuseSessionId: host.sessionId })
+    } catch (e) {
+      return { ...empty, error: sanitizeProbeReason(e instanceof Error ? e.message : String(e)) }
+    }
+  }, [])
+  const sweepProbes = useCallback((idleMs: number) => {
+    void window.aiss.workspace.healthProbeSweep?.(idleMs)
+  }, [])
+  const releaseProbes = useCallback(() => {
+    void window.aiss.workspace.healthProbeRelease?.()
+  }, [])
   const activeIsSsh = Boolean(activeSessionId && activeTab?.kind !== 'local')
   const isRecordingActive = Boolean(activeSessionId && recordingSessionId === activeSessionId)
   const connectedSshSessionsRef = useRef(connectedSshSessions)
@@ -1047,8 +1122,10 @@ export default function App() {
     if (!tabOverflowOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      const fromPalette = tabOverflowFromRef.current === 'palette'
       setTabOverflowOpen(false)
-      tabOverflowBtnRef.current?.focus()
+      if (fromPalette) setPaletteOpen(true)
+      else tabOverflowBtnRef.current?.focus()
     }
     const onPointer = (e: MouseEvent) => {
       const node = e.target
@@ -1065,8 +1142,16 @@ export default function App() {
     }
   }, [tabOverflowOpen])
   useEffect(() => {
-    if (!tabStripOverflowing && tabOverflowOpen) setTabOverflowOpen(false)
+    if (!tabStripOverflowing && tabOverflowOpen && tabOverflowFromRef.current !== 'palette') setTabOverflowOpen(false)
   }, [tabStripOverflowing, tabOverflowOpen])
+  useEffect(() => {
+    if (!tabOverflowOpen) return
+    const id = window.setTimeout(() => {
+      if (showTabSearch(tabsRef.current.length)) tabSearchRef.current?.focus()
+      else tabOverflowMenuRef.current?.querySelector<HTMLButtonElement>('button[role="menuitem"]')?.focus()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [tabOverflowOpen])
   tabsRef.current = tabs
   activeTabIdRef.current = activeTabId
   const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
@@ -3343,7 +3428,21 @@ export default function App() {
       if (action === 'taskCards') {
         const next = reopenTasks()
         setTaskState(next)
-        setTasksOpen(true)
+        setTasksManual(true)
+        return
+      }
+      if (action === 'switchTab') {
+        tabOverflowFromRef.current = 'palette'
+        setTabQuery('')
+        setTabListIndex(0)
+        const width = 280
+        setTabOverflowPos({ top: 40, left: Math.max(8, window.innerWidth - width - 16) })
+        setTabOverflowOpen(true)
+        return
+      }
+      if (action === 'refreshHomeHealth') {
+        if (!tabsRef.current.some((t) => t.view === 'home')) return
+        setProbeNonce((n) => n + 1)
         return
       }
       if (action === 'sftpComfort') {
@@ -3960,7 +4059,6 @@ export default function App() {
     setTourOpen(false)
     const state = loadTaskState()
     setTaskState(state)
-    if (!state.dismissedForever) setTasksOpen(true)
   }, [])
 
   const locateAlert = useCallback((alert: FiredAlert) => {
@@ -4564,6 +4662,9 @@ export default function App() {
                     const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8))
                     setTabOverflowPos({ top: Math.round(r.bottom + 4), left: Math.round(left) })
                   }
+                  tabOverflowFromRef.current = 'chevron'
+                  setTabQuery('')
+                  setTabListIndex(0)
                   setTabOverflowOpen((v) => !v)
                 }}
               >
@@ -4579,31 +4680,119 @@ export default function App() {
                     role="menu"
                     aria-label={tr('tab.list.title', { n: tabs.length })}
                     style={{ top: tabOverflowPos.top, left: tabOverflowPos.left }}
+                    onKeyDown={(e) => {
+                      const rows = filterTabList(
+                        tabs.map((t) => ({ ...t, host: t.connectOpts?.host, username: t.connectOpts?.username })),
+                        tabQuery
+                      )
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setTabListIndex((i) => Math.min(rows.length - 1, i + 1))
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setTabListIndex((i) => Math.max(0, i - 1))
+                      } else if (e.key === 'Enter') {
+                        const hit = rows[tabListIndex]
+                        if (!hit) return
+                        e.preventDefault()
+                        setActiveTabId(hit.tabId)
+                        setTabOverflowOpen(false)
+                      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                        const hit = rows[tabListIndex]
+                        if (!hit || (e.target instanceof HTMLInputElement && e.key === 'Backspace')) return
+                        e.preventDefault()
+                        closeTab(hit.tabId, hit.sessionId, hit.status, hit.view)
+                      }
+                    }}
                   >
                     <div className="tab-overflow-title">{tr('tab.list.title', { n: tabs.length })}</div>
-                    {tabs.map((t) => {
-                      const current = t.tabId === activeTabId
-                      return (
+                    {showTabSearch(tabs.length) ? (
+                      <input
+                        ref={tabSearchRef}
+                        className="tab-overflow-search"
+                        data-testid="tab-list-search"
+                        placeholder={tr('tab.list.search')}
+                        aria-label={tr('tab.list.search')}
+                        value={tabQuery}
+                        onChange={(e) => {
+                          setTabQuery(e.target.value)
+                          setTabListIndex(0)
+                        }}
+                      />
+                    ) : null}
+                    {(() => {
+                      const rows = filterTabList(
+                        tabs.map((t) => ({ ...t, host: t.connectOpts?.host, username: t.connectOpts?.username })),
+                        tabQuery
+                      )
+                      if (!rows.length) return <div className="tab-overflow-empty">{tr('tab.list.empty')}</div>
+                      return rows.map((t, i) => {
+                        const current = t.tabId === activeTabId
+                        return (
+                          <button
+                            key={t.tabId}
+                            type="button"
+                            role="menuitem"
+                            className={`tab-overflow-row${current ? ' is-current' : ''}${i === tabListIndex ? ' is-hot' : ''}`}
+                            aria-current={current ? 'true' : undefined}
+                            onMouseEnter={() => setTabListIndex(i)}
+                            onClick={() => {
+                              setActiveTabId(t.tabId)
+                              setTabOverflowOpen(false)
+                            }}
+                          >
+                            <span className="tab-overflow-label">{labelFor(t)}</span>
+                            <span
+                              role="button"
+                              className="tab-overflow-x"
+                              aria-label={tr('tab.close')}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                closeTab(t.tabId, t.sessionId, t.status, t.view)
+                              }}
+                            >
+                              ×
+                            </span>
+                            {current ? (
+                              <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
+                                ✓
+                              </span>
+                            ) : null}
+                          </button>
+                        )
+                      })
+                    })()}
+                    {disconnectedSessions(tabs).length > 0 ? (
+                      <div className="tab-overflow-foot">
                         <button
-                          key={t.tabId}
                           type="button"
-                          role="menuitem"
-                          className={current ? 'is-current' : undefined}
-                          aria-current={current ? 'true' : undefined}
+                          data-testid="tab-close-disconnected"
+                          disabled={closingDisconnected}
                           onClick={() => {
-                            setActiveTabId(t.tabId)
-                            setTabOverflowOpen(false)
+                            const gone = disconnectedSessions(tabs)
+                            if (!gone.length) return
+                            const snapshots = gone.map((t) => ({ ...t }))
+                            setClosingDisconnected(true)
+                            for (const t of gone) closeTab(t.tabId, t.sessionId, t.status, t.view)
+                            window.setTimeout(() => setClosingDisconnected(false), 400)
+                            showToast(tr('tab.list.closedToast', { n: snapshots.length }), {
+                              ms: 2000,
+                              action: {
+                                label: tr('tab.list.undo'),
+                                run: () => {
+                                  setTabs((prev) => {
+                                    const ids = new Set(prev.map((t) => t.tabId))
+                                    return [...prev, ...snapshots.filter((t) => !ids.has(t.tabId))]
+                                  })
+                                }
+                              }
+                            })
                           }}
                         >
-                          <span className="tab-overflow-label">{labelFor(t)}</span>
-                          {current ? (
-                            <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
-                              ✓
-                            </span>
-                          ) : null}
+                          {tr('tab.list.closeDisconnected', { n: disconnectedSessions(tabs).length })}
                         </button>
-                      )
-                    })}
+                      </div>
+                    ) : null}
                   </div>,
                   document.body
                 )
@@ -4791,22 +4980,6 @@ export default function App() {
                   )
                 })()
               : null}
-            {tasksOpen && (!activeTab?.view || activeTab.view === 'session') ? (
-              <RetentionTasks
-                state={taskState}
-                onGo={(id) => {
-                  if (id === 'connect') openConnectionEditor()
-                  else if (id === 'monitor') handleTitlebarMenuAction('resourceMonitor')
-                  else if (id === 'ai') openUnifiedSettings('ai')
-                  else handleTitlebarMenuAction('sftp')
-                }}
-                onDismiss={(id) => setTaskState(skipTask(id))}
-                onDismissAll={() => {
-                  setTaskState(dismissTasksForever())
-                  setTasksOpen(false)
-                }}
-              />
-            ) : null}
             {tabs.length === 0 ? (
               <EmptyState
                 testId="terminal-empty"
@@ -5062,7 +5235,7 @@ export default function App() {
                     onImport={() => void importSessionsPick()}
                     onDemo={() => void addDemoHost(true)}
                     onTour={() => setTourOpen(true)}
-                    onTasks={() => setTasksOpen(true)}
+                    onTasks={() => setTasksManual(true)}
                     onGuard={(profileId) => {
                       const p = profiles.find((x) => x.id === profileId)
                       if (!p) return
@@ -5080,6 +5253,14 @@ export default function App() {
                     onRestoreSync={() => openM2('sync-settings', tg('m2.cloudSync'))}
                     recentPlaybooks={loadPlaybooks().slice(0, 3).map((p) => ({ id: p.id, name: p.name }))}
                     onOpenRecent={(id) => openM2('playbook-run', tg('m2.run'), { playbookId: id })}
+                    probePrefs={probePrefs}
+                    onProbePrefs={updateProbePrefs}
+                    probeGrouped={dashScope.mode === 'group'}
+                    probeActive={activeTab?.view === 'home'}
+                    probeNonce={probeNonce}
+                    onSample={sampleHomeHost}
+                    onSweep={sweepProbes}
+                    onRelease={releaseProbes}
                   />
                 ) : t.view === 'alert-workbench' ? (
                   <AlertWorkbenchTab
@@ -5482,6 +5663,8 @@ export default function App() {
                     onOpenMcp={() => openSettingsTab('mcpGuide')}
                     onOpenUpdates={() => openSettingsTab('updates')}
                     onTerminalSaved={setTerminalPrefs}
+                    probePrefs={probePrefs}
+                    onProbePrefs={updateProbePrefs}
                   />
                 ) : t.view === 'ai' ? (
                   <AiConfigModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
@@ -5768,9 +5951,35 @@ export default function App() {
             ? aiConfigured
               ? {}
               : { fixPlaybook: tg('w1.needAi') }
-            : { fixPlaybook: tg('w1.paletteNeedAlert'), exportPostmortem: tg('w1.paletteNeedAlert') })
+            : { fixPlaybook: tg('w1.paletteNeedAlert'), exportPostmortem: tg('w1.paletteNeedAlert') }),
+          ...(tabs.some((t) => t.view === 'home') ? {} : { refreshHomeHealth: tg('l7b.needHome') })
         }}
       />
+      {(tasksManual || (localStorage.getItem(TOUR_DONE_KEY) === '1' && !tourOpen && !tipsSnooze && !tipsDismissed && !taskState.dismissedForever && pendingTasks(taskState).length > 0)) ? (
+        <FirstWeekChip
+          state={taskState}
+          mode={tasksManual ? 'panel' : 'chip'}
+          onGotIt={() => {
+            setTipsSnooze(true)
+            setTasksManual(false)
+          }}
+          onNever={() => {
+            saveFirstWeekDismissed(true)
+            setTipsDismissed(true)
+            setTaskState(dismissTasksForever())
+            setTipsSnooze(true)
+            setTasksManual(false)
+          }}
+          onGo={(id) => {
+            if (id === 'connect') openConnectionEditor()
+            else if (id === 'monitor') handleTitlebarMenuAction('resourceMonitor')
+            else if (id === 'ai') openUnifiedSettings('ai')
+            else handleTitlebarMenuAction('sftp')
+            setTasksManual(false)
+          }}
+          onDismiss={(id) => setTaskState(skipTask(id))}
+        />
+      ) : null}
       <WhatsNewModal
         open={whatsNewOpen}
         version={appVersion}

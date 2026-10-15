@@ -29,6 +29,8 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   serverTools: 'gongjuxiang toolbox jincheng',
   dashboard: 'kanban duoji multihost',
   opsHome: 'home gzt yunwei dashboard-home yunwei shouye',
+  refreshHomeHealth: 'sxjk shuaxin jiankang refresh home health',
+  switchTab: 'tab qhbq qiehuan biaoqian switch tab',
   alertWorkbench: 'gaojing gongzuotai alert workbench chuli',
   alertRules: 'gaojing guize alert',
   alertHistory: 'gaojing lishi alert history',
@@ -81,7 +83,9 @@ export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: str
   { id: 'dryRunPlaybook', zh: '试运行剧本…', en: 'Dry-run playbook…' },
   { id: 'fileSnapshots', zh: '文件快照…', en: 'File snapshots…' },
   { id: 'exportPostmortem', zh: '导出当前告警复盘…', en: 'Export postmortem for selected alert…' },
-  { id: 'toggleBlockStrip', zh: '显示 / 隐藏输出分块条', en: 'Show / hide output blocks' }
+  { id: 'toggleBlockStrip', zh: '显示 / 隐藏输出分块条', en: 'Show / hide output blocks' },
+  { id: 'refreshHomeHealth', zh: '刷新首页健康', en: 'Refresh home health' },
+  { id: 'switchTab', zh: '切换标签…', en: 'Switch tab…' }
 ]
 
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {

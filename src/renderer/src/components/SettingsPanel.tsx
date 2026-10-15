@@ -8,7 +8,9 @@ import { applyUiTheme, loadUiThemeId, UI_THEME_OPTIONS, type UiThemeId } from '.
 import { loadAutoUpdate, saveAutoUpdate } from '../lib/update-check'
 import { TOUR_DONE_KEY } from './WelcomeTour'
 import type { TerminalPrefs } from '@shared/ipc'
+import type { ProbePrefs } from '@shared/health-probe'
 import AiConfigForm from './AiConfigForm'
+import HealthProbeFields from './HealthProbeFields'
 import TerminalPrefsModal from './TerminalPrefsModal'
 import { confirmDialog } from '../lib/dialogs'
 
@@ -17,6 +19,7 @@ const SECTION_KEY: Record<SettingsSection, MessageKey> = {
   appearance: 'settings.appearance',
   terminal: 'settings.terminal',
   connections: 'settings.connections',
+  ops: 'settings.ops',
   ai: 'settings.ai',
   shortcuts: 'settings.shortcuts',
   security: 'settings.security',
@@ -42,6 +45,8 @@ type Props = {
   onOpenMcp: () => void
   onOpenUpdates: () => void
   onTerminalSaved?: (prefs: TerminalPrefs) => void
+  probePrefs: ProbePrefs
+  onProbePrefs: (patch: Partial<ProbePrefs>) => void
 }
 
 export default function SettingsPanel({
@@ -60,7 +65,9 @@ export default function SettingsPanel({
   onGithub,
   onOpenMcp,
   onOpenUpdates,
-  onTerminalSaved
+  onTerminalSaved,
+  probePrefs,
+  onProbePrefs
 }: Props) {
   const { t, locale, setLocale } = useI18n()
   const [q, setQ] = useState('')
@@ -192,6 +199,12 @@ export default function SettingsPanel({
               </label>
               <p className="l7-muted">{t('settings.agent')}</p>
               <p className="l7-muted">{t('settings.keepalive')}</p>
+            </section>
+          ) : null}
+          {active === 'ops' ? (
+            <section>
+              <h3>{t('settings.ops')}</h3>
+              <HealthProbeFields prefs={probePrefs} onChange={onProbePrefs} />
             </section>
           ) : null}
           {active === 'ai' ? (

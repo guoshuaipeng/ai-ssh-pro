@@ -1093,6 +1093,51 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
   position: absolute; right: 12px; bottom: 12px; left: auto; z-index: 4; width: min(280px, calc(100% - 24px));
   display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-height: 32%; overflow: auto;
 }
+/* UX-57: corner card, no backdrop. 1024 collapses to a 48px bottom bar. */
+.g3-chip {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 45;
+  width: min(320px, calc(100vw - 32px));
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg-panel, #161b22);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 8px 10px;
+  pointer-events: auto;
+}
+.g3-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.g3-chip-row strong,
+.g3-chip-task { overflow: hidden; text-overflow: ellipsis; }
+.g3-chip-task { color: var(--muted); font-size: 12px; min-width: 0; }
+.g3-chip-row button { white-space: nowrap; flex: none; }
+.g3-panel { display: flex; flex-direction: column; gap: 6px; }
+.g3-panel .g3-card { pointer-events: auto; }
+@media (max-width: 1024px) {
+  .g3-chip, .g3-chip.is-bar {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 48px;
+    max-height: 48px;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+  .g3-chip .g3-card { display: none; }
+  body.g3-chip-on .l7-body { padding-bottom: 56px; }
+}
 .restore-connecting {
   display: flex;
   flex-direction: column;
@@ -1150,7 +1195,22 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .l7-warn { background: #eab308; }
 .l7-bad { background: #ef4444; }
 .l7-alert-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
-.l7-card-err { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.l7-card-err { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.l7b-status, .l7b-off, .l7b-ago { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l7b-status { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.l7b-skel { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.l7b-skel i { display: block; height: 4px; border-radius: 2px; background: #2a3039; animation: l7b-pulse 1.2s ease-in-out infinite; }
+@keyframes l7b-pulse { 50% { opacity: 0.45; } }
+.l7b-fields { display: flex; flex-direction: column; gap: 8px; min-width: 220px; }
+.l7b-fields .settings-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.l7b-head-status { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l7b-short { display: none; }
+@media (max-width: 1024px) {
+  .l7b-long { display: none; }
+  .l7b-short { display: inline; }
+  .l7-cards { flex-direction: column; }
+  .l7-card { width: 100%; min-width: 160px; }
+}
 .l7-muted, .l4-hint, .l4-disclaimer { color: var(--muted); font-size: 12px; margin: 0; }
 .l7-rail { gap: 6px; }
 .l7-rail > button, .l7-soon-link { text-align: left; }
