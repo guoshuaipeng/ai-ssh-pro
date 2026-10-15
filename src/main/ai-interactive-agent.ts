@@ -52,9 +52,12 @@ import type { HostServiceKind } from '../shared/inventory'
 import {
   classifyCommandFailure,
   explainFailedCommand,
+  explainRetryBudgetStop,
+  observeRetryBudget,
   readConfirmedCommandOutcome,
   retryWritePermitted,
-  type CommandFailureEvidence
+  type CommandFailureEvidence,
+  type RetryBudgetSignal
 } from './core-a-command-failure'
 
 function send(wc: WebContents, ev: AiStreamEvent): void {
@@ -630,6 +633,8 @@ function buildCoreSystemPrompt(
     memoryBlocks?: string | null
     /** Structured failure of the last confirmed command. Empty when that command did not fail. */
     commandFailure?: string | null
+    /** Consecutive failures of that command. Present on every step; the prompt cites it after a failure. */
+    retryBudget?: RetryBudgetSignal | null
   }
 ): string {
   const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : mt('（暂无）', "(none)")
@@ -707,10 +712,21 @@ function buildCoreSystemPrompt(
   }
 
   if (ctx.commandFailure?.trim()) {
+    const budget = ctx.retryBudget
+    const budgetLine =
+      budget && budget.count > 0
+        ? mt(
+            `\n重试预算 count=${budget.count} cap=${budget.cap} exhausted=${budget.exhausted ? 'true' : 'false'} nearBudget=${budget.nearBudget ? 'true' : 'false'}`,
+            `\nretryBudget count=${budget.count} cap=${budget.cap} exhausted=${budget.exhausted ? 'true' : 'false'} nearBudget=${budget.nearBudget ? 'true' : 'false'}`
+          )
+        : ''
+    const exhaustedLine = budget?.exhausted
+      ? mt('\n超限停：不要再写这条命令。', '\nOver budget: do not write this command again.')
+      : ''
     parts.push(
       mt(
-        `上一条已确认命令失败（禁止自动重跑，重试须新的确认）：\n${ctx.commandFailure.trim()}`,
-        `The last confirmed command failed (do not run it again; a retry needs a new confirmation):\n${ctx.commandFailure.trim()}`
+        `上一条已确认命令失败（禁止自动重跑，重试须新的确认）：\n${ctx.commandFailure.trim()}${budgetLine}${exhaustedLine}`,
+        `The last confirmed command failed (do not run it again; a retry needs a new confirmation):\n${ctx.commandFailure.trim()}${budgetLine}${exhaustedLine}`
       )
     )
   }
@@ -861,7 +877,7 @@ export async function runOpenClawCoreAgentChat(
   let lastToolResult: string | null = null
   let lastCommand: string | null = null
   let lastWriteOk: boolean | null = null
-  let lastFailure: (CommandFailureEvidence & { requestId: string }) | null = null
+  let lastFailure: (CommandFailureEvidence & { requestId: string; count: number }) | null = null
   const writtenRequestIds = new Set<string>()
 
   const MAX_TOOL_RESULT_CHARS = 6000
@@ -912,8 +928,14 @@ export async function runOpenClawCoreAgentChat(
         rememberNote(sessionState, mt('检测到连续失败，下一步应优先选择低风险证据命令或直接结束并说明缺失信息。', "Repeated failures detected; next prefer a low-risk evidence command or end and explain what is missing."))
       }
 
+      const retryBudget = observeRetryBudget(lastFailure?.count ?? 0, lastFailure?.command ?? '')
       let plannerHint: string | null = null
-      if (lastFailure) {
+      if (lastFailure && retryBudget.exhausted) {
+        plannerHint = mt(
+          '同一命令的重试预算已用尽。禁止再写这条命令，不要自动重跑。请结束，并说明失败证据；证据不足，需要人工处理。',
+          'The retry budget for this command is exhausted. Do not write it again and do not run it automatically. End, cite the failure evidence, and say evidence is insufficient so a person needs to decide.'
+        )
+      } else if (lastFailure) {
         plannerHint = mt(
           '上一条已确认命令失败。说明里要引用失败证据，禁止自动重跑。同一命令只有在新的确认之后才能再写。',
           'The last confirmed command failed. Cite the failure evidence. Do not run it again. The same command can be written only after a new confirmation.'
@@ -947,7 +969,8 @@ export async function runOpenClawCoreAgentChat(
         lastWriteOk,
         plannerHint,
         memoryBlocks: memory.text,
-        commandFailure: lastFailure?.evidence ?? null
+        commandFailure: lastFailure?.evidence ?? null,
+        retryBudget
       })
 
       const messages: Array<{ role: string; content: string }> = [
@@ -969,7 +992,14 @@ export async function runOpenClawCoreAgentChat(
         systemChars: sysPrompt.length
       })
       const omBudget = observeOmBudget(thread)
-      emitDebug({ kind: 'context', round: step, slices: budget.slices, totalChars: budget.totalChars, omBudget })
+      emitDebug({
+        kind: 'context',
+        round: step,
+        slices: budget.slices,
+        totalChars: budget.totalChars,
+        omBudget,
+        retryBudget
+      })
       logAi('ai:om-budget', {
         bullets: omBudget.bullets,
         bulletCap: omBudget.bulletCap,
@@ -1006,6 +1036,8 @@ export async function runOpenClawCoreAgentChat(
       }
 
       let parsed = structured
+      const proposedCommand =
+        parsed.action === 'command' ? (parsed.command ?? '').replace(/[\r\n]+/g, ' ').trim() : ''
       const actionFingerprint = `${parsed.action}|${parsed.toolName ?? ''}|${(parsed.command ?? '').replace(/\s+/g, ' ').trim()}`
       if (sessionState.lastActionFingerprint === actionFingerprint) {
         sessionState.repeatActionCount += 1
@@ -1023,7 +1055,29 @@ export async function runOpenClawCoreAgentChat(
         }
       }
 
+      let blockedByRetryBudget = false
+      if (proposedCommand && lastFailure && proposedCommand === lastFailure.command) {
+        const blocked = observeRetryBudget(lastFailure.count, lastFailure.command)
+        if (blocked.exhausted) {
+          blockedByRetryBudget = true
+          parsed = {
+            description: explainRetryBudgetStop(lastFailure, blocked),
+            action: 'end',
+            completed: true,
+            riskLevel: 'low',
+            notes: mt('同一失败路径已超过重试预算，未再写入。', 'The retry budget for this failed command is spent, so it was not written again.')
+          }
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: mt('重试预算已用尽', 'Retry budget exhausted'),
+            detail: `blockedWrite=true retryBudget count=${blocked.count} cap=${blocked.cap} exhausted=true nearBudget=${String(blocked.nearBudget)} autoRetry=false\n${lastFailure.evidence}`
+          })
+        }
+      }
+
       if (
+        !blockedByRetryBudget &&
         parsed.action === 'end' &&
         !evidenceGateUsed &&
         targetSessionId &&
@@ -1083,12 +1137,16 @@ export async function runOpenClawCoreAgentChat(
       }
 
       if (parsed.action === 'end' && lastFailure) {
+        const alreadyStopped =
+          parsed.description.includes('重试预算已用尽') || parsed.description.includes('retry budget is exhausted')
         parsed = {
           ...parsed,
           description: explainFailedCommand(
             parsed.description,
             lastFailure,
-            mt('不会自动重跑。若要再执行，需要新的确认。', 'This will not run again on its own. Another run needs a new confirmation.')
+            alreadyStopped
+              ? ''
+              : mt('不会自动重跑。若要再执行，需要新的确认。', 'This will not run again on its own. Another run needs a new confirmation.')
           )
         }
       }
@@ -1405,15 +1463,34 @@ export async function runOpenClawCoreAgentChat(
           })
           return
         }
+        const writeBudget =
+          lastFailure && lastFailure.command === oneLineCmd
+            ? observeRetryBudget(lastFailure.count, lastFailure.command)
+            : null
         if (
           !retryWritePermitted({
             command: oneLineCmd,
             failedCommand: lastFailure?.command ?? null,
             requestId: requestId ?? null,
             priorRequestId: lastFailure?.requestId ?? null,
-            approved: true
+            approved: true,
+            failureCount: lastFailure && lastFailure.command === oneLineCmd ? lastFailure.count : 0
           })
         ) {
+          if (writeBudget?.exhausted && lastFailure) {
+            send(wc, {
+              type: 'step',
+              structured: {
+                description: explainRetryBudgetStop(lastFailure, writeBudget),
+                action: 'end',
+                completed: true,
+                riskLevel: 'low',
+                notes: mt('同一失败路径已超过重试预算，未再写入。', 'The retry budget for this failed command is spent, so it was not written again.')
+              }
+            })
+            send(wc, { type: 'done' })
+            return
+          }
           send(wc, {
             type: 'error',
             message: mt('失败的命令不会自动重跑。若要再执行，需要新的确认。', 'A failed command does not run again on its own. Another run needs a new confirmation.')
@@ -1471,15 +1548,19 @@ export async function runOpenClawCoreAgentChat(
             : null
         if (failure && requestId) {
           if (lastWriteOk) sessionState.failureStreak += 1
-          lastFailure = { ...failure, requestId }
+          const nextCount: number = lastFailure && lastFailure.command === failure.command ? lastFailure.count + 1 : 1
+          lastFailure = { ...failure, requestId, count: nextCount }
+          const failedBudget = observeRetryBudget(nextCount, failure.command)
           lastToolResult = lastToolResult?.trim() ? `${lastToolResult.trim()}\n${failure.evidence}` : failure.evidence
           rememberNote(sessionState, failure.evidence)
           emitDebug({
             kind: 'execution',
             round: step,
             label: mt('命令失败', 'Command failed'),
-            detail: `failed=true kind=${failure.kind} autoRetry=false\n${failure.evidence}`
+            detail: `failed=true kind=${failure.kind} autoRetry=false retryBudget count=${failedBudget.count} cap=${failedBudget.cap} exhausted=${String(failedBudget.exhausted)} nearBudget=${String(failedBudget.nearBudget)}\n${failure.evidence}`
           })
+        } else if (lastWriteOk && lastFailure && lastFailure.command === oneLineCmd) {
+          lastFailure = null
         }
       }
 

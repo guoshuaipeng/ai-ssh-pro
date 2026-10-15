@@ -617,6 +617,19 @@ export type AiDebugEntry =
         nearBudget: boolean
         truncated: boolean
       }
+      /**
+       * Consecutive confirmed failures of the same command (Core-A S28).
+       * `count` is how many times that path has failed. `cap` is the budget.
+       * `exhausted` means another write of that command is refused.
+       * The harness asserts this; it is not a product-shell control.
+       */
+      retryBudget: {
+        count: number
+        cap: number
+        command: string
+        exhausted: boolean
+        nearBudget: boolean
+      }
     }
 
 export type AiDebugStreamPayload = {
