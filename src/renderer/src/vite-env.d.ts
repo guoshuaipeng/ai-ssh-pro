@@ -250,7 +250,11 @@ export type AissPreload = {
     batchExec: (payload: BatchExecRequest) => Promise<BatchExecResult>
     resources: (sessionId: string) => Promise<import('../../shared/resource-monitor').ResourceSnapshot & { at: number }>
     healthProbe: (
-      req: import('../../shared/ipc').SshConnectOptions & { profileId: string; reuseSessionId?: string }
+      req: import('../../shared/ipc').SshConnectOptions & {
+        profileId: string
+        reuseSessionId?: string
+        extras?: import('../../shared/health-probe').ProbeExtras
+      }
     ) => Promise<import('../../shared/health-probe').HealthProbeResult>
     healthProbeSweep: (idleMs: number) => Promise<{ ok: boolean }>
     healthProbeRelease: () => Promise<{ ok: boolean }>

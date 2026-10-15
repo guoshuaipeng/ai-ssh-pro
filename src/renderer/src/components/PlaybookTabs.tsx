@@ -25,6 +25,17 @@ import {
 } from '@shared/playbook'
 import { discoverVars, initialHostIds, isStaleDraft, promoteDraft, sortPlaybooks } from '@shared/playbook-draft'
 import { auditVarDetail, dryRunPlaybook, type DryRunResult } from '@shared/playbook-dry'
+import {
+  REMINDER_CADENCES,
+  dueReminders,
+  loadReminders,
+  noteDryRun,
+  reminderFor,
+  saveReminders,
+  setCadence,
+  snoozeReminder,
+  type ReminderCadence
+} from '@shared/playbook-reminder'
 import { appendAudit, appendGate } from '@shared/audit-log'
 import { ShareExportModal } from './PlaybookShare'
 import { appendTimeline } from '@shared/timeline'
@@ -69,6 +80,20 @@ export function PlaybookList({
   const [picked, setPicked] = useState<string[]>([])
   const [exportOpen, setExportOpen] = useState(false)
   const [exportIds, setExportIds] = useState<string[] | null>(null)
+  const [dueOnly, setDueOnly] = useState(false)
+  const [reminders, setReminders] = useState(() => loadReminders())
+  useEffect(() => {
+    const onDue = () => setDueOnly(true)
+    const onChange = () => setReminders(loadReminders())
+    window.addEventListener('aiss-playbook-filter-due', onDue)
+    window.addEventListener('aiss-reminder-change', onChange)
+    return () => {
+      window.removeEventListener('aiss-playbook-filter-due', onDue)
+      window.removeEventListener('aiss-reminder-change', onChange)
+    }
+  }, [])
+  const dueIds = new Set(dueReminders(reminders).map((r) => r.playbookId))
+  const shown = dueOnly ? list.filter((p) => dueIds.has(p.id)) : list
   useEffect(() => persist(list), [list])
   useEffect(() => {
     const open = () => {
@@ -102,6 +127,7 @@ export function PlaybookList({
         <h2 className="workspace-panel-title">{tg('m2.playbooks')}</h2>
         <div className="workspace-panel-actions">
           <button type="button" onClick={() => void doImport()}>{tg('m2.import')}</button>
+          <button type="button" data-testid="w6-filter" className={dueOnly ? 'is-on' : ''} onClick={() => setDueOnly((v) => !v)}>{tg('w6.filter')}</button>
           <button type="button" className="primary" onClick={add}>{tg('m2.new')}</button>
           <button type="button" aria-label={tg('l7.more')} onClick={() => setMore((v) => !v)}>⋯</button>
           {more ? (
@@ -122,13 +148,26 @@ export function PlaybookList({
         {list.length === 0 ? (
           <button type="button" onClick={() => window.dispatchEvent(new Event('aiss-import-share'))}>{tg('w5.import')}</button>
         ) : null}
-        {list.map((p) => (
+        {shown.map((p) => (
           <div key={p.id} className="m2-row">
             <div>
               <label>
                 <input type="checkbox" checked={picked.includes(p.id)} onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, p.id] : cur.filter((id) => id !== p.id)))} />
               </label>
               <strong>{p.name}</strong>
+              {dueIds.has(p.id) ? (
+                <button
+                  type="button"
+                  className="w6-badge"
+                  data-testid="w6-badge"
+                  onClick={() => {
+                    onRun(p.id)
+                    window.setTimeout(() => window.dispatchEvent(new CustomEvent('aiss-focus-dry', { detail: { playbookId: p.id } })), 80)
+                  }}
+                >
+                  {tg('w6.badge')}
+                </button>
+              ) : null}
               {p.draft ? <span className="w1-draft" data-testid="playbook-draft">{tg('w1.draft')}</span> : null}
               <div className="l7-meta">{p.steps.length} · {p.description}</div>
             </div>
@@ -183,6 +222,19 @@ export function PlaybookEditor({
     }, AUTOSAVE_MS)
     return () => window.clearTimeout(timer)
   }, [pb])
+  const [reminder, setReminder] = useState(() => reminderFor(loadReminders(), playbookId))
+  const saveReminder = (cadence: ReminderCadence) => {
+    const next = setCadence(loadReminders(), playbookId, cadence)
+    saveReminders(next)
+    setReminder(reminderFor(next, playbookId))
+    window.dispatchEvent(new Event('aiss-reminder-change'))
+  }
+  const snooze = () => {
+    const next = snoozeReminder(loadReminders(), playbookId)
+    saveReminders(next)
+    setReminder(reminderFor(next, playbookId))
+    window.dispatchEvent(new Event('aiss-reminder-change'))
+  }
   if (!pb) return <div className="workspace-panel"><p>{tg('m2.missing')}</p></div>
   const patchStep = (id: string, patch: Partial<PlaybookStep>) => {
     setPb({ ...pb, steps: pb.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) })
@@ -289,6 +341,30 @@ export function PlaybookEditor({
           </div>
         ))}
         <button type="button" onClick={() => setPb({ ...pb, steps: [...pb.steps, blankStep()] })}>{tg('m2.addStep')}</button>
+        <section className="w6-section" data-testid="w6-reminder">
+          <h3>{tg('w6.section')}</h3>
+          <label>
+            {tg('w6.period')}
+            <select
+              data-testid="w6-cadence"
+              aria-label={tg('w6.period')}
+              value={reminder.cadence}
+              onChange={(e) => saveReminder(e.target.value as ReminderCadence)}
+            >
+              {REMINDER_CADENCES.map((c) => (
+                <option key={c} value={c}>{tg(c === 'off' ? 'w6.off' : c === 'weekly' ? 'w6.weekly' : c === 'biweekly' ? 'w6.biweekly' : 'w6.monthly')}</option>
+              ))}
+            </select>
+          </label>
+          {reminder.cadence !== 'off' && reminder.nextDueAt ? (
+            <span data-testid="w6-next">{tg('w6.next')} {new Date(reminder.nextDueAt).toLocaleString()}</span>
+          ) : null}
+          <p className="l7-muted">{tg('w6.hint')}</p>
+          {reminder.cadence !== 'off' ? (
+            <button type="button" data-testid="w6-snooze" onClick={snooze}>{tg('w6.snooze')}</button>
+          ) : null}
+          {typeof Notification !== 'undefined' && Notification.permission === 'denied' ? <p className="l7-muted">{tg('w6.needNotif')}</p> : null}
+        </section>
       </div>
     </div>
   )
@@ -339,8 +415,21 @@ export function PlaybookRun({
       rootRef.current?.querySelector<HTMLButtonElement>('[data-testid="w2-dry"]')?.click()
     }
     window.addEventListener('aiss-dry-run', onDry)
-    return () => window.removeEventListener('aiss-dry-run', onDry)
-  }, [])
+    const onFocus = (ev: Event) => {
+      const id = (ev as CustomEvent<{ playbookId?: string }>).detail?.playbookId
+      if (id && id !== playbookId) return
+      const layer = rootRef.current?.closest('.terminal-layer')
+      if (layer && !layer.classList.contains('active')) return
+      const btn = rootRef.current?.querySelector<HTMLButtonElement>('[data-testid="w2-dry"]')
+      btn?.focus()
+      btn?.classList.add('is-highlight')
+    }
+    window.addEventListener('aiss-focus-dry', onFocus)
+    return () => {
+      window.removeEventListener('aiss-dry-run', onDry)
+      window.removeEventListener('aiss-focus-dry', onFocus)
+    }
+  }, [playbookId])
   if (!playbook) return <div className="workspace-panel"><p>{tg('m2.missing')}</p></div>
   const selected = hosts.filter((h) => picked.includes(h.id))
   const runnable = selected.filter(hostSelectable)
@@ -367,6 +456,8 @@ export function PlaybookRun({
         summary: `${result.summary.runnableHosts} hosts`
       })
     }
+    saveReminders(noteDryRun(loadReminders(), playbook.id))
+    window.dispatchEvent(new Event('aiss-reminder-change'))
   }
   const start = async () => {
     for (const host of selected) {

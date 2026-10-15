@@ -16,11 +16,12 @@ export type PlaybookVar = {
 }
 
 export type PlaybookOrigin = {
-  kind: 'alert' | 'error'
+  kind: 'alert' | 'error' | 'diff'
   alertId?: string
   hostKey: string
   hostTitle: string
   ruleId?: string
+  path?: string
   at: number
 }
 
@@ -219,13 +220,19 @@ export function normalizePlaybook(raw: unknown): Playbook | null {
     sample: Boolean(o.sample) || undefined
   }
   if (o.draft) playbook.draft = true
-  if (o.origin && typeof o.origin === 'object' && (o.origin.kind === 'alert' || o.origin.kind === 'error') && typeof o.origin.hostKey === 'string') {
+  if (
+    o.origin &&
+    typeof o.origin === 'object' &&
+    (o.origin.kind === 'alert' || o.origin.kind === 'error' || o.origin.kind === 'diff') &&
+    typeof o.origin.hostKey === 'string'
+  ) {
     playbook.origin = {
       kind: o.origin.kind,
       alertId: typeof o.origin.alertId === 'string' ? o.origin.alertId : undefined,
       hostKey: o.origin.hostKey,
       hostTitle: typeof o.origin.hostTitle === 'string' ? o.origin.hostTitle : o.origin.hostKey,
       ruleId: typeof o.origin.ruleId === 'string' ? o.origin.ruleId : undefined,
+      path: typeof o.origin.path === 'string' ? o.origin.path : undefined,
       at: typeof o.origin.at === 'number' ? o.origin.at : playbook.updatedAt
     }
   }

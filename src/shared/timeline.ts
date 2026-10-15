@@ -26,6 +26,9 @@ export type TimelineKind =
   | 'alert.recovered'
   | 'note'
   | 'gate'
+  | 'alert.maintenance.start'
+  | 'alert.maintenance.end'
+  | 'alert.maintenance.expire'
 
 export type TimelineEvent = {
   id: string
@@ -329,7 +332,10 @@ const KIND_LABEL: Record<TimelineKind, { zh: string; en: string }> = {
   'alert.handled': { zh: '手动处理', en: 'Handled manually' },
   'alert.recovered': { zh: '已恢复', en: 'Recovered' },
   note: { zh: '备注', en: 'Note' },
-  gate: { zh: '闸门', en: 'Gate' }
+  gate: { zh: '闸门', en: 'Gate' },
+  'alert.maintenance.start': { zh: '开始维护', en: 'Maintenance started' },
+  'alert.maintenance.end': { zh: '结束维护', en: 'Maintenance ended' },
+  'alert.maintenance.expire': { zh: '维护到期', en: 'Maintenance expired' }
 }
 
 function fmtTime(at: number): string {

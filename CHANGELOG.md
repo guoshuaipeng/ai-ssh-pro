@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+v0.4.5 soft-start. Package version stays at `0.4.4` until QA. Not tagged. No GitHub Release.
+
+- **维护窗口（L2d）/ Maintenance window.** 从告警工作台、主机菜单或档案开始。主机和标签二选一，默认 2 小时，预设 1/2/4/8/24 或自定义 0.25–168 小时。窗口内不发系统通知，行上显示「维护中」，历史保留，首页铃铛不闪。到期自动恢复。提前结束走应用内确认。只写审计和时间线，不执行命令。 / Start from the alert workbench, host menu, or profile. Hosts or tags, default 2 hours, presets 1/2/4/8/24 or a custom 0.25–168 hours. Inside the window there is no system notification, rows say Maintaining, history stays, and the home bell does not flash. Expiry resumes on its own. Ending early confirms in the app. Audit and timeline only. No command runs.
+- **试跑提醒（W6）/ Dry-run reminder.** 剧本编辑器可选关闭、每周、每两周、每月。到期是桌面通知加列表「该试跑」。点通知只把焦点放到试运行，不点击、不执行。完成一次试跑会清掉徽章并滚到下一周期。推迟加一个周期。未设置的剧本没有徽章。同一剧本每天最多一条通知，多个到期合并。 / The editor offers off, weekly, every two weeks, or monthly. Due means a desktop notice plus a Dry-run due badge. The notice focuses the dry-run control and does not click or run it. A finished dry-run clears the badge and rolls one cycle. Snooze adds one period. Playbooks without a cadence have no badge. One notice per playbook per local day; several due playbooks merge.
+- **AI 复盘摘要（A5）/ AI postmortem summary.** 时间线上的按钮打开中间标签，可改原因、已做和遗留项。未配置 AI 时是配置卡。只有「已触发」或空时间线时只提示、不开标签。导出 Markdown 会打码。建议命令只能复制。有未保存修改时重新生成会先确认。 / The timeline button opens a center tab with editable cause, done, and follow-ups. Without AI it shows the config card. A timeline that is empty or only fired toasts and does not open a tab. Markdown export is redacted. Suggested commands copy only. Regenerating dirty text confirms first.
+- **闭环导航（W7）/ Loop navigator.** 告警详情上是告警 → 定位 → AI → 剧本 → 差异。完成打勾，当前高亮，前置不足时提示。1366 单行；约 1024 宽只留提示。设置默认开启。不进主菜单。 / Alert detail shows Alert → Locate → AI → Playbook → Diff. Done is checked, the current step is highlighted, and a missing prerequisite toasts. One line at 1366; around 1024 the labels hide and the tooltip stays. The setting is on by default. Not in the main menu.
+- **额外指标（L7d）/ Extra metrics.** 负载、inode、挂载点默认关闭。未勾选的指标不会向主机请求。和采样范围、过滤一起生效。缺的挂载点显示路径和破折号，不让整张卡失败。关掉之后回到 CPU、内存、磁盘。 / Load, inode, and mounts are off by default. Unchecked metrics are not requested. They combine with the sampling scope and filters. A missing mount shows the path and a dash and does not fail the card. Turning extras off returns to CPU, memory, and disk.
+- **差异修法（L8b）/ Diff fix.** 差异工具栏可以解释，也可以生成修复剧本。没有 AI 时提示去配置。已有草稿就聚焦。没有说明时先解释，不自动起草。有修复步骤才起草，危险步骤保持确认。没有步骤就提示。不进主菜单，不发起 SSH。 / The diff toolbar can explain or draft a fix playbook. Without AI it asks you to configure it. An existing draft is focused. Without an explanation it explains first and does not draft. A draft is created only when there are fix steps, and dangerous steps stay behind confirm. No steps means a toast. Not in the main menu. No SSH.
+- **演示欢迎语（UX-41）/ Demo welcome.** 演示主机的欢迎语跟着界面语言。非演示主机没有这段文字。已经打印的回滚不改写。 / The demo host welcome follows the UI language. Other hosts get none of it. Scrollback that is already printed is left alone.
+- **标签右键（UX-59）/ Tab context menu.** 固定、取消固定、关闭其他、关闭右侧。关闭其他保留当前、已固定和唯一首页。关闭右侧不关右侧已固定标签；右边没有标签时灰显。固定标签在溢出列表里仍可达。 / Pin, unpin, close others, and close to the right. Close others keeps the current tab, pinned tabs, and the single home tab. Close to the right leaves pinned tabs on the right; it is disabled when nothing is to the right. Pinned tabs stay reachable in the overflow list.
+
 ## v0.4.4
 
 Alert packs, sampling filters, share packs, write-gate timeline, clips, and hop chips. Package version is `0.4.4`. Do not tag until QA signs off.

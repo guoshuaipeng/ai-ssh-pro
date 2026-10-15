@@ -31,6 +31,9 @@ export type CardSnap = {
   code?: HealthProbeResult['code']
   via?: HealthProbeResult['via']
   retryAt?: number | null
+  load?: HealthProbeResult['load']
+  inode?: HealthProbeResult['inode']
+  mounts?: HealthProbeResult['mounts']
 }
 
 type Opts = {
@@ -162,7 +165,20 @@ export function useHealthSampling(opts: Opts): {
               setLastOkAt(res.at)
               setSnaps((prev) => ({
                 ...prev,
-                [id]: { phase: 'ok', cpu: res.cpu, mem: res.mem, disk: res.disk, at: res.at, error: null, via: res.via, code: undefined, retryAt: null }
+                [id]: {
+                  phase: 'ok',
+                  cpu: res.cpu,
+                  mem: res.mem,
+                  disk: res.disk,
+                  at: res.at,
+                  error: null,
+                  via: res.via,
+                  code: undefined,
+                  retryAt: null,
+                  load: res.load,
+                  inode: res.inode,
+                  mounts: res.mounts
+                }
               }))
               return
             }

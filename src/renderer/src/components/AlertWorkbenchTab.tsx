@@ -4,7 +4,12 @@ import { filterAlerts, type AlertFilter, type BellPrefs } from '@shared/alert-wo
 import { locateTargetFor } from '@shared/alert-locate'
 import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
 import { loadAudit } from '@shared/audit-log'
+import { activeWindows, loadMaintenance, silenceUntil, type MaintSubject } from '@shared/maintenance'
+import { isEmptyTimeline } from '@shared/postmortem-ai'
+import { markLoop } from '@shared/alert-loop'
+import LoopNav from './LoopNav'
 import { useI18n } from '../lib/i18n'
+import { showToast } from '../lib/toast'
 import { fixesFor } from '../lib/ai-fix-memory'
 import AiAssistCard, { type AiExplainRequest } from './AiAssistCard'
 import AiConfigCard from './AiConfigCard'
@@ -47,7 +52,11 @@ export default function AlertWorkbenchTab({
   autoExplain,
   onCreatePlaybook,
   onExportPostmortem,
-  onNeedAi
+  onNeedAi,
+  onOpenMaintenance,
+  onAiPostmortem,
+  onOpenSftp,
+  catalog = []
 }: {
   alerts: FiredAlert[]
   focusId?: string
@@ -78,6 +87,10 @@ export default function AlertWorkbenchTab({
   onExportPostmortem?: (alert: FiredAlert) => void
   /** W1b: AI is not configured. Toast only — do not start an interpret. */
   onNeedAi?: () => void
+  onOpenMaintenance?: (hostKeys?: string[]) => void
+  onAiPostmortem?: (alert: FiredAlert) => void
+  onOpenSftp?: (alert: FiredAlert) => void
+  catalog?: Array<{ id: string; title: string; tags?: string[]; sessionId?: string }>
 }) {
   const { t } = useI18n()
   const [filter, setFilter] = useState<AlertFilter>(initialFilter ?? 'active')
@@ -98,6 +111,24 @@ export default function AlertWorkbenchTab({
   const [showGates, setShowGates] = useState(true)
   const [showConcurrent, setShowConcurrent] = useState(true)
   const [note, setNote] = useState('')
+  const [maintOnly, setMaintOnly] = useState(false)
+  const [maintTick, setMaintTick] = useState(0)
+  useEffect(() => {
+    const sync = () => setMaintTick((n) => n + 1)
+    window.addEventListener('aiss-maintenance-change', sync)
+    const id = window.setInterval(sync, 30_000)
+    return () => {
+      window.removeEventListener('aiss-maintenance-change', sync)
+      window.clearInterval(id)
+    }
+  }, [])
+  const subjectFor = (alert: FiredAlert): MaintSubject => {
+    const host = catalog.find((h) => h.id === alert.hostKey || h.sessionId === alert.hostKey || h.title === alert.hostTitle)
+    const keys = [alert.hostKey, alert.hostTitle, host?.id, host?.title].filter((k): k is string => Boolean(k))
+    return { keys, tags: host?.tags ?? [] }
+  }
+  const untilFor = (alert: FiredAlert) => silenceUntil(loadMaintenance(), subjectFor(alert), now)
+  void maintTick
   const [highlightCreate, setHighlightCreate] = useState(false)
 
   useEffect(() => {
@@ -116,7 +147,11 @@ export default function AlertWorkbenchTab({
     return () => window.clearInterval(id)
   }, [])
 
-  const rows = useMemo(() => filterAlerts(alerts, { status: filter, host: host || undefined, rule: rule || undefined, q }), [alerts, filter, host, rule, q])
+  const rows = useMemo(() => {
+    const base = filterAlerts(alerts, { status: filter, host: host || undefined, rule: rule || undefined, q })
+    if (!maintOnly) return base
+    return base.filter((a) => untilFor(a) != null)
+  }, [alerts, filter, host, rule, q, maintOnly, now, maintTick, catalog])
   const hosts = useMemo(() => [...new Set(alerts.map((a) => a.hostTitle))], [alerts])
   const rules = useMemo(() => [...new Set(alerts.map((a) => a.ruleId))], [alerts])
   const selected = rows.find((a) => a.id === selectedId) ?? rows[0] ?? null
@@ -135,6 +170,9 @@ export default function AlertWorkbenchTab({
     const text = await buildContext(alert, includeLogs && online)
     setExplainAlertId(alert.id)
     setExplain({ id: Date.now(), sessionId: alert.hostKey, text, host: alert.hostTitle, kind: 'explainAlert', alertId: alert.id })
+    appendTimeline({ alertId: alert.id, kind: 'ai.explain', hostKey: alert.hostKey, summary: 'explain' })
+    markLoop(alert.id, 'ai')
+    window.dispatchEvent(new Event('aiss-loop-mark'))
   }
 
   const requestFix = (alert: FiredAlert) => {
@@ -203,6 +241,8 @@ export default function AlertWorkbenchTab({
         setLocateError(t('l2.offlineHost'))
       }
       onLocate(alert)
+      markLoop(alert.id, 'locate')
+      window.dispatchEvent(new Event('aiss-loop-mark'))
       setLocated((prev) => ({ ...prev, [alert.id]: label }))
     } catch (e) {
       setLocateError(e instanceof Error ? e.message : String(e))
@@ -219,6 +259,9 @@ export default function AlertWorkbenchTab({
           <span className="l7-meta">{t('l2.activeN', { n: activeN })}</span>
         </h2>
         <div className="workspace-panel-actions">
+          <button type="button" data-testid="l2d-open" onClick={() => onOpenMaintenance?.()}>
+            {activeWindows(loadMaintenance(), now).length ? t('l2d.badgeN', { n: activeWindows(loadMaintenance(), now).length }) : t('l2d.open')}
+          </button>
           <button type="button" onClick={onRules}>
             {t('menu.alertRules')}
           </button>
@@ -264,6 +307,7 @@ export default function AlertWorkbenchTab({
                 />
                 {t('l2.mirrorAi')}
               </label>
+              <button type="button" onClick={() => { setMore(false); onOpenMaintenance?.() }}>{t('l2d.open')}</button>
             </div>
           ) : null}
         </div>
@@ -296,6 +340,9 @@ export default function AlertWorkbenchTab({
           ))}
         </select>
         <input className="l2-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('l2.search')} aria-label={t('l2.search')} />
+        <button type="button" data-testid="l2d-filter" className={maintOnly ? 'is-on' : ''} onClick={() => setMaintOnly((v) => !v)}>
+          {t('l2d.filter')}
+        </button>
       </div>
       <div className={`l2-body${narrowDetail ? ' is-detail' : ''}`}>
         <div className="l2-list" role="listbox" aria-label={t('l2.title')} tabIndex={0}
@@ -353,6 +400,8 @@ export default function AlertWorkbenchTab({
                 onMarkDone={() => onHandled(a)}
                 onIgnore={() => onDismiss(a)}
                 onBoard={onOpenDashboard}
+                maintenanceUntil={untilFor(a)}
+                onMaintenance={() => onOpenMaintenance?.([a.hostKey])}
               />
             ))
           )}
@@ -371,9 +420,38 @@ export default function AlertWorkbenchTab({
                   {t('w4.seg.timeline', { n: viewTimeline(selected, ensureFired(selected), loadAudit(), { concurrent: showConcurrent, gates: showGates }).length })}
                 </button>
                 {pane === 'timeline' ? (
-                  <button type="button" className="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</button>
+                  <>
+                    <button type="button" className="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</button>
+                    <button
+                      type="button"
+                      data-testid="a5-open"
+                      onClick={() => {
+                        const events = eventsFor(selected.id)
+                        if (!aiConfigured) onAiPostmortem?.(selected)
+                        else if (isEmptyTimeline(events)) showToast(t('a5.emptyTl'))
+                        else onAiPostmortem?.(selected)
+                      }}
+                    >
+                      <Icon name="sparkles" size={14} /> {t('a5.action')}
+                    </button>
+                  </>
                 ) : null}
               </div>
+              <LoopNav
+                alertId={selected.id}
+                aiConfigured={aiConfigured}
+                onFocusAlert={() => setSelectedId(selected.id)}
+                onLocate={() => doLocate(selected)}
+                onAi={() => void explainThis(selected)}
+                onNeedAi={() => onNeedAi?.()}
+                onPlaybook={() => onCreatePlaybook?.(selected, [])}
+                onGenerate={() => {
+                  const fixes = fixesFor(`explainAlert:${selected.id}`)
+                  if (fixes?.length) onCreatePlaybook?.(selected, fixes)
+                  else void explainThis(selected)
+                }}
+                onOpenSftp={() => onOpenSftp?.(selected)}
+              />
               {pane === 'timeline' ? (
                 <div data-testid="w4-timeline">
                   <label className="l4-check">

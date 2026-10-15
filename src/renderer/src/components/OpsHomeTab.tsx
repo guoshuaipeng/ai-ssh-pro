@@ -3,6 +3,7 @@ import type { FiredAlert } from '@shared/alert-rules'
 import type { DashScope } from '@shared/dashboard-scope'
 import { pickHealthHosts } from '@shared/dashboard-scope'
 import { probeFiltersActive, selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
+import { loadMaintenance, silenceUntil } from '@shared/maintenance'
 import type { ProtectionLevel } from '@shared/protection'
 import { useI18n } from '../lib/i18n'
 import { useHealthSampling, type SampleHost } from '../lib/health-sampling'
@@ -523,6 +524,10 @@ export default function OpsHomeTab({
                       retry={t('l7b.retry')}
                       unreachable={t('l7.unreachable')}
                       ago={probeSnap?.at ? t('l7b.updatedAgo', { n: Math.max(0, Math.round((now - probeSnap.at) / 1000)) }) : ''}
+                      extraLoad={probePrefs.extraLoad}
+                      extraInode={probePrefs.extraInode}
+                      extraMounts={probePrefs.extraMounts}
+                      missingMount={t('l7d.missingMount')}
                       onEnable={(e) => {
                         e.stopPropagation()
                         onProbePrefs({ enabled: true })
@@ -539,7 +544,13 @@ export default function OpsHomeTab({
                         } else onConnect(h)
                       }}
                     />
-                    {h.alerting ? <span className="l7-alert-dot" title={t('o2.badge')} /> : null}
+                    {h.alerting ? (
+                      <span
+                        className="l7-alert-dot"
+                        data-flash={silenceUntil(loadMaintenance(), { keys: [h.profileId, h.title, h.host], tags: h.tags }, now) ? '0' : '1'}
+                        title={t('o2.badge')}
+                      />
+                    ) : null}
                   </article>
                 )
               })}
@@ -614,6 +625,7 @@ export default function OpsHomeTab({
                     }}
                     fixDisabled={aiConfigured === false}
                     fixTitle={aiConfigured === false ? t('w1.needAi') : t('w1.create')}
+                    maintenanceUntil={silenceUntil(loadMaintenance(), { keys: [a.hostKey, a.hostTitle], tags: [] }, now)}
                   />
                   {expanded === a.id ? (
                     <div className="l7-expand">
@@ -762,12 +774,25 @@ function CardMetrics({
   retry,
   unreachable,
   ago,
+  extraLoad,
+  extraInode,
+  extraMounts,
+  missingMount,
   onEnable,
   onRetry
 }: {
   enabled: boolean
   sessionSnap?: { cpu: number | null; mem: number | null; disk: number | null; error: string | null }
-  probeSnap?: { phase: string; cpu: number | null; mem: number | null; disk: number | null; error: string | null }
+  probeSnap?: {
+    phase: string
+    cpu: number | null
+    mem: number | null
+    disk: number | null
+    error: string | null
+    load?: [number, number, number] | null
+    inode?: number | null
+    mounts?: Array<{ path: string; percent: number | null; missing?: boolean }>
+  }
   hasSession: boolean
   memLabel: string
   diskLabel: string
@@ -782,6 +807,10 @@ function CardMetrics({
   retry: string
   unreachable: string
   ago: string
+  extraLoad?: boolean
+  extraInode?: boolean
+  extraMounts?: boolean
+  missingMount?: string
   onEnable: (e: MouseEvent) => void
   onRetry: (e: MouseEvent) => void
 }) {
@@ -831,6 +860,19 @@ function CardMetrics({
         <Metric label="CPU" value={probeSnap.cpu} />
         <Metric label={memLabel} value={probeSnap.mem} />
         <Metric label={diskLabel} value={probeSnap.disk} />
+        {extraLoad && probeSnap.load ? (
+          <div className="l7d-line" data-testid="l7d-load-line">{`LOAD ${probeSnap.load.map((n) => n.toFixed(2)).join(' ')}`}</div>
+        ) : null}
+        {extraInode && probeSnap.inode != null ? (
+          <div className={`l7d-line${probeSnap.inode >= 90 ? ' is-warn' : ''}`} data-testid="l7d-inode-line">{`INO ${Math.round(probeSnap.inode)}%`}</div>
+        ) : null}
+        {extraMounts
+          ? (probeSnap.mounts ?? []).map((m) => (
+              <div key={m.path} className="l7d-line" data-testid="l7d-mount-line" title={m.missing ? missingMount : undefined}>
+                {m.missing ? `${m.path} —` : `${m.path} ${Math.round(m.percent ?? 0)}%`}
+              </div>
+            ))
+          : null}
         {ago ? <span className="l7b-ago">{ago}</span> : null}
       </div>
     )

@@ -1355,3 +1355,29 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .ux60-head { justify-content: space-between; }
 .ux60-actions button { white-space: nowrap; }
 .w5-warn { color: #eab308; }
+
+/* v0.4.5 soft-start: maintenance, reminders, loop, diff, tabs */
+.tab-context-menu { white-space: nowrap; max-width: min(280px, calc(100vw - 16px)); }
+.tab-context-menu button { white-space: nowrap; }
+.tab.is-pinned .tab-pin { margin-right: 4px; flex: none; }
+.w7-loop { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; overflow: hidden; min-width: 0; }
+.w7-step-wrap { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.w7-step { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.w7-mark[data-mark='done']::before { content: '✓'; }
+.w7-mark[data-mark='current']::before { content: '●'; }
+.w7-mark[data-mark='open']::before { content: '○'; }
+.w7-step.is-current { outline: 1px solid var(--accent, #3b82f6); }
+@media (max-width: 1100px) {
+  .w7-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+}
+.l2d-badge, .w6-badge { white-space: nowrap; flex: none; }
+.l2d-chips, .l2d-duration, .l8b-actions, .w6-section { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; overflow: auto; }
+.l2d-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.l2d-card-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.l8b-panel, .a5-field { margin: 8px 0; }
+.l7d-line { white-space: nowrap; font-size: 12px; }
+.l7d-line.is-warn { color: #f59e0b; }
+.a5-cmd { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.alert-bell[data-flash='1'] .alert-bell-count { animation: l2d-flash 1.2s ease-in-out infinite; }
+.alert-bell[data-flash='0'] .alert-bell-count { animation: none; }
+@keyframes l2d-flash { 50% { opacity: 0.35; } }

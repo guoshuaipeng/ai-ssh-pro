@@ -49,6 +49,8 @@ import AlertRulesModal from './components/AlertRulesModal'
 import UpdateChannelPanel from './components/UpdateChannelPanel'
 import ImportPreviewPanel from './components/ImportPreviewPanel'
 import FileDiffView from './components/FileDiffView'
+import MaintenanceTab from './components/MaintenanceTab'
+import PostmortemAiTab from './components/PostmortemAiTab'
 import FirstWeekChip from './components/FirstWeekChip'
 import BroadcastTargetPicker from './components/BroadcastTargetPicker'
 import InspectWizard, { type InspectReport } from './components/InspectWizard'
@@ -121,7 +123,12 @@ import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTa
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
 import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabStripWheelDelta } from '@shared/tab-overflow'
-import { loadProbePrefs, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
+import { loadProbePrefs, probeExtrasOf, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
+import { bellShouldFlash, endingSoon, expireDue, formatRemaining, loadMaintenance, shouldNotify } from '@shared/maintenance'
+import { planPostmortem } from '@shared/postmortem-ai'
+import { markLoop } from '@shared/alert-loop'
+import { arrangeTabs, closeOthers, closeRight } from '@shared/tab-actions'
+import { collectReminderNotice, REMINDER_FILTER_EVENT, REMINDER_FOCUS_EVENT } from './lib/reminder-tick'
 import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
 import { decideQuickStart, loadFreshProfile, loadQuickDone, noteInstall, saveQuickDone } from '@shared/onboarding'
 import { recentIdentity } from '@shared/recent-sidebar'
@@ -223,6 +230,8 @@ type TabView =
   | 'alert-rules'
   | 'playbook-import'
   | 'gate-timeline'
+  | 'alert-maintenance'
+  | 'alert-postmortem-ai'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide' | 'updates'
 
@@ -272,7 +281,9 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'postmortem',
   'alert-rules',
   'playbook-import',
-  'gate-timeline'
+  'gate-timeline',
+  'alert-maintenance',
+  'alert-postmortem-ai'
 ])
 
 type Tab = {
@@ -333,7 +344,14 @@ type Tab = {
     tooLarge: boolean
     remotePath?: string
     sessionId?: string
+    hostKey?: string
+    hostTitle?: string
   }
+  /** UX-59 */
+  pinned?: boolean
+  openSeq?: number
+  /** L2d preset when the maintenance tab opens */
+  maintHostKeys?: string[]
 }
 
 const PLACEHOLDER_CONNECT: SshConnectOptions = {
@@ -719,6 +737,8 @@ export default function App() {
   const [tipsSnooze, setTipsSnooze] = useState(false)
   const [tipsDismissed, setTipsDismissed] = useState(() => loadFirstWeekDismissed())
   const [probePrefs, setProbePrefs] = useState<ProbePrefs>(() => loadProbePrefs())
+  const probePrefsRef = useRef(probePrefs)
+  probePrefsRef.current = probePrefs
   const [probeNonce, setProbeNonce] = useState(0)
   const [recentRows, setRecentRows] = useState<RecentConnection[]>([])
   const [importPreview, setImportPreview] = useState<ImportPreviewModel | null>(null)
@@ -854,7 +874,12 @@ export default function App() {
     }
     if (!p || !window.aiss.workspace.healthProbe) return empty
     try {
-      return await window.aiss.workspace.healthProbe({ ...connectOptsFromProfile(p), profileId: p.id, reuseSessionId: host.sessionId })
+      return await window.aiss.workspace.healthProbe({
+        ...connectOptsFromProfile(p),
+        profileId: p.id,
+        reuseSessionId: host.sessionId,
+        extras: probeExtrasOf(probePrefsRef.current)
+      })
     } catch (e) {
       return { ...empty, error: sanitizeProbeReason(e instanceof Error ? e.message : String(e)) }
     }
@@ -1416,7 +1441,9 @@ export default function App() {
       view === 'updates' ||
       view === 'import-preview' ||
       view === 'file-diff' ||
-      view === 'settings'
+      view === 'settings' ||
+      view === 'alert-maintenance' ||
+      view === 'alert-postmortem-ai'
     ) {
       // focus the host session the tool belonged to, else the neighbour tab
       const cur = tabsRef.current
@@ -2005,7 +2032,7 @@ export default function App() {
     const ex = tabsRef.current.find((t) => {
       if (t.view !== view) return false
       if (view === 'file-history') return t.profileId === extra?.profileId && (t.remotePath || '') === (extra?.remotePath || '')
-      if (view === 'postmortem') return t.focusAlertId === extra?.focusAlertId
+      if (view === 'postmortem' || view === 'alert-postmortem-ai') return t.focusAlertId === extra?.focusAlertId
       if (view === 'playbook-edit' || view === 'playbook-run') return t.playbookId === extra?.playbookId
       if (view === 'recording-play') return t.recordingFile === extra?.recordingFile
       if (extra?.playbookId) return t.playbookId === extra.playbookId
@@ -2059,7 +2086,11 @@ export default function App() {
       alertId
     })
     setAuditEvents(loadAudit())
-    if (alertId) appendTimeline({ alertId, kind: 'playbook.draft', hostKey: alert.hostKey, summary: built.playbook.name })
+    if (alertId) {
+      appendTimeline({ alertId, kind: 'playbook.draft', hostKey: alert.hostKey, summary: built.playbook.name })
+      markLoop(alertId, 'playbook')
+      window.dispatchEvent(new Event('aiss-loop-mark'))
+    }
     openM2('playbook-edit', built.playbook.name.slice(0, 24), { playbookId: built.playbook.id, focusAlertId: alertId })
     showToast(tg('w1.created'))
     if (built.truncated > 0) showToast(tg('w1.truncated', { n: fixes.filter((f) => String(f.command || '').trim()).length }))
@@ -2093,6 +2124,119 @@ export default function App() {
     openM2('postmortem', tg('w4.tab', { host: alert.hostTitle, rule: alert.ruleId }).slice(0, 24), { focusAlertId: alert.id })
   }, [openM2])
 
+  const openMaintenance = useCallback((hostKeys?: string[]) => {
+    openM2('alert-maintenance', tg('l2d.panelTitle'), { maintHostKeys: hostKeys, alertNonce: Date.now() })
+  }, [openM2])
+
+  const openPostmortemAi = useCallback((alert: FiredAlert) => {
+    if (aiConfigured && planPostmortem(true, eventsFor(alert.id)) === 'empty') {
+      showToast(tg('a5.emptyTl'))
+      return
+    }
+    openM2('alert-postmortem-ai', tg('a5.tabTitle', { title: alert.hostTitle }).slice(0, 24), { focusAlertId: alert.id })
+  }, [aiConfigured, openM2])
+
+  const createDiffPlaybook = useCallback((info: { hostKey: string; hostTitle: string; path: string; fixes: Array<{ command: string; note?: string }> }) => {
+    const owner = tabsRef.current.find((t) => (t.sessionId === info.hostKey || t.profileId === info.hostKey) && (!t.view || t.view === 'session'))
+    const profile = profilesRef.current.find((p) => p.id === info.hostKey) ?? profilesRef.current.find((p) => p.id === owner?.profileId)
+    const file = info.path.split('/').filter(Boolean).pop() || info.path
+    const built = playbookFromFixes(
+      info.fixes,
+      { kind: 'diff', hostKey: info.hostKey, hostTitle: info.hostTitle, path: info.path, at: Date.now() },
+      effectiveLevel(profile),
+      { profileId: profile?.id, locale: locale === 'en' ? 'en' : 'zh', ruleLabel: file }
+    )
+    try {
+      savePlaybooks(upsertPlaybook(loadPlaybooks(), built.playbook))
+    } catch (e) {
+      showToast(tg('w1.saveFail', { reason: e instanceof Error ? e.message : String(e) }), { kind: 'error' })
+      return
+    }
+    appendAudit({
+      type: 'playbook.draft',
+      host: info.hostTitle,
+      profileId: profile?.id,
+      source: 'AI',
+      outcome: 'allowed',
+      detail: `${built.playbook.name} ← diff ${file}`
+    })
+    setAuditEvents(loadAudit())
+    openM2('playbook-edit', built.playbook.name.slice(0, 24), { playbookId: built.playbook.id })
+    showToast(tg('w1.created'))
+  }, [locale, openM2])
+
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ hostKeys?: string[] }>).detail
+      openMaintenance(detail?.hostKeys)
+    }
+    window.addEventListener('aiss-maintenance-open', onOpen)
+    return () => window.removeEventListener('aiss-maintenance-open', onOpen)
+  }, [openMaintenance])
+
+  useEffect(() => {
+    const warned = new Set<string>()
+    const tick = () => {
+      const now = Date.now()
+      const expired = expireDue(undefined, now)
+      if (expired.length) {
+        for (const rec of expired) {
+          appendAudit({ type: 'alert.maintenance', host: rec.detail, source: 'user', outcome: 'allowed', detail: rec.detail })
+        }
+        setAuditEvents(loadAudit())
+        showToast(tg('l2d.toastExpired'))
+        window.dispatchEvent(new Event('aiss-maintenance-change'))
+      }
+      for (const row of endingSoon(loadMaintenance(), now)) {
+        if (warned.has(row.id)) continue
+        warned.add(row.id)
+        showToast(tg('l2d.remaining', { t: formatRemaining(row.endsAt - now) }))
+      }
+    }
+    tick()
+    const id = window.setInterval(tick, 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const tick = () => {
+      const notice = collectReminderNotice()
+      if (!notice || notice.executes) return
+      const title = notice.playbookIds.length === 1
+        ? tg('w6.notifOne', { name: notice.names[0] || notice.playbookIds[0] || '' })
+        : tg('w6.notifMany', { n: notice.playbookIds.length })
+      const open = () => {
+        const only = notice.playbookIds.length === 1 ? notice.playbookIds[0] : ''
+        if (only) {
+          openM2('playbook-run', tg('m2.run'), { playbookId: only })
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent(REMINDER_FOCUS_EVENT, { detail: { playbookId: only } })), 80)
+          return
+        }
+        openM2('playbook-list', tg('m2.playbooks'))
+        window.dispatchEvent(new Event(REMINDER_FILTER_EVENT))
+      }
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          const note = new Notification(title)
+          note.onclick = () => {
+            void window.aiss.app.focus().catch(() => undefined)
+            open()
+          }
+        } catch {
+          showToast(title, { action: { label: tg('w6.badge'), run: open } })
+        }
+      } else {
+        showToast(title, { action: { label: tg('w6.badge'), run: open } })
+      }
+    }
+    const first = window.setTimeout(tick, 1500)
+    const id = window.setInterval(tick, 60_000)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(id)
+    }
+  }, [openM2])
+
   const liveSessions = useMemo(() => {
     const map = new Map<string, string>()
     for (const t of tabs) {
@@ -2100,6 +2244,23 @@ export default function App() {
     }
     return map
   }, [tabs])
+
+  const orderedTabs = useMemo(
+    () => arrangeTabs(tabs.map((t, i) => ({ ...t, id: t.tabId, seq: t.openSeq ?? i + 1, pinned: Boolean(t.pinned) }))),
+    [tabs]
+  )
+  const maintSubjects = useMemo(
+    () =>
+      alertHistory
+        .filter((a) => a.status === 'active')
+        .map((a) => {
+          const live = tabs.find((t) => t.sessionId === a.hostKey && (!t.view || t.view === 'session'))
+          const profile = profiles.find((p) => p.id === (live?.profileId || a.hostKey))
+          const keys = [a.hostKey, a.hostTitle, profile?.id, profile?.label, profile?.host, live?.title].filter((k): k is string => Boolean(k))
+          return { keys, tags: profile?.tags ?? [] }
+        }),
+    [alertHistory, tabs, profiles]
+  )
 
   const setProfileProtection = useCallback((ids: string[], level: ProtectionLevel) => {
     const next = profilesRef.current.map((p) => (ids.includes(p.id) ? { ...p, protection: level } : p))
@@ -2351,7 +2512,14 @@ export default function App() {
         return merged
       })
       const ignoredNow = new Set(loadAlertHistory().filter((a) => a.status === 'ignored').map((a) => `${a.hostKey}:${a.ruleId}`))
-      const audible = newly.filter((f) => !muted && !ignoredNow.has(`${f.hostKey}:${f.ruleId}`))
+      const maint = loadMaintenance()
+      const audible = newly.filter((f) => {
+        if (muted || ignoredNow.has(`${f.hostKey}:${f.ruleId}`)) return false
+        const live = connectedSshSessionsRef.current.find((s) => s.sessionId === f.hostKey)
+        const profile = profilesRef.current.find((p) => p.id === (live?.profileId || f.hostKey))
+        const keys = [f.hostKey, f.hostTitle, profile?.id, profile?.label, profile?.host, live?.title].filter((k): k is string => Boolean(k))
+        return shouldNotify(maint, { keys, tags: profile?.tags ?? [] })
+      })
       if (audible.length) {
         if (alertRules.notify.systemNotify && typeof Notification !== 'undefined') {
           try {
@@ -3603,6 +3771,36 @@ export default function App() {
         openM2('gate-timeline', tg('s2b.tab'))
         return
       }
+      if (action === 'maintOpen' || action === 'maintEnd') {
+        openMaintenance()
+        return
+      }
+      if (action === 'setDryRunReminder') {
+        openM2('playbook-list', tg('m2.playbooks'))
+        window.setTimeout(() => window.dispatchEvent(new Event(REMINDER_FILTER_EVENT)), 60)
+        return
+      }
+      if (action === 'aiPostmortem') {
+        const focus = tabsRef.current.find((t) => t.view === 'alert-workbench')?.focusAlertId
+        const alert = (focus ? loadAlertHistory().find((a) => a.id === focus) : undefined) ?? loadAlertHistory().find((a) => a.status === 'active')
+        if (!alert) {
+          showToast(tg('w1.paletteNeedAlert'))
+          return
+        }
+        openPostmortemAi(alert)
+        return
+      }
+      if (action === 'explainDiff' || action === 'diffFixPlaybook') {
+        const diff = tabsRef.current.find((t) => t.view === 'file-diff' && t.tabId === activeTabId) ?? tabsRef.current.find((t) => t.view === 'file-diff')
+        if (!diff) {
+          showToast(tg('l8b.needDiff'))
+          return
+        }
+        setActiveTabId(diff.tabId)
+        const name = action === 'explainDiff' ? 'aiss-diff-explain' : 'aiss-diff-create'
+        window.setTimeout(() => window.dispatchEvent(new Event(name)), 60)
+        return
+      }
       if (action === 'taskCards') {
         const next = reopenTasks()
         setTaskState(next)
@@ -4075,7 +4273,9 @@ export default function App() {
       openM2,
       bellPrefs.mode,
       aiConfigured,
-      openFileHistory
+      openFileHistory,
+      openMaintenance,
+      openPostmortemAi
     ]
   )
   const handleTitlebarMenuActionRef = useRef(handleTitlebarMenuAction)
@@ -4477,6 +4677,8 @@ export default function App() {
           return
         }
       }
+      const owner = tabsRef.current.find((t) => t.sessionId === info.sessionId && (!t.view || t.view === 'session'))
+      const profile = profilesRef.current.find((p) => p.id === owner?.profileId)
       const fileCompare = {
         leftName: info.localName,
         rightName: info.remoteName,
@@ -4484,7 +4686,9 @@ export default function App() {
         rightText,
         tooLarge: large,
         remotePath: info.remotePath,
-        sessionId: info.sessionId
+        sessionId: info.sessionId,
+        hostKey: profile?.id || owner?.profileId || info.sessionId,
+        hostTitle: owner?.title || profile?.label || profile?.host || ''
       }
       const tabId = uuid()
       setTabs((prev) => [
@@ -4768,6 +4972,7 @@ export default function App() {
               type="button"
               className={`alert-bell${alertRules.mutedUntil && alertRules.mutedUntil > Date.now() ? ' is-muted' : ''}`}
               data-testid="alert-bell"
+              data-flash={bellShouldFlash(maintSubjects, loadMaintenance()) ? '1' : '0'}
               title={tg('l2.bellOpens')}
               onClick={() => {
                 if (bellPrefs.mode === 'drawer') {
@@ -4819,7 +5024,7 @@ export default function App() {
                 e.currentTarget.scrollLeft += e.key === 'ArrowRight' ? 80 : -80
               }}
             >
-            {tabs.map((t) => {
+            {orderedTabs.map((t) => {
               const isSession = !t.view || t.view === 'session'
               const guardLevel = isSession ? effectiveLevel(profiles.find((p) => p.id === t.profileId)) : 'normal'
               const guardClass = guardLevel === 'production' ? 'tab-guard-prod' : guardLevel === 'readonly' ? 'tab-guard-ro' : ''
@@ -4832,7 +5037,7 @@ export default function App() {
                 key={t.tabId}
                 type="button"
                 title={[sftpAddr, guardTip].filter(Boolean).join(' · ') || undefined}
-                className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${(isSession || t.view === 'sftp') && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
+                className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.pinned ? 'is-pinned' : ''} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${(isSession || t.view === 'sftp') && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
                 onDoubleClick={() => startRename(t.tabId)}
                 onContextMenu={(e) => {
@@ -4853,7 +5058,11 @@ export default function App() {
                   dragTabIdRef.current = null
                   if (!from) return
                   e.preventDefault()
-                  setTabs((prev) => moveById(prev, (x) => x.tabId, from, t.tabId))
+                  setTabs((prev) => {
+                    const ordered = arrangeTabs(prev.map((tab, i) => ({ ...tab, id: tab.tabId, seq: tab.openSeq ?? i + 1, pinned: Boolean(tab.pinned) })))
+                    const moved = moveById(ordered, (x) => x.tabId, from, t.tabId)
+                    return moved.map((tab, i) => ({ ...tab, openSeq: (i + 1) * 10 }))
+                  })
                 }}
                 onDragEnd={() => {
                   dragTabIdRef.current = null
@@ -4876,6 +5085,7 @@ export default function App() {
                   />
                 ) : (
                 <>
+                {t.pinned ? <Icon name="pin" size={12} /> : null}
                 {isSession && t.sessionId && broadcastSessions.includes(t.sessionId) ? (
                   <span className="tab-bc-dot" data-testid="tab-bc-dot" title={tr('ux10.inBroadcast')} aria-label={tr('ux10.inBroadcast')} />
                 ) : null}
@@ -4969,7 +5179,7 @@ export default function App() {
                     style={{ top: tabOverflowPos.top, left: tabOverflowPos.left }}
                     onKeyDown={(e) => {
                       const rows = filterTabList(
-                        tabs.map((t) => ({ ...t, host: t.connectOpts?.host, username: t.connectOpts?.username })),
+                        orderedTabs.map((t) => ({ ...t, host: t.connectOpts?.host, username: t.connectOpts?.username })),
                         tabQuery
                       )
                       if (e.key === 'ArrowDown') {
@@ -5009,7 +5219,7 @@ export default function App() {
                     ) : null}
                     {(() => {
                       const rows = filterTabList(
-                        tabs.map((t) => ({ ...t, host: t.connectOpts?.host, username: t.connectOpts?.username })),
+                        orderedTabs.map((t) => ({ ...t, host: t.connectOpts?.host, username: t.connectOpts?.username })),
                         tabQuery
                       )
                       if (!rows.length) return <div className="tab-overflow-empty">{tr('tab.list.empty')}</div>
@@ -5023,11 +5233,17 @@ export default function App() {
                             className={`tab-overflow-row${current ? ' is-current' : ''}${i === tabListIndex ? ' is-hot' : ''}`}
                             aria-current={current ? 'true' : undefined}
                             onMouseEnter={() => setTabListIndex(i)}
+                            onContextMenu={(e) => {
+                              e.preventDefault()
+                              setTabOverflowOpen(false)
+                              setTabMenu({ tabId: t.tabId, x: e.clientX, y: e.clientY })
+                            }}
                             onClick={() => {
                               setActiveTabId(t.tabId)
                               setTabOverflowOpen(false)
                             }}
                           >
+                            {t.pinned ? <Icon name="pin" size={12} /> : null}
                             <span className="tab-overflow-label">{labelFor(t)}</span>
                             <span
                               role="button"
@@ -5088,17 +5304,35 @@ export default function App() {
           {broadcastSessions.length ? <div className="broadcast-bar" data-testid="broadcast-bar" aria-hidden /> : null}
           {tabMenu
             ? (() => {
-                const idx = tabs.findIndex((x) => x.tabId === tabMenu.tabId)
-                const tab = tabs[idx]
+                const tab = orderedTabs.find((x) => x.tabId === tabMenu.tabId)
                 if (!tab) return null
                 const canDuplicate = (!tab.view || tab.view === 'session') && tab.kind !== 'local' && Boolean(tab.connectOpts?.host)
+                const others = closeOthers(orderedTabs, tab.tabId)
+                const right = closeRight(orderedTabs, tab.tabId)
+                const menuPos = placeMenu(tabMenu.x, tabMenu.y, 220, 280, window.innerWidth, window.innerHeight)
+                const closeIds = (ids: string[]) => {
+                  const want = new Set(ids)
+                  closeTabsWhere((row) => !want.has(row.tabId))
+                }
                 return (
                   <div
                     className="tab-context-menu"
                     role="menu"
-                    style={{ left: tabMenu.x, top: tabMenu.y }}
+                    data-testid="ux59-menu"
+                    style={{ left: menuPos.x, top: menuPos.y }}
                     onClick={(e) => e.stopPropagation()}
                   >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="tab-pin"
+                      onClick={() => {
+                        setTabMenu(null)
+                        setTabs((prev) => prev.map((row, i) => (row.tabId === tab.tabId ? { ...row, pinned: !row.pinned, openSeq: row.openSeq ?? i + 1 } : row)))
+                      }}
+                    >
+                      {tab.pinned ? tr('tab.unpin') : tr('tab.pin')}
+                    </button>
                     <button type="button" role="menuitem" onClick={() => { setTabMenu(null); startRename(tab.tabId) }}>
                       {tr('tab.rename')}
                     </button>
@@ -5148,10 +5382,23 @@ export default function App() {
                       {tr('menu.portForward')}
                     </button>
                     <hr />
-                    <button type="button" role="menuitem" disabled={tabs.length < 2} onClick={() => { setTabMenu(null); closeTabsWhere((x) => x.tabId === tab.tabId) }}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="tab-close-others"
+                      disabled={others.length === 0}
+                      onClick={() => { setTabMenu(null); closeIds(others) }}
+                    >
                       {tr('tab.closeOthers')}
                     </button>
-                    <button type="button" role="menuitem" disabled={idx >= tabs.length - 1} onClick={() => { setTabMenu(null); closeTabsWhere((_x, i) => i <= idx) }}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="tab-close-right"
+                      disabled={right.disabled}
+                      title={right.disabled ? tr('tab.closeRightDisabled') : undefined}
+                      onClick={() => { setTabMenu(null); closeIds(right.close) }}
+                    >
                       {tr('tab.closeRight')}
                     </button>
                     <button type="button" role="menuitem" onClick={() => { setTabMenu(null); closeTab(tab.tabId, tab.sessionId, tab.status, tab.view) }}>
@@ -5623,6 +5870,15 @@ export default function App() {
                     onCreatePlaybook={(alert, fixes) => createFixPlaybook(alert, fixes)}
                     onNeedAi={() => showToast(tg('w1.needAi'), { action: { label: tg('w1.configure'), run: () => openUnifiedSettings('ai') } })}
                     onExportPostmortem={(alert) => openPostmortem(alert)}
+                    onOpenMaintenance={(hostKeys) => openMaintenance(hostKeys)}
+                    onAiPostmortem={(alert) => openPostmortemAi(alert)}
+                    onOpenSftp={(alert) => openToolTabRef.current('sftp', alert.hostKey)}
+                    catalog={profiles.map((p) => ({
+                      id: p.id,
+                      title: p.label || p.host,
+                      tags: p.tags,
+                      sessionId: tabs.find((x) => x.profileId === p.id && x.sessionId && (!x.view || x.view === 'session'))?.sessionId
+                    }))}
                   />
                 ) : t.view === 'file-history' ? (
                   <FileHistoryTab
@@ -6056,7 +6312,53 @@ export default function App() {
                         : undefined
                     }
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    aiConfigured={aiConfigured}
+                    hostKey={t.fileCompare.hostKey}
+                    hostTitle={t.fileCompare.hostTitle}
+                    remotePath={t.fileCompare.remotePath}
+                    armed={t.tabId === activeTabId}
+                    onOpenSettings={() => openUnifiedSettings('ai')}
+                    onDraft={(info) => createDiffPlaybook(info)}
+                    onFocusDraft={(id) => openM2('playbook-edit', tg('m2.edit'), { playbookId: id })}
                   />
+                ) : t.view === 'alert-maintenance' ? (
+                  <MaintenanceTab
+                    key={String(t.alertNonce ?? 0)}
+                    hosts={profiles.map((p) => ({
+                      id: p.id,
+                      title: p.label || p.host,
+                      tags: p.tags ?? [],
+                      sessionId: tabs.find((x) => x.profileId === p.id && x.sessionId && (!x.view || x.view === 'session'))?.sessionId
+                    }))}
+                    presetHostKeys={t.maintHostKeys}
+                    alerts={alertHistory.map((a) => ({ id: a.id, hostKey: a.hostKey, hostTitle: a.hostTitle }))}
+                    onChanged={() => setAuditEvents(loadAudit())}
+                  />
+                ) : t.view === 'alert-postmortem-ai' && t.focusAlertId ? (
+                  (() => {
+                    const alert = alertHistory.find((a) => a.id === t.focusAlertId)
+                    if (!alert) return <div className="workspace-panel" data-testid="a5-missing" />
+                    return (
+                      <PostmortemAiTab
+                        alert={{
+                          id: alert.id,
+                          hostKey: alert.hostKey,
+                          hostTitle: alert.hostTitle,
+                          ruleId: alert.ruleId,
+                          value: alert.value,
+                          threshold: alert.threshold,
+                          at: alert.at,
+                          status: alert.status,
+                          recoveredAt: alert.recoveredAt,
+                          handledManually: alert.handledManually
+                        }}
+                        events={eventsFor(alert.id)}
+                        aiConfigured={aiConfigured}
+                        onOpenSettings={() => openUnifiedSettings('ai')}
+                        onOpenTimeline={() => openPostmortem(alert)}
+                      />
+                    )
+                  })()
                 ) : t.status === 'connecting' ? (
                   <div className="terminal-disconnected-placeholder">{tr('term.connecting')}</div>
                 ) : t.status === 'connected' ? (
@@ -6312,7 +6614,9 @@ export default function App() {
             ? probeFailCount === 0
               ? { retryFailedProbes: tg('l7c.noFails') }
               : {}
-            : { refreshHomeHealth: tg('l7b.needHome'), retryFailedProbes: tg('l7b.needHome') })
+            : { refreshHomeHealth: tg('l7b.needHome'), retryFailedProbes: tg('l7b.needHome') }),
+          ...(tabs.some((tab) => tab.view === 'alert-workbench') ? {} : { aiPostmortem: tg('w1.paletteNeedAlert') }),
+          ...(tabs.some((tab) => tab.view === 'file-diff') ? {} : { explainDiff: tg('l8b.needDiff'), diffFixPlaybook: tg('l8b.needDiff') })
         }}
       />
       <QuickStartWizard
@@ -6499,6 +6803,10 @@ export default function App() {
               role="menu"
               data-testid="host-menu-multi"
             >
+              {item('maint', tg('l2d.openForSelected'), () => {
+                setSessionMenu(null)
+                openMaintenance(multi)
+              })}
               {item('batch', tg('ctx.batch'), () => {
                 setSessionMenu(null)
                 void (async () => {
@@ -6571,7 +6879,11 @@ export default function App() {
               openConnectionEditor(p)
               setSessionMenu(null)
             }, p.demo ? { disabled: true, hint: tg('g1.readOnly') } : undefined)}
-            {item('profile', tg('host.menu.inventory'), () => {
+              {item('maint', tg('l2d.openForHost'), () => {
+                setSessionMenu(null)
+                openMaintenance([p.id])
+              })}
+              {item('profile', tg('host.menu.inventory'), () => {
               openInventoryEditor({
                 profileId: p.id,
                 host: p.host,
