@@ -1,19 +1,21 @@
 /**
  * Core-A multi-turn evals. Every `*.json` file in tests/fixtures/core-a/ is a
- * scenario (S1–S23 and any later drop-in, including S20-N). The real planner
+ * scenario (S1–S24 and any later drop-in, including S20-N). The real planner
  * runs against the fixture's scripted model and a fake terminal.
  * S20: after contradictory filler, observational memory still has the original
  * rare-fact tokens, and the end must not adopt the filler's path, Use%, or host state.
  * S21: denying one HITL step mid-chain does not write that step or a later
  * file/host update, and does not treat the deny as success. The same chain
  * with every step approved still completes.
+ * S22: a red unit test explains itself in human language and opens a
+ * confirm-style patch draft. The factory does not auto-apply. Deny leaves
+ * no patch on disk, and a half-written change is not success.
  * S23: cancelling an HITL interrupt mid-plan is not a deny and not an execution.
  * The loop returns to planning with no sticky interrupt. The next user turn can
  * plan again. 证据不足 is only for a turn whose evidence is actually missing.
  * Cancelled steps are not written and are not stored in recentCommands.
- * S22: a red unit test explains itself in human language and opens a
- * confirm-style patch draft. The factory does not auto-apply. Deny leaves
- * no patch on disk, and a half-written change is not success.
+ * S24: a rare fact and recent command remembered on host A are not evidence on
+ * host B. Host B ends with 证据不足. The same host A thread still recalls the fact.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -123,11 +125,16 @@ type Expectation = {
     laterCommands?: string[]
     leftoverMarkers: string[]
   }
-  /** Observational-memory section must still contain these tokens (S13 / S16 / S20). */
+  /** Observational-memory section must still contain these tokens (S13 / S16 / S20 / S24). */
   observationalMemoryMustContain?: string[]
+  /** S24: another host's bullets must not be in this host's observational memory. */
+  observationalMemoryMustNotContain?: string[]
   recentWindowMustNotContain?: string[]
-  /** System prompt must not carry another host's facts (S18). */
+  /** System prompt must not carry another host's facts (S18 / S24). */
   plannerPromptMustNotContain?: string[]
+  /** S24: the "最近已执行命令" evidence block, not the whole prompt. */
+  recentCommandEvidenceMustContain?: string[]
+  recentCommandEvidenceMustNotContain?: string[]
   /**
    * S23: cancel mid-plan. The cancelled command is not a write and not a deny.
    * The loop is plannable again. Later scripted steps must not land.
@@ -209,8 +216,19 @@ type Fixture = {
   /**
    * S18: seed a fact on another historyKey / hostInventoryId before the main turns.
    * Main-turn prompts must not contain that host's rare service or port.
+   * S24: the prelude writes a rare fact into observational memory on host A.
    */
   isolationPrelude?: {
+    hostProfile?: { hostId?: string; label?: string; hostname?: string }
+    session: { targetSessionId: string; historyKey: string }
+    seedInventory?: Fixture['seedInventory']
+    turns: Turn[]
+  }
+  /**
+   * S24: after the main host's turns, ask again on the prelude host.
+   * Same historyKey and session as the prelude. Host B must not have wiped it.
+   */
+  hostScopeReturn?: {
     hostProfile?: { hostId?: string; label?: string; hostname?: string }
     session: { targetSessionId: string; historyKey: string }
     seedInventory?: Fixture['seedInventory']
@@ -253,6 +271,24 @@ function blockAfter(prompt: string, heading: string): string {
 
 function observationalSection(prompt: string): string {
   return blockAfter(prompt, '观测记忆（较早对话压缩）：') || blockAfter(prompt, 'Observational memory (compressed older turns):')
+}
+
+/** Lines under a single prompt label, stopping at the next section heading. */
+function labeledBlock(prompt: string, label: string): string {
+  const at = prompt.indexOf(label)
+  if (at < 0) return ''
+  const rest = prompt.slice(at + label.length).replace(/^\n/, '')
+  const lines: string[] = []
+  for (const line of rest.split('\n')) {
+    const heading = /：$/.test(line) || (/:\s*$/.test(line) && !line.startsWith('-'))
+    if (heading && lines.length > 0) break
+    lines.push(line)
+  }
+  return lines.join('\n').trim()
+}
+
+function recentCommandEvidence(prompt: string): string {
+  return labeledBlock(prompt, '最近已执行命令：') || labeledBlock(prompt, 'Recently executed commands:')
 }
 
 function hitlLines(events: AiStreamEvent[]): string[] {
@@ -621,6 +657,32 @@ function assertExpectation(
         .join('\n')
       for (const fact of expected.recentWindowMustNotContain ?? []) {
         assert.equal(recent.includes(fact), false, `${label}: recent window still has ${fact}`)
+      }
+    }
+  }
+  if (expected.observationalMemoryMustNotContain?.length) {
+    assert.ok(result.requests.length > 0, `${label}: no planner request`)
+    const persisted = scope?.historyKey ? loadPersistedCoreSession(scope.historyKey) : null
+    const bullets = (persisted?.observationalMemory ?? []).map((bullet) => bullet.text).join('\n')
+    for (const messages of result.requests) {
+      const observed = observationalSection(systemText(messages))
+      for (const fact of expected.observationalMemoryMustNotContain) {
+        assert.equal(observed.includes(fact), false, `${label}: observational memory leaked ${fact}`)
+      }
+    }
+    for (const fact of expected.observationalMemoryMustNotContain) {
+      assert.equal(bullets.includes(fact), false, `${label}: persisted observational memory leaked ${fact}`)
+    }
+  }
+  if (expected.recentCommandEvidenceMustContain?.length || expected.recentCommandEvidenceMustNotContain?.length) {
+    assert.ok(result.prompts.length > 0, `${label}: no planner prompt`)
+    for (const prompt of result.prompts) {
+      const block = recentCommandEvidence(prompt)
+      for (const fact of expected.recentCommandEvidenceMustContain ?? []) {
+        assert.ok(block.includes(fact), `${label}: recent-command evidence missing ${fact}`)
+      }
+      for (const fact of expected.recentCommandEvidenceMustNotContain ?? []) {
+        assert.equal(block.includes(fact), false, `${label}: recent-command evidence leaked ${fact}`)
       }
     }
   }
@@ -1119,6 +1181,27 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
       }
       seedInventory(fixture)
       await runTurns(fixture, turns)
+      if (fixture.hostScopeReturn) {
+        const back = fixture.hostScopeReturn
+        const prelude = fixture.isolationPrelude
+        assert.ok(prelude, `${fixture.id}: hostScopeReturn needs isolationPrelude`)
+        assert.notEqual(back.session.historyKey, fixture.session.historyKey, `${fixture.id}: host B shares host A's historyKey`)
+        assert.notEqual(back.session.targetSessionId, fixture.session.targetSessionId, `${fixture.id}: host B shares host A's session`)
+        assert.equal(back.session.historyKey, prelude.session.historyKey, `${fixture.id}: return left host A's historyKey`)
+        assert.equal(back.session.targetSessionId, prelude.session.targetSessionId, `${fixture.id}: return left host A's session`)
+        const hostA = back.hostProfile?.hostId || prelude.hostProfile?.hostId
+        const hostB = fixture.hostProfile?.hostId
+        assert.ok(hostA && hostB && hostA !== hostB, `${fixture.id}: host A and host B must differ`)
+        const backFixture: Fixture = {
+          ...fixture,
+          hostProfile: back.hostProfile ?? prelude.hostProfile,
+          session: back.session,
+          seedInventory: back.seedInventory ?? prelude.seedInventory,
+          hostScopeReturn: undefined
+        }
+        seedInventory(backFixture)
+        await runTurns(backFixture, back.turns)
+      }
       if (fixture.negativeCase) {
         const sample = turns[0]
         const turn: Turn = {
