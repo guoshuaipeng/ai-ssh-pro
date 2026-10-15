@@ -293,6 +293,7 @@ const api = {
     getChatHistory: (key: string): Promise<AiChatMessage[]> => ipcRenderer.invoke('ai:chatHistory:get', key),
     setChatHistory: (key: string, messages: AiChatMessage[]): Promise<void> =>
       ipcRenderer.invoke('ai:chatHistory:set', key, messages),
+    getWorkingMemory: (key: string): Promise<string | null> => ipcRenderer.invoke('ai:workingMemory:get', key),
     onStream: (cb: (ev: AiStreamEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiStreamEvent)
       ipcRenderer.on('ai:stream', fn)

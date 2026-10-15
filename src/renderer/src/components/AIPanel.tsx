@@ -5,6 +5,8 @@ import { parseAiAssistantReply } from '@shared/ipc'
 import { highlightKeyNumbers } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
+import { confirmDialog } from '../lib/dialogs'
+import { visibleWorkingGoal } from '@shared/working-memory-view'
 import AiConfigCard from './AiConfigCard'
 
 type Props = {
@@ -110,11 +112,14 @@ export default function AIPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [workingGoal, setWorkingGoal] = useState<string | null>(null)
   const moreRef = useRef<HTMLDivElement>(null)
   const inputMenuRef = useRef<HTMLDivElement>(null)
   const linesRef = useRef<Line[]>([])
   linesRef.current = lines
   const persistKey = resolveHistoryKey(historyKey, activeSessionId)
+  const persistKeyRef = useRef(persistKey)
+  persistKeyRef.current = persistKey
 
   const activeProvider = providers.find((p) => p.id === activeProviderId) ?? providers[0]
   const modelList = activeProvider?.modelList ?? []
@@ -150,6 +155,17 @@ export default function AIPanel({
     return () => window.removeEventListener('aiss-ai-need-config', onNeed)
   }, [])
 
+  const refreshWorkingGoal = useCallback((key: string | null) => {
+    if (!key) {
+      setWorkingGoal(null)
+      return
+    }
+    void window.aiss.ai.getWorkingMemory(key).then((goal) => {
+      if (persistKeyRef.current !== key) return
+      setWorkingGoal(visibleWorkingGoal(goal))
+    })
+  }, [])
+
   // Load persisted chat when history key / session changes
   useEffect(() => {
     let cancelled = false
@@ -167,6 +183,10 @@ export default function AIPanel({
       cancelled = true
     }
   }, [persistKey])
+
+  useEffect(() => {
+    refreshWorkingGoal(persistKey)
+  }, [persistKey, refreshWorkingGoal])
 
   const persistHistory = useCallback(
     (nextLines: Line[]) => {
@@ -352,13 +372,14 @@ export default function AIPanel({
       unsub()
       setBusy(false)
       setPendingConfirm(null)
+      refreshWorkingGoal(persistKey)
       // Persist user + assistant text after the turn completes
       queueMicrotask(() => {
         persistHistory(linesRef.current)
       })
     }
   },
-    [activeSessionId, hostInventoryId, inventoryLookup, lines, persistHistory, persistKey]
+    [activeSessionId, hostInventoryId, inventoryLookup, lines, persistHistory, persistKey, refreshWorkingGoal]
   )
 
   const send = useCallback(async () => {
@@ -445,10 +466,23 @@ export default function AIPanel({
 
   const clearConversation = useCallback(() => {
     if (busy) return
-    setLines([])
-    setPendingConfirm(null)
-    if (persistKey) void window.aiss.ai.setChatHistory(persistKey, [])
-  }, [busy, persistKey])
+    void (async () => {
+      const ok = await confirmDialog({
+        title: tg('wm.clearTitle'),
+        body: tg('wm.clearBody'),
+        confirmText: tg('ai.clear'),
+        danger: true
+      })
+      if (!ok) return
+      setLines([])
+      setPendingConfirm(null)
+      setWorkingGoal(null)
+      if (persistKey) {
+        await window.aiss.ai.setChatHistory(persistKey, [])
+        refreshWorkingGoal(persistKey)
+      }
+    })()
+  }, [busy, persistKey, refreshWorkingGoal])
 
   const undoLastRound = useCallback(() => {
     if (busy) return
@@ -494,7 +528,8 @@ export default function AIPanel({
         </div>
       ) : (
         <>
-      <div className="ai-header" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+      <div className="ai-header">
+        <div className="ai-header-row">
         <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{tg('ai.title')}</span>
         {modelList.length > 0 ? (
           <select
@@ -538,6 +573,13 @@ export default function AIPanel({
             </div>
           ) : null}
         </div>
+        </div>
+        {workingGoal ? (
+          <div className="ai-working-goal" title={workingGoal} data-testid="ai-working-goal">
+            <span className="ai-working-goal-label">{tg('wm.goal')}</span>
+            <span className="ai-working-goal-text">{workingGoal}</span>
+          </div>
+        ) : null}
       </div>
 
 <div className="ai-messages">

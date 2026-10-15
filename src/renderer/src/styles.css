@@ -1932,9 +1932,44 @@ body.layout-resizing {
 }
 
 .ai-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
+}
+
+.ai-header-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.ai-working-goal {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.ai-working-goal-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.ai-working-goal-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ai-messages {

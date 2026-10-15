@@ -210,6 +210,7 @@ export type AissPreload = {
     parseSshForm: (rawText: string) => Promise<AiParsedSshForm>
     getChatHistory: (key: string) => Promise<AiChatMessage[]>
     setChatHistory: (key: string, messages: AiChatMessage[]) => Promise<void>
+    getWorkingMemory: (key: string) => Promise<string | null>
     onStream: (cb: (ev: AiStreamEvent) => void) => () => void
   }
   debug: {

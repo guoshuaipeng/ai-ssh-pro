@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { visibleWorkingGoal } from '../src/shared/working-memory-view.ts'
 import {
   EMPTY_THREAD,
   absorbUserTurn,
@@ -220,5 +221,25 @@ ok(agent.includes('工作记忆（当前目标）'), 'prompt heading names worki
 ok(store.includes('archiveAndClearThreadContext'), 'clearing chat history archives that thread')
 ok(!memory.includes('inventory-store'), 'thread memory does not import host inventory')
 ok(!memory.includes('getInventoryStore'), 'thread clear does not call the inventory store')
+
+ok(visibleWorkingGoal('  查看磁盘  ') === '查看磁盘', 'a goal collapses to one line')
+ok(visibleWorkingGoal('   ') == null, 'a blank goal is hidden')
+ok(visibleWorkingGoal(null) == null, 'a missing goal is hidden')
+ok(visibleWorkingGoal(undefined) == null, 'an unset goal is hidden')
+
+const panel = readFileSync(join(root, 'src/renderer/src/components/AIPanel.tsx'), 'utf8')
+const i18n = readFileSync(join(root, 'src/renderer/src/lib/i18n.tsx'), 'utf8')
+const goalUi = panel.slice(panel.indexOf('data-testid="ai-working-goal"'), panel.indexOf('className="ai-messages"'))
+ok(panel.includes('workingGoal ? ('), 'the goal row is omitted when there is no goal')
+ok(panel.includes('title={workingGoal}'), 'the full goal is the tooltip')
+ok(panel.includes("tg('wm.goal')"), 'the row is labeled as the current goal')
+ok(!goalUi.includes('<button'), 'the goal row has no button of its own')
+const clearFn = panel.slice(panel.indexOf('const clearConversation'), panel.indexOf('const undoLastRound'))
+ok(clearFn.includes('confirmDialog'), 'clearing the chat asks in the confirm modal')
+ok(clearFn.indexOf('confirmDialog') < clearFn.indexOf('setChatHistory'), 'confirm happens before the chat is cleared')
+ok(clearFn.includes("tg('wm.clearTitle')") && clearFn.includes("tg('wm.clearBody')"), 'the confirm modal names the chat clear')
+ok(i18n.split("'wm.goal':").length - 1 >= 2, 'wm.goal has zh and en')
+ok(i18n.split("'wm.clearTitle':").length - 1 >= 2, 'wm.clearTitle has zh and en')
+ok(i18n.split("'wm.clearBody':").length - 1 >= 2, 'wm.clearBody has zh and en')
 
 console.log(`\n---\ndone: ${n} passed`)

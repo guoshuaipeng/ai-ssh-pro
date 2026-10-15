@@ -6,6 +6,7 @@ import {
   type ThreadContext,
   type WorkingMemoryBlock
 } from './core-a-context'
+import { visibleWorkingGoal } from '../shared/working-memory-view'
 
 /** 可持久化的会话记忆（OpenClaw 会话存储的轻量对标）+ 线程工作记忆 */
 export type PersistedCoreSession = DurableThreadFields
@@ -144,6 +145,15 @@ export function savePersistedCoreSession(
     taskSummaries: data.taskGraph.slice(-6).map((task) => `[${task.status}] ${task.title}`),
     updatedAt: Date.now()
   }))
+}
+
+/** Current working-memory goal for the chat thread. Blank keys and empty goals return null. */
+export function getWorkingMemoryGoal(sessionKey: string): string | null {
+  const key = sessionKey.trim()
+  if (!key) return null
+  const row = readAll()[key]
+  if (!row || typeof row !== 'object') return null
+  return visibleWorkingGoal(coerceRecord(row).workingMemory?.goal)
 }
 
 export function loadThreadContext(sessionKey: string): { ctx: ThreadContext; epoch: number } {
