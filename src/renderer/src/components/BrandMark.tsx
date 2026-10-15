@@ -1,4 +1,6 @@
-/** Linear app mark shared by the welcome card (48) and later the about page (32). */
+import { APP_MARK_PATH, EMPTY_ICON_STROKE } from './emptyIcons'
+
+/** Same face on the welcome card (48) and the about page (32). */
 export default function BrandMark({ size = 48 }: { size?: number }) {
   return (
     <svg
@@ -8,16 +10,12 @@ export default function BrandMark({ size = 48 }: { size?: number }) {
       viewBox="0 0 48 48"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.5"
+      strokeWidth={EMPTY_ICON_STROKE}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
     >
-      <rect x="7" y="9" width="34" height="24" rx="3" />
-      <path d="M7 16h34" />
-      <path d="M14 23l5 4-5 4" />
-      <path d="M23 31h10" />
-      <path d="M18 39h12" />
+      <path d={APP_MARK_PATH} />
     </svg>
   )
 }

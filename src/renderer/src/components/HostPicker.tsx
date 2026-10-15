@@ -3,7 +3,6 @@ import type { SavedSessionProfile } from '@shared/ipc'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
-import Icon from './Icon'
 
 type Props = {
   open: boolean
@@ -86,7 +85,7 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
         {profiles.length === 0 ? (
           <EmptyState
             compact
-            icon={<Icon name="monitor" size={32} strokeWidth={1.5} />}
+            icon="host"
             title={t('ux08.sidebarTitle')}
             desc={t('pf4.hostsDesc')}
             primary={{

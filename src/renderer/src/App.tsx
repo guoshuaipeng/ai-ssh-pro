@@ -5849,7 +5849,7 @@ export default function App() {
                   <EmptyState
                     testId="sidebar-empty"
                     compact
-                    icon={<Icon name="monitor" size={32} strokeWidth={1.5} />}
+                    icon="host"
                     title={tr('ux08.sidebarTitle')}
                     desc={tr('pf4.hostsDesc')}
                     primary={{ label: tr('pf1.new'), onClick: () => openConnectionEditor(), testId: 'empty-new-connection', tour: 'new-connection', command: 'connection' }}

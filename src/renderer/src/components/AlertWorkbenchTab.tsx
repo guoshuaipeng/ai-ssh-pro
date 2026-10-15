@@ -369,7 +369,7 @@ export default function AlertWorkbenchTab({
           {rows.length === 0 ? (
             <EmptyState
               testId="l2-empty"
-              icon={<Icon name="bell" size={48} strokeWidth={1.5} />}
+              icon="alert"
               title={t('pf4.alertTitle')}
               desc={t('pf4.alertDesc')}
               primary={{ label: t('pf4.alertHome'), onClick: () => (onOpenHome ?? onOpenDashboard)() }}

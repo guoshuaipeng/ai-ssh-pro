@@ -3,7 +3,6 @@ import { auditWindowBounds, setAuditExportContext, type AuditExportSeed } from '
 import { filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
-import Icon from './Icon'
 
 export default function AuditLogPanel({
   events,
@@ -92,7 +91,7 @@ export default function AuditLogPanel({
         {rows.length === 0 ? (
           <EmptyState
             testId="audit-empty"
-            icon={<Icon name="scroll-text" size={48} strokeWidth={1.5} />}
+            icon="audit"
             title={t('pf4.auditTitle')}
             desc={t('pf4.auditDesc')}
             primary={{

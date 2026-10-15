@@ -1030,7 +1030,7 @@ export default function SftpPanel({
           {unconnected ? (
             <EmptyState
               testId="sftp-unconnected"
-              icon={<Icon name="folder" size={48} strokeWidth={1.5} />}
+              icon="sftp"
               title={tg('pf4.sftpTitle')}
               desc={tg('pf4.sftpDesc')}
               primary={{ label: tg('pf4.pickHost'), onClick: () => onPickHost?.(), testId: 'sftp-pick-host' }}
@@ -1055,7 +1055,7 @@ export default function SftpPanel({
             <EmptyState
               compact
               testId={isLocal ? 'sftp-local-empty' : 'sftp-empty'}
-              icon={readOnly && !isLocal ? <Icon name="lock" size={32} /> : <Icon name="folder-open" size={32} />}
+              icon={readOnly && !isLocal ? <Icon name="lock" strokeWidth={1.5} /> : 'sftp'}
               title={readOnly && !isLocal ? tg('ux34.emptyTitle') : tg('ux08.sftpTitle')}
               desc={readOnly && !isLocal ? tg('ux34.emptyDesc') : tg('ux08.sftpDesc')}
             />
