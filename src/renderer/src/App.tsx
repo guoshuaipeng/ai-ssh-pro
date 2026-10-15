@@ -34,7 +34,7 @@ import UiThemeModal from './components/UiThemeModal'
 import SftpPanel from './components/SftpPanel'
 import { askSftpClose, clearArmedFolderSync, requestFolderSync, takeArmedFolderSync } from './lib/sftp-activity'
 import { formatSftpTabTitle, planSftpOpen } from '@shared/sftp-host'
-import { clearHostHistory, countHostHistory, loadSmartPrefs, saveSmartPrefs, SMART_PREFS_EVENT } from './lib/smart-history'
+import { clearHostHistory, loadSmartPrefs, restoreSmartEntries, saveSmartPrefs, SMART_PREFS_EVENT } from './lib/smart-history'
 import RemoteTextEditor from './components/RemoteTextEditor'
 import DockerPanel from './components/DockerPanel'
 import SessionDockerBranch, { type DockerTreeCache } from './components/SessionDockerBranch'
@@ -158,8 +158,9 @@ import StartupSettingsModal from './components/StartupSettingsModal'
 import ProtectionSection, { ProtectionLevelField } from './components/ProtectionSection'
 import ScopePicker from './components/ScopePicker'
 import { activeCount, loadBellPrefs, markHandled, saveBellPrefs, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
-import { appendAudit, appendGate, auditEnabled, loadAudit, setAuditEnabled, type AuditEvent } from '@shared/audit-log'
-import { hostInScope, loadDashScope, saveDashScope, type DashScope } from '@shared/dashboard-scope'
+import { appendAudit, appendGate, auditEnabled, clearAudit, loadAudit, setAuditEnabled, type AuditEvent } from '@shared/audit-log'
+import { hideFromDashboard, hostInScope, loadDashScope, restoreToDashboard, saveDashScope, type DashScope } from '@shared/dashboard-scope'
+import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from '@shared/right-panel'
 import { assessCommandRisk } from '@shared/command-risk'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
@@ -171,7 +172,7 @@ import { findAlertDraft, playbookFromFixes, ruleShortName } from '@shared/playbo
 import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
-import { askConfirm, askText, confirmDialog, promptDialog, DialogHost , isDialogOpen, toast} from './lib/dialogs'
+import { askConfirm, askText, DialogHost , isDialogOpen, promptDialog, toast, toastUndo} from './lib/dialogs'
 import { ContextMenuHost, openContextMenu, textFieldContextItems } from './components/ContextMenu'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
@@ -556,6 +557,24 @@ export default function App() {
   const toggleAi = useCallback(() => {
     updateLayout((p) => withPaneToggle(p, 'ai', !p.showAi))
   }, [updateLayout])
+  const [rightPane, setRightPane] = useState<RightPaneId>('ai')
+  const [snipLaunch, setSnipLaunch] = useState<{ n: number; focusSearch?: boolean; openForm?: boolean; seed?: string }>({ n: 0 })
+  const openRightPanel = useCallback((pane: RightPaneId, opts?: { focusSearch?: boolean; openForm?: boolean; seed?: string }) => {
+    setRightPane(pane)
+    if (pane === 'snippets') {
+      setSnipLaunch((s) => ({ n: s.n + 1, focusSearch: opts?.focusSearch, openForm: opts?.openForm, seed: opts?.seed }))
+    }
+    updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+  }, [updateLayout])
+  const openRightPanelRef = useRef(openRightPanel)
+  openRightPanelRef.current = openRightPanel
+
+  useEffect(() => {
+    const dropped = dropCenterSnippetTabs(tabs)
+    if (!dropped.hadSnippets) return
+    setTabs(dropped.tabs)
+    openRightPanelRef.current('snippets')
+  }, [tabs])
 
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -695,6 +714,19 @@ export default function App() {
   const [resourceOpen, setResourceOpen] = useState(false)
   const [resourceTarget, setResourceTarget] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  useEffect(() => {
+    const onRight = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ pane?: RightPaneId; focusSearch?: boolean; openForm?: boolean; seed?: string }>).detail
+      openRightPanelRef.current(detail?.pane === 'ai' ? 'ai' : 'snippets', detail)
+    }
+    const onPalette = () => setPaletteOpen(true)
+    window.addEventListener('aiss-open-right-panel', onRight)
+    window.addEventListener('aiss-open-palette', onPalette)
+    return () => {
+      window.removeEventListener('aiss-open-right-panel', onRight)
+      window.removeEventListener('aiss-open-palette', onPalette)
+    }
+  }, [])
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => {
@@ -1457,6 +1489,7 @@ export default function App() {
 
   const closeTabRef = useRef<(tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => void>(() => {})
   const sftpBypassRef = useRef(false)
+  const liveCloseBypassRef = useRef(false)
   const closeTab = useCallback((tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => {
     if (view === 'sftp' && !sftpBypassRef.current) {
       void askSftpClose(tabId).then((answer) => {
@@ -1464,6 +1497,21 @@ export default function App() {
         sftpBypassRef.current = true
         closeTabRef.current(tabId, sessionId, status, view)
         sftpBypassRef.current = false
+      })
+      return
+    }
+    if (!liveCloseBypassRef.current && (!view || view === 'session') && status === 'connected' && sessionId) {
+      void askConfirm({
+        id: 'confirm.closeLiveTerminal',
+        title: tg('confirm.closeTerminal'),
+        body: tg('confirm.closeTerminalBody'),
+        confirmText: tg('confirm.closeTerminal'),
+        danger: true
+      }).then((ok) => {
+        if (!ok) return
+        liveCloseBypassRef.current = true
+        closeTabRef.current(tabId, sessionId, status, view)
+        liveCloseBypassRef.current = false
       })
       return
     }
@@ -1530,7 +1578,13 @@ export default function App() {
         setActiveTabId((cur) => (cur === tabId ? null : cur))
       }
       if (isRemoteFileDirty(tabId)) {
-        void confirmDialog({ title: tg('dlg.confirmTitle'), body: tg('app.unsavedClose'), danger: true, confirmText: tg('dlg.discard') }).then((ok) => ok && drop())
+        void askConfirm({
+          id: 'confirm.quitWithDirty',
+          title: tg('dlg.discard'),
+          body: tg('app.unsavedClose'),
+          confirmText: tg('dlg.discard'),
+          danger: true
+        }).then((ok) => ok && drop())
         return
       }
       drop()
@@ -1569,9 +1623,26 @@ export default function App() {
 
   const closeTabsWhere = useCallback(
     (keep: (t: Tab, index: number) => boolean) => {
-      tabsRef.current.forEach((t, idx) => {
-        if (!keep(t, idx)) closeTab(t.tabId, t.sessionId, t.status, t.view)
-      })
+      const drop = tabsRef.current.filter((t, idx) => !keep(t, idx))
+      const live = drop.filter((t) => (!t.view || t.view === 'session') && t.status === 'connected' && t.sessionId)
+      const run = (bypass: boolean) => {
+        if (bypass) liveCloseBypassRef.current = true
+        for (const t of drop) closeTab(t.tabId, t.sessionId, t.status, t.view)
+        if (bypass) liveCloseBypassRef.current = false
+      }
+      if (live.length > 1) {
+        void askConfirm({
+          id: 'confirm.closeLiveTerminal',
+          title: tg('confirm.closeTerminalN', { n: live.length }),
+          body: tg('confirm.closeTerminalBody'),
+          confirmText: tg('confirm.closeTerminalN', { n: live.length }),
+          danger: true
+        }).then((ok) => {
+          if (ok) run(true)
+        })
+        return
+      }
+      run(false)
     },
     [closeTab]
   )
@@ -2313,7 +2384,7 @@ export default function App() {
   }, [tabs])
 
   const orderedTabs = useMemo(
-    () => arrangeTabs(tabs.map((t, i) => ({ ...t, id: t.tabId, seq: t.openSeq ?? i + 1, pinned: Boolean(t.pinned) }))),
+    () => arrangeTabs(tabs.filter((t) => !redirectCenterSnippets(t.view)).map((t, i) => ({ ...t, id: t.tabId, seq: t.openSeq ?? i + 1, pinned: Boolean(t.pinned) }))),
     [tabs]
   )
   const maintSubjects = useMemo(
@@ -2397,7 +2468,7 @@ export default function App() {
   const dismissAlert = useCallback((alert: FiredAlert) => {
     const prev = alertHistory
     refreshAlerts(ignoreAlert(prev, alert.id))
-    showToast(tg('l7.dismissed'), { action: { label: tg('l7.undo'), run: () => refreshAlerts(prev) } })
+    toastUndo({ message: tg('l7.dismissed'), undo: () => refreshAlerts(prev) })
   }, [alertHistory, refreshAlerts])
 
   const handleAlertDone = useCallback((alert: FiredAlert) => {
@@ -2408,13 +2479,11 @@ export default function App() {
     setAlertRules((prev) => {
       const next = { ...prev, mutedUntil: Date.now() + ms }
       saveAlertRules(next)
-      showToast(tg('l2.mute1h'), {
-        action: {
-          label: tg('l7.undo'),
-          run: () => {
-            saveAlertRules(prev)
-            setAlertRules(prev)
-          }
+      toastUndo({
+        message: tg('l2.mute1h'),
+        undo: () => {
+          saveAlertRules(prev)
+          setAlertRules(prev)
         }
       })
       return next
@@ -2440,7 +2509,13 @@ export default function App() {
       })
       if (typed == null) return
     } else {
-      const ok = await confirmDialog({ title: tg('l4.unlockTitle'), body: tg('l4.unlockReadonly'), confirmText: tg('l4.unlock') })
+      const ok = await askConfirm({
+        id: 'confirm.prodGuardTempLift',
+        title: tg('l4.unlockTitle'),
+        body: tg('l4.unlockReadonly'),
+        confirmText: tg('confirm.liftGuard'),
+        danger: true
+      })
       if (!ok) return
     }
     const until = elevateUntil(p.id)
@@ -2620,6 +2695,10 @@ export default function App() {
 
   const openSettingsTab = useCallback(
     (view: SettingsTabView) => {
+      if (redirectCenterSnippets(view)) {
+        openRightPanelRef.current('snippets')
+        return
+      }
       ensureMainVisible()
       const title = tg(SETTINGS_TAB_TITLES[view])
       const existing = tabs.find((t) => t.view === view)
@@ -3614,16 +3693,30 @@ export default function App() {
 
   const deleteFolder = useCallback(
     (folderId: string) => {
-      const nextProfiles = profiles.map((p) => {
-        if (p.folderId !== folderId) return p
-        const { folderId: _omit, ...rest } = p
-        return rest as SavedSessionProfile
+      const folder = folders.find((f) => f.id === folderId)
+      const name = folder?.name ?? ''
+      void askConfirm({
+        id: 'confirm.deleteGroups',
+        title: tg('confirm.deleteGroupTitle', { name }),
+        body: tg('confirm.deleteGroupBody'),
+        confirmText: tg('confirm.deleteGroup', { name }),
+        danger: true
+      }).then((ok) => {
+        if (!ok) {
+          setFolderMenu(null)
+          return
+        }
+        const nextProfiles = profiles.map((p) => {
+          if (p.folderId !== folderId) return p
+          const { folderId: _omit, ...rest } = p
+          return rest as SavedSessionProfile
+        })
+        void persistSessionState({
+          folders: folders.filter((f) => f.id !== folderId),
+          profiles: nextProfiles
+        })
+        setFolderMenu(null)
       })
-      void persistSessionState({
-        folders: folders.filter((f) => f.id !== folderId),
-        profiles: nextProfiles
-      })
-      setFolderMenu(null)
     },
     [folders, persistSessionState, profiles]
   )
@@ -3991,7 +4084,12 @@ export default function App() {
       if (action === 'smartComplete') {
         const cur = loadSmartPrefs()
         const next = saveSmartPrefs({ ...cur, enabled: !cur.enabled })
-        showToast(next.enabled ? tg('x1.toggleOn') : tg('x1.toggleOff'))
+        toastUndo({
+          message: tg(next.enabled ? 'pref.turnedOn' : 'pref.turnedOff', { name: tg('menu.smartComplete') }),
+          undo: () => {
+            saveSmartPrefs(cur)
+          }
+        })
         return
       }
       if (action === 'clearHostHistory') {
@@ -3999,12 +4097,10 @@ export default function App() {
           tabsRef.current.find((x) => x.tabId === activeTabId && (!x.view || x.view === 'session') && x.kind !== 'local') ||
           tabsRef.current.find((x) => (!x.view || x.view === 'session') && x.kind !== 'local' && x.status === 'connected')
         const hk = tab ? sessionHostKey(tab) : ''
-        const host = tab ? tab.connectOpts.label?.trim() || tab.title : ''
-        const n = countHostHistory(hk)
-        void askConfirm(tg('x1.clear'), tg('x1.clearConfirm', { host: host || '—', n }), { danger: true, okLabel: tg('x1.clear') }).then((ok) => {
-          if (!ok) return
-          const removed = clearHostHistory(hk).removed
-          showToast(tg('x1.cleared', { n: removed }))
+        const { removed, dropped } = clearHostHistory(hk)
+        toastUndo({
+          message: tg('x1.cleared', { n: removed }),
+          undo: () => restoreSmartEntries(dropped)
         })
         return
       }
@@ -4122,6 +4218,24 @@ export default function App() {
         }
         return
       }
+      if (action === 'openProdGuard') {
+        const t = tabs.find((x) => x.tabId === activeTabId) ?? null
+        const sessionTab = t && (!t.view || t.view === 'session') ? t : null
+        openInventoryEditor(
+          sessionTab
+            ? {
+                profileId: sessionTab.profileId,
+                host: sessionTab.connectOpts.host,
+                port: sessionTab.connectOpts.port,
+                username: sessionTab.connectOpts.username,
+                label: sessionTab.connectOpts.label ?? sessionTab.title,
+                hostInventoryId: sessionTab.hostInventoryId
+              }
+            : undefined,
+          true
+        )
+        return
+      }
       if (action === 'inventory') {
         const t = tabs.find((x) => x.tabId === activeTabId) ?? null
         const sessionTab = t && (!t.view || t.view === 'session') ? t : null
@@ -4144,7 +4258,7 @@ export default function App() {
         return
       }
       if (action === 'shortcuts') {
-        openUnifiedSettings('shortcuts')
+        setShortcutsOpen(true)
         return
       }
       if (action === 'batchExec') {
@@ -4243,7 +4357,7 @@ export default function App() {
         return
       }
       if (action === 'openAi') {
-        if (!layout.showAi) toggleAi()
+        openRightPanelRef.current('ai')
         return
       }
       if (action === 'checkUpdate') {
@@ -4265,7 +4379,7 @@ export default function App() {
         return
       }
       if (action === 'snippets') {
-        openSettingsTab('snippets')
+        openRightPanelRef.current('snippets')
         return
       }
       if (action === 'fixPlaybook') {
@@ -4462,7 +4576,7 @@ export default function App() {
       const ok = allDemo || await askConfirm(
         ids.length > 1 ? tg('ctx.deleteManyTitle', { n: ids.length }) : tg('ctx.deleteOneTitle', { name }),
         tg('ctx.deleteIrreversible'),
-        { danger: true, okLabel: ids.length > 1 ? tg('ctx.deleteMany', { n: ids.length }) : tg('app.delete') }
+        { id: 'confirm.deleteConnections', danger: true, okLabel: ids.length > 1 ? tg('ctx.deleteMany', { n: ids.length }) : tg('app.delete') }
       )
       if (!ok) return
       const drop = new Set(ids)
@@ -5642,7 +5756,14 @@ export default function App() {
                       data-testid="tab-pin"
                       onClick={() => {
                         setTabMenu(null)
+                        const wasPinned = Boolean(tab.pinned)
                         setTabs((prev) => prev.map((row, i) => (row.tabId === tab.tabId ? { ...row, pinned: !row.pinned, openSeq: row.openSeq ?? i + 1 } : row)))
+                        if (wasPinned) {
+                          toastUndo({
+                            message: tg('tab.unpinned'),
+                            undo: () => setTabs((prev) => prev.map((row) => (row.tabId === tab.tabId ? { ...row, pinned: true } : row)))
+                          })
+                        }
                       }}
                     >
                       {tab.pinned ? tr('tab.unpin') : tr('tab.pin')}
@@ -6367,6 +6488,19 @@ export default function App() {
                       setAuditOn(on)
                     }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    onClear={() => {
+                      void askConfirm({
+                        id: 'confirm.clearAudit',
+                        title: tg('audit.clear'),
+                        body: tg('audit.clearBody'),
+                        confirmText: tg('audit.clear'),
+                        danger: true
+                      }).then((ok) => {
+                        if (!ok) return
+                        clearAudit()
+                        setAuditEvents(loadAudit())
+                      })
+                    }}
                   />
                 ) : t.view === 'dashboard' ? (
                   <MultiHostDashboard
@@ -6389,6 +6523,22 @@ export default function App() {
                     onLocate={(alert) => locateAlert(alert)}
                     onInterpret={(alert) => void interpretAlert(alert)}
                     onOpenWorkbench={(alert) => openWorkbench({ alertId: alert.id })}
+                    onHide={(sid) => {
+                      const host = connectedSshSessions.find((x) => x.sessionId === sid)
+                      const profileId = host?.profileId
+                      if (!profileId) return
+                      const prev = dashScope
+                      const next = hideFromDashboard(prev, profileId)
+                      saveDashScope(next)
+                      setDashScope(next)
+                      toastUndo({
+                        message: tg('dash.removed'),
+                        undo: () => {
+                          saveDashScope(prev)
+                          setDashScope(prev)
+                        }
+                      })
+                    }}
                     visibleSession={(sid) => {
                       const s = connectedSshSessions.find((x) => x.sessionId === sid)
                       if (!s?.profileId) return dashScope.mode === 'all'
@@ -6611,12 +6761,7 @@ export default function App() {
                   />
                 ) : t.view === 'uiTheme' ? (
                   <UiThemeModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
-                ) : t.view === 'snippets' ? (
-                  <SnippetsPanel
-                    onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
-                    activeSessionId={activeSessionId}
-                  />
-                ) : t.view === 'mcpGuide' ? (
+                ) : t.view === 'snippets' ? null : t.view === 'mcpGuide' ? (
                   <McpGuidePanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'updates' ? (
                   <UpdateChannelPanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
@@ -6758,8 +6903,37 @@ export default function App() {
         ) : null}
 
         {layout.showAi ? (
-          <div className="ai-panel-shell" style={{ width: layout.aiWidth, minWidth: layout.aiWidth }}>
-            {aiExplain ? (
+          <div className="ai-panel-shell" style={{ width: layout.aiWidth, minWidth: layout.aiWidth }} data-testid="right-panel" data-pane={rightPane}>
+            <div className="right-pane-tabs" role="tablist" data-testid="right-pane-tabs">
+              <button
+                type="button"
+                role="tab"
+                className="right-pane-tab"
+                data-pane="snippets"
+                aria-selected={rightPane === 'snippets'}
+                title={tg('right.snippetsTip')}
+                onClick={() => openRightPanel('snippets')}
+              >
+                <Icon name="clipboard-list" size={16} />
+                <span className="right-pane-label">{tg('right.snippets')}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className="right-pane-tab"
+                data-pane="ai"
+                aria-selected={rightPane === 'ai'}
+                title={tg('right.aiTip')}
+                onClick={() => openRightPanel('ai')}
+              >
+                <Icon name="sparkles" size={16} />
+                <span className="right-pane-label">{tg('right.ai')}</span>
+              </button>
+            </div>
+            {rightPane === 'snippets' ? (
+              <SnippetsPanel variant="rail" activeSessionId={activeSessionId} launch={snipLaunch} />
+            ) : null}
+            {rightPane === 'ai' && aiExplain ? (
               <AiAssistCard
                 key={aiExplain.id}
                 request={aiExplain}
@@ -6806,6 +6980,7 @@ export default function App() {
                 }}
               />
             ) : null}
+            {rightPane === 'ai' ? (
             <AIPanel
               onOpenSettings={() => openUnifiedSettings('ai')}
               activeSessionId={activeSessionId}
@@ -6821,6 +6996,7 @@ export default function App() {
                   : undefined
               }
             />
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -6929,7 +7105,15 @@ export default function App() {
         onCheckUpdate={() => void runUpdateCheck(true)}
         onWhatsNew={() => setWhatsNewOpen(true)}
       />
-      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} onOpenSettings={() => openUnifiedSettings('shortcuts')} />
+      <ShortcutsModal
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+        onOpenSettings={() => openUnifiedSettings('shortcuts')}
+        onOpenPalette={() => {
+          setShortcutsOpen(false)
+          setPaletteOpen(true)
+        }}
+      />
       <ResourceMonitorModal
         open={resourceOpen}
         sessions={connectedSshSessions}
@@ -7037,12 +7221,7 @@ export default function App() {
           saveAlertHistory([])
           setActiveAlertIds(new Set())
         }}
-        onMute1h={() => {
-          const next = { ...alertRules, mutedUntil: Date.now() + 60 * 60 * 1000 }
-          setAlertRules(next)
-          saveAlertRules(next)
-          showToast(tg('o2.mute1h'))
-        }}
+        onMute1h={() => muteAlerts()}
         onLocate={(alert) => {
           setAlertModalOpen(false)
           locateAlert(alert)
@@ -7051,20 +7230,7 @@ export default function App() {
           setAlertModalOpen(false)
           void interpretAlert(alert)
         }}
-        onIgnore={(alert) => {
-          setAlertHistory((prev) => {
-            const next = ignoreAlert(prev, alert.id)
-            saveAlertHistory(next)
-            setActiveAlertIds((ids) => {
-              const still = next.some((x) => x.hostKey === alert.hostKey && x.status === 'active')
-              if (still) return ids
-              const copy = new Set(ids)
-              copy.delete(alert.hostKey)
-              return copy
-            })
-            return next
-          })
-        }}
+        onIgnore={(alert) => dismissAlert(alert)}
       />
       <UpdateModal
         open={updateModalOpen && Boolean(updateInfo)}
@@ -7292,7 +7458,11 @@ export default function App() {
                 const parsed = parseProxyJump(text)
                 if (!parsed.hops.length) return
                 const targets = profilesRef.current.filter((p) => p.folderId === folderId)
-                const ok = await askConfirm(tg('m2.groupJump'), tg('m2.groupJumpConfirm', { n: targets.length }))
+                const ok = await askConfirm(tg('m2.groupJump'), tg('m2.groupJumpConfirm', { n: targets.length }), {
+                  id: 'confirm.batchJumpOverride',
+                  danger: true,
+                  okLabel: tg('m2.groupJumpOk', { n: targets.length })
+                })
                 if (!ok) return
                 const hop = hopToJump(parsed.hops[0]!)
                 const next = profilesRef.current.map((p) => (p.folderId === folderId ? { ...p, jumpChain: parsed.hops, jumpHost: hop } : p))

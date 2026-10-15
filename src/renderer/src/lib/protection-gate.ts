@@ -1,6 +1,6 @@
 import { appendAudit, appendGate, type AuditOutcome, type GateResult, type GateRule } from '@shared/audit-log'
 import { decideWrite, hostNameMatches, type ProtectionLevel, type WriteChannel } from '@shared/protection'
-import { confirmDialog, promptDialog, toast } from './dialogs'
+import { askConfirm, promptDialog, toast } from './dialogs'
 import { tg } from './i18n'
 
 export type GuardRequest = {
@@ -47,10 +47,10 @@ export async function runGuardedCommand(opts: GuardRequest): Promise<boolean> {
   if (decision === 'block') {
     outcome = 'blocked'
   } else if (decision === 'confirm-danger') {
-    ok = await confirmDialog({
+    ok = await askConfirm({
+      id: 'confirm.dangerCommand',
       title: tg('risk.title'),
-      body: opts.dangerReason || tg('l4.dangerBody'),
-      detail: opts.command,
+      body: `${opts.dangerReason || tg('l4.dangerBody')}\n\n${opts.command}`,
       danger: true,
       confirmText: tg('risk.run')
     })
@@ -65,10 +65,10 @@ export async function runGuardedCommand(opts: GuardRequest): Promise<boolean> {
     if (typed == null) {
       outcome = 'cancelled'
     } else if (decision === 'confirm-host-danger') {
-      ok = await confirmDialog({
+      ok = await askConfirm({
+        id: 'confirm.dangerCommand',
         title: tg('risk.title'),
-        body: opts.dangerReason || tg('l4.dangerBody'),
-        detail: opts.command,
+        body: `${opts.dangerReason || tg('l4.dangerBody')}\n\n${opts.command}`,
         danger: true,
         confirmText: tg('risk.run')
       })
@@ -79,10 +79,12 @@ export async function runGuardedCommand(opts: GuardRequest): Promise<boolean> {
       outcome = 'allowed'
     }
   } else if (opts.channel === 'alert') {
-    ok = await confirmDialog({
+    ok = await askConfirm({
+      id: 'confirm.dangerCommand',
       title: tg('a1.runOn', { host }),
-      detail: opts.command,
-      confirmText: tg('a1.run')
+      body: opts.command,
+      confirmText: tg('a1.run'),
+      danger: true
     })
     outcome = ok ? 'allowed' : 'cancelled'
   } else {

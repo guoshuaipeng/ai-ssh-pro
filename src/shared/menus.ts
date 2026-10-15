@@ -102,6 +102,7 @@ export type MenuAction =
   | 'aiPostmortem'
   | 'explainDiff'
   | 'diffFixPlaybook'
+  | 'openProdGuard'
 
 export type Bilingual = { zh: string; en: string }
 

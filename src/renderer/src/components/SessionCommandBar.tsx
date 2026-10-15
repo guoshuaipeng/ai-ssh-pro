@@ -206,7 +206,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       const ok = await beforeSend(command, Boolean(risk))
       if (!ok) return
     } else if (risk) {
-      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${command}`, { danger: true, okLabel: t('risk.run') })
+      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${command}`, { id: 'confirm.dangerCommand', danger: true, okLabel: t('risk.run') })
       if (!ok) {
         setError(t('risk.blocked'))
         return

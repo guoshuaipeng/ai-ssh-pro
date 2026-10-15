@@ -53,6 +53,7 @@ const CAT: Record<string, PaletteCat> = {
   openDocker: 'ops',
   batchExec: 'ops',
   inventory: 'ops',
+  openProdGuard: 'ops',
   snippets: 'session',
   sftp: 'file',
   folderSync: 'file',

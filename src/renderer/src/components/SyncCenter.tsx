@@ -214,8 +214,8 @@ export function SyncConflicts({
       const backed = await window.aiss.sync.backupLocal({ conflict: row.id, at: Date.now() })
       let skip = false
       if (!backed.ok) {
-        const once = await askConfirm(tg('m2.backupRequired'), tg('m2.backupSkip'), { danger: true })
-        const twice = once && (await askConfirm(tg('m2.backupRequired'), tg('m2.backupSkip2'), { danger: true }))
+        const once = await askConfirm(tg('m2.backupRequired'), tg('m2.backupSkip'), { id: 'confirm.syncOverwrite', danger: true, okLabel: tg('confirm.overwriteLocal') })
+        const twice = once && (await askConfirm(tg('m2.backupRequired'), tg('m2.backupSkip2'), { id: 'confirm.syncOverwrite', danger: true, okLabel: tg('confirm.overwriteLocal') }))
         skip = Boolean(twice)
       }
       const gate = overwriteLocalAllowed({ backupCompleted: Boolean(backed.ok && backed.file), skipConfirmed: skip })

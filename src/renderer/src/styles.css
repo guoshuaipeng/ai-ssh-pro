@@ -1434,6 +1434,53 @@ body.layout-resizing {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  container-type: inline-size;
+}
+.right-pane-tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.right-pane-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.right-pane-tab[aria-selected='true'] {
+  color: var(--text);
+  background: var(--color-bg-elevated, var(--panel));
+  border-color: var(--border);
+}
+@container (max-width: 300px) {
+  .right-pane-label { display: none; }
+}
+.snippets-rail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: none;
+}
+.snippets-rail .workspace-panel-body {
+  flex: 1;
+  min-height: 0;
+}
+.snippets-rail-foot {
+  flex: none;
+  padding: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .ai-panel-shell .ai-panel {
@@ -4297,7 +4344,7 @@ body.split-resizing {
   padding-top: 12vh;
 }
 .cmdp {
-  width: min(620px, 92vw);
+  width: min(640px, 92vw);
   max-height: 64vh;
   display: flex;
   flex-direction: column;
@@ -4441,14 +4488,21 @@ body.split-resizing {
   height: 32px;
   min-height: 32px;
   max-height: 32px;
+  min-width: 180px;
+  max-width: 280px;
   padding: 0 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border-default, var(--border));
   border-radius: 8px;
   line-height: 1.2;
-  overflow: visible;
+  overflow: hidden;
   gap: 6px;
   box-sizing: border-box;
   align-items: center;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  background: var(--color-bg-elevated, var(--panel));
+  color: var(--color-text-muted, var(--muted));
+  justify-content: flex-start;
 }
 .titlebar-search-btn .tb-label,
 .titlebar-search-btn kbd {
@@ -4462,6 +4516,12 @@ body.split-resizing {
   background: transparent;
   color: inherit;
   font-family: inherit;
+  white-space: nowrap;
+}
+.titlebar-search-btn .tb-search-ph {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .titlebar-search-btn kbd {
   font-size: 11px;
@@ -4495,7 +4555,7 @@ body.split-resizing {
 .toast-stack {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  bottom: 40px;
   z-index: 10050;
   display: flex;
   flex-direction: column;

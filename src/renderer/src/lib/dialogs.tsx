@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { assertConfirmAllowed, isBannedConfirmLabel, undoDurationMs, type ConfirmId } from '@shared/confirm-whitelist'
 import Modal from '../components/Modal'
 import { tg } from './i18n'
 import { showToast, type ToastAction } from './toast'
@@ -69,8 +70,74 @@ export function askText(title: string, defaultValue = ''): Promise<string | null
   return promptDialog({ title, defaultValue })
 }
 
-export function askConfirm(title: string, message: string, opts?: { danger?: boolean; okLabel?: string }): Promise<boolean> {
-  return confirmDialog({ title, body: message, danger: opts?.danger, confirmText: opts?.okLabel })
+export type AskConfirmInput = {
+  id: ConfirmId
+  title: string
+  body?: string
+  confirmText?: string
+  danger?: boolean
+}
+
+function normalizeAskConfirm(
+  titleOrOpts: string | AskConfirmInput,
+  message?: string,
+  opts?: { id?: ConfirmId; danger?: boolean; okLabel?: string }
+): AskConfirmInput {
+  if (typeof titleOrOpts === 'string') {
+    return {
+      id: opts?.id as ConfirmId,
+      title: titleOrOpts,
+      body: message,
+      danger: opts?.danger,
+      confirmText: opts?.okLabel
+    }
+  }
+  return titleOrOpts
+}
+
+/** Only whitelist ids may confirm. The primary label must name the action. */
+export function askConfirm(opts: AskConfirmInput): Promise<boolean>
+export function askConfirm(title: string, message: string, opts: { id: ConfirmId; danger?: boolean; okLabel?: string }): Promise<boolean>
+export function askConfirm(
+  titleOrOpts: string | AskConfirmInput,
+  message?: string,
+  opts?: { id?: ConfirmId; danger?: boolean; okLabel?: string }
+): Promise<boolean> {
+  const input = normalizeAskConfirm(titleOrOpts, message, opts)
+  assertConfirmAllowed(input.id)
+  if (isBannedConfirmLabel(input.confirmText)) {
+    throw new Error(`askConfirm label must name the action: ${input.id}`)
+  }
+  return confirmDialog({
+    title: input.title,
+    body: input.body,
+    danger: input.danger ?? true,
+    confirmText: input.confirmText
+  })
+}
+
+export const UNDO_TOAST_MS = 8000
+
+/** Run already happened. Offer ［撤销］ for at least 5s (default 8s). */
+export function toastUndo(opts: { message: string; undo: () => void | Promise<void>; durationMs?: number }): void {
+  const ms = undoDurationMs(opts.durationMs ?? UNDO_TOAST_MS)
+  showToast(opts.message, {
+    ms,
+    action: {
+      label: tg('undo.action'),
+      run: () => {
+        try {
+          const result = opts.undo()
+          const done = () => showToast(tg('undo.done'), { ms: 2500 })
+          if (result && typeof (result as Promise<void>).then === 'function') {
+            void (result as Promise<void>).then(done).catch(() => showToast(tg('undo.failed'), { kind: 'error' }))
+          } else done()
+        } catch {
+          showToast(tg('undo.failed'), { kind: 'error' })
+        }
+      }
+    }
+  })
 }
 
 export function DialogHost() {

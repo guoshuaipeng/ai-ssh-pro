@@ -1,5 +1,5 @@
-import { menuLabel, type MenuAction, type SharedMenu } from '../../../shared/menus'
-import { paletteCategory, type PaletteCat } from '../../../shared/palette-rank'
+import { menuLabel, SHARED_MENUS, type MenuAction, type SharedMenu } from '../../../shared/menus'
+import { layoutPalette, paletteCategory, type PaletteCat } from '../../../shared/palette-rank'
 
 export type PaletteEntry = {
   id: MenuAction
@@ -27,12 +27,12 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   clearHostHistory: 'qingchu lishi history clear',
   resourceMonitor: 'jiankong ziyuan monitor cpu',
   serverTools: 'gongjuxiang toolbox jincheng',
-  dashboard: 'kanban duoji multihost',
+  dashboard: 'kanban duoji multihost 看板 dashboard dkb',
   opsHome: 'home gzt yunwei dashboard-home yunwei shouye',
   refreshHomeHealth: 'sxjk shuaxin jiankang refresh home health',
   switchTab: 'tab qhbq qiehuan biaoqian switch tab',
   alertWorkbench: 'gaojing gongzuotai alert workbench chuli',
-  alertRules: 'gaojing guize alert',
+  alertRules: 'gaojing guize alert 告警规则 alert-rules gjgz rules',
   alertHistory: 'gaojing lishi alert history',
   fixPlaybook: 'fix playbook xfjb juben gaojing',
   dryRunPlaybook: 'dry run shiyunxing playbook',
@@ -51,6 +51,7 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   commandPalette: 'sousuo palette',
   snippets: 'pianduan snippet',
   inventory: 'zhuji dang an profile',
+  openProdGuard: '生产防护 production guard prod-guard scfh fanghu',
   portForward: 'duankou zhuanfa forward',
   aiCommand: 'ziran yuyan nl command ai',
   aiExplainError: 'jieshi baocuo explain ai',
@@ -71,13 +72,13 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   explainDiff: 'diff explain chayi l8b',
   diffFixPlaybook: 'diff playbook xiufu l8b',
   sftpComfort: 'midu shushi compact sftp',
-  setJumpHosts: 'jump tiaoban bastion proxy',
+  setJumpHosts: '跳板 jump tiaoban bastion proxy proxyjump',
   checkCerts: 'cert zhengshu sk fido key',
   testJump: 'jump test tiaoban',
   openDocker: 'docker rongqi container',
   syncConflicts: 'sync conflict chongtu',
   syncPreview: 'sync preview yulan',
-  cloudSync: 'sync yun tongbu ybtb yuntb cloud-sync gist',
+  cloudSync: '云同步 sync yun tongbu ybtb yuntb cloud-sync gist',
   syncNow: 'sync now tongbu',
   folderSync: 'tongbu wenjianjia sync folder wjjtb folder-sync'
 }
@@ -85,6 +86,7 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
 /** F4: every menu action becomes a palette entry; both languages and the action id are searchable. */
 /** Palette-only actions (not a second menu row). */
 export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: string }> = [
+  { id: 'openProdGuard', zh: '生产防护…', en: 'Production guard…' },
   { id: 'setJumpHosts', zh: '为当前连接设置跳板机…', en: 'Set jump hosts for this connection…' },
   { id: 'checkCerts', zh: '检查密钥与证书…', en: 'Check keys and certificates…' },
   { id: 'testJump', zh: '测试跳板连接', en: 'Test jump connection' },
@@ -144,6 +146,11 @@ export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: st
     push(extra.id, label, other, '', undefined)
   }
   return out
+}
+
+/** IX-4: ids whose hay matches the query. Empty query returns the stable grouped order. */
+export function paletteMatch(q: string, locale = 'zh-CN'): string[] {
+  return layoutPalette(buildPaletteEntries(SHARED_MENUS, locale), q).items.map((e) => e.id)
 }
 
 export function filterPaletteEntries(entries: PaletteEntry[], q: string): PaletteEntry[] {

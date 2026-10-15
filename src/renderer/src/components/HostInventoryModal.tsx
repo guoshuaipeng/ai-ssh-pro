@@ -10,7 +10,7 @@ import NotesMarkdownPreview from './NotesMarkdownPreview'
 import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
 import Icon, { Twist } from './Icon'
-import { confirmDialog } from '../lib/dialogs'
+import { confirmDialog, toastUndo } from '../lib/dialogs'
 export type HostInventoryLink = {
   profileId?: string
   host?: string
@@ -396,7 +396,20 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
   }
 
   const removeService = (idx: number) => {
+    const removed = form.services[idx]
     setForm((prev) => ({ ...prev, services: prev.services.filter((_, i) => i !== idx) }))
+    if (removed) {
+      toastUndo({
+        message: tg('inv.serviceDeleted', { name: removed.name }),
+        undo: () => {
+          setForm((prev) => {
+            const services = [...prev.services]
+            services.splice(Math.min(idx, services.length), 0, removed)
+            return { ...prev, services }
+          })
+        }
+      })
+    }
     if (editingSvcIdx === idx) {
       setEditingSvcIdx(null)
       setSvcDraft({ name: '', kind: 'unknown', notes: '' })
