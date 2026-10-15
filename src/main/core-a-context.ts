@@ -20,11 +20,17 @@ import { randomUUID } from 'node:crypto'
 
 export type WorkingStatus = 'active' | 'blocked' | 'done'
 
-/** Graphorin working-tier block. v1 keeps a single current-task block. */
+/**
+ * Mastra-style working scratchpad. One current-task block per thread.
+ * `hostFacts` are structured and host-scoped. They are not observational
+ * bullets, so a bullet cap cannot drop them.
+ */
 export type WorkingMemoryBlock = {
   id: 'current_task'
   goal: string
   constraints: string[]
+  /** Rare host tokens (ids, addresses, paths) kept beside the active goal. */
+  hostFacts: string[]
   successCriteria?: string
   status: WorkingStatus
   updatedAt: number
@@ -403,6 +409,36 @@ function extractSuccess(text: string): string | undefined {
   return value ? collapse(value, 80) : undefined
 }
 
+const MAX_HOST_FACTS = 8
+
+/**
+ * Concrete host tokens only: rare identifiers, addresses, and paths.
+ * Narrative filler does not become a host fact, and later filler does not
+ * evict an earlier fact once the scratchpad is full.
+ */
+function extractHostFacts(text: string): string[] {
+  const hits: string[] = []
+  const add = (raw: string) => {
+    const line = collapse(raw, 80).replace(/[，,。.;；:：]+$/g, '')
+    if (!line || hits.includes(line)) return
+    hits.push(line)
+  }
+  for (const match of text.matchAll(/\b[A-Z][A-Z0-9_]{4,}\b/g)) add(match[0] ?? '')
+  for (const match of text.matchAll(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/g)) add(match[0] ?? '')
+  for (const match of text.matchAll(/\/[\w./-]{3,}/g)) add(match[0] ?? '')
+  return hits.slice(0, MAX_HOST_FACTS)
+}
+
+function mergeHostFacts(existing: string[], text: string): string[] {
+  const next = existing.filter((fact) => fact.trim()).slice(0, MAX_HOST_FACTS)
+  for (const fact of extractHostFacts(text)) {
+    if (next.includes(fact)) continue
+    if (next.length >= MAX_HOST_FACTS) break
+    next.push(fact)
+  }
+  return next
+}
+
 function seedBlock(text: string, now: number): WorkingMemoryBlock {
   const goal = collapse(text, 200)
   const success = extractSuccess(text)
@@ -410,8 +446,33 @@ function seedBlock(text: string, now: number): WorkingMemoryBlock {
     id: 'current_task',
     goal: goal || text.trim().slice(0, 200),
     constraints: extractConstraints(text),
+    hostFacts: extractHostFacts(text),
     ...(success ? { successCriteria: success } : {}),
     status: 'active',
+    updatedAt: now
+  }
+}
+
+/** Fold a follow-up into the scratchpad without replacing the active goal. */
+function applyUtterance(block: WorkingMemoryBlock, utterance: string, now: number): WorkingMemoryBlock {
+  const constraints = mergeConstraints(block.constraints, utterance)
+  const hostFacts = mergeHostFacts(block.hostFacts, utterance)
+  const success = block.successCriteria ?? extractSuccess(utterance)
+  const status: WorkingStatus = block.status === 'done' ? 'active' : block.status
+  if (
+    status === block.status &&
+    constraints.length === block.constraints.length &&
+    hostFacts.length === block.hostFacts.length &&
+    success === block.successCriteria
+  ) {
+    return block
+  }
+  return {
+    ...block,
+    constraints,
+    hostFacts,
+    ...(success ? { successCriteria: success } : {}),
+    status,
     updatedAt: now
   }
 }
@@ -478,11 +539,16 @@ export function absorbUserTurn(
   if (!next.workingMemory) {
     const seedFrom = first || latest
     if (!seedFrom) return { ctx: next, switchedFrom: null }
-    const seeded = seedBlock(seedFrom, now)
+    let seeded = seedBlock(seedFrom, now)
     next = { ...next, workingMemory: seeded }
     if (latest && latest !== seedFrom && shouldReplaceGoal(seeded.goal, latest)) {
       switchedFrom = seeded
       next = replaceGoal(next, latest, now)
+      return { ctx: next, switchedFrom }
+    }
+    if (latest && latest !== seedFrom) {
+      seeded = applyUtterance(seeded, latest, now)
+      next = { ...next, workingMemory: seeded }
     }
     return { ctx: next, switchedFrom }
   }
@@ -495,25 +561,9 @@ export function absorbUserTurn(
     return { ctx: next, switchedFrom }
   }
 
-  const constraints = mergeConstraints(next.workingMemory.constraints, latest)
-  const success = next.workingMemory.successCriteria ?? extractSuccess(latest)
-  const status: WorkingStatus = next.workingMemory.status === 'done' ? 'active' : next.workingMemory.status
-  const changed =
-    status !== next.workingMemory.status ||
-    constraints.length !== next.workingMemory.constraints.length ||
-    success !== next.workingMemory.successCriteria
-  if (!changed) return { ctx: next, switchedFrom: null }
-  next = {
-    ...next,
-    workingMemory: {
-      ...next.workingMemory,
-      constraints,
-      ...(success ? { successCriteria: success } : {}),
-      status,
-      updatedAt: now
-    }
-  }
-  return { ctx: next, switchedFrom: null }
+  const updated = applyUtterance(next.workingMemory, latest, now)
+  if (updated === next.workingMemory) return { ctx: next, switchedFrom: null }
+  return { ctx: { ...next, workingMemory: updated }, switchedFrom: null }
 }
 
 function replaceGoal(ctx: ThreadContext, utterance: string, now: number): ThreadContext {
@@ -529,10 +579,14 @@ function replaceGoal(ctx: ThreadContext, utterance: string, now: number): Thread
     : null
   let episodes = ctx.episodes
   if (episode) episodes = appendEpisode({ ...ctx, episodes }, episode).episodes
+  const seeded = seedBlock(utterance, now)
   return {
     ...ctx,
     episodes,
-    workingMemory: seedBlock(utterance, now)
+    workingMemory: {
+      ...seeded,
+      hostFacts: mergeHostFacts(previous?.hostFacts ?? [], utterance)
+    }
   }
 }
 
@@ -715,7 +769,8 @@ function capObservationBullets(bullets: ObservationBullet[]): { bullets: Observa
     return { bullets: kept, dropped: bullets.length - kept.length }
   }
   const room = cap - concrete.length
-  const narrative = rest.slice(-room)
+  // `slice(-0)` is `slice(0)` and would keep every narrative line once concrete facts fill the cap.
+  const narrative = room > 0 ? rest.slice(-room) : []
   const kept = [...concrete, ...narrative]
   kept.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
   return { bullets: kept, dropped: bullets.length - kept.length }
@@ -929,6 +984,7 @@ function renderWorking(block: WorkingMemoryBlock | null): string {
   if (!block) return ''
   const lines = [`goal: ${block.goal}`]
   if (block.constraints.length > 0) lines.push(`constraints: ${block.constraints.join('; ')}`)
+  if (block.hostFacts.length > 0) lines.push(`hostFacts: ${block.hostFacts.join('; ')}`)
   if (block.successCriteria) lines.push(`success: ${block.successCriteria}`)
   lines.push(`status: ${block.status}`)
   return lines.join('\n')

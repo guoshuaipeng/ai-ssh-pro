@@ -19,6 +19,9 @@
  * S25: observational-memory budget and truncation are on the context debug event.
  * A tight bullet cap still keeps the rare fact, host B does not inherit it, and
  * confirm-before-run stays on.
+ * S26: the working-memory scratchpad (goal, constraints, host facts) stays in the
+ * planner prompt after observational bullets are truncated, and stays on the
+ * host that recorded it. Confirm-before-run stays on.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -99,6 +102,14 @@ type Expectation = {
   memoryMustStillRetainFromT1?: string[]
   mustTerminate?: boolean
   workingMemoryAfter?: { goalMentions?: string[] }
+  /**
+   * S26: tokens that must appear in the working-memory scratchpad injected
+   * into the planner prompt (goal / constraints / hostFacts), not only in
+   * observational bullets.
+   */
+  workingMemoryMustContain?: string[]
+  /** S26: another host's scratchpad must not be injected or persisted here. */
+  workingMemoryMustNotContain?: string[]
   sessionIntent?: { goalContainsAnyOf?: string[] }
   intentSwitch?: { newGoalMentions?: string[]; archiveOldWorkingMemory?: boolean }
   activeGoalMustNotBe?: string[]
@@ -286,6 +297,10 @@ function blockAfter(prompt: string, heading: string): string {
 
 function observationalSection(prompt: string): string {
   return blockAfter(prompt, '观测记忆（较早对话压缩）：') || blockAfter(prompt, 'Observational memory (compressed older turns):')
+}
+
+function workingMemorySection(prompt: string): string {
+  return blockAfter(prompt, '工作记忆（当前目标）：') || blockAfter(prompt, 'Working memory (current goal):')
 }
 
 /** Lines under a single prompt label, stopping at the next section heading. */
@@ -658,6 +673,32 @@ function assertExpectation(
   }
   const goals = result.prompts.map(goalLine).join('\n')
   for (const phrase of expected.workingMemoryAfter?.goalMentions ?? []) assert.match(goals, new RegExp(phrase))
+  if (expected.workingMemoryMustContain?.length || expected.workingMemoryMustNotContain?.length) {
+    assert.ok(result.prompts.length > 0, `${label}: no planner prompt`)
+    for (const prompt of result.prompts) {
+      const block = workingMemorySection(prompt)
+      assert.ok(block.includes('goal:'), `${label}: working-memory block missing`)
+      for (const fact of expected.workingMemoryMustContain ?? []) {
+        assert.ok(block.includes(fact), `${label}: working memory dropped ${fact}`)
+      }
+      for (const fact of expected.workingMemoryMustNotContain ?? []) {
+        assert.equal(block.includes(fact), false, `${label}: working memory leaked ${fact}`)
+      }
+    }
+    const persisted = scope?.historyKey ? loadPersistedCoreSession(scope.historyKey) : null
+    const scratch = [
+      persisted?.workingMemory?.goal ?? '',
+      ...(persisted?.workingMemory?.constraints ?? []),
+      ...(persisted?.workingMemory?.hostFacts ?? [])
+    ].join('\n')
+    for (const fact of expected.workingMemoryMustContain ?? []) {
+      if (fact === 'hostFacts:') continue
+      assert.ok(scratch.includes(fact), `${label}: persisted scratchpad dropped ${fact}`)
+    }
+    for (const fact of expected.workingMemoryMustNotContain ?? []) {
+      assert.equal(scratch.includes(fact), false, `${label}: persisted scratchpad leaked ${fact}`)
+    }
+  }
   const goalAny = expected.sessionIntent?.goalContainsAnyOf
   if (goalAny?.length) {
     assert.ok(goalAny.some((phrase) => goals.includes(phrase)), `${label}: goal matched none of ${goalAny.join(' | ')}`)
