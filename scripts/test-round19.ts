@@ -167,11 +167,11 @@ ok(upsertCommandSnippet(updated, { title: 'df', body: 'df -hT' }, 'c') === updat
 ok(readFileSync('src/renderer/src/components/JumpChainEditor.tsx', 'utf8').includes('jump-chips'), 'jump chain has a chip row')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-ok(pkg.version === '0.4.0-m2', 'package version m2')
+ok(pkg.version === '0.4.0', 'package version')
+ok(changelogFor('0.4.0').some((e) => e.action === 'playbooks'), 'whats new 0.4.0')
 ok(changelogFor('0.4.0-m2').some((e) => e.action === 'playbooks'), 'whats new m2')
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
-ok(changelog.includes('## v0.4.0-m2') && changelog.includes('## v0.4.0-m1'), 'changelog sections')
-ok(!changelog.includes('## v0.4.0\n'), 'no final v0.4.0 section')
+ok(changelog.includes('## v0.4.0\n') && changelog.includes('## v0.4.0-m2') && changelog.includes('## v0.4.0-m1'), 'changelog sections')
 
 const sftp = readFileSync('src/renderer/src/components/SftpPanel.tsx', 'utf8')
 const mkdirFn = sftp.slice(sftp.indexOf('const mkdir ='), sftp.indexOf('const renameEntry ='))

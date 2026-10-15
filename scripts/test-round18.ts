@@ -92,10 +92,11 @@ ok(KEYMAP.some((k) => k.id === 'opsHome' && k.keys === 'Ctrl+Alt+H'), 'home shor
 ok(KEYMAP.some((k) => k.id === 'alertWorkbench' && k.keys === 'Ctrl+Alt+A'), 'workbench shortcut')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-ok(pkg.version === '0.4.0-m2', 'package version')
+ok(pkg.version === '0.4.0', 'package version')
+ok(changelogFor('0.4.0').some((e) => e.action === 'playbooks'), 'whats new 0.4.0 playbooks')
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 ok(changelog.includes('## v0.4.0-m1'), 'changelog section')
-ok(!changelog.includes('## v0.4.0\n'), 'final tag section is not written yet')
+ok(changelog.includes('## v0.4.0\n'), 'changelog v0.4.0 section')
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 for (const key of ['l7.title', 'l2.title', 'l4.title', 'l4.readonlyBlocked', 'a4.privacy', 'menu.opsHome', 'menu.alertWorkbench']) {
   ok(i18n.includes(`'${key}'`), `i18n ${key}`)
