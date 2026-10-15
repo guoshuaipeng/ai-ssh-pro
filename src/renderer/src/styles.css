@@ -1515,7 +1515,7 @@ body.layout-resizing {
   /* Hairline sits in the 36px box so the content row stays 30px (6px pad + 30px tabs). */
   box-shadow: inset 0 -1px 0 var(--border);
   flex-shrink: 0;
-  /* Polish-3 TB-1/TB-3: one 36px row. Tabs scroll inside .tab-bar-scroll; ⋯ lists the rest. */
+  /* P3-TO: one 36px row. Tabs scroll inside .tab-bar-scroll; ⌄ n lists the rest. */
   min-width: 0;
   height: 36px;
   max-height: 36px;
@@ -1529,12 +1529,13 @@ body.layout-resizing {
   gap: 2px;
   flex: 1;
   min-width: 0;
-  /* 30px of tabs. The extra 16px holds a classic scrollbar so .tab-bar can clip it (TB-1). */
+  /* 30px of tabs. The extra 16px holds a classic scrollbar so .tab-bar can clip it (TO-1). */
   height: 46px;
   margin-bottom: -16px;
   padding-bottom: 16px;
   overflow-x: auto;
   overflow-y: hidden;
+  /* Beat the global `* { scrollbar-width: thin }` and the 8px webkit bar. */
   scrollbar-width: none !important;
   scrollbar-color: transparent transparent;
   -ms-overflow-style: none;
@@ -1584,10 +1585,14 @@ body.layout-resizing {
   flex: none;
   flex-shrink: 0;
   align-self: center;
-  width: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
   height: 24px;
   padding: 0;
-  line-height: 22px;
+  line-height: 1;
+  font-size: 14px;
   white-space: nowrap;
 }
 .tab-scroll-btn:disabled {
@@ -1599,12 +1604,18 @@ body.layout-resizing {
   align-self: center;
   white-space: nowrap;
   height: 24px;
-  width: 28px;
   min-width: 28px;
-  max-width: 28px;
-  padding: 0;
-  line-height: 24px;
+  width: auto;
+  padding: 0 6px;
+  line-height: 22px;
   text-align: center;
+  font-size: 12px;
+}
+.tab-overflow-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
 }
 .tab-overflow-menu {
   position: fixed;
