@@ -6,19 +6,20 @@
  *
  * Under observational compression the same window stays stable: a scarce
  * marker outside the naive head cut remains in the bullet, and filler that
- * the cite window dropped does not come back as a cite.
+ * the cite window dropped does not come back as a cite. A later compression
+ * in the same thread keeps that hold.
  *
- * Soft-batch pin: tipSuggest `0.4.8-s30`. Rollback is the S29 citeable truncate.
+ * Soft-batch pin: tipSuggest `0.4.8-s31`. Rollback is the S30 cite hold.
  */
 
 /** Planner-visible cap for one command's stdout, stderr, or ring. */
 export const OUTPUT_VIEW_CAP = 6000
 
 /** Citeable truncate path. */
-export const tipSuggest = '0.4.8-s30'
+export const tipSuggest = '0.4.8-s31'
 
 /** Previous batch this path rolls back to. */
-export const rollback = '0.4.8-s29'
+export const rollback = '0.4.8-s30'
 
 /** At least 8 characters, so ordinary words are not evidence tokens. */
 const RARE_TOKEN = /[A-Z][A-Z0-9_]{7,}/g
@@ -242,8 +243,8 @@ export function truncateCiteableOutput(raw: string, cap = outputViewCap()): Outp
 /**
  * The end may cite rare tokens that were in the output or held from an
  * earlier cite window. A rare token the output never contained is removed.
- * Filler the cite window dropped is removed, including when observational
- * compression is what still holds that window. Missing preserved markers
+ * Filler the cite window dropped is removed, including when a later
+ * observational compression still holds that window. Missing preserved markers
  * are appended only for a truncated live view. A short view with no hold
  * is unchanged.
  */

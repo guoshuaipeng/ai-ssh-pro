@@ -656,8 +656,9 @@ export type AiDebugEntry =
           stable: boolean
         }
         /**
-         * The same window after observational compression. Host-scoped.
-         * Empty and stable when this thread has not compressed a long output.
+         * The same window after observational compression, including a later
+         * re-compression on this thread. Host-scoped. Empty and stable when
+         * this thread has not compressed a long output.
          */
         citeHold: {
           head: number
