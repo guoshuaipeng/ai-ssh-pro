@@ -82,6 +82,11 @@ export type MenuAction =
   | 'openDocker'
   | 'syncConflicts'
   | 'syncPreview'
+  | 'fixPlaybook'
+  | 'dryRunPlaybook'
+  | 'fileSnapshots'
+  | 'exportPostmortem'
+  | 'toggleBlockStrip'
 
 export type Bilingual = { zh: string; en: string }
 
@@ -95,6 +100,8 @@ export type SharedMenuItem =
       toggle?: boolean
       /** needs an active SSH session (UX-09: opens host picker when none) */
       needsSession?: boolean
+      /** Hidden from menus; still searchable in Ctrl+K (UX-31b). */
+      menuHidden?: boolean
     }
   | { type: 'sep' }
 
@@ -104,7 +111,7 @@ const it = (
   id: MenuAction,
   zh: string,
   en: string,
-  extra?: { toggle?: boolean; needsSession?: boolean; shortcut?: string }
+  extra?: { toggle?: boolean; needsSession?: boolean; shortcut?: string; menuHidden?: boolean }
 ): SharedMenuItem => ({ type: 'item', id, label: { zh, en }, shortcut: extra?.shortcut ?? keysFor(id), ...extra })
 const sep: SharedMenuItem = { type: 'sep' }
 
@@ -197,14 +204,14 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
       it('dashboard', '多主机看板', 'Multi-host dashboard'),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
-      it('refreshDocker', '刷新 Docker', 'Refresh Docker'),
+      it('refreshDocker', '刷新 Docker', 'Refresh Docker', { menuHidden: true }),
       sep,
       it('batchExec', '批量执行…', 'Batch run…'),
       it('snippets', '命令片段', 'Snippets'),
       it('inventory', '主机档案', 'Host inventory'),
       sep,
       it('alertRules', '告警规则…', 'Alert rules…'),
-      it('alertHistory', '告警历史', 'Alert history'),
+      it('alertHistory', '告警历史', 'Alert history', { menuHidden: true }),
       it('auditLog', '审计日志', 'Audit log')
     ]
   },
@@ -213,9 +220,9 @@ export const SHARED_MENUS: SharedMenu[] = [
     label: { zh: 'AI', en: 'AI' },
     items: [
       it('openAi', '打开 AI 助手', 'Open AI assistant'),
-      it('aiExplainError', 'AI：解释最近的错误', 'AI: Explain the last error'),
-      it('aiCommand', '用自然语言生成命令', 'Natural language → command', { needsSession: true }),
-      it('aiInspect', '多主机巡检报告…', 'Multi-host AI inspection…'),
+      it('aiExplainError', '解释最近的错误', 'Explain last error'),
+      it('aiCommand', '自然语言生成命令', 'Command from natural language', { needsSession: true }),
+      it('aiInspect', '多主机巡检报告…', 'Multi-host inspection…'),
       sep,
       it('ai', 'AI 设置…', 'AI settings…'),
       sep,
@@ -242,4 +249,19 @@ export const SHARED_MENUS: SharedMenu[] = [
 
 export function menuLabel(b: Bilingual, locale: string): string {
   return locale === 'zh-CN' ? b.zh : b.en
+}
+
+export function visibleMenuItems(menu: SharedMenu): SharedMenuItem[] {
+  const items = menu.items.filter((it) => it.type === 'sep' || !it.menuHidden)
+  const out: SharedMenuItem[] = []
+  for (const it of items) {
+    if (it.type === 'sep' && (out.length === 0 || out[out.length - 1]?.type === 'sep')) continue
+    out.push(it)
+  }
+  while (out.length && out[out.length - 1]?.type === 'sep') out.pop()
+  return out
+}
+
+export function visibleActionIds(menu: SharedMenu): string[] {
+  return visibleMenuItems(menu).flatMap((it) => (it.type === 'item' ? [it.id] : []))
 }

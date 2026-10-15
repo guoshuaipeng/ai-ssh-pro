@@ -1,6 +1,12 @@
 /** L5 output blocks. Default off. Turning them off does not discard terminal scrollback. */
 
 export const BLOCKS_LS_KEY = 'aiss.blocks.enabled'
+export const BLOCKS_HEIGHT_KEY = 'aiss.blocks.height'
+export const BLOCKS_COLLAPSED_KEY = 'aiss.blocks.collapsed'
+export const BLOCK_HEIGHT_DEFAULT = 0.25
+export const BLOCK_HEIGHT_MIN = 0.15
+export const BLOCK_HEIGHT_MAX = 0.5
+export const BLOCK_HEIGHT_FLOOR_PX = 72
 export const BLOCKS_DEFAULT_ON = false
 export const LARGE_CHARS = 2_000_000
 export const LARGE_LINES = 20_000
@@ -21,6 +27,29 @@ export function blocksEnabled(store: Pick<Storage, 'getItem'> = globalThis.local
 
 export function setBlocksEnabled(on: boolean, store: Pick<Storage, 'setItem'> = globalThis.localStorage): void {
   store.setItem(BLOCKS_LS_KEY, on ? '1' : '0')
+}
+
+export function clampBlockRatio(ratio: number): number {
+  if (!Number.isFinite(ratio)) return BLOCK_HEIGHT_DEFAULT
+  return Math.min(BLOCK_HEIGHT_MAX, Math.max(BLOCK_HEIGHT_MIN, ratio))
+}
+
+export function loadBlockRatio(store: Pick<Storage, 'getItem'> = globalThis.localStorage): number {
+  const n = Number(store.getItem(BLOCKS_HEIGHT_KEY))
+  return clampBlockRatio(Number.isFinite(n) && n > 0 ? n : BLOCK_HEIGHT_DEFAULT)
+}
+
+export function saveBlockRatio(ratio: number, store: Pick<Storage, 'setItem'> = globalThis.localStorage): number {
+  const next = clampBlockRatio(ratio)
+  store.setItem(BLOCKS_HEIGHT_KEY, String(next))
+  return next
+}
+
+/** Pixel height of the strip. Below the floor the strip snaps closed. */
+export function blockStripPx(terminalPx: number, ratio: number): { px: number; collapsed: boolean } {
+  const px = Math.round(Math.max(0, terminalPx) * clampBlockRatio(ratio))
+  if (px < BLOCK_HEIGHT_FLOOR_PX) return { px: 24, collapsed: true }
+  return { px, collapsed: false }
 }
 
 /** Closing blocks keeps the xterm scrollback. Callers must not clear the terminal. */

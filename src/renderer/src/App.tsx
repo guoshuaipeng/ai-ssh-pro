@@ -106,6 +106,8 @@ import OpsHomeTab, { type HomeHost } from './components/OpsHomeTab'
 import AlertWorkbenchTab from './components/AlertWorkbenchTab'
 import AuditLogPanel from './components/AuditLogPanel'
 import { PlaybookEditor, PlaybookList, PlaybookResult, PlaybookRun } from './components/PlaybookTabs'
+import FileHistoryTab from './components/FileHistoryTab'
+import PostmortemTab from './components/PostmortemTab'
 import { SyncConflicts, SyncSettings, useSyncPhase } from './components/SyncCenter'
 import { RecordingPlayer, RecordingsList } from './components/RecordingsTab'
 import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
@@ -114,7 +116,7 @@ import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
 import { TAB_STRIP_NUDGE, tabStripWheelDelta } from '@shared/tab-overflow'
 import type { JumpHop } from '@shared/jump-chain'
-import { loadPlaybooks } from '@shared/playbook'
+import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
 import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
 import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
@@ -132,6 +134,8 @@ import { planRestore, snapshotWorkspace } from '@shared/session-restore'
 import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
 import SettingsPanel from './components/SettingsPanel'
 import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
+import { findAlertDraft, playbookFromFixes, ruleShortName } from '@shared/playbook-draft'
+import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
 import { askConfirm, askText, confirmDialog, promptDialog, DialogHost , isDialogOpen, toast} from './lib/dialogs'
@@ -166,7 +170,8 @@ function profileSidebarTitle(p: SavedSessionProfile): string {
   return lines.join('\n')
 }
 
-function profileSidebarLabel(p: SavedSessionProfile): string {
+function profileSidebarLabel(p: SavedSessionProfile, locale: string): string {
+  if (p.id === DEMO_PROFILE_ID) return demoProfileLabel(locale === 'en' ? 'en' : 'zh-CN')
   return p.label?.trim() || p.host || `${p.username}@${p.host}` || '—'
 }
 
@@ -204,6 +209,8 @@ type TabView =
   | 'recording-play'
   | 'sync-preview'
   | 'settings'
+  | 'file-history'
+  | 'postmortem'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide' | 'updates'
 
@@ -248,7 +255,9 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'recordings',
   'recording-play',
   'sync-preview',
-  'settings'
+  'settings',
+  'file-history',
+  'postmortem'
 ])
 
 type Tab = {
@@ -677,7 +686,7 @@ export default function App() {
   // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
   const [tourOpen, setTourOpen] = useState(false)
   const [hostPicker, setHostPicker] = useState<{ action: MenuAction; feature: string } | null>(null)
-  const [aiExplain, setAiExplain] = useState<{ id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert' } | null>(null)
+  const [aiExplain, setAiExplain] = useState<{ id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert'; alertId?: string } | null>(null)
   const aiExplainSeqRef = useRef(0)
   const [splitSecondary, setSplitSecondary] = useState('')
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null)
@@ -986,6 +995,7 @@ export default function App() {
   )
 
   const tabsRef = useRef(tabs)
+  const activeTabIdRef = useRef(activeTabId)
   // keep the active tab visible when the tab bar scrolls
   useEffect(() => {
     if (!activeTabId) return
@@ -1058,6 +1068,7 @@ export default function App() {
     if (!tabStripOverflowing && tabOverflowOpen) setTabOverflowOpen(false)
   }, [tabStripOverflowing, tabOverflowOpen])
   tabsRef.current = tabs
+  activeTabIdRef.current = activeTabId
   const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
   const [autoRetry, setAutoRetry] = useState<{ tabId: string; attempt: number; delayMs: number } | null>(null)
   const reconnectTabRef = useRef<(tabId: string) => Promise<string | null>>(async () => null)
@@ -1477,7 +1488,7 @@ export default function App() {
         setEditingSavedId(null)
         setConnectionFormNonce((n) => n + 1)
       }
-      const title = profile ? tg('app.editProfile', { name: profileSidebarLabel(profile) }) : tg('app.newConnection')
+      const title = profile ? tg('app.editProfile', { name: profileSidebarLabel(profile, locale) }) : tg('app.newConnection')
       const existing = tabs.find((t) => t.view === 'connection')
       if (existing) {
         setTabs((prev) => prev.map((t) => (t.tabId === existing.tabId ? { ...t, title } : t)))
@@ -1816,13 +1827,16 @@ export default function App() {
 
   const openM2 = useCallback((view: TabView, title: string, extra?: Partial<Tab>) => {
     ensureMainVisible()
-    const ex = tabsRef.current.find(
-      (t) =>
-        t.view === view &&
-        (extra?.playbookId ? t.playbookId === extra.playbookId : !t.playbookId || view === 'playbook-list' || view === 'playbook-result' || view === 'sync-settings' || view === 'sync-conflicts' || view === 'recordings' || view === 'sync-preview') &&
-        (extra?.recordingFile ? t.recordingFile === extra.recordingFile : view !== 'recording-play')
-    )
-    if (ex && (view !== 'playbook-edit' || ex.playbookId === extra?.playbookId) && (view !== 'playbook-run' || ex.playbookId === extra?.playbookId)) {
+    const ex = tabsRef.current.find((t) => {
+      if (t.view !== view) return false
+      if (view === 'file-history') return t.profileId === extra?.profileId && (t.remotePath || '') === (extra?.remotePath || '')
+      if (view === 'postmortem') return t.focusAlertId === extra?.focusAlertId
+      if (view === 'playbook-edit' || view === 'playbook-run') return t.playbookId === extra?.playbookId
+      if (view === 'recording-play') return t.recordingFile === extra?.recordingFile
+      if (extra?.playbookId) return t.playbookId === extra.playbookId
+      return true
+    })
+    if (ex) {
       setTabs((prev) => prev.map((t) => (t.tabId === ex.tabId ? { ...t, title, ...extra } : t)))
       setActiveTabId(ex.tabId)
       return
@@ -1834,6 +1848,75 @@ export default function App() {
     ])
     setActiveTabId(tabId)
   }, [ensureMainVisible])
+
+  const createFixRef = useRef<(alert: FiredAlert, fixes: Array<{ command: string; note?: string }>, force?: boolean, kind?: 'alert' | 'error') => void>(() => undefined)
+  const createFixPlaybook = useCallback((alert: FiredAlert, fixes: Array<{ command: string; note?: string }>, force = false, kind: 'alert' | 'error' = 'alert') => {
+    const alertId = kind === 'alert' ? alert.id : undefined
+    const existing = alertId ? findAlertDraft(loadPlaybooks(), alertId) : undefined
+    if (existing && !force) {
+      openM2('playbook-edit', existing.name.slice(0, 24), { playbookId: existing.id, focusAlertId: alert.id })
+      showToast(tg('w1.openedExisting'), { action: { label: tg('w1.regen'), run: () => createFixRef.current(alert, fixes, true, kind) } })
+      return
+    }
+    const owner = tabsRef.current.find((t) => t.sessionId === alert.hostKey && (!t.view || t.view === 'session'))
+    const profile = profilesRef.current.find((p) => p.id === owner?.profileId) ?? profilesRef.current.find((p) => p.id === alert.hostKey)
+    const lang = locale === 'en' ? 'en' : 'zh'
+    const built = playbookFromFixes(
+      fixes,
+      { kind, alertId, hostKey: alert.hostKey, hostTitle: alert.hostTitle, ruleId: kind === 'alert' ? alert.ruleId : undefined, at: Date.now() },
+      effectiveLevel(profile),
+      { profileId: profile?.id, locale: lang, ruleLabel: kind === 'alert' ? ruleShortName(alert.ruleId, lang) : '' }
+    )
+    if (existing && force) built.playbook.id = existing.id
+    try {
+      savePlaybooks(upsertPlaybook(loadPlaybooks(), built.playbook))
+    } catch (e) {
+      showToast(tg('w1.saveFail', { reason: e instanceof Error ? e.message : String(e) }), { kind: 'error' })
+      return
+    }
+    appendAudit({
+      type: 'playbook.draft',
+      host: alert.hostTitle,
+      profileId: profile?.id,
+      source: 'AI',
+      outcome: 'allowed',
+      detail: `${built.playbook.name} ← ${kind} ${kind === 'alert' ? alert.ruleId : 'error'}@${alert.hostTitle}`,
+      alertId
+    })
+    setAuditEvents(loadAudit())
+    if (alertId) appendTimeline({ alertId, kind: 'playbook.draft', hostKey: alert.hostKey, summary: built.playbook.name })
+    openM2('playbook-edit', built.playbook.name.slice(0, 24), { playbookId: built.playbook.id, focusAlertId: alertId })
+    showToast(tg('w1.created'))
+    if (built.truncated > 0) showToast(tg('w1.truncated', { n: fixes.filter((f) => String(f.command || '').trim()).length }))
+  }, [locale, openM2])
+  createFixRef.current = createFixPlaybook
+
+  const openFileHistory = useCallback((info: { profileId: string; path?: string; sessionId?: string; hostLabel: string; connectOpts?: SshConnectOptions }) => {
+    const file = (info.path || '').split('/').filter(Boolean).pop() || ''
+    const title = (file ? `${tg('w3.history')} · ${file}` : tg('w3.history')).slice(0, 24)
+    openM2('file-history', title, {
+      profileId: info.profileId,
+      remotePath: info.path || '',
+      boundSessionId: info.sessionId,
+      connectOpts: info.connectOpts ?? PLACEHOLDER_CONNECT
+    })
+  }, [openM2])
+
+  const openPostmortem = useCallback((alert: FiredAlert) => {
+    ensureFired({
+      id: alert.id,
+      hostKey: alert.hostKey,
+      hostTitle: alert.hostTitle,
+      ruleId: alert.ruleId,
+      value: alert.value,
+      threshold: alert.threshold,
+      at: alert.at,
+      status: alert.status,
+      recoveredAt: alert.recoveredAt,
+      handledManually: alert.handledManually
+    })
+    openM2('postmortem', tg('w4.tab', { host: alert.hostTitle, rule: alert.ruleId }).slice(0, 24), { focusAlertId: alert.id })
+  }, [openM2])
 
   const liveSessions = useMemo(() => {
     const map = new Map<string, string>()
@@ -1883,7 +1966,7 @@ export default function App() {
       const plan = (e as CustomEvent<FolderSyncPlan>).detail
       if (!plan?.sessionId) return
       const sid = plan.sessionId
-      void runFolderSyncDurable({ ...plan, sessionId: sid }, async () => {
+      void runFolderSyncDurable({ ...plan, sessionId: sid, profileId: plan.profileId || guardForSession(sid).profile?.id }, async () => {
         const g = guardForSession(sid)
         return runGuardedCommand({
           level: g.level,
@@ -2166,6 +2249,7 @@ export default function App() {
         setActiveTabId(existing.tabId)
         return
       }
+      const owner = tabsRef.current.find((t) => t.sessionId === info.sessionId && (!t.view || t.view === 'session'))
       const tabId = uuid()
       setTabs((prev) => [
         ...prev,
@@ -2173,11 +2257,12 @@ export default function App() {
           tabId,
           sessionId: '',
           title: info.name,
-          connectOpts: info.connectOpts ?? PLACEHOLDER_CONNECT,
+          connectOpts: info.connectOpts ?? owner?.connectOpts ?? PLACEHOLDER_CONNECT,
           status: 'connected',
           view: 'remote-file',
           boundSessionId: info.sessionId,
-          remotePath: info.remotePath
+          remotePath: info.remotePath,
+          profileId: owner?.profileId
         }
       ])
       setActiveTabId(tabId)
@@ -2848,7 +2933,7 @@ export default function App() {
   const renderProfileBranch = (p: SavedSessionProfile, inFolder?: boolean) => (
     <SessionDockerBranch
       key={p.id}
-      profile={p}
+      profile={p.id === DEMO_PROFILE_ID ? { ...p, label: demoProfileLabel(locale === 'en' ? 'en' : 'zh-CN') } : p}
       selected={highlightedProfileId === p.id || multiSelected.includes(p.id)}
       inFolder={inFolder}
       hostStatus={showHostStatus ? (hostStatus[p.id] ?? null) : undefined}
@@ -3614,6 +3699,69 @@ export default function App() {
         openSettingsTab('snippets')
         return
       }
+      if (action === 'fixPlaybook') {
+        if (!tabsRef.current.some((t) => t.view === 'alert-workbench')) {
+          showToast(tg('w1.paletteNeedAlert'))
+          return
+        }
+        if (!aiConfigured) {
+          showToast(tg('w1.needAi'))
+          return
+        }
+        const tab = tabsRef.current.find((t) => t.view === 'alert-workbench')
+        if (tab) setActiveTabId(tab.tabId)
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent('aiss-fix-playbook')), 0)
+        return
+      }
+      if (action === 'exportPostmortem') {
+        if (!tabsRef.current.some((t) => t.view === 'alert-workbench')) {
+          showToast(tg('w1.paletteNeedAlert'))
+          return
+        }
+        const tab = tabsRef.current.find((t) => t.view === 'alert-workbench')
+        if (tab) setActiveTabId(tab.tabId)
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent('aiss-export-postmortem')), 0)
+        return
+      }
+      if (action === 'dryRunPlaybook') {
+        const run = tabsRef.current.find((t) => t.view === 'playbook-run')
+        if (!run) {
+          const books = loadPlaybooks()
+          if (!books.length) {
+            showToast(tg('m2.noPlaybooks'))
+            return
+          }
+          const latest = books.reduce((a, b) => ((b.updatedAt || 0) >= (a.updatedAt || 0) ? b : a))
+          openM2('playbook-run', tg('m2.run'), { playbookId: latest.id })
+          return
+        }
+        setActiveTabId(run.tabId)
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent('aiss-dry-run')), 0)
+        return
+      }
+      if (action === 'fileSnapshots') {
+        const active = tabsRef.current.find((t) => t.tabId === activeTabId)
+        const file = active?.view === 'remote-file' || active?.view === 'file-history' ? active : tabsRef.current.find((t) => t.view === 'remote-file')
+        const session = tabsRef.current.find((t) => (!t.view || t.view === 'session') && t.sessionId && t.tabId === activeTabId)
+          ?? tabsRef.current.find((t) => (!t.view || t.view === 'session') && t.sessionId && t.status === 'connected')
+        const profileId = file?.profileId || session?.profileId || ''
+        if (!profileId) {
+          showToast(tg('w3.empty'))
+          return
+        }
+        openFileHistory({
+          profileId,
+          path: file?.remotePath,
+          sessionId: file?.boundSessionId || session?.sessionId,
+          hostLabel: session?.title || file?.title || '',
+          connectOpts: file?.connectOpts.host ? file.connectOpts : session?.connectOpts
+        })
+        return
+      }
+      if (action === 'toggleBlockStrip') {
+        window.dispatchEvent(new CustomEvent('aiss-toggle-block-strip'))
+        return
+      }
       if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'mcpGuide') {
         openUnifiedSettings(sectionForAction(action) ?? 'general')
       }
@@ -3648,7 +3796,9 @@ export default function App() {
       openWorkbench,
       openAudit,
       openM2,
-      bellPrefs.mode
+      bellPrefs.mode,
+      aiConfigured,
+      openFileHistory
     ]
   )
   const handleTitlebarMenuActionRef = useRef(handleTitlebarMenuAction)
@@ -4046,7 +4196,15 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null
       const inTerminal = Boolean(el?.closest('.xterm'))
-      const action = matchKeymap(e, inTerminal)
+      const scopes: Array<'alertWorkbench' | 'playbookRun' | 'fileHistory' | 'blocks'> = []
+      if (!inTerminal) {
+        const view = tabsRef.current.find((t) => t.tabId === activeTabIdRef.current)?.view
+        if (view === 'alert-workbench') scopes.push('alertWorkbench')
+        if (view === 'playbook-run') scopes.push('playbookRun')
+        if (view === 'file-history' || view === 'remote-file') scopes.push('fileHistory')
+      }
+      if (el?.closest('.term-blocks')) scopes.push('blocks')
+      const action = matchKeymap(e, inTerminal, scopes)
       if (!action) return
       e.preventDefault()
       e.stopPropagation()
@@ -4225,7 +4383,6 @@ export default function App() {
         {layout.showMain ? (
           <section className="main">
           <div className="tab-bar" ref={tabBarRef}>
-            {tabs.length === 0 && <span style={{ padding: '8px 12px', color: 'var(--muted)' }}>{tr('tab.none')}</span>}
             <button
               type="button"
               className={`alert-bell${alertRules.mutedUntil && alertRules.mutedUntil > Date.now() ? ' is-muted' : ''}`}
@@ -4978,7 +5135,59 @@ export default function App() {
                     }}
                     buildContext={buildAlertExplain}
                     onOpenSettings={() => openUnifiedSettings('ai')}
+                    onCreatePlaybook={(alert, fixes) => createFixPlaybook(alert, fixes)}
+                    onExportPostmortem={(alert) => openPostmortem(alert)}
                   />
+                ) : t.view === 'file-history' ? (
+                  <FileHistoryTab
+                    profileId={t.profileId || ''}
+                    hostLabel={profiles.find((p) => p.id === t.profileId)?.label || t.title}
+                    path={t.remotePath || ''}
+                    level={effectiveLevel(profiles.find((p) => p.id === t.profileId))}
+                    sessionId={t.boundSessionId}
+                    onOpenFile={(path) => {
+                      if (!t.boundSessionId) return
+                      openRemoteFileEditor({
+                        sessionId: t.boundSessionId,
+                        remotePath: path,
+                        name: path.split('/').pop() || path,
+                        connectOpts: t.connectOpts
+                      })
+                    }}
+                    beforeWrite={async () => {
+                      if (!t.boundSessionId) return false
+                      const g = guardForSession(t.boundSessionId)
+                      return runGuardedCommand({
+                        level: g.level,
+                        hostName: g.hostName || t.connectOpts.host,
+                        hostLabel: g.hostLabel,
+                        elevated: g.elevated,
+                        profileId: g.profile?.id,
+                        channel: 'sftp',
+                        dangerous: false,
+                        command: 'snapshot-rollback',
+                        source: 'user'
+                      })
+                    }}
+                  />
+                ) : t.view === 'postmortem' && t.focusAlertId ? (
+                  (() => {
+                    const alert = alertHistory.find((a) => a.id === t.focusAlertId)
+                    if (!alert) return <div className="workspace-panel" data-testid="postmortem" />
+                    const tl = {
+                      id: alert.id,
+                      hostKey: alert.hostKey,
+                      hostTitle: alert.hostTitle,
+                      ruleId: alert.ruleId,
+                      value: alert.value,
+                      threshold: alert.threshold,
+                      at: alert.at,
+                      status: alert.status,
+                      recoveredAt: alert.recoveredAt,
+                      handledManually: alert.handledManually
+                    }
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.2'} />
+                  })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
                     profiles={profiles}
@@ -5023,7 +5232,7 @@ export default function App() {
                     plan={t.syncPlan}
                     onStart={(plan) => {
                       const sid = plan.sessionId || t.boundSessionId
-                      void runFolderSyncDurable({ ...plan, sessionId: sid }, async () => {
+                      void runFolderSyncDurable({ ...plan, sessionId: sid, profileId: plan.profileId || t.profileId || (sid ? guardForSession(sid).profile?.id : undefined) }, async () => {
                         if (!sid) return false
                         const g = guardForSession(sid)
                         return runGuardedCommand({
@@ -5142,8 +5351,19 @@ export default function App() {
                       const g = guardForSession(t.boundSessionId)
                       return g.level === 'readonly' && !g.elevated
                     })()}
+                    profileId={t.profileId}
+                    onOpenHistory={(path) => {
+                      if (!t.profileId) return
+                      openFileHistory({
+                        profileId: t.profileId,
+                        path,
+                        sessionId: t.boundSessionId,
+                        hostLabel: t.title,
+                        connectOpts: t.connectOpts
+                      })
+                    }}
                     onPinPreview={(plan) =>
-                      openM2('sync-preview', tg('m2.syncPreview'), { syncPlan: { ...plan, sessionId: t.boundSessionId }, boundSessionId: t.boundSessionId })
+                      openM2('sync-preview', tg('m2.syncPreview'), { syncPlan: { ...plan, sessionId: t.boundSessionId, profileId: t.profileId }, boundSessionId: t.boundSessionId, profileId: t.profileId })
                     }
                     beforeRemoteWrite={async () => {
                       if (!t.boundSessionId) return false
@@ -5171,6 +5391,18 @@ export default function App() {
                       const g = guardForSession(t.boundSessionId)
                       return g.level === 'readonly' && !g.elevated
                     })()}
+                    profileId={t.profileId || tabs.find((x) => x.sessionId === t.boundSessionId && (!x.view || x.view === 'session'))?.profileId}
+                    onOpenHistory={() => {
+                      const profileId = t.profileId || tabs.find((x) => x.sessionId === t.boundSessionId && (!x.view || x.view === 'session'))?.profileId
+                      if (!profileId || !t.remotePath) return
+                      openFileHistory({
+                        profileId,
+                        path: t.remotePath,
+                        sessionId: t.boundSessionId,
+                        hostLabel: t.title,
+                        connectOpts: t.connectOpts
+                      })
+                    }}
                     beforeRemoteWrite={async () => {
                       if (!t.boundSessionId) return false
                       const g = guardForSession(t.boundSessionId)
@@ -5366,6 +5598,25 @@ export default function App() {
                 request={aiExplain}
                 onClose={() => setAiExplain(null)}
                 onOpenSettings={() => openUnifiedSettings('ai')}
+                onCreatePlaybook={(fixes) => {
+                  const sid = aiExplain.sessionId
+                  const owner = tabsRef.current.find((t) => t.sessionId === sid && (!t.view || t.view === 'session'))
+                  createFixPlaybook(
+                    {
+                      id: aiExplain.alertId || `err-${sid}`,
+                      hostKey: sid,
+                      hostTitle: aiExplain.host || owner?.title || sid,
+                      ruleId: 'cpu',
+                      value: 0,
+                      threshold: 0,
+                      at: Date.now(),
+                      status: 'active'
+                    },
+                    fixes,
+                    false,
+                    aiExplain.alertId ? 'alert' : 'error'
+                  )
+                }}
                 onInsert={(sid, command) => {
                   focusSessionTab(sid)
                   window.setTimeout(() => fillCommandBar(sid, command), 60)
@@ -5512,7 +5763,12 @@ export default function App() {
         aiReady={aiConfigured}
         notes={{
           ...(syncReady ? {} : { syncNow: tg('m2.syncNeedSetup') }),
-          ...(hasPlaybooks ? {} : { runPlaybook: tg('m2.noPlaybooks') })
+          ...(hasPlaybooks ? {} : { runPlaybook: tg('m2.noPlaybooks') }),
+          ...(tabs.some((tab) => tab.view === 'alert-workbench')
+            ? aiConfigured
+              ? {}
+              : { fixPlaybook: tg('w1.needAi') }
+            : { fixPlaybook: tg('w1.paletteNeedAlert'), exportPostmortem: tg('w1.paletteNeedAlert') })
         }}
       />
       <WhatsNewModal

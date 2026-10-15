@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FiredAlert } from '@shared/alert-rules'
 import { filterAlerts, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
 import { locateTargetFor } from '@shared/alert-locate'
+import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
+import { loadAudit } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
+import { fixesFor } from '../lib/ai-fix-memory'
 import AiAssistCard, { type AiExplainRequest } from './AiAssistCard'
 import AiConfigCard from './AiConfigCard'
 import { AlertLine } from './AlertLine'
@@ -39,7 +42,9 @@ export default function AlertWorkbenchTab({
   onRun,
   buildContext,
   onOpenSettings,
-  autoExplain
+  autoExplain,
+  onCreatePlaybook,
+  onExportPostmortem
 }: {
   alerts: FiredAlert[]
   focusId?: string
@@ -65,6 +70,8 @@ export default function AlertWorkbenchTab({
   buildContext: (alert: FiredAlert, includeLogs: boolean) => Promise<string>
   onOpenSettings: () => void
   autoExplain?: boolean
+  onCreatePlaybook?: (alert: FiredAlert, fixes: Array<{ command: string; note?: string }>) => void
+  onExportPostmortem?: (alert: FiredAlert) => void
 }) {
   const { t } = useI18n()
   const [filter, setFilter] = useState<AlertFilter>(initialFilter ?? 'active')
@@ -81,6 +88,10 @@ export default function AlertWorkbenchTab({
   const [includeLogs, setIncludeLogs] = useState(true)
   const [explain, setExplain] = useState<AiExplainRequest | null>(null)
   const [explainAlertId, setExplainAlertId] = useState<string | null>(null)
+  const [pane, setPane] = useState<'detail' | 'timeline'>('detail')
+  const [showConcurrent, setShowConcurrent] = useState(true)
+  const [note, setNote] = useState('')
+  const [highlightCreate, setHighlightCreate] = useState(false)
 
   useEffect(() => {
     if (initialFilter) setFilter(initialFilter)
@@ -116,8 +127,38 @@ export default function AlertWorkbenchTab({
     }
     const text = await buildContext(alert, includeLogs && online)
     setExplainAlertId(alert.id)
-    setExplain({ id: Date.now(), sessionId: alert.hostKey, text, host: alert.hostTitle, kind: 'explainAlert' })
+    setExplain({ id: Date.now(), sessionId: alert.hostKey, text, host: alert.hostTitle, kind: 'explainAlert', alertId: alert.id })
   }
+
+  const requestFix = (alert: FiredAlert) => {
+    setSelectedId(alert.id)
+    setNarrowDetail(true)
+    const fixes = fixesFor(`explainAlert:${alert.id}`)
+    if (fixes && fixes.length > 0) {
+      setHighlightCreate(false)
+      onCreatePlaybook?.(alert, fixes)
+      return
+    }
+    if (fixes) return
+    setHighlightCreate(true)
+    void explainThis(alert)
+  }
+
+  useEffect(() => {
+    const onFix = () => {
+      if (!selected) return
+      requestFix(selected)
+    }
+    const onExport = () => {
+      if (selected) onExportPostmortem?.(selected)
+    }
+    window.addEventListener('aiss-fix-playbook', onFix)
+    window.addEventListener('aiss-export-postmortem', onExport)
+    return () => {
+      window.removeEventListener('aiss-fix-playbook', onFix)
+      window.removeEventListener('aiss-export-postmortem', onExport)
+    }
+  }, [selected, onCreatePlaybook, onExportPostmortem])
 
   useEffect(() => {
     if (!autoExplain || !focusId) return
@@ -290,6 +331,7 @@ export default function AlertWorkbenchTab({
                   setLocateError(null)
                 }}
                 onOpen={() => doLocate(a)}
+                onFixPlaybook={() => requestFix(a)}
               />
             ))
           )}
@@ -302,6 +344,44 @@ export default function AlertWorkbenchTab({
             <p className="l7-muted">{t('l2.pick')}</p>
           ) : (
             <>
+              <div className="w4-seg">
+                <button type="button" className={pane === 'detail' ? 'is-on' : ''} onClick={() => setPane('detail')}>{t('w4.seg.detail')}</button>
+                <button type="button" data-testid="w4-timeline-tab" className={pane === 'timeline' ? 'is-on' : ''} onClick={() => setPane('timeline')}>
+                  {t('w4.seg.timeline', { n: viewTimeline(selected, ensureFired(selected), loadAudit(), { concurrent: showConcurrent }).length })}
+                </button>
+                {pane === 'timeline' ? (
+                  <button type="button" className="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</button>
+                ) : null}
+              </div>
+              {pane === 'timeline' ? (
+                <div data-testid="w4-timeline">
+                  <label className="l4-check">
+                    <input type="checkbox" checked={showConcurrent} onChange={(e) => setShowConcurrent(e.target.checked)} />
+                    {t('w4.showConcurrent')}
+                  </label>
+                  {viewTimeline(selected, eventsFor(selected.id), loadAudit(), { concurrent: showConcurrent }).map((e) => (
+                    <div key={e.id} className={`w4-row${e.concurrent ? ' is-concurrent' : ''}`}>
+                      <span>{new Date(e.at).toLocaleTimeString()}</span>
+                      <span>{e.kind}</span>
+                      <span title={e.summary}>{e.summary}</span>
+                    </div>
+                  ))}
+                  <input
+                    value={note}
+                    placeholder={t('w4.addNote')}
+                    onChange={(e) => setNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' || e.shiftKey) return
+                      const text = note.trim()
+                      if (!text) return
+                      appendTimeline({ alertId: selected.id, kind: 'note', hostKey: selected.hostKey, summary: text.slice(0, 500) })
+                      setNote('')
+                    }}
+                  />
+                </div>
+              ) : null}
+              {pane === 'detail' ? (
+              <>
               <h3 className="l2-detail-title" title={selected.hostTitle}>
                 {selected.hostTitle}
                 <span>
@@ -385,8 +465,16 @@ export default function AlertWorkbenchTab({
                     request={explain}
                     onClose={() => setExplain(null)}
                     onOpenSettings={onOpenSettings}
-                    onInsert={onInsert}
-                    onRun={(_sid, command) => onRun(selected, command)}
+                    onInsert={(sid, command) => {
+                      appendTimeline({ alertId: selected.id, kind: 'command.insert', hostKey: selected.hostKey, summary: command })
+                      onInsert(sid, command)
+                    }}
+                    onRun={(_sid, command) => {
+                      appendTimeline({ alertId: selected.id, kind: 'command.run', hostKey: selected.hostKey, summary: command })
+                      onRun(selected, command)
+                    }}
+                    onCreatePlaybook={(fixes) => onCreatePlaybook?.(selected, fixes)}
+                    highlightCreate={highlightCreate}
                   />
                 ) : null}
                 {explainAlertId === selected.id && aiConfigured ? (
@@ -395,6 +483,8 @@ export default function AlertWorkbenchTab({
                   </button>
                 ) : null}
               </div>
+              </>
+              ) : null}
             </>
           )}
         </div>

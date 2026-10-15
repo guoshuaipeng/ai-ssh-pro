@@ -28,6 +28,7 @@ import {
 import { registerWorkspaceIpc, setLocaleChangedHandler } from './workspace-ipc'
 import { registerBackupIpc } from './backup-ipc'
 import { registerSyncIpc } from './sync-ipc'
+import { registerSnapshotIpc } from './snapshot-ipc'
 import { registerServerToolsIpc } from './server-tools-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
 import { streamOpenAICompatibleChat } from './ai-stream'
@@ -966,6 +967,7 @@ function registerIpc(): void {
   registerWorkspaceIpc(sshManager)
   registerBackupIpc()
   registerSyncIpc()
+  registerSnapshotIpc()
   registerServerToolsIpc(sshManager)
 }
 

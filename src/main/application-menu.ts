@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu } from 'electron'
 import type { AppDialogKind } from '../shared/ipc'
-import { SHARED_MENUS, type MenuAction } from '../shared/menus'
+import { SHARED_MENUS, visibleMenuItems, type MenuAction } from '../shared/menus'
 import { mt } from './main-i18n'
 
 let mainWindowRef: BrowserWindow | null = null
@@ -56,7 +56,7 @@ export function buildMenuTemplate(isMac = process.platform === 'darwin'): Electr
   }
   for (const menu of SHARED_MENUS) {
     const submenu: Electron.MenuItemConstructorOptions[] = []
-    for (const item of menu.items) {
+    for (const item of visibleMenuItems(menu)) {
       if (item.type === 'sep') {
         submenu.push({ type: 'separator' })
         continue

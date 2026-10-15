@@ -1,4 +1,5 @@
 import { KEYMAP } from './keymap'
+import { extractVarNames } from './template-vars'
 /** Local workspace helpers shared by main and renderer. No secrets, no network. */
 
 export const COMMAND_HISTORY_CAP = 200
@@ -284,16 +285,11 @@ export function autoReconnectDelay(attempt: number): number | null {
 }
 
 // ---------- snippets: {{variable}} placeholders ----------
-const SNIPPET_VAR_RE = /\{\{\s*([A-Za-z_][\w-]{0,31})\s*\}\}/g
+const SNIPPET_VAR_RE = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
 
 /** Unique placeholder names in first-seen order, e.g. "tail -n {{lines}} {{file}}" -> ["lines","file"]. */
 export function extractSnippetVars(body: string): string[] {
-  const out: string[] = []
-  for (const m of String(body ?? '').matchAll(SNIPPET_VAR_RE)) {
-    const name = m[1]!
-    if (!out.includes(name)) out.push(name)
-  }
-  return out.slice(0, 12)
+  return extractVarNames(body, 12)
 }
 
 /** Replace placeholders; missing values are left as-is so nothing is silently dropped. */

@@ -46,6 +46,8 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
+  const [formOpen, setFormOpen] = useState(false)
+  const [more, setMore] = useState(false)
   const [pending, setPending] = useState<{ snippet: CommandSnippet; execute: boolean; vars: string[] } | null>(null)
   const [varValues, setVarValues] = useState<Record<string, string>>({})
 
@@ -88,6 +90,16 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
     setEditingId(null)
     setTitle('')
     setBody('')
+    setFormOpen(false)
+  }
+
+  const openNew = () => {
+    if (editingId || (formOpen && (title || body))) {
+      setError(t('snip.oneEditor'))
+      return
+    }
+    resetForm()
+    setFormOpen(true)
   }
 
   const onEdit = (s: CommandSnippet) => {
@@ -179,17 +191,38 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
     }
   }
 
+  const form = formOpen || editingId ? (
+    <div className="snip-form" data-testid="snip-form">
+      <div className="field">
+        <label htmlFor="snippet-title">{t('snip.fieldTitle')}</label>
+        <input id="snippet-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('snip.titlePh')} />
+      </div>
+      <div className="field snip-body">
+        <label htmlFor="snippet-body">{t('snip.fieldBody')}</label>
+        <textarea id="snippet-body" value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="df -h" />
+        <span title={t('snip.varHint')}>ⓘ</span>
+      </div>
+      {error ? <p className="l2-error">{error}</p> : null}
+      <div className="workspace-panel-actions">
+        <button type="button" disabled={saving} onClick={resetForm}>{t('snip.cancel')}</button>
+        <button type="button" className="primary" disabled={saving} onClick={() => void onSaveForm()}>{t('snip.save')}</button>
+      </div>
+    </div>
+  ) : null
+
   return (
-    <div className="workspace-panel workspace-panel--settings">
+    <div className="workspace-panel workspace-panel--settings" data-testid="snippets-panel">
       <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{t('snip.title')}</h2>
+        <h2 className="workspace-panel-title">{t('snip.titleN', { n: items.length })}</h2>
         <div className="workspace-panel-actions">
-          <button type="button" disabled={items.length === 0} onClick={onExport}>
-            {t('snip.export')}
-          </button>
-          <button type="button" disabled={saving} onClick={() => fileRef.current?.click()}>
-            {t('snip.import')}
-          </button>
+          <button type="button" className="primary" data-testid="snip-new" onClick={openNew}>{t('snip.newBtn')}</button>
+          <button type="button" aria-label={t('w2.more')} onClick={() => setMore((v) => !v)}>⋯</button>
+          {more ? (
+            <span className="snip-more">
+              <button type="button" onClick={() => fileRef.current?.click()}>{t('snip.import')}</button>
+              <button type="button" disabled={items.length === 0} title={items.length === 0 ? t('snip.exportEmpty') : undefined} onClick={onExport}>{t('snip.export')}</button>
+            </span>
+          ) : null}
           <input
             ref={fileRef}
             type="file"
@@ -200,53 +233,13 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
               e.target.value = ''
             }}
           />
-          <button type="button" onClick={onClose}>
-            {t('snip.close')}
-          </button>
         </div>
       </div>
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings workspace-panel-inner--snippets">
-          {error ? (
-            <p style={{ margin: '0 0 10px', color: 'var(--danger, #f85149)', fontSize: 12 }}>{error}</p>
-          ) : null}
-          {notice ? <p style={{ margin: '0 0 10px', color: 'var(--accent, #3fb950)', fontSize: 12 }}>{notice}</p> : null}
-
-          <h3 className="modal-section-title">{editingId ? t('snip.edit') : t('snip.new')}</h3>
-          <div className="field">
-            <label htmlFor="snippet-title">{t('snip.fieldTitle')}</label>
-            <input
-              id="snippet-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t('snip.titlePh')}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="snippet-body">{t('snip.fieldBody')}</label>
-            <textarea
-              id="snippet-body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={4}
-              placeholder="df -h"
-              style={{ width: '100%', resize: 'vertical', minHeight: 72 }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <button type="button" className="primary" disabled={saving} onClick={() => void onSaveForm()}>
-              {editingId ? t('snip.saveEdit') : t('snip.add')}
-            </button>
-            {editingId ? (
-              <button type="button" disabled={saving} onClick={resetForm}>
-                {t('snip.cancelEdit')}
-              </button>
-            ) : null}
-          </div>
-
-          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 12px' }}>
-            {t('snip.varHint')}
-          </p>
+          {notice ? <p className="l7-meta">{notice}</p> : null}
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('snip.searchPh')} aria-label={t('snip.search')} />
+          {!editingId && formOpen ? form : null}
 
           {pending ? (
             <div className="snippet-vars" style={{ border: '1px solid var(--accent, #388bfd)', borderRadius: 6, padding: 10, marginBottom: 16 }}>
@@ -279,17 +272,6 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
             </div>
           ) : null}
 
-          <h3 className="modal-section-title">{t('snip.saved', { n: String(items.length) })}</h3>
-          {items.length > 0 ? (
-            <div className="field">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('snip.searchPh')}
-                aria-label={t('snip.search')}
-              />
-            </div>
-          ) : null}
           {items.length > 0 && visible.length === 0 ? (
             <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.noMatch')}</p>
           ) : null}
@@ -301,12 +283,13 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
               icon="📋"
               title={t('ux08.snipTitle')}
               desc={t('snip.empty')}
-              primary={{ label: t('ux08.snipNew'), onClick: () => document.getElementById('snippet-title')?.focus() }}
+              primary={{ label: t('ux08.snipNew'), onClick: openNew }}
               secondary={[{ label: t('ux08.snipImport'), onClick: () => fileRef.current?.click() }]}
             />
           ) : null}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {visible.map((s) => (
+              editingId === s.id ? <li key={s.id}>{form}</li> :
               <li
                 key={s.id}
                 style={{

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { RecentConnection } from '@shared/workspace-features'
 import { dedupeRecent, loadRecentExpanded, relativeWhen, saveRecentExpanded } from '@shared/recent-sidebar'
+import { DEMO_HOST, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
 import { useI18n } from '../lib/i18n'
 import { RECENT_CHANGED_EVENT } from '../lib/workspace-events'
 
@@ -93,7 +94,9 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
       ) : (
         <ul className="recent-connections-list">
           {shown.map((row) => {
-            const title = row.label?.trim() || `${row.username}@${row.host}`
+            const title = row.host === DEMO_HOST && row.username === DEMO_USER
+              ? demoProfileLabel(locale === 'en' ? 'en' : 'zh-CN')
+              : row.label?.trim() || `${row.username}@${row.host}`
             const ident = `${row.username}@${row.host}:${row.port || 22}`.toLowerCase()
             const when = relativeWhen(row.lastConnectedAt || 0)
             const whenText =

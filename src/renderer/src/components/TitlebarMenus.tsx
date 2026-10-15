@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
+import { SHARED_MENUS, menuLabel, visibleMenuItems, type MenuAction } from '@shared/menus'
 import { useI18n } from '../lib/i18n'
 
 export type TitlebarMenuAction = MenuAction
@@ -58,7 +58,7 @@ export default function TitlebarMenus({ onAction, toggles, disabled, hints }: Pr
             </button>
             {open ? (
               <div className="titlebar-menu-dropdown" role="menu">
-                {menu.items.map((item, i) =>
+                {visibleMenuItems(menu).map((item, i) =>
                   item.type === 'sep' ? (
                     <div key={`sep-${menu.id}-${i}`} className="titlebar-menu-sep" />
                   ) : (
@@ -77,15 +77,11 @@ export default function TitlebarMenus({ onAction, toggles, disabled, hints }: Pr
                         onAction(item.id)
                       }}
                     >
-                      <span className="titlebar-menu-label">
-                        {item.toggle ? (
-                          <span className="titlebar-menu-check" aria-hidden>
-                            {toggles?.[item.id] ? '☑' : '☐'}
-                          </span>
-                        ) : null}
-                        <span>{menuLabel(item.label, locale)}</span>
+                      <span className="titlebar-menu-check" aria-hidden>
+                        {item.toggle && toggles?.[item.id] ? '✓' : ''}
                       </span>
-                      {item.shortcut ? <span className="titlebar-menu-shortcut">{item.shortcut}</span> : null}
+                      <span className="titlebar-menu-label">{menuLabel(item.label, locale)}</span>
+                      {item.shortcut ? <span className="titlebar-menu-shortcut">{item.shortcut}</span> : <span />}
                     </button>
                   )
                 )}

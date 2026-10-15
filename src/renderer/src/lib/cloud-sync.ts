@@ -20,7 +20,8 @@ export type PublicSyncConfig = {
   username: string
   hasToken: boolean
   hasPassword: boolean
-  hasVaultPass: boolean
+  hasSyncPassphrase?: boolean
+  hasVaultPass?: boolean
   scope: SyncScope
 }
 
@@ -33,7 +34,7 @@ function publish(meta: SyncMeta) {
 
 /** A vault passphrase plus a reachable Gist token or WebDAV login. */
 export function syncIsConfigured(cfg: PublicSyncConfig | null | undefined): boolean {
-  if (!cfg?.hasVaultPass) return false
+  if (!(cfg?.hasSyncPassphrase || cfg?.hasVaultPass)) return false
   if (cfg.provider === 'webdav') return Boolean(cfg.webdavUrl.trim() && cfg.username.trim() && cfg.hasPassword)
   return cfg.hasToken
 }

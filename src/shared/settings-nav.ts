@@ -8,6 +8,7 @@ export const SETTINGS_SECTIONS = [
   'ai',
   'shortcuts',
   'security',
+  'files',
   'backup',
   'about'
 ] as const

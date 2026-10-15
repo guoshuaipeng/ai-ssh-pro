@@ -1,6 +1,15 @@
 /** Local audit log. M1 stored alert.execute and danger; M2 adds the searchable table and playbook runs. */
 
-export type AuditType = 'connect' | 'command' | 'file' | 'danger' | 'alert.execute' | 'playbook.run' | 'protection.change'
+export type AuditType =
+  | 'connect'
+  | 'command'
+  | 'file'
+  | 'danger'
+  | 'alert.execute'
+  | 'playbook.run'
+  | 'playbook.draft'
+  | 'playbook.dryrun'
+  | 'protection.change'
 
 export type AuditOutcome = 'allowed' | 'blocked' | 'cancelled'
 
@@ -15,6 +24,8 @@ export type AuditEvent = {
   source?: AuditSource
   outcome: AuditOutcome
   detail: string
+  /** W4: explicit link from an alert-workbench action. */
+  alertId?: string
 }
 
 export const AUDIT_LS_KEY = 'aiss.audit.v1'
@@ -71,7 +82,8 @@ export function appendAudit(
     profileId: event.profileId,
     source: event.source,
     outcome: event.outcome,
-    detail: redactAuditText(event.detail).slice(0, 500)
+    detail: redactAuditText(event.detail).slice(0, 500),
+    alertId: event.alertId
   }
   const next = [row, ...loadAudit(store)].slice(0, MAX)
   store.setItem(AUDIT_LS_KEY, JSON.stringify(next))
