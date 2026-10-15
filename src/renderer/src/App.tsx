@@ -112,6 +112,7 @@ import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
 import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTab'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
+import { TAB_STRIP_NUDGE, tabStripWheelDelta } from '@shared/tab-overflow'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks } from '@shared/playbook'
 import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
@@ -1018,17 +1019,18 @@ export default function App() {
     ro.observe(scroll)
     scroll.addEventListener('scroll', measure, { passive: true })
     const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
       if (scroll.scrollWidth <= scroll.clientWidth + 1) return
+      const delta = tabStripWheelDelta(e.deltaX, e.deltaY)
+      if (!delta) return
       e.preventDefault()
-      scroll.scrollLeft += e.deltaY
+      scroll.scrollLeft += delta
     }
-    scroll.addEventListener('wheel', onWheel, { passive: false })
+    bar.addEventListener('wheel', onWheel, { capture: true, passive: false })
     measure()
     return () => {
       ro.disconnect()
       scroll.removeEventListener('scroll', measure)
-      scroll.removeEventListener('wheel', onWheel)
+      bar.removeEventListener('wheel', onWheel, { capture: true })
     }
   }, [tabs.length, locale, layout.showMain])
   useEffect(() => {
@@ -4253,6 +4255,22 @@ export default function App() {
                 {tr('ux10.broadcasting', { n: broadcastSessions.length })}
               </button>
             ) : null}
+            {tabStripOverflowing ? (
+              <button
+                type="button"
+                className="tab-scroll-btn"
+                data-testid="tab-scroll-left"
+                aria-label={tr('tab.scrollLeft')}
+                title={tr('tab.scrollLeft')}
+                disabled={!tabFade.left}
+                onClick={() => {
+                  const el = tabBarRef.current?.querySelector('.tab-bar-scroll')
+                  if (el instanceof HTMLElement) el.scrollLeft -= TAB_STRIP_NUDGE
+                }}
+              >
+                ←
+              </button>
+            ) : null}
             <div
               className={`tab-bar-scroll${tabFade.left ? ' fade-left' : ''}${tabFade.right ? ' fade-right' : ''}`}
               data-testid="tab-bar-scroll"
@@ -4356,6 +4374,22 @@ export default function App() {
               )
             })}
             </div>
+            {tabStripOverflowing ? (
+              <button
+                type="button"
+                className="tab-scroll-btn"
+                data-testid="tab-scroll-right"
+                aria-label={tr('tab.scrollRight')}
+                title={tr('tab.scrollRight')}
+                disabled={!tabFade.right}
+                onClick={() => {
+                  const el = tabBarRef.current?.querySelector('.tab-bar-scroll')
+                  if (el instanceof HTMLElement) el.scrollLeft += TAB_STRIP_NUDGE
+                }}
+              >
+                →
+              </button>
+            ) : null}
             {tabStripOverflowing ? (
               <button
                 ref={tabOverflowBtnRef}

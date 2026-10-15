@@ -1299,6 +1299,17 @@ body.layout-resizing {
   .tab-bar-scroll > .tab { min-width: 96px; }
   .tab-overflow-menu { width: 240px; }
 }
+.tab-scroll-btn {
+  flex: none;
+  align-self: center;
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  line-height: 22px;
+}
+.tab-scroll-btn:disabled {
+  opacity: 0.35;
+}
 .tab-overflow-btn {
   flex: none;
   align-self: center;

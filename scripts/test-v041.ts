@@ -19,7 +19,7 @@ import { placeMenu } from '../src/shared/menu-place'
 import { buildPaletteEntries } from '../src/renderer/src/lib/palette'
 import { SHARED_MENUS } from '../src/shared/menus'
 import { tabLabel } from '../src/shared/tab-label'
-import { tabStripOverflow } from '../src/shared/tab-overflow'
+import { TAB_STRIP_NUDGE, tabStripOverflow, tabStripWheelDelta } from '../src/shared/tab-overflow'
 import { detectKeyFileKind } from '../src/main/key-kind'
 import { changelogFor } from '../src/shared/changelog'
 import { applyConnectAuth, SshAuthError } from '../src/main/ssh-auth'
@@ -65,7 +65,13 @@ assert.ok(css.includes('border-top-color: #ef4444') && css.includes('border-top-
 assert.ok(!css.includes('border-top: 2px solid #ef4444') && !css.includes('border-top: 2px solid #f97316'))
 assert.ok(styles.includes('flex-wrap: nowrap') && styles.includes('.tab-overflow-menu'))
 assert.ok(app.includes('data-testid="tab-bar-scroll"') && app.includes('data-testid="tab-overflow"'))
-assert.ok(app.includes('scrollLeft += e.deltaY') && app.includes("{ passive: false }"))
+assert.ok(app.includes('data-testid="tab-scroll-left"') && app.includes('data-testid="tab-scroll-right"'))
+assert.ok(app.includes('←') && app.includes('→') && app.includes('TAB_STRIP_NUDGE'))
+assert.equal(tabStripWheelDelta(0, 120), 120)
+assert.equal(tabStripWheelDelta(0, -40), -40)
+assert.equal(tabStripWheelDelta(80, 10), 80)
+assert.equal(TAB_STRIP_NUDGE, 160)
+assert.ok(app.includes('scrollLeft += delta') && app.includes('capture: true, passive: false'))
 assert.ok(app.includes("e.key !== 'Escape'") && app.includes("addEventListener('mousedown', onPointer)"))
 const overflowBtn = app.slice(app.indexOf('data-testid="tab-overflow"'), app.indexOf('data-testid="tab-overflow-menu"'))
 assert.ok(overflowBtn.includes('⌄') && !overflowBtn.includes('⋯'))
@@ -218,7 +224,7 @@ const probeSrc = readFileSync('src/main/jump-probe.ts', 'utf8')
 assert.ok(!probeSrc.includes('hostVerifier: () => true'))
 assert.ok(probeSrc.includes('checkHostKey') && probeSrc.includes('verify(false)'))
 assert.ok(app.includes('createPortal(') && app.includes("document.body"))
-assert.ok(app.includes("e.key === 'ArrowRight'") && app.includes('scrollLeft += e.deltaY'))
+assert.ok(app.includes("e.key === 'ArrowRight'") && app.includes('tabStripWheelDelta'))
 const menuBlock = app.slice(app.indexOf('createPortal('), app.indexOf('broadcast-bar'))
 assert.ok(menuBlock.includes('labelFor(t)') && menuBlock.includes('aria-current') && !menuBlock.includes('{t.title}'))
 const placed = placeMenu(10, 398, 220, 400, 1366, 768)
