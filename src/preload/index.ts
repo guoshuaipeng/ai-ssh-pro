@@ -50,6 +50,7 @@ import type {
   HostInventoryUpsertInput,
   HostService
 } from '../shared/inventory'
+import type { LocalDriveListing } from '../shared/local-drives'
 
 console.log('[preload] preload script starting')
 
@@ -175,6 +176,7 @@ const api = {
   },
   localFs: {
     home: (): Promise<string> => ipcRenderer.invoke('localFs:home'),
+    drives: (): Promise<LocalDriveListing> => ipcRenderer.invoke('localFs:drives'),
     list: (dir: string): Promise<SftpListResult> => ipcRenderer.invoke('localFs:list', dir),
     stat: (target: string) => ipcRenderer.invoke('localFs:stat', target),
     mkdir: (target: string): Promise<boolean> => ipcRenderer.invoke('localFs:mkdir', target),

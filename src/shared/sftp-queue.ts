@@ -93,6 +93,14 @@ export function hydrateQueue(raw: unknown): TransferTask[] {
   return out
 }
 
+/** Keep other hosts' tasks when one SFTP tab writes its own queue slice. */
+export function mergeHostQueue(stored: readonly TransferTask[], mine: readonly TransferTask[], hostKey: string): TransferTask[] {
+  const key = hostKey || ''
+  const others = stored.filter((t) => t.hostKey !== key)
+  const keep = mine.filter((t) => t.hostKey === key && t.status !== 'done' && t.status !== 'cancelled')
+  return [...keep, ...others]
+}
+
 export function shouldAutoResume(task: TransferTask, hostKey: string, enabled: boolean): boolean {
   if (!enabled) return false
   if (!hostKey || task.hostKey !== hostKey) return false

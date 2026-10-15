@@ -2049,6 +2049,19 @@ const zhCN = {
   'ux58.unknown': '尚未探测',
   'ux58.ok': '可达 {ms} ms',
   'ux58.bad': '失败：{reason}',
+  'd6.drive': '磁盘',
+  'd6.switch': '切换磁盘',
+  'd6.root': '{letter} 盘根目录',
+  'd6.unavailable': '不可用',
+  'd6.fail': '无法打开 {drive}',
+  'd6.scanning': '正在扫描磁盘…',
+  'd7.opening': '正在打开当前目录…',
+  'd7.fallback': '未能读取当前目录，已打开家目录',
+  'd7.goto': '转到…',
+  'd7.home': '回到家目录',
+  'd8.title': 'SFTP · {host}',
+  'd8.focus': '已在该主机 SFTP',
+  'd8.connecting': '连接中…',
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4102,6 +4115,19 @@ const en: Record<MessageKey, string> = {
   'ux58.unknown': 'Not probed yet',
   'ux58.ok': 'Reachable {ms} ms',
   'ux58.bad': 'Failed: {reason}',
+  'd6.drive': 'Drive',
+  'd6.switch': 'Switch drive',
+  'd6.root': '{letter}: drive root',
+  'd6.unavailable': 'Unavailable',
+  'd6.fail': "Can't open {drive}",
+  'd6.scanning': 'Scanning drives…',
+  'd7.opening': 'Opening current directory…',
+  'd7.fallback': "Couldn't read cwd; opened home",
+  'd7.goto': 'Go to…',
+  'd7.home': 'Go to home',
+  'd8.title': 'SFTP · {host}',
+  'd8.focus': "Already on this host's SFTP",
+  'd8.connecting': 'Connecting…',
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {
