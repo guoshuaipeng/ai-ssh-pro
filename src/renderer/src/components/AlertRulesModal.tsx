@@ -185,7 +185,7 @@ export default function AlertRulesModal({
               type="button"
               className="primary"
               onClick={() => {
-                onSave({ rules, notify, mutedUntil: initial.mutedUntil })
+                onSave({ rules, notify, mutedUntil: initial.mutedUntil, packRules: initial.packRules ?? [] })
                 onClose()
               }}
             >

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+v0.4.4 soft-start. Package version stays `0.4.3` until the formal bump. Not tagged.
+
+- **告警规则模板（L2c）/ Alert rule packs.** 内置 CPU 过高、磁盘将满、sshd 异常三套模板，一键写入本机规则。可改范围和阈值，可禁用或删除。总开关关闭时只写入、不通知。不执行命令。 / Three built-in packs (high CPU, disk filling, sshd) write local rules in one click. Scope and thresholds stay editable. A disabled master switch writes the rules and does not notify. No command runs.
+- **采样策略（L7c）/ Sampling policy.** 在 L7b 范围上再按标签、仅生产、排除只读过滤。失败退避 30 秒、60 秒、2 分钟，然后封顶（默认 5 分钟）。重试全部只碰失败的主机，10 秒冷却。 / Tag, production-only, and exclude-readonly filters sit on the L7b pool. Failures back off 30s, 60s, 2m, then a cap (default 5 min). Retry all touches the failed hosts only, with a 10s cooldown.
+- **剧本分享包（W5）/ Playbook share pack.** `.aiss-playbooks` 可加密导出和导入。包里只有步骤、变量默认值和主机标题/标签。口令、私钥、令牌不进包。导入不绑定凭据、不自动运行。 / `.aiss-playbooks` exports and imports with optional encryption. The file keeps steps, variable defaults, and host title/tags. Passwords, keys, and tokens stay out. Import does not bind credentials or run anything.
+- **写闸门时间线（S2b）/ Write-gate timeline.** 闸门决定写入现有审计日志，审计总开关关闭时仍然保留。只读阻止可以回放。时间线不能改保护级别。 / Gate decisions append to the existing audit log and stay when the audit switch is off. A read-only block can be replayed. The timeline does not change protection.
+- **三步上手（UX-60）/ Three-step start.** 新配置文件最多三步到第一台主机。升级用户不自动进入。完整五步引导改到帮助里的「重看完整引导」。 / A new profile reaches the first host in at most three steps. Upgrades are not sent through it. The five-step tour is Help → Replay full tour.
+- **录制剪辑（L4c）/ Recording clip.** 回放页选择起止时间后可导出 GIF（默认不超过 30 秒，上限可改）或带时间戳的 Markdown。导出不改原录像。没有录像时按钮灰显。 / The player can export a GIF (default at most 30 seconds, limit editable) or timestamped Markdown. Export leaves the original recording alone. The buttons stay disabled when there is no recording.
+- **首页修复剧本（W1c）/ Home fix playbook.** 运维首页收件箱的右键和 ⋯ 与工作台使用同一套判断：已有建议就开草稿，没有就先解读，未配置 AI 时该项灰显并说明原因。 / The Ops Home inbox context menu and ⋯ use the same decision as the workbench: a cached suggestion opens a draft, otherwise it explains first, and without AI the item stays disabled with a reason.
+- **跳板芯片（UX-58）/ Hop chips.** 失败跳是 `.is-bad`（颜色、图标、原因提示）。成功、探测中、尚未探测可以分开看。1366 下芯片单行省略。 / A failed hop is `.is-bad` (color, icon, and a reason tooltip). Success, probing, and not-yet-probed stay distinct. At 1366 the chips stay on one line and ellipsize.
+
 ## v0.4.3
 
 Daily ops polish. Package version is `0.4.3`. Do not tag until QA signs off.

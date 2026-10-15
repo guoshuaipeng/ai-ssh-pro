@@ -30,6 +30,7 @@ export default function AlertWorkbenchTab({
   prefs,
   onPrefs,
   onRules,
+  onTemplates,
   onMute,
   onUnmute,
   onDismiss,
@@ -58,6 +59,7 @@ export default function AlertWorkbenchTab({
   prefs: BellPrefs
   onPrefs: (p: BellPrefs) => void
   onRules: () => void
+  onTemplates?: () => void
   onMute: () => void
   onUnmute: () => void
   onDismiss: (a: FiredAlert) => void
@@ -93,6 +95,7 @@ export default function AlertWorkbenchTab({
   const [explain, setExplain] = useState<AiExplainRequest | null>(null)
   const [explainAlertId, setExplainAlertId] = useState<string | null>(null)
   const [pane, setPane] = useState<'detail' | 'timeline'>('detail')
+  const [showGates, setShowGates] = useState(true)
   const [showConcurrent, setShowConcurrent] = useState(true)
   const [note, setNote] = useState('')
   const [highlightCreate, setHighlightCreate] = useState(false)
@@ -322,6 +325,7 @@ export default function AlertWorkbenchTab({
               title={t('l2.empty')}
               primary={{ label: t('l2.viewHistory'), onClick: () => setFilter('all') }}
               secondary={[
+                { label: t('l2c.emptyCta'), onClick: onTemplates ?? onRules },
                 { label: t('l7.openDashboard'), onClick: onOpenDashboard },
                 { label: t('menu.alertRules'), onClick: onRules }
               ]}
@@ -344,6 +348,8 @@ export default function AlertWorkbenchTab({
                 explainDisabled={!aiConfigured}
                 explainTitle={aiConfigured ? t('a4.interpret') : t('w1.needAi')}
                 onFixPlaybook={() => requestFix(a)}
+                fixDisabled={!aiConfigured}
+                fixTitle={aiConfigured ? t('w1.create') : t('w1.needAi')}
                 onMarkDone={() => onHandled(a)}
                 onIgnore={() => onDismiss(a)}
                 onBoard={onOpenDashboard}
@@ -362,7 +368,7 @@ export default function AlertWorkbenchTab({
               <div className="w4-seg">
                 <button type="button" className={pane === 'detail' ? 'is-on' : ''} onClick={() => setPane('detail')}>{t('w4.seg.detail')}</button>
                 <button type="button" data-testid="w4-timeline-tab" className={pane === 'timeline' ? 'is-on' : ''} onClick={() => setPane('timeline')}>
-                  {t('w4.seg.timeline', { n: viewTimeline(selected, ensureFired(selected), loadAudit(), { concurrent: showConcurrent }).length })}
+                  {t('w4.seg.timeline', { n: viewTimeline(selected, ensureFired(selected), loadAudit(), { concurrent: showConcurrent, gates: showGates }).length })}
                 </button>
                 {pane === 'timeline' ? (
                   <button type="button" className="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</button>
@@ -374,11 +380,16 @@ export default function AlertWorkbenchTab({
                     <input type="checkbox" checked={showConcurrent} onChange={(e) => setShowConcurrent(e.target.checked)} />
                     {t('w4.showConcurrent')}
                   </label>
-                  {viewTimeline(selected, eventsFor(selected.id), loadAudit(), { concurrent: showConcurrent }).map((e) => (
-                    <div key={e.id} className={`w4-row${e.concurrent ? ' is-concurrent' : ''}`}>
-                      <span>{new Date(e.at).toLocaleTimeString()}</span>
-                      <span>{e.kind}</span>
-                      <span title={e.summary}>{e.summary}</span>
+                  <label className="l4-check">
+                    <input type="checkbox" data-testid="s2b-filter" checked={showGates} onChange={(e) => setShowGates(e.target.checked)} />
+                    {t('s2b.filter')}
+                  </label>
+                  {viewTimeline(selected, eventsFor(selected.id), loadAudit(), { concurrent: showConcurrent, gates: showGates }).map((e) => (
+                    <div key={e.id} className={`w4-row${e.concurrent ? ' is-concurrent' : ''}${e.kind === 'gate' ? ' is-gate' : ''}`} data-testid={e.kind === 'gate' ? 'w4-gate-row' : undefined}>
+                      <span className="s2b-time">{new Date(e.at).toLocaleTimeString()}</span>
+                      <span className="s2b-kind">{e.kind === 'gate' ? t('s2b.k.gate') : e.kind}</span>
+                      {e.kind === 'gate' && e.gateResult ? <span className={`s2b-chip is-${e.gateResult}`}>{e.gateResult}</span> : null}
+                      <span className="s2b-sum" title={e.summary}>{e.summary}</span>
                     </div>
                   ))}
                   <input

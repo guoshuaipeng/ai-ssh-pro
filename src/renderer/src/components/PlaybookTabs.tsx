@@ -25,7 +25,8 @@ import {
 } from '@shared/playbook'
 import { discoverVars, initialHostIds, isStaleDraft, promoteDraft, sortPlaybooks } from '@shared/playbook-draft'
 import { auditVarDetail, dryRunPlaybook, type DryRunResult } from '@shared/playbook-dry'
-import { appendAudit } from '@shared/audit-log'
+import { appendAudit, appendGate } from '@shared/audit-log'
+import { ShareExportModal } from './PlaybookShare'
 import { appendTimeline } from '@shared/timeline'
 import { tg } from '../lib/i18n'
 import { askConfirm, askText } from '../lib/dialogs'
@@ -64,7 +65,19 @@ export function PlaybookList({
   onClose: () => void
 }) {
   const [list, setList] = useState<Playbook[]>(() => sortPlaybooks(ensureSamples(loadPlaybooks())))
+  const [more, setMore] = useState(false)
+  const [picked, setPicked] = useState<string[]>([])
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportIds, setExportIds] = useState<string[] | null>(null)
   useEffect(() => persist(list), [list])
+  useEffect(() => {
+    const open = () => {
+      setExportIds(null)
+      setExportOpen(true)
+    }
+    window.addEventListener('aiss-export-share', open)
+    return () => window.removeEventListener('aiss-export-share', open)
+  }, [])
   const add = () => {
     const pb: Playbook = {
       id: `pb-${Date.now()}`,
@@ -90,6 +103,15 @@ export function PlaybookList({
         <div className="workspace-panel-actions">
           <button type="button" onClick={() => void doImport()}>{tg('m2.import')}</button>
           <button type="button" className="primary" onClick={add}>{tg('m2.new')}</button>
+          <button type="button" aria-label={tg('l7.more')} onClick={() => setMore((v) => !v)}>⋯</button>
+          {more ? (
+            <div className="l7-more" role="menu">
+              <button type="button" onClick={() => { setMore(false); setExportIds(picked.length ? picked : null); setExportOpen(true) }}>
+                {picked.length ? tg('w5.exportSelected') : tg('w5.export')}
+              </button>
+              <button type="button" onClick={() => { setMore(false); window.dispatchEvent(new Event('aiss-import-share')) }}>{tg('w5.import')}</button>
+            </div>
+          ) : null}
           <button type="button" onClick={onClose}>{tg('common.close')}</button>
           {list.some((p) => isStaleDraft(p)) ? (
             <button type="button" onClick={() => setList((cur) => cur.filter((p) => !isStaleDraft(p)))}>{tg('w1.cleanStale')}</button>
@@ -97,9 +119,15 @@ export function PlaybookList({
         </div>
       </div>
       <div className="workspace-panel-body">
+        {list.length === 0 ? (
+          <button type="button" onClick={() => window.dispatchEvent(new Event('aiss-import-share'))}>{tg('w5.import')}</button>
+        ) : null}
         {list.map((p) => (
           <div key={p.id} className="m2-row">
             <div>
+              <label>
+                <input type="checkbox" checked={picked.includes(p.id)} onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, p.id] : cur.filter((id) => id !== p.id)))} />
+              </label>
               <strong>{p.name}</strong>
               {p.draft ? <span className="w1-draft" data-testid="playbook-draft">{tg('w1.draft')}</span> : null}
               <div className="l7-meta">{p.steps.length} · {p.description}</div>
@@ -107,10 +135,18 @@ export function PlaybookList({
             <div className="workspace-panel-actions">
               <button type="button" onClick={() => onEdit(p.id)}>{tg('ctx.edit')}</button>
               <button type="button" className="primary" onClick={() => onRun(p.id)} disabled={!profiles.length}>{tg('m2.run')}</button>
+              <button type="button" onClick={() => { setExportIds([p.id]); setExportOpen(true) }}>{tg('w5.exportOne')}</button>
             </div>
           </div>
         ))}
       </div>
+      <ShareExportModal
+        open={exportOpen}
+        playbooks={exportIds ? list.filter((p) => exportIds.includes(p.id)) : list}
+        hosts={profiles.map((p) => ({ title: p.label || p.host, tags: p.tags }))}
+        appVersion="0.4.3"
+        onClose={() => setExportOpen(false)}
+      />
     </div>
   )
 }
@@ -333,6 +369,20 @@ export function PlaybookRun({
     }
   }
   const start = async () => {
+    for (const host of selected) {
+      if (host.level !== 'readonly') continue
+      appendGate({
+        host: host.name,
+        hostKey: host.id,
+        protection: 'readonly',
+        gateRule: 'readonlyWrite',
+        gateResult: 'blocked',
+        summary: playbook.name,
+        playbookId: playbook.id,
+        alertId: playbook.origin?.alertId,
+        source: 'playbook'
+      })
+    }
     setRunning(true)
     const result = await runPlaybook({
       playbook,
@@ -344,10 +394,36 @@ export function PlaybookRun({
       confirm: async (req) => {
         if (req.requireHostName) {
           const typed = await askText(tg('l4.typeHost', { host: req.host.name }), '')
-          if ((typed ?? '').trim() !== req.host.name && (typed ?? '').trim() !== req.host.host) return 'skip'
+          const name = (typed ?? '').trim()
+          if (name !== req.host.name && name !== req.host.host) {
+            appendGate({
+              host: req.host.name,
+              hostKey: req.host.id,
+              protection: req.host.level,
+              gateRule: 'prod',
+              gateResult: typed == null ? 'cancelled' : 'denied',
+              summary: req.command,
+              playbookId: playbook.id,
+              alertId: playbook.origin?.alertId,
+              source: 'playbook'
+            })
+            return 'skip'
+          }
         }
         const ok = await askConfirm(tg('m2.confirmTitle'), req.command, { danger: req.dangerous, okLabel: tg('w2.start') })
-        return ok ? 'run' : 'skip'
+        const ran = ok ? 'run' : 'skip'
+        appendGate({
+          host: req.host.name,
+          hostKey: req.host.id,
+          protection: req.host.level,
+          gateRule: req.requireHostName ? 'prod' : req.dangerous ? 'danger' : 'playbook',
+          gateResult: ran === 'run' ? 'confirmed' : 'cancelled',
+          summary: req.command,
+          playbookId: playbook.id,
+          alertId: playbook.origin?.alertId,
+          source: 'playbook'
+        })
+        return ran
       },
       exec: async (host, command, timeoutMs) => {
         if (!host.sessionId || !window.aiss?.ssh?.exec) return { code: null, stdout: '', stderr: '', error: 'not-connected' }

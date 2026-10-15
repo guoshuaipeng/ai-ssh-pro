@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { SavedSessionProfile } from '@shared/ipc'
 import { canAddHop, chainDiagram, formatProxyJump, parseProxyJump, validateChain, type HopProbeRow, type JumpHop } from '@shared/jump-chain'
+import { hopVisual } from '@shared/hop-chip'
 import { tg } from '../lib/i18n'
 import { askText } from '../lib/dialogs'
+import Icon from './Icon'
 
 export default function JumpChainEditor({
   hops,
@@ -33,17 +35,43 @@ export default function JumpChainEditor({
       </div>
       {hops.length ? null : <p className="l4-hint">{tg('m2.direct')}</p>}
       <div className="jump-chips" data-testid="jump-chips">
-        {diagram.map((chip, i) => (
-          <span key={chip.id} className="jump-chip-wrap">
-            {i > 0 ? <span className="jump-arrow" aria-hidden>→</span> : null}
-            <span
-              className={`jump-chip${chip.role === 'target' ? ' is-target' : ''}${chip.deleted || chip.cycle || probe?.some((row) => !row.ok && row.hop === i) ? ' is-bad' : ''}`}
-              title={chip.role === 'local' ? tg('m2.thisComputer') : chip.label || tg('m2.hopEmpty')}
-            >
-              {chip.role === 'local' ? tg('m2.thisComputer') : chip.role === 'target' ? chip.label || tg('m2.target') : chip.label || '…'}
+        {diagram.map((chip, i) => {
+          const label = chip.role === 'local' ? tg('m2.thisComputer') : chip.role === 'target' ? chip.label || tg('m2.target') : chip.label || tg('m2.hopEmpty')
+          const visual = hopVisual({
+            diagramIndex: i,
+            role: chip.role,
+            structural: Boolean(chip.deleted || chip.cycle),
+            probing,
+            probe
+          })
+          const structural = chip.deleted ? tg('m2.hopDeleted') : chip.cycle ? tg('m2.hopCycle') : ''
+          const title =
+            chip.role === 'local'
+              ? label
+              : visual.visual === 'bad'
+                ? `${label} · ${tg('ux58.bad', { reason: visual.reason || structural })}`
+                : visual.visual === 'ok'
+                  ? `${label} · ${tg('ux58.ok', { ms: visual.ms ?? 0 })}`
+                  : visual.visual === 'probing'
+                    ? `${label} · ${tg('ux58.probing')}`
+                    : `${label} · ${tg('ux58.unknown')}`
+          return (
+            <span key={chip.id} className="jump-chip-wrap">
+              {i > 0 ? <span className="jump-arrow" aria-hidden>→</span> : null}
+              <span
+                className={`jump-chip${chip.role === 'target' ? ' is-target' : ''}${chip.role === 'local' ? '' : ` is-${visual.visual}`}`}
+                data-testid="jump-chip"
+                data-state={chip.role === 'local' ? 'local' : visual.visual}
+                title={title}
+              >
+                {visual.visual === 'bad' ? <Icon name="triangle-alert" size={12} /> : null}
+                {visual.visual === 'ok' ? <Icon name="check" size={12} /> : null}
+                {visual.visual === 'probing' ? <Icon name="refresh-cw" size={12} /> : null}
+                <span className="jump-chip-label">{label}</span>
+              </span>
             </span>
-          </span>
-        ))}
+          )
+        })}
       </div>
       {hops.map((hop, i) => (
         <div key={hop.id} className="jump-hop">

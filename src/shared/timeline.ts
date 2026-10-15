@@ -25,6 +25,7 @@ export type TimelineKind =
   | 'alert.handled'
   | 'alert.recovered'
   | 'note'
+  | 'gate'
 
 export type TimelineEvent = {
   id: string
@@ -38,6 +39,8 @@ export type TimelineEvent = {
   exitCode?: number | null
   output?: string
   diff?: string
+  gateResult?: string
+  gateRule?: string
 }
 
 export type TimelineAlert = {
@@ -170,7 +173,12 @@ export function concurrentFromAudit(alert: TimelineAlert, audit: AuditEvent[], n
     }))
 }
 
-export function viewTimeline(alert: TimelineAlert, explicit: TimelineEvent[], audit: AuditEvent[], opts?: { concurrent?: boolean; now?: number }): TimelineEvent[] {
+export function viewTimeline(
+  alert: TimelineAlert,
+  explicit: TimelineEvent[],
+  audit: AuditEvent[],
+  opts?: { concurrent?: boolean; gates?: boolean; now?: number }
+): TimelineEvent[] {
   const now = opts?.now ?? Date.now()
   const fired: TimelineEvent = explicit.find((e) => e.kind === 'alert.fired') ?? {
     id: `fired-${alert.id}`,
@@ -180,7 +188,29 @@ export function viewTimeline(alert: TimelineAlert, explicit: TimelineEvent[], au
     hostKey: alert.hostKey,
     summary: `${alert.ruleId} ${Math.round(alert.value)}%`
   }
-  const rest = explicit.filter((e) => e.id !== fired.id && e.kind !== 'concurrent')
+  const restExplicit = explicit.filter((e) => e.id !== fired.id && e.kind !== 'concurrent')
+  const gateRows: TimelineEvent[] =
+    opts?.gates === false
+      ? []
+      : audit
+          .filter(
+            (e) =>
+              e.type === 'gate' &&
+              (e.alertId === alert.id || e.profileId === alert.hostKey || e.host === alert.hostTitle || e.host === alert.hostKey)
+          )
+          .map((e) => ({
+            id: e.id,
+            alertId: alert.id,
+            at: e.at,
+            kind: 'gate' as const,
+            hostKey: e.profileId || alert.hostKey,
+            summary: e.detail,
+            gateResult: e.gateResult,
+            gateRule: e.gateRule,
+            concurrent: false
+          }))
+  const seen = new Set(restExplicit.map((e) => e.id))
+  const rest = [...restExplicit, ...gateRows.filter((e) => !seen.has(e.id))]
   const concurrent = opts?.concurrent === false ? [] : concurrentFromAudit(alert, audit, now)
   const known = new Set(rest.map((e) => e.summary))
   const extra = concurrent.filter((e) => !known.has(e.summary))
@@ -298,7 +328,8 @@ const KIND_LABEL: Record<TimelineKind, { zh: string; en: string }> = {
   'alert.dismiss': { zh: '已忽略', en: 'Dismissed' },
   'alert.handled': { zh: '手动处理', en: 'Handled manually' },
   'alert.recovered': { zh: '已恢复', en: 'Recovered' },
-  note: { zh: '备注', en: 'Note' }
+  note: { zh: '备注', en: 'Note' },
+  gate: { zh: '闸门', en: 'Gate' }
 }
 
 function fmtTime(at: number): string {

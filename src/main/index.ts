@@ -1,7 +1,7 @@
 import { mt, setMainLocaleGetter } from './main-i18n'
 import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
-import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
@@ -490,6 +490,20 @@ function registerIpc(): void {
     const { canceled, filePath } = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts)
     if (canceled || !filePath) return null
     writeFileSync(filePath, content, 'utf8')
+    return filePath
+  })
+  ipcMain.handle('fs:reveal', (_e, target: string) => {
+    const file = String(target ?? '')
+    if (!file) return false
+    shell.showItemInFolder(file)
+    return true
+  })
+  ipcMain.handle('fs:saveBytes', async (_e, defaultName: string, base64: string) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const opts = { title: '保存', defaultPath: defaultName || 'export.bin' }
+    const { canceled, filePath } = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts)
+    if (canceled || !filePath) return null
+    writeFileSync(filePath, Buffer.from(String(base64 ?? ''), 'base64'))
     return filePath
   })
 
