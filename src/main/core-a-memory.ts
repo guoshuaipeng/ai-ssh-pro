@@ -11,6 +11,7 @@ import {
   type ThreadContext,
   type WorkingMemoryBlock
 } from './core-a-context'
+import type { CiteWindow } from './core-a-output-truncate'
 import { visibleWorkingGoal } from '../shared/working-memory-view'
 
 /** 可持久化的会话记忆（OpenClaw 会话存储的轻量对标）+ 线程工作记忆 */
@@ -110,6 +111,25 @@ function coerceEpisodes(value: unknown): EpisodicSummary[] {
   return out.slice(-40)
 }
 
+function coerceCiteHold(value: unknown): CiteWindow | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const row = value as Partial<CiteWindow>
+  const outside = Array.isArray(row.outsideHeadTail)
+    ? row.outsideHeadTail.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 16)
+    : []
+  const dropped = Array.isArray(row.droppedFiller)
+    ? row.droppedFiller.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 8)
+    : []
+  if (outside.length === 0 && dropped.length === 0) return undefined
+  return {
+    head: typeof row.head === 'number' && Number.isFinite(row.head) ? Math.floor(row.head) : 0,
+    tail: typeof row.tail === 'number' && Number.isFinite(row.tail) ? Math.floor(row.tail) : 0,
+    outsideHeadTail: outside,
+    droppedFiller: dropped,
+    stable: row.stable === true
+  }
+}
+
 function coerceOmBudget(value: unknown): OmBudgetMark | undefined {
   if (!value || typeof value !== 'object') return undefined
   const row = value as Partial<OmBudgetMark>
@@ -139,7 +159,8 @@ function coerceRecord(value: unknown): PersistedCoreSession {
     runningSummary: typeof row.runningSummary === 'string' ? row.runningSummary.slice(-1500) : '',
     observationalMemory: normalizeObservationBullets(row.observationalMemory),
     compactedCursor: typeof row.compactedCursor === 'string' ? row.compactedCursor : null,
-    omBudget: coerceOmBudget(row.omBudget)
+    omBudget: coerceOmBudget(row.omBudget),
+    citeHold: coerceCiteHold(row.citeHold)
   }
 }
 
@@ -213,7 +234,8 @@ export function loadThreadContext(sessionKey: string): { ctx: ThreadContext; epo
       runningSummary: row.runningSummary,
       observationalMemory: row.observationalMemory,
       compactedCursor: row.compactedCursor,
-      omBudget: row.omBudget
+      omBudget: row.omBudget,
+      citeHold: row.citeHold
     },
     epoch: currentThreadEpoch(key)
   }
@@ -230,6 +252,7 @@ export function saveThreadContext(sessionKey: string, ctx: ThreadContext, epochA
     observationalMemory: normalizeObservationBullets(ctx.observationalMemory),
     compactedCursor: ctx.compactedCursor,
     omBudget: coerceOmBudget(ctx.omBudget),
+    citeHold: coerceCiteHold(ctx.citeHold),
     updatedAt: Date.now()
   }))
 }

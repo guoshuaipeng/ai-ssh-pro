@@ -60,6 +60,7 @@ import {
   type RetryBudgetSignal
 } from './core-a-command-failure'
 import {
+  emptyCiteWindow,
   emptyOutputView,
   explainCiteableOutput,
   truncateCiteableOutput,
@@ -301,8 +302,12 @@ function appendObservation(state: CoreSessionState, snapshot: string, command?: 
   if (!raw || raw.includes('暂无缓冲') || raw.includes('No buffered output') || raw.includes('无法读取')) return
   const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const tail = lines.slice(-4).join(' | ')
+  const view = truncateCiteableOutput(raw)
+  const scarce = view.citeWindow.outsideHeadTail.filter((marker) => !tail.includes(marker))
+  let body = [scarce.join(' '), tail].filter(Boolean).join(' ')
+  for (const filler of view.citeWindow.droppedFiller) body = body.split(filler).join('')
   const head = command ? `cmd=${command}: ` : ''
-  const obs = truncate(`${head}${tail}`, 240)
+  const obs = truncate(`${head}${body}`, 240)
   if (!obs) return
   state.observations.push(obs)
   if (state.observations.length > 10) state.observations = state.observations.slice(-10)
@@ -1023,7 +1028,9 @@ export async function runOpenClawCoreAgentChat(
           cap: outputView.cap,
           markers: outputView.markers,
           tipSuggest: outputView.tipSuggest,
-          rollback: outputView.rollback
+          rollback: outputView.rollback,
+          citeWindow: outputView.citeWindow,
+          citeHold: thread.citeHold ?? emptyCiteWindow()
         }
       })
       logAi('ai:om-budget', {
@@ -1178,10 +1185,10 @@ export async function runOpenClawCoreAgentChat(
         }
       }
 
-      if (parsed.action === 'end' && lastToolResult != null) {
-        const cited = truncateCiteableOutput(lastToolResult)
-        if (cited.truncated) {
-          parsed = { ...parsed, description: explainCiteableOutput(parsed.description, cited) }
+      if (parsed.action === 'end' && (lastToolResult != null || thread.citeHold)) {
+        const cited = lastToolResult != null ? truncateCiteableOutput(lastToolResult) : emptyOutputView()
+        if (cited.truncated || thread.citeHold) {
+          parsed = { ...parsed, description: explainCiteableOutput(parsed.description, cited, thread.citeHold) }
         }
       }
 

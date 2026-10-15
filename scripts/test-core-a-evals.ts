@@ -35,6 +35,10 @@
  * end stays citeable. The end cites that marker and does not invent an absent
  * line. Confirm-before-run stays on. Another host does not inherit the marker.
  * The same command is not written again without a new confirm.
+ * S30: that cite window stays stable under observational compression. A scarce
+ * marker outside the naive head cut remains citeable after the bullet budget
+ * drops filler. Dropped filler does not come back as a cite. Confirm-before-run
+ * stays on. Another host does not inherit the marker.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -63,6 +67,7 @@ import {
   retryWritePermitted
 } from '../src/main/core-a-command-failure.ts'
 import {
+  citeObservationLine,
   explainCiteableOutput,
   OUTPUT_VIEW_CAP,
   outputViewCap,
@@ -72,13 +77,16 @@ import {
 } from '../src/main/core-a-output-truncate.ts'
 import {
   cancelHitl,
+  compactTranscript,
   createHitlLoop,
+  EMPTY_THREAD,
   hitlIsPlannable,
   interruptForProposal,
   markHitlExecuting,
   patchWritePermitted,
   resumeHitl,
-  sideEffectExecutionPermitted
+  sideEffectExecutionPermitted,
+  type TranscriptTurn
 } from '../src/main/core-a-context.ts'
 import { loadPersistedCoreSession } from '../src/main/core-a-memory.ts'
 
@@ -249,6 +257,23 @@ type Expectation = {
     presentInRaw?: string[]
     tipSuggest?: string
     rollback?: string
+    /** Scarce markers outside the naive head and tail, and filler that must stay dropped. */
+    citeWindow?: {
+      stable?: boolean
+      outsideHeadTail?: string[]
+      droppedFiller?: string[]
+    }
+  }
+  /**
+   * S30: the cite window after observational compression. The last context
+   * debug event carries `outputView.citeHold`. Scarce markers stay in
+   * observational memory. Dropped filler is not cited.
+   */
+  citeHold?: {
+    stable?: boolean
+    head?: number
+    outsideHeadTail?: string[]
+    droppedFiller?: string[]
   }
   hitl?: {
     minInterrupts?: number
@@ -718,6 +743,12 @@ function assertExpectation(
     assert.equal(Number.isFinite(view.cap) && view.cap >= 240, true, `${label}: output view cap`)
     assert.ok(view.shownChars <= view.cap, `${label}: output view exceeds its cap`)
     assert.ok(Array.isArray(view.markers), `${label}: output view markers`)
+    assert.equal(typeof view.citeWindow.stable, 'boolean', `${label}: cite window stable`)
+    assert.ok(Array.isArray(view.citeWindow.outsideHeadTail), `${label}: cite window markers`)
+    assert.ok(Array.isArray(view.citeWindow.droppedFiller), `${label}: cite window filler`)
+    assert.equal(typeof view.citeHold.stable, 'boolean', `${label}: cite hold stable`)
+    assert.ok(Array.isArray(view.citeHold.outsideHeadTail), `${label}: cite hold markers`)
+    assert.ok(Array.isArray(view.citeHold.droppedFiller), `${label}: cite hold filler`)
     assert.equal(view.truncated, view.originalChars > view.cap, `${label}: output view truncated flag`)
     const retry = event.payload.entry.retryBudget
     assert.equal(Number.isFinite(retry.count) && retry.count >= 0, true, `${label}: retry budget count`)
@@ -727,6 +758,7 @@ function assertExpectation(
     assert.equal(retry.exhausted, retry.count >= retry.cap, `${label}: retry budget exhausted does not match the count`)
   }
   assertOmBudget(label, context, expected.omBudget)
+  assertCiteHold(label, context, result, expected.citeHold)
   if (expected.minPlannerSteps != null) {
     assert.ok(result.prompts.length >= expected.minPlannerSteps, `${label}: ${result.prompts.length} planner steps`)
   }
@@ -1411,9 +1443,53 @@ function assertRetryBudget(turn: Turn, result: DriveResult): void {
  * middle stays in the planner view and can be cited. A rare token that was
  * never in the output is not cited. The cap cannot be raised from the env.
  */
+function assertCiteHold(
+  label: string,
+  context: AiStreamEvent[],
+  result: DriveResult,
+  spec: Expectation['citeHold']
+): void {
+  if (!spec) return
+  const last = context[context.length - 1]
+  assert.ok(last && last.type === 'debug' && last.payload.entry.kind === 'context', `${label}: cite hold has no context event`)
+  if (!last || last.type !== 'debug' || last.payload.entry.kind !== 'context') return
+  const hold = last.payload.entry.outputView.citeHold
+  const detail = JSON.stringify(hold)
+  if (spec.stable != null) assert.equal(hold.stable, spec.stable, `${label}: cite hold stable ${detail}`)
+  if (spec.head != null) assert.equal(hold.head, spec.head, `${label}: cite hold head ${detail}`)
+  if (spec.outsideHeadTail?.length === 0) {
+    assert.deepEqual(hold.outsideHeadTail, [], `${label}: cite hold inherited markers ${detail}`)
+  }
+  for (const marker of spec.outsideHeadTail ?? []) {
+    assert.ok(hold.outsideHeadTail.includes(marker), `${label}: cite hold dropped ${marker} ${detail}`)
+  }
+  if (spec.droppedFiller?.length === 0) {
+    assert.deepEqual(hold.droppedFiller, [], `${label}: cite hold inherited filler ${detail}`)
+  }
+  for (const filler of spec.droppedFiller ?? []) {
+    assert.ok(hold.droppedFiller.includes(filler), `${label}: cite hold lost dropped filler ${filler} ${detail}`)
+  }
+  const prompt = result.prompts[result.prompts.length - 1] ?? ''
+  const observed = observationalSection(prompt)
+  for (const marker of spec.outsideHeadTail ?? []) {
+    assert.ok(observed.includes(marker), `${label}: observational memory dropped scarce marker ${marker}`)
+  }
+  for (const filler of spec.droppedFiller ?? []) {
+    assert.equal(observed.includes(filler), false, `${label}: observational memory cited dropped filler ${filler}`)
+    assert.equal(prompt.includes(filler), false, `${label}: planner prompt cited dropped filler ${filler}`)
+  }
+}
+
+/**
+ * A long stdout, stderr, or ring is truncated. A rare marker in the dropped
+ * middle stays in the planner view and can be cited. A rare token that was
+ * never in the output is not cited. The same marker stays citeable after a
+ * naive observational head cut, and dropped filler does not come back.
+ * The cap cannot be raised from the env.
+ */
 function assertCiteableTruncateModes(): void {
-  assert.equal(tipSuggest, '0.4.8-s29')
-  assert.equal(rollback, '0.4.8-s28')
+  assert.equal(tipSuggest, '0.4.8-s30')
+  assert.equal(rollback, '0.4.8-s29')
   assert.equal(OUTPUT_VIEW_CAP, 6000)
   const short = truncateCiteableOutput('short ring')
   assert.equal(short.truncated, false)
@@ -1432,8 +1508,8 @@ function assertCiteableTruncateModes(): void {
   const view = truncateCiteableOutput(raw)
   assert.equal(view.truncated, true)
   assert.equal(view.cap, OUTPUT_VIEW_CAP)
-  assert.equal(view.tipSuggest, '0.4.8-s29')
-  assert.equal(view.rollback, '0.4.8-s28')
+  assert.equal(view.tipSuggest, '0.4.8-s30')
+  assert.equal(view.rollback, '0.4.8-s29')
   assert.ok(view.originalChars > view.cap)
   assert.ok(view.shownChars <= view.cap)
   assert.ok(view.shownChars < view.originalChars)
@@ -1442,10 +1518,57 @@ function assertCiteableTruncateModes(): void {
   assert.ok(view.text.includes('s29-tail-kept'))
   assert.equal(view.text.includes('s29-dropped-filler-token'), false)
   assert.ok(view.markers.includes('S29_RARE_MARKER'))
-  const explained = explainCiteableOutput('命令已经执行。我还看到 S29_ABSENT_LINE。', view)
+  assert.equal(view.citeWindow.stable, true)
+  assert.ok(view.citeWindow.outsideHeadTail.includes('S29_RARE_MARKER'))
+  assert.ok(view.citeWindow.droppedFiller.includes('s29-dropped-filler-token'))
+  const explained = explainCiteableOutput('命令已经执行。我还看到 S29_ABSENT_LINE 和 s29-dropped-filler-token。', view)
   assert.match(explained, /S29_RARE_MARKER/)
   assert.equal(explained.includes('S29_ABSENT_LINE'), false)
+  assert.equal(explained.includes('s29-dropped-filler-token'), false)
   assert.equal(explainCiteableOutput(explained, view), explained)
+  const naive = `${'甲'.repeat(180)}\nS29_RARE_MARKER 以及 s29-dropped-filler-token`
+  const naiveHead = naive.replace(/\s+/g, ' ').slice(0, 140)
+  assert.equal(naiveHead.includes('S29_RARE_MARKER'), false, 'naive observational head drops the scarce marker')
+  assert.ok(naiveHead.includes('s29-dropped-filler-token') === false || naive.indexOf('s29-dropped-filler-token') > 140)
+  const longEnd = `看到 s29-dropped-filler-token。${'甲'.repeat(180)}\nS29_RARE_MARKER`
+  const longHead = longEnd.replace(/\s+/g, ' ').slice(0, 140)
+  assert.ok(longHead.includes('s29-dropped-filler-token'), 'naive head keeps filler that the cite line must drop')
+  assert.equal(longHead.includes('S29_RARE_MARKER'), false)
+  const keptLine = citeObservationLine(longEnd, 140)
+  assert.ok(keptLine, 'cite line keeps a marker past the observational head')
+  assert.match(keptLine?.text ?? '', /S29_RARE_MARKER/)
+  assert.equal((keptLine?.text ?? '').includes('s29-dropped-filler-token'), false)
+  const compressed = citeObservationLine(raw, 140)
+  assert.ok(compressed, 'a truncated ring compresses to a cite line')
+  assert.match(compressed?.text ?? '', /S29_RARE_MARKER/)
+  assert.equal((compressed?.text ?? '').includes('s29-dropped-filler-token'), false)
+  assert.ok(compressed?.cite.droppedFiller.includes('s29-dropped-filler-token'))
+  const previousOm = process.env.AISS_OM_BULLET_CAP
+  try {
+    process.env.AISS_OM_BULLET_CAP = '4'
+    const turns: TranscriptTurn[] = [
+      { role: 'user', content: raw },
+      { role: 'assistant', content: longEnd }
+    ]
+    for (let i = 1; i <= 16; i++) {
+      turns.push({ role: 'user', content: `继续无关项 ${i}。` })
+      turns.push({ role: 'assistant', content: `无关项 ${i} 结束。` })
+    }
+    const folded = compactTranscript(turns, EMPTY_THREAD, 8)
+    assert.equal(folded.omBudget.truncated, true)
+    assert.equal(folded.omBudget.nearBudget, true)
+    assert.ok(folded.omBudget.droppedBullets >= 1)
+    assert.equal(folded.ctx.citeHold?.stable, true)
+    assert.ok(folded.ctx.citeHold?.outsideHeadTail.includes('S29_RARE_MARKER'))
+    assert.ok(folded.ctx.citeHold?.droppedFiller.includes('s29-dropped-filler-token'))
+    const bullets = folded.ctx.observationalMemory.map((bullet) => bullet.text).join('\n')
+    assert.match(bullets, /S29_RARE_MARKER/)
+    assert.equal(bullets.includes('s29-dropped-filler-token'), false)
+    assert.equal(folded.ctx.runningSummary.includes('s29-dropped-filler-token'), false)
+  } finally {
+    if (previousOm == null) delete process.env.AISS_OM_BULLET_CAP
+    else process.env.AISS_OM_BULLET_CAP = previousOm
+  }
 
   const previous = process.env.AISS_OUTPUT_VIEW_CAP
   try {
@@ -1493,6 +1616,15 @@ function assertOutputView(turn: Turn, result: DriveResult): void {
   }
   if (spec.tipSuggest != null) assert.equal(view.tipSuggest, spec.tipSuggest, `${label}: tipSuggest`)
   if (spec.rollback != null) assert.equal(view.rollback, spec.rollback, `${label}: rollback`)
+  if (spec.citeWindow?.stable != null) {
+    assert.equal(view.citeWindow.stable, spec.citeWindow.stable, `${label}: cite window stable`)
+  }
+  for (const marker of spec.citeWindow?.outsideHeadTail ?? []) {
+    assert.ok(view.citeWindow.outsideHeadTail.includes(marker), `${label}: cite window dropped ${marker}`)
+  }
+  for (const filler of spec.citeWindow?.droppedFiller ?? []) {
+    assert.ok(view.citeWindow.droppedFiller.includes(filler), `${label}: cite window lost filler ${filler}`)
+  }
   const prompt = result.prompts[result.prompts.length - 1] ?? ''
   for (const fact of spec.keptInPrompt ?? []) {
     assert.ok(prompt.includes(fact), `${label}: truncated prompt dropped ${fact}`)

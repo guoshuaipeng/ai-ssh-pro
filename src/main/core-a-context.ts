@@ -17,6 +17,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { citeObservationLine, type CiteWindow } from './core-a-output-truncate'
 
 export type WorkingStatus = 'active' | 'blocked' | 'done'
 
@@ -74,6 +75,11 @@ export type ThreadContext = {
   compactedCursor: string | null
   /** Cumulative budget loss for this thread. Not shared across hosts. */
   omBudget?: OmBudgetMark
+  /**
+   * Cite window held after observational compression. Scarce markers stay
+   * citeable; dropped filler must not come back. Not shared across hosts.
+   */
+  citeHold?: CiteWindow
 }
 
 export type TranscriptTurn = {
@@ -669,8 +675,22 @@ function fingerprint(turn: TranscriptTurn): string {
   return (hash >>> 0).toString(16)
 }
 
+function observationLineCap(role: TranscriptTurn['role']): number {
+  return role === 'system' ? 100 : 140
+}
+
 function formatTurnLine(turn: TranscriptTurn): { line: string; truncated: boolean } {
-  const content = redactSecrets(turn.content).replace(/\s+/g, ' ').trim()
+  const raw = redactSecrets(turn.content)
+  const cited = citeObservationLine(raw, observationLineCap(turn.role))
+  if (cited) {
+    const prefix = turn.role === 'assistant' ? 'assistant: ' : turn.role === 'system' ? 'system: ' : 'user: '
+    const line = `${prefix}${cited.text}`
+    return {
+      line: line.length > MAX_OBSERVATION_CHARS ? line.slice(0, MAX_OBSERVATION_CHARS) : line,
+      truncated: true
+    }
+  }
+  const content = raw.replace(/\s+/g, ' ').trim()
   if (!content) return { line: '', truncated: false }
   if (turn.role === 'assistant') {
     const extracted = extractAssistantLine(content)
@@ -680,6 +700,43 @@ function formatTurnLine(turn: TranscriptTurn): { line: string; truncated: boolea
     return { line: `system: ${content.slice(0, 100)}`, truncated: content.length > 100 }
   }
   return { line: `user: ${content.slice(0, 140)}`, truncated: content.length > 140 }
+}
+
+function mergeCiteHold(prev: CiteWindow | undefined, fresh: TranscriptTurn[]): CiteWindow | undefined {
+  const outside: string[] = [...(prev?.outsideHeadTail ?? [])]
+  const dropped: string[] = [...(prev?.droppedFiller ?? [])]
+  let head = prev?.head ?? 0
+  let tail = prev?.tail ?? 0
+  let saw = false
+  for (const turn of fresh) {
+    const cited = citeObservationLine(redactSecrets(turn.content), observationLineCap(turn.role))
+    if (!cited) continue
+    saw = true
+    head = cited.cite.head
+    tail = cited.cite.tail
+    for (const marker of cited.cite.outsideHeadTail) {
+      if (!outside.includes(marker)) outside.push(marker)
+    }
+    for (const filler of cited.cite.droppedFiller) {
+      if (!dropped.includes(filler)) dropped.push(filler)
+    }
+  }
+  if (!saw && !prev) return undefined
+  return {
+    head,
+    tail,
+    outsideHeadTail: outside.slice(0, 16),
+    droppedFiller: dropped.slice(0, 8),
+    stable: false
+  }
+}
+
+function citeHoldStable(hold: CiteWindow, ctx: ThreadContext): boolean {
+  const blob = `${ctx.observationalMemory.map((bullet) => bullet.text).join('\n')}\n${ctx.runningSummary}`
+  return (
+    hold.outsideHeadTail.every((marker) => ctx.observationalMemory.some((bullet) => bullet.text.includes(marker))) &&
+    hold.droppedFiller.every((filler) => !blob.includes(filler))
+  )
 }
 
 function extractAssistantLine(content: string): string {
@@ -847,6 +904,7 @@ export function compactTranscript(
     .filter((draft): draft is { bullet: ObservationBullet; truncated: boolean } => draft != null)
   const appended = appendObservationBulletsCounted(ctx.observationalMemory, drafts)
   const prev = ctx.omBudget ?? emptyOmBudget()
+  const citeHold = mergeCiteHold(ctx.citeHold, fresh)
   let next: ThreadContext = {
     ...ctx,
     runningSummary: cappedSummary.text,
@@ -856,8 +914,10 @@ export function compactTranscript(
       droppedBullets: prev.droppedBullets + appended.dropped,
       truncatedBullets: prev.truncatedBullets + appended.truncated,
       summaryTruncated: prev.summaryTruncated || cappedSummary.truncated
-    }
+    },
+    citeHold: citeHold ? { ...citeHold, stable: false } : undefined
   }
+  if (next.citeHold) next = { ...next, citeHold: { ...next.citeHold, stable: citeHoldStable(next.citeHold, next) } }
   const chunks = chunkText(piece, MAX_EPISODE_CHARS)
   for (const chunk of chunks) {
     next = appendEpisode(
@@ -1025,6 +1085,7 @@ export type DurableThreadFields = {
   observationalMemory: ObservationBullet[]
   compactedCursor: string | null
   omBudget?: OmBudgetMark
+  citeHold?: CiteWindow
 }
 
 /**
@@ -1050,6 +1111,7 @@ export function archiveAndClearRecord<T extends DurableThreadFields>(record: T):
     observationalMemory: [],
     compactedCursor: null,
     omBudget: emptyOmBudget(),
+    citeHold: undefined,
     updatedAt: Date.now()
   }
 }

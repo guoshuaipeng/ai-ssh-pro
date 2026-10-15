@@ -4,20 +4,40 @@
  * near the end stays in that view so a later end can cite it. A rare token
  * that was not in the output is not cited.
  *
- * Soft-batch pin: tipSuggest `0.4.8-s29`. Rollback is the S28 retry budget.
+ * Under observational compression the same window stays stable: a scarce
+ * marker outside the naive head cut remains in the bullet, and filler that
+ * the cite window dropped does not come back as a cite.
+ *
+ * Soft-batch pin: tipSuggest `0.4.8-s30`. Rollback is the S29 citeable truncate.
  */
 
 /** Planner-visible cap for one command's stdout, stderr, or ring. */
 export const OUTPUT_VIEW_CAP = 6000
 
 /** Citeable truncate path. */
-export const tipSuggest = '0.4.8-s29'
+export const tipSuggest = '0.4.8-s30'
 
 /** Previous batch this path rolls back to. */
-export const rollback = '0.4.8-s28'
+export const rollback = '0.4.8-s29'
 
 /** At least 8 characters, so ordinary words are not evidence tokens. */
 const RARE_TOKEN = /[A-Z][A-Z0-9_]{7,}/g
+
+/** Hyphenated filler in a dropped middle line. Not a rare evidence token. */
+const FILLER_TOKEN = /[a-z][a-z0-9]+(?:-[a-z0-9]+)+/g
+
+/**
+ * Cite-window boundary. `outsideHeadTail` are scarce markers a naive head
+ * or tail cut would lose. `droppedFiller` must not be cited. `stable` means
+ * every scarce marker is in the kept text and no dropped filler is.
+ */
+export type CiteWindow = {
+  head: number
+  tail: number
+  outsideHeadTail: string[]
+  droppedFiller: string[]
+  stable: boolean
+}
 
 export type OutputView = {
   text: string
@@ -27,6 +47,8 @@ export type OutputView = {
   cap: number
   /** Rare tokens from the original output, in first-seen order. */
   markers: string[]
+  /** Boundary of this truncate. Inspectable on the context debug event. */
+  citeWindow: CiteWindow
   tipSuggest: typeof tipSuggest
   rollback: typeof rollback
 }
@@ -43,6 +65,10 @@ export function outputViewCap(): number {
   const whole = Math.floor(n)
   if (whole < 240 || whole > OUTPUT_VIEW_CAP) return OUTPUT_VIEW_CAP
   return whole
+}
+
+export function emptyCiteWindow(): CiteWindow {
+  return { head: 0, tail: 0, outsideHeadTail: [], droppedFiller: [], stable: true }
 }
 
 export function emptyOutputView(): OutputView {
@@ -72,6 +98,67 @@ function clipLineAround(line: string, token: string, max = 240): string {
   if (at < 0) return line.slice(0, max)
   const start = Math.max(0, at - 40)
   return line.slice(start, start + max)
+}
+
+function uniqueTokens(tokens: string[], limit: number): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const token of tokens) {
+    if (!token || seen.has(token)) continue
+    seen.add(token)
+    out.push(token)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/** Filler tokens on middle lines that carry no rare marker. Capped for the debug event. */
+export function droppedFillerTokens(raw: string, cap = outputViewCap()): string[] {
+  if (raw.length <= cap) return []
+  const { head, tail } = headTailBudget(cap)
+  const middle = raw.slice(head, Math.max(head, raw.length - tail))
+  const found: string[] = []
+  for (const line of middle.split('\n')) {
+    if (rareMarkers(line).length > 0) continue
+    found.push(...(line.match(new RegExp(FILLER_TOKEN.source, 'g')) ?? []))
+  }
+  return uniqueTokens(
+    found.filter((token) => token.length >= 8),
+    8
+  )
+}
+
+/**
+ * One observational line under a naive head cut. Returns null when every
+ * rare marker already sits in that head, so ordinary short turns stay as
+ * they were. Otherwise the line is the scarce markers only: filler the cite
+ * window dropped is not copied back in.
+ */
+export function citeObservationLine(raw: string, maxChars: number): { text: string; cite: CiteWindow } | null {
+  const collapsed = raw.replace(/\s+/g, ' ').trim()
+  if (!collapsed || collapsed.length <= maxChars) return null
+  const naive = collapsed.slice(0, Math.max(0, maxChars))
+  const dropped = droppedFillerTokens(raw)
+  const scarce = rareMarkers(collapsed).filter((marker) => !naive.includes(marker) && !dropped.includes(marker))
+  if (scarce.length === 0) return null
+  const fit: string[] = []
+  for (const marker of scarce) {
+    const next = fit.length ? `${fit.join(' ')} ${marker}` : marker
+    if (next.length > maxChars) break
+    fit.push(marker)
+  }
+  if (fit.length === 0) return null
+  const text = fit.join(' ')
+  return {
+    text,
+    cite: {
+      head: maxChars,
+      tail: 0,
+      outsideHeadTail: fit,
+      droppedFiller: dropped,
+      stable: fit.every((marker) => text.includes(marker)) && dropped.every((filler) => !text.includes(filler))
+    }
+  }
 }
 
 function finalize(text: string, markers: string[], cap: number): string {
@@ -105,7 +192,7 @@ export function truncateCiteableOutput(raw: string, cap = outputViewCap()): Outp
     rollback
   } as const
   if (raw.length <= cap) {
-    return { ...base, text: raw, truncated: false, shownChars: raw.length }
+    return { ...base, text: raw, truncated: false, shownChars: raw.length, citeWindow: emptyCiteWindow() }
   }
   const { head: headBudget, tail: tailBudget } = headTailBudget(cap)
   const middleStart = headBudget
@@ -139,20 +226,40 @@ export function truncateCiteableOutput(raw: string, cap = outputViewCap()): Outp
     const tail = raw.slice(raw.length - tailTake)
     text = finalize(`${head}\n${fixed}\n${tail}`, markers, cap)
   }
-  return { ...base, text, truncated: true, shownChars: text.length }
+  const outsideHeadTail = markers.filter((marker) => !headSlice.includes(marker) && !tailSlice.includes(marker))
+  const droppedFiller = droppedFillerTokens(raw, cap)
+  const citeWindow: CiteWindow = {
+    head: headBudget,
+    tail: tailBudget,
+    outsideHeadTail,
+    droppedFiller,
+    stable:
+      outsideHeadTail.every((marker) => text.includes(marker)) && droppedFiller.every((filler) => !text.includes(filler))
+  }
+  return { ...base, text, truncated: true, shownChars: text.length, citeWindow }
 }
 
 /**
- * The end may cite rare tokens that were in the output. A rare token the
- * output never contained is removed. Missing preserved markers are appended
- * so the only evidence is not dropped. A view that was not truncated is unchanged.
+ * The end may cite rare tokens that were in the output or held from an
+ * earlier cite window. A rare token the output never contained is removed.
+ * Filler the cite window dropped is removed, including when observational
+ * compression is what still holds that window. Missing preserved markers
+ * are appended only for a truncated live view. A short view with no hold
+ * is unchanged.
  */
-export function explainCiteableOutput(description: string, view: OutputView): string {
-  if (!view.truncated) return description
-  const allowed = new Set(view.markers)
+export function explainCiteableOutput(description: string, view: OutputView, hold?: CiteWindow | null): string {
+  const holdActive = Boolean(hold && (hold.outsideHeadTail.length > 0 || hold.droppedFiller.length > 0))
+  if (!view.truncated && !holdActive) return description
+  const allowed = new Set<string>([...view.markers, ...(hold?.outsideHeadTail ?? [])])
   let text = description.replace(new RegExp(RARE_TOKEN.source, 'g'), (token) => (allowed.has(token) ? token : ''))
-  for (const marker of view.markers) {
-    if (!text.includes(marker)) text = `${text.trim()}\n${marker}`
+  const dropped = new Set<string>([...view.citeWindow.droppedFiller, ...(hold?.droppedFiller ?? [])])
+  for (const filler of dropped) {
+    if (filler) text = text.split(filler).join('')
+  }
+  if (view.truncated) {
+    for (const marker of view.markers) {
+      if (!text.includes(marker)) text = `${text.trim()}\n${marker}`
+    }
   }
   return text
 }
