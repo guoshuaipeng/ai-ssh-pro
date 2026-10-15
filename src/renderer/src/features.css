@@ -394,17 +394,22 @@
   padding: 4px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-menu);
   display: flex;
   flex-direction: column;
 }
 .tab-context-menu button {
+  display: flex;
+  align-items: center;
   text-align: left;
   border: 0;
   background: transparent;
-  padding: 6px 10px;
-  border-radius: 4px;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 0;
+  padding-inline: 8px;
+  border-radius: var(--radius-md);
   font-size: 13px;
 }
 .tab-context-menu button:hover:not(:disabled) { background: var(--color-row-hover-bg); }
@@ -993,7 +998,7 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
 .ctx-menu-root { position: fixed; z-index: 10000; }
 .ctx-menu { list-style: none; margin: 0; padding: 4px; min-width: 200px; max-height: calc(100vh - 16px); overflow: auto; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-menu); }
 .ctx-menu-item { position: relative; }
-.ctx-menu-item > button { display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; padding: 0 10px; border: none; background: transparent; color: inherit; text-align: left; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.ctx-menu-item > button { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; min-height: 32px; padding: 0 8px; border: none; background: transparent; color: inherit; text-align: left; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; white-space: nowrap; box-sizing: border-box; }
 .ctx-menu-item > button:hover:not(:disabled) { background: var(--color-row-hover-bg); }
 .ctx-menu-item.is-disabled > button, .ctx-menu-item > button:disabled { opacity: .45; cursor: default; }
 .ctx-menu-item > button.danger { color: var(--danger); }
