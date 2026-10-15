@@ -303,7 +303,7 @@ export default function OpsHomeTab({
         <div className="workspace-panel-body">
           <EmptyState
             testId="l7-empty"
-            icon={<Icon name="monitor" size={48} strokeWidth={1.5} />}
+            icon="host"
             title={t('ux08.sidebarTitle')}
             desc={t('pf4.hostsDesc')}
             primary={{ label: t('pf1.new'), onClick: onNewConnection, testId: 'l7-new-connection', command: 'connection' }}
@@ -582,7 +582,7 @@ export default function OpsHomeTab({
             <EmptyState
               compact
               testId="l7-inbox-empty"
-              icon={<Icon name="bell" size={32} strokeWidth={1.5} />}
+              icon="alert"
               title={t('pf4.alertTitle')}
               desc={t('pf4.alertDesc')}
               primary={{ label: t('pf4.alertRules'), onClick: onRules }}

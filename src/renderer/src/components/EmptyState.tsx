@@ -1,4 +1,12 @@
 import type { ReactNode } from 'react'
+import Icon from './Icon'
+import {
+  EMPTY_ICON_SIZE,
+  EMPTY_ICON_SIZE_COMPACT,
+  EMPTY_ICON_STROKE,
+  EMPTY_ICONS,
+  type EmptyIconKey
+} from './emptyIcons'
 
 type Action = {
   label: string
@@ -11,7 +19,11 @@ type Action = {
   command?: string
 }
 
-/** UX-08: icon + one sentence + primary action (+ secondary actions). */
+function isEmptyIconKey(icon: EmptyIconKey | Exclude<ReactNode, string | number>): icon is EmptyIconKey {
+  return typeof icon === 'string' && Object.prototype.hasOwnProperty.call(EMPTY_ICONS, icon)
+}
+
+/** UX-08 / UI-N6: one icon slot, one sentence, a primary action, then secondary links. */
 export default function EmptyState({
   icon,
   title,
@@ -22,7 +34,8 @@ export default function EmptyState({
   compact,
   children
 }: {
-  icon?: ReactNode
+  /** Surface key from emptyIcons, or a ready glyph. Strings that are not keys are not drawn. */
+  icon?: EmptyIconKey | Exclude<ReactNode, string | number>
   title: string
   desc?: string
   primary?: Action
@@ -32,11 +45,21 @@ export default function EmptyState({
   children?: ReactNode
 }) {
   const extra = (secondary ?? []).slice(0, 2)
+  const glyph =
+    icon && isEmptyIconKey(icon) ? (
+      <Icon
+        name={EMPTY_ICONS[icon]}
+        size={compact ? EMPTY_ICON_SIZE_COMPACT : EMPTY_ICON_SIZE}
+        strokeWidth={EMPTY_ICON_STROKE}
+      />
+    ) : (
+      icon
+    )
   return (
     <div className={`empty-state${compact ? ' empty-state--compact' : ''}`} data-testid={testId} role="status">
-      {icon ? (
+      {glyph ? (
         <div className="empty-state-icon" aria-hidden>
-          {icon}
+          {glyph}
         </div>
       ) : null}
       <div className="empty-state-title">{title}</div>

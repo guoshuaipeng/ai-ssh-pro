@@ -20,7 +20,6 @@ import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import { toastUndo } from '../lib/dialogs'
 import EmptyState from './EmptyState'
-import Icon from './Icon'
 import Modal from './Modal'
 
 type Props = {
@@ -384,7 +383,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
             <EmptyState
               compact
               testId="snippets-empty"
-              icon={<Icon name="clipboard-list" size={32} strokeWidth={1.5} />}
+              icon="snippet"
               title={t('pf4.snipTitle')}
               desc={t('w9.tryHint')}
               primary={{ label: t('ux08.snipNew'), onClick: openNew, testId: 'snip-new' }}
