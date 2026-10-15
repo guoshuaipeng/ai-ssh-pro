@@ -538,7 +538,7 @@ function buildCoreSystemPrompt(
     '---',
     mt('你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。', "Output a single JSON object; no Markdown, no code fences, no text outside the JSON."),
     mt('action（必填）：tool_call | command | end。', "action (required): tool_call | command | end."),
-    mt('command 需要用户确认后才执行（低风险可自动批准）；tool_call 会被系统立即执行。', "command runs only after user confirmation (low risk may be auto-approved); tool_call is executed by the system immediately."),
+    mt('command 一律需要用户确认后才执行，包括 riskLevel=low，不会自动写入终端；get_terminal_snapshot 由系统自动执行。', "Every command, including riskLevel=low, runs only after user confirmation and is never written to the terminal automatically; get_terminal_snapshot is executed by the system automatically."),
     mt('可用 toolName：get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note。', "Available toolName: get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note."),
     mt('若上一轮刚执行过命令，系统可能已自动附带终端观测结果，请优先阅读后再决策。', "If a command just ran in the previous round, terminal observations may be attached automatically; read them before deciding."),
     mt(`当前轮次：${ctx.step}`, `Current round: ${ctx.step}`),
@@ -861,19 +861,13 @@ export async function runOpenClawCoreAgentChat(
         parseError
       })
 
-      // Only `command` steps require user confirmation (unless low-risk auto-approve).
-      const autoApproveLowRiskCommand =
-        parsed.action === 'command' &&
-        settings.autoApproveLowRisk === true &&
-        String(parsed.riskLevel ?? '').toLowerCase() === 'low'
-
-      const requestId =
-        parsed.action === 'command' && !autoApproveLowRiskCommand ? randomUUID() : undefined
+      // Commands always wait for Agree / Decline. riskLevel=low does not auto-run.
+      // Read-only tools such as get_terminal_snapshot still omit requestId and run immediately.
+      const requestId = parsed.action === 'command' ? randomUUID() : undefined
 
       send(wc, {
         type: 'step',
         requestId,
-        autoApproved: autoApproveLowRiskCommand ? true : undefined,
         structured: parsed
       })
 
@@ -889,38 +883,29 @@ export async function runOpenClawCoreAgentChat(
         return
       }
 
-      // For command steps, wait for user confirmation before executing (skip when auto-approved).
+      // Command steps wait for user confirmation before anything is written to the terminal.
       if (parsed.action === 'command') {
         consecutiveSnapshotTools = 0
-        if (autoApproveLowRiskCommand) {
+        if (!requestId) {
+          send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
+          return
+        }
+
+        const ok = await waitForAiConfirm(requestId)
+        if (runCtx.userAborted) {
+          send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
+          send(wc, { type: 'done' })
+          return
+        }
+        if (!ok) {
           emitDebug({
             kind: 'execution',
             round: step,
-            label: mt('低风险命令已自动批准', "Low-risk command auto-approved"),
+            label: mt('用户未同意执行命令', "User declined to run the command"),
             detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
           })
-        } else {
-          if (!requestId) {
-            send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
-            return
-          }
-
-          const ok = await waitForAiConfirm(requestId)
-          if (runCtx.userAborted) {
-            send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
-            send(wc, { type: 'done' })
-            return
-          }
-          if (!ok) {
-            emitDebug({
-              kind: 'execution',
-              round: step,
-              label: mt('用户未同意执行命令', "User declined to run the command"),
-              detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
-            })
-            send(wc, { type: 'cancelled', message: mt('已取消：你未同意执行该命令', "Cancelled: you declined to run this command") })
-            return
-          }
+          send(wc, { type: 'cancelled', message: mt('已取消：你未同意执行该命令', "Cancelled: you declined to run this command") })
+          return
         }
       }
 
