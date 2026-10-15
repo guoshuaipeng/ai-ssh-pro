@@ -60,6 +60,20 @@ function asStringList(value: unknown, limit: number): string[] {
   return value.filter((item): item is string => typeof item === 'string').slice(-limit)
 }
 
+/** Keep the earliest scratchpad facts. A tail slice would drop the rare fact first. */
+function asStringHead(value: unknown, limit: number): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const text = item.trim()
+    if (!text || out.includes(text)) continue
+    out.push(text.slice(0, 80))
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 function coerceWorking(value: unknown): WorkingMemoryBlock | null {
   if (!value || typeof value !== 'object') return null
   const row = value as Partial<WorkingMemoryBlock>
@@ -69,6 +83,7 @@ function coerceWorking(value: unknown): WorkingMemoryBlock | null {
     id: 'current_task',
     goal: row.goal.trim().slice(0, 200),
     constraints: asStringList(row.constraints, 6),
+    hostFacts: asStringHead(row.hostFacts, 8),
     ...(typeof row.successCriteria === 'string' && row.successCriteria.trim()
       ? { successCriteria: row.successCriteria.trim().slice(0, 80) }
       : {}),

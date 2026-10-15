@@ -300,6 +300,7 @@ const cleared = archiveAndClearRecord({
     id: 'current_task' as const,
     goal: '查磁盘',
     constraints: ['不要重启'],
+    hostFacts: ['WM_KEEP'],
     status: 'active' as const,
     updatedAt: 1
   },
@@ -468,6 +469,94 @@ try {
   delete process.env.AISS_OM_BULLET_CAP
 }
 ok(observationBulletCap() === 40, 'clearing the harness cap restores 40')
+
+process.env.AISS_OM_BULLET_CAP = '4'
+try {
+  const goal = '当前目标是守住 WM_S26_GOAL。不要删除 WM_S26_CONSTRAINT。'
+  const fact = `继续记下稀有主机事实 WM_S26_RARE_FACT 只监听 127.0.0.1:18453，配置 /etc/s26/edge.conf。 ${'x'.repeat(80)}`
+  const seededGoal = absorbUserTurn(EMPTY_THREAD, [{ role: 'user', content: goal }])
+  ok(seededGoal.ctx.workingMemory?.goal.includes('WM_S26_GOAL'), 'S26 seeds the active goal')
+  ok(
+    seededGoal.ctx.workingMemory?.constraints.some((line) => line.includes('WM_S26_CONSTRAINT')),
+    'S26 seeds the constraint on the scratchpad'
+  )
+  const withFact = absorbUserTurn(seededGoal.ctx, [
+    { role: 'user', content: goal },
+    { role: 'assistant', content: '先到这里。' },
+    { role: 'user', content: fact }
+  ])
+  ok(withFact.switchedFrom == null, 'a follow-up host fact does not replace the active goal')
+  ok(withFact.ctx.workingMemory?.goal.includes('WM_S26_GOAL'), 'S26 goal stays after the host fact')
+  ok(withFact.ctx.workingMemory?.hostFacts.includes('WM_S26_RARE_FACT'), 'S26 stores the rare host fact on the scratchpad')
+  ok(withFact.ctx.workingMemory?.hostFacts.includes('127.0.0.1:18453'), 'S26 scratchpad keeps the host port')
+  ok(withFact.ctx.workingMemory?.hostFacts.includes('/etc/s26/edge.conf'), 'S26 scratchpad keeps the host path')
+  const switchedFacts = absorbUserTurn(withFact.ctx, [
+    { role: 'user', content: goal },
+    { role: 'user', content: '换个问题：nginx 为什么起不来' }
+  ])
+  ok(switchedFacts.ctx.workingMemory?.goal.includes('nginx'), 'an explicit switch still replaces the goal')
+  ok(
+    switchedFacts.ctx.workingMemory?.hostFacts.includes('WM_S26_RARE_FACT'),
+    'an explicit switch does not wipe host facts'
+  )
+  const turns: TranscriptTurn[] = [
+    { role: 'user', content: goal },
+    { role: 'assistant', content: '先到这里。' },
+    { role: 'user', content: fact },
+    { role: 'assistant', content: '已记下该监听约束，先到这里。' },
+    { role: 'user', content: '继续，请执行只读命令 echo S26_HOSTA_CMD，确认后再发。' },
+    { role: 'assistant', content: '建议执行 echo S26_HOSTA_CMD。' },
+    { role: 'assistant', content: '命令已确认后执行。' },
+    { role: 'user', content: '继续无关叙述甲乙丙丁，没有新的监听。' },
+    { role: 'assistant', content: '叙述甲乙丙丁结束。' }
+  ]
+  for (let i = 5; i <= 16; i++) {
+    turns.push({ role: 'user', content: `继续无关项 ${i}。` })
+    turns.push({ role: 'assistant', content: `无关项 ${i} 结束。` })
+  }
+  const foldedWm = compactTranscript(turns, withFact.ctx, 8)
+  ok(foldedWm.omBudget.truncated === true && foldedWm.omBudget.droppedBullets >= 1, 'S26 drops narrative bullets under the cap')
+  ok(
+    !foldedWm.ctx.observationalMemory.some((bullet) => bullet.text.includes('甲乙丙丁')),
+    'S26 narrative token is not left in observational memory'
+  )
+  ok(foldedWm.ctx.workingMemory?.goal.includes('WM_S26_GOAL'), 'S26 goal survives observational truncation')
+  ok(
+    foldedWm.ctx.workingMemory?.constraints.some((line) => line.includes('WM_S26_CONSTRAINT')),
+    'S26 constraint survives observational truncation'
+  )
+  ok(
+    foldedWm.ctx.workingMemory?.hostFacts.includes('WM_S26_RARE_FACT'),
+    'S26 host fact survives observational truncation'
+  )
+  const promptWm = buildMemoryPromptBlocks({
+    working: foldedWm.ctx.workingMemory,
+    observations: foldedWm.ctx.observationalMemory,
+    runningSummary: foldedWm.ctx.runningSummary,
+    hits: [],
+    headings: { working: 'WORKING', observations: 'OBSERVATIONS', summary: 'SUMMARY', recall: 'RECALL' }
+  })
+  ok(promptWm.sections.working.includes('WM_S26_GOAL'), 'S26 goal is injected after truncation')
+  ok(promptWm.sections.working.includes('WM_S26_CONSTRAINT'), 'S26 constraint is injected after truncation')
+  ok(promptWm.sections.working.includes('hostFacts:'), 'S26 host facts are a structured prompt line')
+  ok(promptWm.sections.working.includes('WM_S26_RARE_FACT'), 'S26 host fact is injected after truncation')
+  ok(promptWm.sections.working.includes('127.0.0.1:18453'), 'S26 port is injected from the scratchpad')
+  ok(!promptWm.sections.observations.includes('甲乙丙丁'), 'S26 dropped narrative stays out of the observation section')
+  const otherThread = absorbUserTurn(EMPTY_THREAD, [{ role: 'user', content: '这台机器没有先前记录。' }])
+  const otherPrompt = buildMemoryPromptBlocks({
+    working: otherThread.ctx.workingMemory,
+    observations: otherThread.ctx.observationalMemory,
+    runningSummary: '',
+    hits: [],
+    headings: { working: 'WORKING', observations: 'OBSERVATIONS', summary: 'SUMMARY', recall: 'RECALL' }
+  })
+  ok(!otherPrompt.text.includes('WM_S26_GOAL'), 'another thread does not inherit the scratchpad goal')
+  ok(!otherPrompt.text.includes('WM_S26_CONSTRAINT'), 'another thread does not inherit the constraint')
+  ok(!otherPrompt.text.includes('WM_S26_RARE_FACT'), 'another thread does not inherit the host fact')
+} finally {
+  delete process.env.AISS_OM_BULLET_CAP
+}
+ok(observationBulletCap() === 40, 'the S26 harness cap does not stick')
 
 const root = join(import.meta.dirname, '..')
 const pkg = readFileSync(join(root, 'package.json'), 'utf8')
