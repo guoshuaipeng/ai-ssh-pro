@@ -12,6 +12,80 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.4': [
+    {
+      icon: '▷',
+      text: {
+        zh: '告警规则可以一键套用 CPU、磁盘和 sshd 模板，只写入本机规则',
+        en: 'Alert rules can apply CPU, disk, and sshd templates in one click. They only write local rules'
+      },
+      where: { zh: '命令面板 → 启用告警规则模板…', en: 'Command palette → Enable alert rule templates…' },
+      action: 'enableRuleTemplates'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '后台采样可以按标签、仅生产或排除只读来缩小范围。失败的主机会退避后重试',
+        en: 'Background sampling can filter by tag, production only, or exclude read-only. Failed hosts back off, then retry'
+      },
+      where: { zh: '设置 → 运维首页', en: 'Settings → Ops home' },
+      action: 'retryFailedProbes'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运维剧本可以导出加密分享包。口令、私钥和令牌不会写进包里',
+        en: 'Playbooks can export an encrypted share pack. Passwords, keys, and tokens stay out of the file'
+      },
+      where: { zh: '运维剧本 → 导出分享包…', en: 'Playbooks → Export share pack…' },
+      action: 'exportPlaybookPack'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '写闸门的决定会留在记录里。只读阻止可以回放，记录本身不能改保护级别',
+        en: 'Write-gate decisions stay in a log. A read-only block can be replayed, and the log cannot change protection'
+      },
+      where: { zh: '命令面板 → 查看写闸门记录', en: 'Command palette → View write-gate log' },
+      action: 'gateTimeline'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '新配置最多三步连上第一台主机。完整引导仍可在帮助里重看',
+        en: 'A new profile reaches the first host in at most three steps. The full tour stays under Help'
+      },
+      where: { zh: '帮助 → 快速上手（3 步）', en: 'Help → Quick start (3 steps)' },
+      action: 'quickStart'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '会话录像可以截一段导出 GIF 或带时间戳的 Markdown，不改原录像',
+        en: 'A session recording can export a clip as a GIF or timestamped Markdown without changing the original'
+      },
+      where: { zh: '运维 → 会话录制', en: 'Ops → Session recordings' },
+      action: 'sessionRecordings'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运维首页收件箱的右键和 ⋯ 也能生成修复剧本，和告警工作台同一套判断',
+        en: 'The Ops home inbox context menu and ⋯ can create a fix playbook, using the same decision as the workbench'
+      },
+      where: { zh: '运维首页 → 告警收件箱', en: 'Ops home → Alert inbox' },
+      action: 'opsHome'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '跳板失败的那一跳会单独标出来。成功、探测中和尚未探测可以分开看',
+        en: 'A failed jump hop is marked on its own. Success, probing, and not-yet-probed stay distinct'
+      },
+      where: { zh: '连接设置 → 跳板机', en: 'Connection settings → Jump hosts' },
+      action: 'setJumpHosts'
+    }
+  ],
   '0.4.3': [
     {
       icon: '▷',

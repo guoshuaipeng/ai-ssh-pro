@@ -5567,7 +5567,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.3'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.4'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -5606,7 +5606,7 @@ export default function App() {
                     onOpenWorkbench={() => openWorkbench()}
                   />
                 ) : t.view === 'playbook-import' ? (
-                  <PlaybookImportTab appVersion={appVersion || '0.4.3'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <PlaybookImportTab appVersion={appVersion || '0.4.4'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'gate-timeline' ? (
                   <GateTimelineTab
                     focusId={t.gateFocusId}
