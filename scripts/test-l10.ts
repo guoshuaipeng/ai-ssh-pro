@@ -154,6 +154,58 @@ assert.equal(syncThrow[0]?.ok, false)
 assert.equal(syncThrow[1]?.ok, true)
 assert.deepEqual(await runBatchConnect([], 4, async () => ({ ok: true })), [])
 
+// L10-4: cancel drops hosts that have not started. In-flight connects still finish.
+const queuedHosts = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id, label: id }))
+const startedAfterCancel: string[] = []
+const cancelRelease: Array<() => void> = []
+let cancelFlag = false
+const progress: Array<{ queued: number; started: number; cancelled: number }> = []
+const cancelRun = runBatchConnect(
+  queuedHosts,
+  2,
+  (host) => {
+    startedAfterCancel.push(host.id)
+    return new Promise((resolve) => {
+      cancelRelease.push(() => resolve({ ok: true }))
+    })
+  },
+  {
+    isCancelled: () => cancelFlag,
+    onProgress: (row) => progress.push({ queued: row.queued, started: row.started, cancelled: row.cancelled })
+  }
+)
+await flush()
+assert.deepEqual(startedAfterCancel, ['a', 'b'])
+assert.equal(progress.at(-1)?.queued, 4)
+assert.equal(progress.at(-1)?.started, 2)
+cancelFlag = true
+const releaseA = cancelRelease[0]
+assert.ok(releaseA)
+releaseA()
+await flush()
+assert.deepEqual(startedAfterCancel, ['a', 'b'])
+assert.equal(progress.at(-1)?.queued, 0)
+assert.equal(progress.at(-1)?.cancelled, 4)
+const releaseB = cancelRelease[1]
+assert.ok(releaseB)
+releaseB()
+const cancelledResults = await cancelRun
+assert.deepEqual(startedAfterCancel, ['a', 'b'])
+for (const id of ['c', 'd', 'e', 'f']) {
+  const row = cancelledResults.find((item) => item.id === id)
+  assert.equal(row?.cancelled, true)
+  assert.equal(row?.skipped, true)
+  assert.equal(row?.ok, true)
+}
+for (const id of ['a', 'b']) {
+  const row = cancelledResults.find((item) => item.id === id)
+  assert.equal(row?.ok, true)
+  assert.equal(row?.cancelled, undefined)
+}
+assert.equal(summarizeBatch(cancelledResults).cancelled, 4)
+assert.equal(summarizeBatch(cancelledResults).fail, 0)
+assert.equal(summarizeBatch(cancelledResults).ok, 2)
+
 assert.equal(zh('ctx.connectAll', { n: 2 }), '连接全部（2）')
 assert.equal(en('ctx.connectAll', { n: 2 }), 'Connect all (2)')
 assert.equal(zh('l10.connectGroup', { n: 3 }), '连接此分组（3）')
@@ -163,6 +215,11 @@ assert.ok(en('l10.fail', { host: 'db', reason: 'timed out' }).toLowerCase().incl
 assert.notEqual(zh('l10.none'), en('l10.none'))
 assert.ok(zh('l10.cardTitle', { n: 2 }).includes('2'))
 assert.ok(en('l10.summary', { ok: 3, fail: 1 }).toLowerCase().includes('fail'))
+assert.equal(zh('l10.cancelQueue'), '取消排队')
+assert.equal(en('l10.cancelQueue'), 'Cancel queue')
+assert.ok(zh('l10.queue', { started: 2, total: 6, n: 4 }).includes('4'))
+assert.ok(en('l10.queueCancelled', { n: 4 }).toLowerCase().includes('cancel'))
+assert.notEqual(zh('l10.cancelQueue'), en('l10.cancelQueue'))
 
 assert.ok(paletteMatch('连接所选主机', 'zh-CN').includes('batchConnect'))
 assert.ok(paletteMatch('connect selected hosts', 'en').includes('batchConnect'))
@@ -185,7 +242,13 @@ assert.doesNotMatch(batch, /window\.confirm|child_process|ssh\.exec/)
 assert.ok(app.includes('data-ctx="connectAll"') || app.includes("item('connectAll'"))
 assert.ok(app.includes('data-ctx="connectGroup"'))
 assert.ok(app.includes('data-testid="l10-errors"'))
+assert.ok(app.includes('data-testid="l10-cancel-queue"'))
+assert.ok(app.includes('data-testid="l10-queue"'))
+assert.ok(app.includes('isCancelled: () => batchCancelRef.current'))
 assert.ok(app.includes('enqueueHostKey'))
+const cancelUi = app.slice(app.indexOf('// L10-CANCEL-QUEUE-START'), app.indexOf('// L10-CANCEL-QUEUE-END'))
+assert.ok(cancelUi.includes('l10.queueCancelled'))
+assert.doesNotMatch(cancelUi, /closeTab|ssh\.disconnect|window\.confirm|window\.alert|window\.prompt/)
 const opsStart = toolbar.indexOf('OPS_BUTTONS')
 const ops = toolbar.slice(opsStart, toolbar.indexOf(']', opsStart))
 assert.equal(ops.includes('batchConnect'), false)
@@ -200,6 +263,8 @@ for (const mark of order) {
   assert.ok(i > at, `changelog order missing ${mark}`)
   at = i
 }
+assert.ok(unreleased.includes('取消排队'))
+assert.ok(unreleased.includes('Cancel queue'))
 assert.ok(unreleased.includes('TB-1') && unreleased.includes('TB-2') && unreleased.includes('TB-3'))
 assert.ok(unreleased.includes('Polish-2'))
 

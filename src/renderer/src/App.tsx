@@ -843,6 +843,7 @@ export default function App() {
   const multiSelectedRef = useRef<string[]>([])
   multiSelectedRef.current = multiSelected
   const [batchFails, setBatchFails] = useState<{ id: string; label: string; reason: string }[]>([])
+  const [batchQueue, setBatchQueue] = useState<{ queued: number; total: number; started: number } | null>(null)
   const lastClickedProfileRef = useRef<string | null>(null)
   const [backupOpen, setBackupOpen] = useState(false)
   const openDashboardRef = useRef<() => void>(() => {})
@@ -900,6 +901,8 @@ export default function App() {
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
   const batchBusyRef = useRef(false)
+  const batchCancelRef = useRef(false)
+  const batchQueuedRef = useRef(0)
   const connectManyRef = useRef<(hosts: BatchHost[]) => Promise<void>>(async () => {})
 
   const activeTab = tabs.find((t) => t.tabId === activeTabId) ?? null
@@ -4159,6 +4162,17 @@ export default function App() {
     }
   }, [smartPaste])
 
+  // L10-CANCEL-QUEUE-START
+  const cancelBatchQueue = useCallback(() => {
+    const queued = batchQueuedRef.current
+    if (batchCancelRef.current || queued <= 0) return
+    batchCancelRef.current = true
+    batchQueuedRef.current = 0
+    setBatchQueue((cur) => (cur ? { ...cur, queued: 0 } : cur))
+    showToast(tg('l10.queueCancelled', { n: queued }))
+  }, [])
+  // L10-CANCEL-QUEUE-END
+
   // L10-CONNECT-MANY-START
   const connectMany = useCallback(async (hosts: BatchHost[]) => {
     const list = hostsByIds(
@@ -4174,6 +4188,8 @@ export default function App() {
       return
     }
     batchBusyRef.current = true
+    batchCancelRef.current = false
+    batchQueuedRef.current = 0
     ensureMainVisible()
     const ids = new Set(list.map((host) => host.id))
     setBatchFails((prev) => prev.filter((row) => !ids.has(row.id)))
@@ -4233,6 +4249,12 @@ export default function App() {
         if (!error) return { ok: true, skipped: true }
         noteFail(profile.id, label, error)
         return { ok: false, error }
+      }, {
+        isCancelled: () => batchCancelRef.current,
+        onProgress: (progress) => {
+          batchQueuedRef.current = progress.queued
+          setBatchQueue({ queued: progress.queued, total: progress.total, started: progress.started })
+        }
       })
       const summary = summarizeBatch(results)
       if (summary.fail > 1) showToast(tg('l10.summary', { ok: summary.ok, fail: summary.fail }), { kind: 'error' })
@@ -4240,6 +4262,9 @@ export default function App() {
       if (results.some((row) => row.ok && !row.reused && !row.skipped)) onFirstConnectRef.current()
     } finally {
       batchBusyRef.current = false
+      batchCancelRef.current = false
+      batchQueuedRef.current = 0
+      setBatchQueue(null)
     }
   }, [ensureMainVisible, openSession])
   connectManyRef.current = connectMany
@@ -6314,6 +6339,20 @@ export default function App() {
                 )
               })()
             : null}
+
+          {batchQueue ? (
+            <div className="l10-queue" role="status" data-testid="l10-queue">
+              <span>{tg('l10.queue', { started: batchQueue.started, total: batchQueue.total, n: batchQueue.queued })}</span>
+              <button
+                type="button"
+                data-testid="l10-cancel-queue"
+                disabled={batchQueue.queued <= 0}
+                onClick={cancelBatchQueue}
+              >
+                {tg('l10.cancelQueue')}
+              </button>
+            </div>
+          ) : null}
 
           {batchFails.length ? (
             <div className="l10-errors" role="status" data-testid="l10-errors">

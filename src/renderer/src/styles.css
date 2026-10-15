@@ -1810,6 +1810,21 @@ body.layout-resizing {
 .l10-error { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .l10-error > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .l10-error button { flex: none; white-space: nowrap; }
+.l10-queue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  max-height: 32px;
+  padding: 4px 10px;
+  flex-shrink: 0;
+  background: #2a2a2a;
+  color: #d0d0d0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.l10-queue > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l10-queue button { flex: none; white-space: nowrap; }
 .s4-block {
   display: flex;
   align-items: center;

@@ -2335,7 +2335,10 @@ const zhCN = {
   'l10.done': '已连接 {n} 台',
   'l10.busy': '正在连接上一批主机',
   'l10.missing': '找不到这台主机',
-  'l10.cardTitle': '有 {n} 台没有连上'
+  'l10.cardTitle': '有 {n} 台没有连上',
+  'l10.queue': '正在连接 {started}/{total}，还有 {n} 台在排队',
+  'l10.cancelQueue': '取消排队',
+  'l10.queueCancelled': '已取消 {n} 台排队'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4675,7 +4678,10 @@ const en: Record<MessageKey, string> = {
   'l10.done': 'Connected {n} hosts',
   'l10.busy': 'Still connecting the previous batch',
   'l10.missing': 'That host is no longer in the list',
-  'l10.cardTitle': '{n} hosts did not connect'
+  'l10.cardTitle': '{n} hosts did not connect',
+  'l10.queue': 'Connecting {started}/{total}, {n} still queued',
+  'l10.cancelQueue': 'Cancel queue',
+  'l10.queueCancelled': 'Cancelled {n} queued hosts'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

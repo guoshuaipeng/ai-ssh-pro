@@ -38,6 +38,21 @@ export type BatchConnectResult = {
   error?: string
   reused?: boolean
   skipped?: boolean
+  /** L10-4: never handed to connect(). In-flight hosts are not marked cancelled. */
+  cancelled?: boolean
+}
+
+export type BatchConnectProgress = {
+  total: number
+  started: number
+  queued: number
+  cancelled: number
+}
+
+export type BatchRunControl = {
+  /** When true, hosts that have not started connecting are dropped. In-flight calls keep running. */
+  isCancelled?: () => boolean
+  onProgress?: (progress: BatchConnectProgress) => void
 }
 
 export function clampBatchLimit(limit: number | undefined): number {
@@ -125,32 +140,61 @@ function settle(host: { id: string; label: string }, value: BatchConnectValue | 
   return { id: host.id, label: host.label, ok: true, reused: value.reused }
 }
 
+function cancelledRow(host: { id: string; label: string }): BatchConnectResult {
+  return { id: host.id, label: host.label, ok: true, skipped: true, cancelled: true }
+}
+
 /**
  * Run `connect` for every host. At most `limit` calls are in flight (clamped to 1–5).
  * A rejection is recorded on that host and the queue keeps going.
+ * If `control.isCancelled()` is set, hosts that have not been passed to `connect` are
+ * marked cancelled and are not started. Calls already in flight are left to finish.
  * Results stay in input order.
  */
 export async function runBatchConnect<T extends { id: string; label: string }>(
   hosts: readonly T[],
   limit: number | undefined,
-  connect: (host: T) => Promise<BatchConnectValue>
+  connect: (host: T) => Promise<BatchConnectValue>,
+  control?: BatchRunControl
 ): Promise<BatchConnectResult[]> {
   if (!hosts.length) return []
   const cap = clampBatchLimit(limit)
   const results = new Array<BatchConnectResult>(hosts.length)
   let next = 0
   let inflight = 0
+  let startedCount = 0
+  let cancelledCount = 0
+  const report = () => {
+    control?.onProgress?.({
+      total: hosts.length,
+      started: startedCount,
+      queued: Math.max(0, hosts.length - startedCount - cancelledCount),
+      cancelled: cancelledCount
+    })
+  }
+  const dropQueued = () => {
+    if (!control?.isCancelled?.()) return
+    while (next < hosts.length) {
+      const host = hosts[next]!
+      results[next] = cancelledRow(host)
+      next += 1
+      cancelledCount += 1
+    }
+  }
   await new Promise<void>((resolve) => {
     const pump = () => {
+      dropQueued()
       if (next >= hosts.length && inflight === 0) {
+        report()
         resolve()
         return
       }
-      while (inflight < cap && next < hosts.length) {
+      while (inflight < cap && next < hosts.length && !control?.isCancelled?.()) {
         const index = next
         next += 1
         const host = hosts[index]!
         inflight += 1
+        startedCount += 1
         let pending: Promise<BatchConnectValue>
         try {
           pending = Promise.resolve(connect(host))
@@ -169,16 +213,25 @@ export async function runBatchConnect<T extends { id: string; label: string }>(
           pump()
         })
       }
+      dropQueued()
+      report()
+      if (next >= hosts.length && inflight === 0) resolve()
     }
     pump()
   })
   return results
 }
 
-export function summarizeBatch(results: readonly BatchConnectResult[]): { ok: number; fail: number; failed: BatchConnectResult[] } {
+export function summarizeBatch(results: readonly BatchConnectResult[]): {
+  ok: number
+  fail: number
+  failed: BatchConnectResult[]
+  cancelled: number
+} {
   const failed = results.filter((row) => !row.ok)
-  const ok = results.filter((row) => row.ok && !row.skipped).length
-  return { ok, fail: failed.length, failed }
+  const ok = results.filter((row) => row.ok && !row.skipped && !row.cancelled).length
+  const cancelled = results.filter((row) => row.cancelled).length
+  return { ok, fail: failed.length, failed, cancelled }
 }
 
 /** Keep a single host-key dialog. Later prompts wait instead of replacing the one on screen. */
