@@ -43,6 +43,7 @@ import { tg } from '../lib/i18n'
 import { askConfirm, askText } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
 import Icon from './Icon'
+import EmptyState from './EmptyState'
 
 function persist(list: Playbook[]) {
   savePlaybooks(list)
@@ -146,7 +147,17 @@ export function PlaybookList({
       </div>
       <div className="workspace-panel-body">
         {list.length === 0 ? (
-          <button type="button" onClick={() => window.dispatchEvent(new Event('aiss-import-share'))}>{tg('w5.import')}</button>
+          <EmptyState
+            testId="playbooks-empty"
+            icon={<Icon name="book-open" size={48} strokeWidth={1.5} />}
+            title={tg('pf4.playbookTitle')}
+            desc={tg('pf4.playbookDesc')}
+            primary={{ label: tg('pf4.playbookNew'), onClick: add }}
+            secondary={[{
+              label: tg('pf4.playbookSample'),
+              onClick: () => setList(sortPlaybooks(ensureSamples([])))
+            }]}
+          />
         ) : null}
         {shown.map((p) => (
           <div key={p.id} className="m2-row">

@@ -86,10 +86,11 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
         {profiles.length === 0 ? (
           <EmptyState
             compact
-            icon={<Icon name="monitor" size={32} />}
+            icon={<Icon name="monitor" size={32} strokeWidth={1.5} />}
             title={t('ux08.sidebarTitle')}
+            desc={t('pf4.hostsDesc')}
             primary={{
-              label: t('ux08.newConnection'),
+              label: t('pf1.new'),
               onClick: () => {
                 onClose()
                 onNewConnection()

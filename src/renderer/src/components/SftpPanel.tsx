@@ -63,6 +63,8 @@ type Props = {
   remoteWritesBlocked?: boolean
   /** L8: pin the current sync plan into a center tab. */
   onPinPreview?: (plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => void
+  /** PF-4: no session yet — pick a host instead of throwing. */
+  onPickHost?: () => void
   /** W3: host profile that owns snapshots for this session. */
   profileId?: string
   onOpenHistory?: (remotePath: string) => void
@@ -139,6 +141,7 @@ export default function SftpPanel({
   beforeRemoteWrite,
   remoteWritesBlocked = false,
   onPinPreview,
+  onPickHost,
   profileId,
   onOpenHistory
 }: Props) {
@@ -894,6 +897,7 @@ export default function SftpPanel({
     const selected = isLocal ? localSel : remoteSel
     const setSelected = isLocal ? setLocalSel : setRemoteSel
     const disconnected = !isLocal && connected === false && !pendingConnect
+    const unconnected = !isLocal && !sessionId && !pendingConnect
     const showPath = !compact || crumbOpen
     const selectedDrive = isLocal ? selectedDriveId(drives, localCwd, drivePlatform) : ''
     const driveValue = drives.some((d) => d.id === selectedDrive) ? selectedDrive : drives[0]?.id ?? ''
@@ -1011,6 +1015,16 @@ export default function SftpPanel({
           </div>
         ) : null}
         <div className={`sftp-browser${disconnected ? ' is-disconnected' : ''}`}>
+          {unconnected ? (
+            <EmptyState
+              testId="sftp-unconnected"
+              icon={<Icon name="folder" size={48} strokeWidth={1.5} />}
+              title={tg('pf4.sftpTitle')}
+              desc={tg('pf4.sftpDesc')}
+              primary={{ label: tg('pf4.pickHost'), onClick: () => onPickHost?.(), testId: 'sftp-pick-host' }}
+            />
+          ) : (
+          <>
           {disconnected ? (
             <div className="sftp-disconnect" data-testid="sftp-disconnected">
               <div>{tg('d1.disconnected')}</div>
@@ -1140,6 +1154,8 @@ export default function SftpPanel({
                 ))}
               </tbody>
             </table>
+          )}
+          </>
           )}
         </div>
       </section>

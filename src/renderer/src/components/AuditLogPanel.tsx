@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { auditToCsv, auditToJsonl, filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
+import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 export default function AuditLogPanel({
   events,
@@ -65,13 +67,22 @@ export default function AuditLogPanel({
         <button type="button" onClick={() => void window.aiss.files.saveText('audit.csv', auditToCsv(rows))}>{t('m2.exportCsv')}</button>
         <button type="button" onClick={() => void window.aiss.files.saveText('audit.jsonl', auditToJsonl(rows))}>{t('m2.exportJsonl')}</button>
         <label className="l4-check">
-          <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+          <input id="audit-enable" type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
           {t('l4.audit')}
         </label>
       </div>
       <div className="workspace-panel-body audit-table-wrap">
         {rows.length === 0 ? (
-          <p className="l7-muted">{t('l4.auditEmpty')}</p>
+          <EmptyState
+            testId="audit-empty"
+            icon={<Icon name="scroll-text" size={48} strokeWidth={1.5} />}
+            title={t('pf4.auditTitle')}
+            desc={t('pf4.auditDesc')}
+            primary={{
+              label: t('pf4.auditCta'),
+              onClick: () => document.getElementById('audit-enable')?.focus()
+            }}
+          />
         ) : (
           <table className="audit-table">
             <thead>

@@ -8,6 +8,8 @@ import { loadSyncProfiles } from './SftpPanel'
 import { buildPaletteEntries, type PaletteEntry } from '../lib/palette'
 import { layoutPalette } from '@shared/palette-rank'
 import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
+import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 type Props = {
   open: boolean
@@ -133,10 +135,14 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
         />
         <div className="cmdp-list" role="listbox" ref={listRef}>
           {filtered.length === 0 ? (
-            <div className="cmdp-empty">
-              {t('cmdp.empty', { q })}
-              <div className="l7-muted">{t('cmdp.pinyinHint')}</div>
-            </div>
+            <EmptyState
+              compact
+              testId="palette-empty"
+              icon={<Icon name="search" size={32} strokeWidth={1.5} />}
+              title={t('pf4.paletteTitle', { q: q.trim().slice(0, 12) })}
+              desc={t('pf4.paletteDesc')}
+              primary={{ label: t('pf4.paletteClear'), onClick: () => setQ('') }}
+            />
           ) : null}
           {laid.rows.map((row) => {
             if (row.kind === 'header') {

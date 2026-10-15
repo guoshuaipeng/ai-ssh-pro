@@ -45,7 +45,7 @@ export default function AboutModal({ open, onClose }: Props) {
     >
       <div className="about-modal">
         <div className="about-modal-brand">AI-SSH-Pro</div>
-        <p className="about-modal-desc">{t('about.desc')}</p>
+        <p className="about-modal-desc">{t('brand.tagline')}</p>
         <p className="about-modal-version">
           {t('about.version')} <strong>{version ? `v${version}` : '…'}</strong>
         </p>

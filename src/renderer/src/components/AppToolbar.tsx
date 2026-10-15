@@ -49,7 +49,7 @@ const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: IconName; label
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
   if (kind === 'sidebar') {
     return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden>
         <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
         <path d="M5.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
       </svg>
@@ -57,14 +57,14 @@ function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
   }
   if (kind === 'ai') {
     return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden>
         <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
         <path d="M10.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
       </svg>
     )
   }
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+    <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden>
       <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
       <path d="M5.5 2.5v11M10.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
     </svg>
@@ -249,7 +249,7 @@ export default function AppToolbar({
           >
             <span aria-hidden>+</span> <span className="tb-label tb-label-keep">{t('toolbar.newConn')}</span>
           </button>
-          {false && onQuickConnect ? ( /* UX-15 hide recent */
+          {onQuickConnect ? (
             <div className="titlebar-popover-wrap" ref={recentRef}>
               <button
                 type="button"
@@ -260,7 +260,7 @@ export default function AppToolbar({
                 aria-expanded={recentOpen}
                 onClick={() => setRecentOpen((v) => !v)}
               >
-                <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={12} /></span>
+                <Icon name="history" size={20} strokeWidth={1.5} /> <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={12} /></span>
               </button>
               {recentOpen ? (
                 <div className="titlebar-popover">
@@ -292,7 +292,7 @@ export default function AppToolbar({
                 aria-label={t(b.title)}
                 onClick={() => onMenuAction(b.id)}
               >
-                <Icon name={b.icon} /> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
+                <Icon name={b.icon} size={20} strokeWidth={1.5} /> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
               </button>
             )
           })}
@@ -307,7 +307,7 @@ export default function AppToolbar({
             aria-label={t('toolbar.paletteTitle')}
             onClick={() => onMenuAction('commandPalette')}
           >
-            <Icon name="search" />
+            <Icon name="search" size={20} strokeWidth={1.5} />
             {searchIconOnly ? null : (
               <>
                 <span className="tb-label">{t('toolbar.searchFeatures')}</span>
@@ -315,7 +315,7 @@ export default function AppToolbar({
               </>
             )}
           </button>
-          <div className="titlebar-popover-wrap" ref={moreRef} style={{ display: "none" }} /* UX-15 no more */>
+          <div className="titlebar-popover-wrap" ref={moreRef}>
             <button
               type="button"
               className="titlebar-icon-btn"
@@ -323,7 +323,7 @@ export default function AppToolbar({
               title={t('toolbar.more')}
               aria-label={t('toolbar.more')}
               aria-expanded={moreOpen}
-              onClick={() => setMoreOpen((v) => !v)} /* UX-15 no more button */ style={{ display: "none" }}
+              onClick={() => setMoreOpen((v) => !v)}
             >
               <span aria-hidden>⋯</span> <span className="tb-label">{t('toolbar.more')}</span> <span aria-hidden><Twist open size={12} /></span>
             </button>
@@ -334,6 +334,9 @@ export default function AppToolbar({
                 </button>
                 <button type="button" role="menuitem" onClick={more(() => onMenuAction('checkUpdate'))}>
                   {t('toolbar.checkUpdateEllipsis')}
+                </button>
+                <button type="button" role="menuitem" onClick={more(() => onMenuAction('whatsNew'))}>
+                  {t('menu.whatsNew')}
                 </button>
                 <button type="button" role="menuitem" onClick={more(() => setLocale(locale === 'en' ? 'zh-CN' : 'en'))}>
                   {t('toolbar.language')}: {locale === 'en' ? '中文' : 'English'}

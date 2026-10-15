@@ -281,11 +281,10 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
             <EmptyState
               compact
               testId="snippets-empty"
-              icon={<Icon name="clipboard-list" size={32} />}
-              title={t('ux08.snipTitle')}
-              desc={t('snip.empty')}
+              icon={<Icon name="clipboard-list" size={32} strokeWidth={1.5} />}
+              title={t('pf4.snipTitle')}
+              desc={t('pf4.snipDesc')}
               primary={{ label: t('ux08.snipNew'), onClick: openNew }}
-              secondary={[{ label: t('ux08.snipImport'), onClick: () => fileRef.current?.click() }]}
             />
           ) : null}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
