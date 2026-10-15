@@ -22,6 +22,10 @@
  * S26: the working-memory scratchpad (goal, constraints, host facts) stays in the
  * planner prompt after observational bullets are truncated, and stays on the
  * host that recorded it. Confirm-before-run stays on.
+ * S27: a confirmed command that fails (nonzero, stderr, or timeout) is explained
+ * with that evidence. The same command is not written again unless a new
+ * confirm is approved. Deny and cancel of that retry write nothing. Cancel
+ * stays plannable and is not a deny (S23).
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -41,6 +45,11 @@ import {
   patchDraftConfirmCard,
   reviewNpmTestFailure
 } from '../src/main/core-a-tfl.ts'
+import {
+  classifyCommandFailure,
+  explainFailedCommand,
+  retryWritePermitted
+} from '../src/main/core-a-command-failure.ts'
 import {
   cancelHitl,
   createHitlLoop,
@@ -175,6 +184,18 @@ type Expectation = {
   }
   recentCommandsMustContain?: string[]
   recentCommandsMustNotContain?: string[]
+  /**
+   * S27: a confirmed command failed. The next planner prompt cites the evidence
+   * and says not to auto-retry. Writes of that command equal approvals, each
+   * with its own requestId. The end cites the evidence when the turn ends.
+   */
+  commandFailure?: {
+    command: string
+    evidence: string[]
+    writeCount: number
+    minDistinctRequestIds: number
+    endCitesEvidence?: boolean
+  }
   hitl?: {
     minInterrupts?: number
     resume?: 'approve' | 'deny' | 'cancel'
@@ -183,13 +204,20 @@ type Expectation = {
     interruptRisks?: string[]
     /** After cancel, phase is planning and no confirm is still waiting. */
     plannableAfterCancel?: boolean
+    /** Deny or cancel left no confirm waiting, so the next turn can plan. */
+    released?: boolean
   }
 }
 
 type Turn = {
   turnId: string
   userMessage: string
-  mockTerminal?: { initialRing?: string; afterWrite?: Record<string, string> }
+  mockTerminal?: {
+    initialRing?: string
+    afterWrite?: Record<string, string>
+    /** Structured result of a confirmed command. Stdout that merely says "failed" is not this. */
+    commandOutcome?: Record<string, { exitCode?: number | null; stderr?: string; timedOut?: boolean; timeoutMark?: string }>
+  }
   userConfirm?: {
     policy?: string
     /** Per confirm, in order. `per-step` fails closed once this list runs out. `cancel` is not a deny. */
@@ -198,6 +226,12 @@ type Turn = {
   }
   mockedPlannerSteps?: PlannerStep[]
   expected?: Expectation
+}
+
+type BranchTurn = Turn & {
+  session?: Fixture['session']
+  hostProfile?: Fixture['hostProfile']
+  seedInventory?: Fixture['seedInventory']
 }
 
 type TflSpec = {
@@ -229,16 +263,17 @@ type Fixture = {
     notes?: string[]
   }
   turns?: Turn[]
-  negativeCase?: Turn
+  negativeCase?: BranchTurn
   /**
    * S21: the same planner chain with every confirm approved, on its own host
    * and history key so the deny case cannot leave state behind for it.
    */
-  regressionCase?: Turn & {
-    session?: Fixture['session']
-    hostProfile?: Fixture['hostProfile']
-    seedInventory?: Fixture['seedInventory']
-  }
+  regressionCase?: BranchTurn
+  /**
+   * S27: cancel the retry on its own host. Cancel is not a deny. The loop is
+   * plannable again and the retry is not written.
+   */
+  cancelCase?: BranchTurn
   /**
    * S18: seed a fact on another historyKey / hostInventoryId before the main turns.
    * Main-turn prompts must not contain that host's rare service or port.
@@ -388,6 +423,7 @@ type DriveResult = {
   requests: Array<Array<{ role: string; content: string }>>
   writes: string[]
   served: string[]
+  confirms: Array<{ requestId: string; command: string; decision: 'approve' | 'deny' | 'cancel' }>
 }
 
 async function drive(input: {
@@ -402,8 +438,10 @@ async function drive(input: {
   const requests: Array<Array<{ role: string; content: string }>> = []
   const writes: string[] = []
   const served: string[] = []
+  const confirms: Array<{ requestId: string; command: string; decision: 'approve' | 'deny' | 'cancel' }> = []
   const replies = (input.turn.mockedPlannerSteps ?? []).map((step) => JSON.stringify(step.response))
   const afterWrite = input.turn.mockTerminal?.afterWrite ?? {}
+  const commandOutcome = input.turn.mockTerminal?.commandOutcome ?? {}
   let lastCommand = ''
   let confirmError: Error | null = null
   const policy = input.turn.userConfirm?.policy ?? 'approve-all-commands'
@@ -459,7 +497,8 @@ async function drive(input: {
       writes.push(data)
       lastCommand = data.replace(/\s+$/, '')
       return true
-    }
+    },
+    confirmedCommandOutcome: (_sessionId: string, command: string) => commandOutcome[command] ?? null
   }
   const wc = {
     isDestroyed: () => false,
@@ -483,6 +522,11 @@ async function drive(input: {
             if (confirmAssert?.riskLevelMustBe) assert.equal(ev.structured.riskLevel, confirmAssert.riskLevelMustBe)
             assert.notEqual(ev.autoApproved, true)
             const choice = takeDecision()
+            confirms.push({
+              requestId,
+              command: ev.structured.action === 'command' ? (ev.structured.command ?? '') : '',
+              decision: choice
+            })
             if (choice === 'cancel') agent.cancelAiConfirmStep(requestId)
             else agent.resolveAiConfirmStep(requestId, choice === 'approve')
           } catch (error) {
@@ -522,7 +566,7 @@ async function drive(input: {
   if (confirmError) throw confirmError
   const failed = events.find((event) => event.type === 'error')
   if (failed && failed.type === 'error') throw new Error(`${input.turn.turnId}: ${failed.message}`)
-  return { events, prompts, requests, writes, served }
+  return { events, prompts, requests, writes, served, confirms }
 }
 
 function assistantLines(events: AiStreamEvent[]): AiChatMessage[] {
@@ -804,6 +848,9 @@ function assertExpectation(
       assert.equal((cancelLine ?? '').includes('decision=deny'), false, `${label}: cancel was recorded as deny`)
       assert.equal(agent.pendingAiConfirmCount(), 0, `${label}: confirm waiter stuck after cancel`)
     }
+    if (expected.hitl.released) {
+      assert.equal(agent.pendingAiConfirmCount(), 0, `${label}: confirm waiter stuck`)
+    }
     const risks = interrupts.map((line) => /risk=(\S+)/.exec(line)?.[1] ?? '')
     for (const risk of expected.hitl.interruptRisks ?? []) {
       assert.ok(risks.includes(risk), `${label}: interrupt risks ${risks.join(',')} missing ${risk}`)
@@ -839,6 +886,7 @@ function assertExpectation(
   assertHostState(turn, scope?.hostId)
   assertMidChainDeny(turn, result, scope)
   assertMidChainCancel(turn, result, scope)
+  assertCommandFailure(turn, result)
 }
 
 function hostBlob(hostId: string): string {
@@ -1057,6 +1105,152 @@ function assertMidChainCancel(
   ].join('\n')
   for (const marker of spec.leftoverMarkers) {
     assert.equal(surface.includes(marker), false, `${label}: leftover marker ${marker}`)
+  }
+}
+
+/**
+ * Nonzero, stderr, and timeout are failures. A clean exit is not, even when
+ * the ring text says "failed". A retry of the failed command needs a new
+ * request id. Deny stays cancelled; cancel returns to planning and can interrupt
+ * again. Neither decision writes.
+ */
+function assertFailureModes(): void {
+  const command = 'echo S27_FAIL_CMD'
+  const nonzero = classifyCommandFailure(command, { exitCode: 1, stderr: '', timedOut: false, writeOk: true })
+  assert.equal(nonzero?.kind, 'nonzero')
+  assert.match(nonzero?.evidence ?? '', /exit=1/)
+  const stderr = classifyCommandFailure(command, { exitCode: 0, stderr: 'S27_STDERR_EVIDENCE', timedOut: false, writeOk: true })
+  assert.equal(stderr?.kind, 'stderr')
+  assert.match(stderr?.evidence ?? '', /S27_STDERR_EVIDENCE/)
+  const timeout = classifyCommandFailure(command, { exitCode: null, stderr: '', timedOut: true, timeoutMark: 'S27_TIMEOUT_STUB', writeOk: true })
+  assert.equal(timeout?.kind, 'timeout')
+  assert.match(timeout?.evidence ?? '', /S27_TIMEOUT_STUB/)
+  const combined = classifyCommandFailure(command, {
+    exitCode: 1,
+    stderr: 'S27_STDERR_EVIDENCE',
+    timedOut: true,
+    timeoutMark: 'S27_TIMEOUT_STUB',
+    writeOk: true
+  })
+  assert.equal(combined?.kind, 'timeout')
+  assert.match(combined?.evidence ?? '', /exit=1/)
+  assert.match(combined?.evidence ?? '', /S27_STDERR_EVIDENCE/)
+  assert.match(combined?.evidence ?? '', /S27_TIMEOUT_STUB/)
+  assert.equal(classifyCommandFailure('systemctl status nginx --no-pager', { exitCode: 0, stderr: '', timedOut: false, writeOk: true }), null)
+  assert.equal(classifyCommandFailure('df -h', { writeOk: true }), null)
+  const offer = '不会自动重跑。若要再执行，需要新的确认。'
+  const explained = explainFailedCommand('这一步没有成功。', combined!, offer)
+  assert.match(explained, /S27_STDERR_EVIDENCE/)
+  assert.match(explained, /exit=1/)
+  assert.match(explained, /S27_TIMEOUT_STUB/)
+  assert.match(explained, /不会自动重跑/)
+  assert.equal(explainFailedCommand(explained, combined!, offer), explained)
+  assert.equal(
+    retryWritePermitted({ command, failedCommand: command, requestId: 'a', priorRequestId: 'a', approved: true }),
+    false
+  )
+  assert.equal(
+    retryWritePermitted({ command, failedCommand: command, requestId: 'b', priorRequestId: 'a', approved: true }),
+    true
+  )
+  assert.equal(
+    retryWritePermitted({ command, failedCommand: command, requestId: 'b', priorRequestId: 'a', approved: false }),
+    false
+  )
+  assert.equal(
+    retryWritePermitted({ command, failedCommand: null, requestId: 'a', priorRequestId: null, approved: true }),
+    true
+  )
+  const denied = resumeHitl(
+    interruptForProposal(createHitlLoop(), { action: 'command', command, riskLevel: 'low', requestId: 's27-deny' }),
+    false
+  )
+  assert.equal(denied.phase, 'cancelled')
+  assert.equal(denied.resume, 'deny')
+  assert.equal(hitlIsPlannable(denied), false)
+  assert.equal(cancelHitl(denied).phase, 'cancelled', 'cancel must not rewrite a deny')
+  const cleared = cancelHitl(
+    interruptForProposal(createHitlLoop(), { action: 'command', command, riskLevel: 'low', requestId: 's27-cancel' })
+  )
+  assert.equal(hitlIsPlannable(cleared), true)
+  assert.equal(sideEffectExecutionPermitted(cleared), false)
+  const again = interruptForProposal(cleared, { action: 'command', command: 'uptime', riskLevel: 'low', requestId: 's27-next' })
+  assert.equal(again.phase, 'interrupted')
+  assert.notEqual(again.requestId, 's27-cancel')
+}
+
+function assertCommandFailure(turn: Turn, result: DriveResult): void {
+  const spec = turn.expected?.commandFailure
+  if (!spec) return
+  assertFailureModes()
+  const label = turn.turnId
+  const writesOf = result.writes.map((write) => write.replace(/\s+$/g, '')).filter((write) => write === spec.command)
+  assert.equal(writesOf.length, spec.writeCount, `${label}: writes of ${spec.command}`)
+  const steps = result.events.filter((event) => event.type === 'step' && event.structured.command === spec.command)
+  const ids = steps.map((event) => (event.type === 'step' ? event.requestId ?? '' : ''))
+  assert.ok(ids.length >= spec.minDistinctRequestIds, `${label}: ${ids.length} confirm cards`)
+  assert.equal(new Set(ids).size, ids.length, `${label}: confirm requestId reused`)
+  for (const event of steps) {
+    assert.equal(event.type === 'step' && Boolean(event.requestId), true, `${label}: retry card missing requestId`)
+    assert.notEqual(event.type === 'step' ? event.autoApproved : true, true, `${label}: retry was auto-approved`)
+  }
+  const approved = result.confirms.filter((confirm) => confirm.decision === 'approve' && confirm.command === spec.command)
+  assert.equal(new Set(approved.map((confirm) => confirm.requestId)).size, approved.length, `${label}: duplicate approval`)
+  assert.equal(approved.length, spec.writeCount, `${label}: write without a matching approval`)
+  assert.ok(result.prompts.length >= 2, `${label}: failure was not shown to a later planner step`)
+  const afterFailure = result.prompts.slice(1)
+  for (const prompt of afterFailure) {
+    assert.ok(prompt.includes('禁止自动重跑'), `${label}: post-failure prompt does not forbid auto-retry`)
+  }
+  for (const fact of spec.evidence) {
+    assert.ok(
+      afterFailure.every((prompt) => prompt.includes(fact)),
+      `${label}: post-failure prompt missing ${fact}`
+    )
+  }
+  const debug = result.events
+    .filter((event) => event.type === 'debug' && event.payload.entry.kind === 'execution')
+    .map((event) => (event.type === 'debug' ? `${event.payload.entry.label}\n${event.payload.entry.detail ?? ''}` : ''))
+    .filter((line) => line.includes('autoRetry=false'))
+  assert.ok(debug.length >= 1, `${label}: failure was not recorded`)
+  const recorded = debug.join('\n')
+  assert.match(recorded, /failed=true/)
+  for (const fact of spec.evidence) assert.ok(recorded.includes(fact), `${label}: failure record missing ${fact}`)
+  if (!spec.endCitesEvidence) return
+  const ended = [...result.events].reverse().find((event) => event.type === 'step' && event.structured.action === 'end')
+  assert.ok(ended && ended.type === 'step', `${label}: failure was not explained`)
+  if (!ended || ended.type !== 'step') return
+  for (const fact of spec.evidence) {
+    assert.ok(ended.structured.description.includes(fact), `${label}: explanation missing ${fact}`)
+  }
+  assert.match(ended.structured.description, /不会自动重跑/)
+  assert.match(ended.structured.description, /新的确认/)
+}
+
+function branchTurn(fixture: Fixture, branch: BranchTurn): Turn {
+  const sample = (fixture.turns ?? [])[0]
+  return {
+    turnId: branch.turnId,
+    userMessage: branch.userMessage || sample?.userMessage || '',
+    mockTerminal: branch.mockTerminal || sample?.mockTerminal,
+    userConfirm: branch.userConfirm ?? sample?.userConfirm,
+    mockedPlannerSteps: branch.mockedPlannerSteps || sample?.mockedPlannerSteps,
+    expected: branch.expected
+  }
+}
+
+function branchFixture(fixture: Fixture, branch: BranchTurn, fallback: string): Fixture {
+  return {
+    ...fixture,
+    hostProfile: branch.hostProfile ?? fixture.hostProfile,
+    session: branch.session ?? {
+      targetSessionId: `${fixture.session.targetSessionId}-${fallback}`,
+      historyKey: fixture.session.historyKey
+    },
+    seedInventory: branch.seedInventory ?? fixture.seedInventory,
+    negativeCase: undefined,
+    regressionCase: undefined,
+    cancelCase: undefined
   }
 }
 
@@ -1295,27 +1489,28 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         await runTurns(backFixture, back.turns)
       }
       if (fixture.negativeCase) {
-        const sample = turns[0]
-        const turn: Turn = {
-          ...fixture.negativeCase,
-          userMessage: fixture.negativeCase.userMessage || sample?.userMessage || '',
-          mockTerminal: fixture.negativeCase.mockTerminal || sample?.mockTerminal,
-          mockedPlannerSteps: fixture.negativeCase.mockedPlannerSteps || sample?.mockedPlannerSteps
-        }
-        try {
-          const result = await drive({
-            fixture,
-            turn,
-            sessionId: `${fixture.session.targetSessionId}-deny`,
-            history: [{ role: 'user', content: turn.userMessage }],
-            approve: false
-          })
-          assertExpectation(turn, result, false, {
-            hostId: fixture.seedInventory?.hostId || fixture.hostProfile?.hostId,
-            sessionId: `${fixture.session.targetSessionId}-deny`
-          })
-        } catch (error) {
-          rethrowWithDraft(turn.turnId, error)
+        const neg = fixture.negativeCase
+        const turn = branchTurn(fixture, neg)
+        if (neg.session || neg.hostProfile || neg.seedInventory) {
+          const negFixture = branchFixture(fixture, neg, 'deny')
+          seedInventory(negFixture)
+          await runTurns(negFixture, [turn])
+        } else {
+          try {
+            const result = await drive({
+              fixture,
+              turn,
+              sessionId: `${fixture.session.targetSessionId}-deny`,
+              history: [{ role: 'user', content: turn.userMessage }],
+              approve: false
+            })
+            assertExpectation(turn, result, false, {
+              hostId: fixture.seedInventory?.hostId || fixture.hostProfile?.hostId,
+              sessionId: `${fixture.session.targetSessionId}-deny`
+            })
+          } catch (error) {
+            rethrowWithDraft(turn.turnId, error)
+          }
         }
       }
       if (fixture.regressionCase) {
@@ -1341,6 +1536,11 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         }
         seedInventory(regFixture)
         await runTurns(regFixture, [turn])
+      }
+      if (fixture.cancelCase) {
+        const cancelFixture = branchFixture(fixture, fixture.cancelCase, 'cancel')
+        seedInventory(cancelFixture)
+        await runTurns(cancelFixture, [branchTurn(fixture, fixture.cancelCase)])
       }
     })
   }
