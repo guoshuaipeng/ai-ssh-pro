@@ -47,7 +47,8 @@ function buildDetailJson(session: AiDebugSession, index: number): string {
       {
         round: e.round,
         total_chars: e.totalChars,
-        slices: e.slices
+        slices: e.slices,
+        om_budget: e.omBudget
       },
       null,
       2

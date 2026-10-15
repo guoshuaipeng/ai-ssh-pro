@@ -16,6 +16,9 @@
  * Cancelled steps are not written and are not stored in recentCommands.
  * S24: a rare fact and recent command remembered on host A are not evidence on
  * host B. Host B ends with 证据不足. The same host A thread still recalls the fact.
+ * S25: observational-memory budget and truncation are on the context debug event.
+ * A tight bullet cap still keeps the rare fact, host B does not inherit it, and
+ * confirm-before-run stays on.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -147,6 +150,18 @@ type Expectation = {
   }
   /** S23 next turn: a real plan. 证据不足 only when this turn has no evidence. */
   freshPlan?: { evidencePresent?: boolean }
+  /**
+   * S25: observational-memory budget on the context debug event.
+   * The harness can see drops, cuts, and whether the thread is near a cap.
+   */
+  omBudget?: {
+    truncated?: boolean
+    nearBudget?: boolean
+    summaryTruncated?: boolean
+    minDroppedBullets?: number
+    minTruncatedBullets?: number
+    bulletCap?: number
+  }
   recentCommandsMustContain?: string[]
   recentCommandsMustNotContain?: string[]
   hitl?: {
@@ -465,7 +480,10 @@ async function drive(input: {
   }
 
   const previousPolls = process.env.AISS_MAX_POLLS
+  const previousOmCap = process.env.AISS_OM_BULLET_CAP
   if (input.fixture.env?.AISS_MAX_POLLS) process.env.AISS_MAX_POLLS = input.fixture.env.AISS_MAX_POLLS
+  if (input.fixture.env?.AISS_OM_BULLET_CAP) process.env.AISS_OM_BULLET_CAP = input.fixture.env.AISS_OM_BULLET_CAP
+  else delete process.env.AISS_OM_BULLET_CAP
   try {
     await agent.runOpenClawCoreAgentChat(
       wc as unknown as Parameters<AgentModule['runOpenClawCoreAgentChat']>[0],
@@ -483,6 +501,8 @@ async function drive(input: {
     globalThis.fetch = previousFetch
     if (previousPolls == null) delete process.env.AISS_MAX_POLLS
     else process.env.AISS_MAX_POLLS = previousPolls
+    if (previousOmCap == null) delete process.env.AISS_OM_BULLET_CAP
+    else process.env.AISS_OM_BULLET_CAP = previousOmCap
   }
   if (confirmError) throw confirmError
   const failed = events.find((event) => event.type === 'error')
@@ -520,6 +540,29 @@ function maxConsecutiveSnapshots(events: AiStreamEvent[]): number {
   return max
 }
 
+function assertOmBudget(label: string, events: AiStreamEvent[], spec: Expectation['omBudget']): void {
+  if (!spec) return
+  const rows = events.filter((event) => event.type === 'debug' && event.payload.entry.kind === 'context')
+  assert.ok(rows.length > 0, `${label}: no context budget event`)
+  for (const event of rows) {
+    if (event.type !== 'debug' || event.payload.entry.kind !== 'context') continue
+    const budget = event.payload.entry.omBudget
+    const detail = JSON.stringify(budget)
+    if (spec.truncated != null) assert.equal(budget.truncated, spec.truncated, `${label}: truncated ${detail}`)
+    if (spec.nearBudget != null) assert.equal(budget.nearBudget, spec.nearBudget, `${label}: nearBudget ${detail}`)
+    if (spec.summaryTruncated != null) {
+      assert.equal(budget.summaryTruncated, spec.summaryTruncated, `${label}: summaryTruncated ${detail}`)
+    }
+    if (spec.minDroppedBullets != null) {
+      assert.ok(budget.droppedBullets >= spec.minDroppedBullets, `${label}: droppedBullets ${detail}`)
+    }
+    if (spec.minTruncatedBullets != null) {
+      assert.ok(budget.truncatedBullets >= spec.minTruncatedBullets, `${label}: truncatedBullets ${detail}`)
+    }
+    if (spec.bulletCap != null) assert.equal(budget.bulletCap, spec.bulletCap, `${label}: bulletCap ${detail}`)
+  }
+}
+
 function assertExpectation(
   turn: Turn,
   result: DriveResult,
@@ -538,7 +581,15 @@ function assertExpectation(
     if (event.type !== 'debug' || event.payload.entry.kind !== 'context') continue
     const working = event.payload.entry.slices.find((slice) => slice.name === 'working')
     assert.ok(working && working.chars > 0, `${label}: working-memory slice is empty`)
+    const budget = event.payload.entry.omBudget
+    assert.equal(typeof budget.truncated, 'boolean', `${label}: om budget truncated is not observable`)
+    assert.equal(typeof budget.nearBudget, 'boolean', `${label}: om budget nearBudget is not observable`)
+    assert.equal(Number.isFinite(budget.bullets), true, `${label}: om budget bullets`)
+    assert.equal(Number.isFinite(budget.bulletCap) && budget.bulletCap >= 2, true, `${label}: om budget cap`)
+    assert.equal(Number.isFinite(budget.droppedBullets) && budget.droppedBullets >= 0, true, `${label}: om budget drops`)
+    assert.equal(Number.isFinite(budget.truncatedBullets) && budget.truncatedBullets >= 0, true, `${label}: om budget cuts`)
   }
+  assertOmBudget(label, context, expected.omBudget)
   if (expected.minPlannerSteps != null) {
     assert.ok(result.prompts.length >= expected.minPlannerSteps, `${label}: ${result.prompts.length} planner steps`)
   }

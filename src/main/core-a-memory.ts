@@ -7,6 +7,7 @@ import {
   normalizeObservationBullets,
   type DurableThreadFields,
   type EpisodicSummary,
+  type OmBudgetMark,
   type ThreadContext,
   type WorkingMemoryBlock
 } from './core-a-context'
@@ -94,6 +95,22 @@ function coerceEpisodes(value: unknown): EpisodicSummary[] {
   return out.slice(-40)
 }
 
+function coerceOmBudget(value: unknown): OmBudgetMark | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const row = value as Partial<OmBudgetMark>
+  const droppedBullets =
+    typeof row.droppedBullets === 'number' && Number.isFinite(row.droppedBullets) && row.droppedBullets > 0
+      ? Math.floor(row.droppedBullets)
+      : 0
+  const truncatedBullets =
+    typeof row.truncatedBullets === 'number' && Number.isFinite(row.truncatedBullets) && row.truncatedBullets > 0
+      ? Math.floor(row.truncatedBullets)
+      : 0
+  const summaryTruncated = row.summaryTruncated === true
+  if (droppedBullets === 0 && truncatedBullets === 0 && !summaryTruncated) return undefined
+  return { droppedBullets, truncatedBullets, summaryTruncated }
+}
+
 function coerceRecord(value: unknown): PersistedCoreSession {
   const row = value && typeof value === 'object' ? (value as Partial<PersistedCoreSession>) : {}
   return {
@@ -106,7 +123,8 @@ function coerceRecord(value: unknown): PersistedCoreSession {
     episodes: coerceEpisodes(row.episodes),
     runningSummary: typeof row.runningSummary === 'string' ? row.runningSummary.slice(-1500) : '',
     observationalMemory: normalizeObservationBullets(row.observationalMemory),
-    compactedCursor: typeof row.compactedCursor === 'string' ? row.compactedCursor : null
+    compactedCursor: typeof row.compactedCursor === 'string' ? row.compactedCursor : null,
+    omBudget: coerceOmBudget(row.omBudget)
   }
 }
 
@@ -179,7 +197,8 @@ export function loadThreadContext(sessionKey: string): { ctx: ThreadContext; epo
       episodes: row.episodes,
       runningSummary: row.runningSummary,
       observationalMemory: row.observationalMemory,
-      compactedCursor: row.compactedCursor
+      compactedCursor: row.compactedCursor,
+      omBudget: row.omBudget
     },
     epoch: currentThreadEpoch(key)
   }
@@ -195,6 +214,7 @@ export function saveThreadContext(sessionKey: string, ctx: ThreadContext, epochA
     runningSummary: ctx.runningSummary.slice(-1500),
     observationalMemory: normalizeObservationBullets(ctx.observationalMemory),
     compactedCursor: ctx.compactedCursor,
+    omBudget: coerceOmBudget(ctx.omBudget),
     updatedAt: Date.now()
   }))
 }

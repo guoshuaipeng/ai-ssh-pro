@@ -66,6 +66,8 @@ export type ThreadContext = {
   observationalMemory: ObservationBullet[]
   /** Fingerprint of the last message folded into `runningSummary`. */
   compactedCursor: string | null
+  /** Cumulative budget loss for this thread. Not shared across hosts. */
+  omBudget?: OmBudgetMark
 }
 
 export type TranscriptTurn = {
@@ -92,6 +94,36 @@ export type ContextSlice = {
   items?: number
 }
 
+/**
+ * Sticky observational-memory loss for one thread.
+ * Absent counters mean nothing has been dropped or cut yet.
+ * The mark stays on the thread that recorded it, so another host does not inherit it.
+ */
+export type OmBudgetMark = {
+  /** Bullets removed because the list cap was exceeded. */
+  droppedBullets: number
+  /** Bullets whose source line or stored text was cut to a character cap. */
+  truncatedBullets: number
+  /** Running summary was cut to the summary character cap. */
+  summaryTruncated: boolean
+}
+
+/**
+ * Eval-assertable observational-memory budget.
+ * `truncated` is a loss (drop, per-bullet cut, or summary cap).
+ * `nearBudget` means the bullet list or the summary is at least 80% of its cap.
+ */
+export type OmBudgetSignal = OmBudgetMark & {
+  bulletCap: number
+  bulletCharCap: number
+  summaryCharCap: number
+  bullets: number
+  bulletChars: number
+  summaryChars: number
+  nearBudget: boolean
+  truncated: boolean
+}
+
 export const EMPTY_THREAD: ThreadContext = {
   workingMemory: null,
   episodes: [],
@@ -105,6 +137,51 @@ const MAX_SUMMARY_CHARS = 1500
 const MAX_EPISODE_CHARS = 500
 const MAX_OBSERVATION_BULLETS = 40
 const MAX_OBSERVATION_CHARS = 180
+/** Share of a cap that counts as near the observational-memory boundary. */
+const OM_NEAR_BUDGET_RATIO = 0.8
+
+/**
+ * Production bullet cap is 40. `AISS_OM_BULLET_CAP` may only lower it so a
+ * harness can reach the boundary. Invalid values stay at the default.
+ */
+export function observationBulletCap(): number {
+  const raw = process.env.AISS_OM_BULLET_CAP?.trim()
+  if (!raw) return MAX_OBSERVATION_BULLETS
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return MAX_OBSERVATION_BULLETS
+  const whole = Math.floor(n)
+  if (whole < 2 || whole > MAX_OBSERVATION_BULLETS) return MAX_OBSERVATION_BULLETS
+  return whole
+}
+
+export function emptyOmBudget(): OmBudgetMark {
+  return { droppedBullets: 0, truncatedBullets: 0, summaryTruncated: false }
+}
+
+/** Lengths and caps for the current thread, plus any sticky loss already recorded. */
+export function observeOmBudget(ctx: ThreadContext): OmBudgetSignal {
+  const mark = ctx.omBudget ?? emptyOmBudget()
+  const bulletCap = observationBulletCap()
+  const bullets = ctx.observationalMemory.length
+  const bulletChars = ctx.observationalMemory.reduce((sum, bullet) => sum + bullet.text.length, 0)
+  const summaryChars = ctx.runningSummary.length
+  const truncated = mark.droppedBullets > 0 || mark.truncatedBullets > 0 || mark.summaryTruncated
+  const nearBudget =
+    bullets / bulletCap >= OM_NEAR_BUDGET_RATIO || summaryChars / MAX_SUMMARY_CHARS >= OM_NEAR_BUDGET_RATIO
+  return {
+    droppedBullets: mark.droppedBullets,
+    truncatedBullets: mark.truncatedBullets,
+    summaryTruncated: mark.summaryTruncated,
+    bulletCap,
+    bulletCharCap: MAX_OBSERVATION_CHARS,
+    summaryCharCap: MAX_SUMMARY_CHARS,
+    bullets,
+    bulletChars,
+    summaryChars,
+    nearBudget,
+    truncated
+  }
+}
 const RRF_K = 60
 const DEFAULT_TOP_K = 5
 const DEFAULT_MAX_TURNS = 8
@@ -538,12 +615,17 @@ function fingerprint(turn: TranscriptTurn): string {
   return (hash >>> 0).toString(16)
 }
 
-function formatTurnLine(turn: TranscriptTurn): string {
+function formatTurnLine(turn: TranscriptTurn): { line: string; truncated: boolean } {
   const content = redactSecrets(turn.content).replace(/\s+/g, ' ').trim()
-  if (!content) return ''
-  if (turn.role === 'assistant') return `assistant: ${extractAssistantLine(content).slice(0, 140)}`
-  if (turn.role === 'system') return `system: ${content.slice(0, 100)}`
-  return `user: ${content.slice(0, 140)}`
+  if (!content) return { line: '', truncated: false }
+  if (turn.role === 'assistant') {
+    const extracted = extractAssistantLine(content)
+    return { line: `assistant: ${extracted.slice(0, 140)}`, truncated: extracted.length > 140 }
+  }
+  if (turn.role === 'system') {
+    return { line: `system: ${content.slice(0, 100)}`, truncated: content.length > 100 }
+  }
+  return { line: `user: ${content.slice(0, 140)}`, truncated: content.length > 140 }
 }
 
 function extractAssistantLine(content: string): string {
@@ -573,47 +655,70 @@ function isConcreteObservation(text: string): boolean {
   )
 }
 
+function draftObservation(turn: TranscriptTurn, now: number): { bullet: ObservationBullet; truncated: boolean } | null {
+  const formatted = formatTurnLine(turn)
+  if (!formatted.line) return null
+  const cutToCap = formatted.line.length > MAX_OBSERVATION_CHARS
+  return {
+    bullet: {
+      id: randomUUID(),
+      text: cutToCap ? formatted.line.slice(0, MAX_OBSERVATION_CHARS) : formatted.line,
+      createdAt: now
+    },
+    truncated: formatted.truncated || cutToCap
+  }
+}
+
 /** One older turn → one redacted observational bullet. No model call. */
 export function observationBulletFromTurn(turn: TranscriptTurn, now = Date.now()): ObservationBullet | null {
-  const line = formatTurnLine(turn)
-  if (!line) return null
-  return {
-    id: randomUUID(),
-    text: line.length > MAX_OBSERVATION_CHARS ? line.slice(0, MAX_OBSERVATION_CHARS) : line,
-    createdAt: now
+  return draftObservation(turn, now)?.bullet ?? null
+}
+
+function appendObservationBulletsCounted(
+  existing: ObservationBullet[],
+  fresh: Array<{ bullet: ObservationBullet; truncated: boolean }>
+): { bullets: ObservationBullet[]; dropped: number; truncated: number } {
+  const next = [...existing]
+  let truncated = 0
+  for (const item of fresh) {
+    const text = item.bullet.text.trim()
+    if (!text) continue
+    if (next.some((row) => row.text === text)) continue
+    next.push({ ...item.bullet, text })
+    if (item.truncated) truncated += 1
   }
+  const capped = capObservationBullets(next)
+  return { bullets: capped.bullets, dropped: capped.dropped, truncated }
 }
 
 export function appendObservationBullets(existing: ObservationBullet[], fresh: ObservationBullet[]): ObservationBullet[] {
-  const next = [...existing]
-  for (const bullet of fresh) {
-    const text = bullet.text.trim()
-    if (!text) continue
-    if (next.some((item) => item.text === text)) continue
-    next.push({ ...bullet, text })
-  }
-  return capObservationBullets(next)
+  return appendObservationBulletsCounted(
+    existing,
+    fresh.map((bullet) => ({ bullet, truncated: false }))
+  ).bullets
 }
 
 /** Keep concrete facts when the bullet list overflows. Narrative fillers go first. */
-function capObservationBullets(bullets: ObservationBullet[]): ObservationBullet[] {
-  if (bullets.length <= MAX_OBSERVATION_BULLETS) return bullets
+function capObservationBullets(bullets: ObservationBullet[]): { bullets: ObservationBullet[]; dropped: number } {
+  const cap = observationBulletCap()
+  if (bullets.length <= cap) return { bullets, dropped: 0 }
   const concrete: ObservationBullet[] = []
   const rest: ObservationBullet[] = []
   for (const bullet of bullets) {
     if (isConcreteObservation(bullet.text)) concrete.push(bullet)
     else rest.push(bullet)
   }
-  if (concrete.length > MAX_OBSERVATION_BULLETS) {
-    const head = Math.ceil(MAX_OBSERVATION_BULLETS / 2)
-    const tail = MAX_OBSERVATION_BULLETS - head
-    return [...concrete.slice(0, head), ...concrete.slice(concrete.length - tail)]
+  if (concrete.length > cap) {
+    const head = Math.ceil(cap / 2)
+    const tail = cap - head
+    const kept = [...concrete.slice(0, head), ...concrete.slice(concrete.length - tail)]
+    return { bullets: kept, dropped: bullets.length - kept.length }
   }
-  const room = MAX_OBSERVATION_BULLETS - concrete.length
+  const room = cap - concrete.length
   const narrative = rest.slice(-room)
   const kept = [...concrete, ...narrative]
   kept.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
-  return kept
+  return { bullets: kept, dropped: bullets.length - kept.length }
 }
 
 export function normalizeObservationBullets(value: unknown): ObservationBullet[] {
@@ -633,12 +738,15 @@ export function normalizeObservationBullets(value: unknown): ObservationBullet[]
 }
 
 /** Keep the start of a folded transcript so the earliest facts are not the first thing dropped. */
-function capRunningSummary(text: string, max: number): string {
+function capRunningSummary(text: string, max: number): { text: string; truncated: boolean } {
   const trimmed = text.trim()
-  if (trimmed.length <= max) return trimmed
+  if (trimmed.length <= max) return { text: trimmed, truncated: false }
   const headBudget = Math.min(400, Math.floor(max / 3))
   const tailBudget = max - headBudget - 1
-  return `${trimmed.slice(0, headBudget)}\n${trimmed.slice(trimmed.length - tailBudget)}`
+  return {
+    text: `${trimmed.slice(0, headBudget)}\n${trimmed.slice(trimmed.length - tailBudget)}`,
+    truncated: true
+  }
 }
 
 /**
@@ -649,15 +757,20 @@ export function compactTranscript(
   turns: TranscriptTurn[],
   ctx: ThreadContext,
   maxTurns = DEFAULT_MAX_TURNS
-): { recent: TranscriptTurn[]; ctx: ThreadContext } {
+): { recent: TranscriptTurn[]; ctx: ThreadContext; omBudget: OmBudgetSignal } {
+  const finish = (recent: TranscriptTurn[], next: ThreadContext) => ({
+    recent,
+    ctx: next,
+    omBudget: observeOmBudget(next)
+  })
   const maxMessages = Math.max(2, maxTurns) * 2
-  if (turns.length <= maxMessages) return { recent: turns, ctx }
+  if (turns.length <= maxMessages) return finish(turns, ctx)
   const older = turns.slice(0, turns.length - maxMessages)
   const recent = turns.slice(turns.length - maxMessages)
   const last = older[older.length - 1]
-  if (!last) return { recent, ctx }
+  if (!last) return finish(recent, ctx)
   const cursor = fingerprint(last)
-  if (ctx.compactedCursor === cursor && ctx.runningSummary) return { recent, ctx }
+  if (ctx.compactedCursor === cursor && ctx.runningSummary) return finish(recent, ctx)
 
   let start = 0
   if (ctx.compactedCursor) {
@@ -666,21 +779,29 @@ export function compactTranscript(
   }
   const fresh = older.slice(start)
   if (fresh.length === 0) {
-    return { recent, ctx: { ...ctx, compactedCursor: cursor } }
+    return finish(recent, { ...ctx, compactedCursor: cursor })
   }
 
-  const piece = fresh.map(formatTurnLine).filter(Boolean).join('\n')
-  if (!piece) return { recent, ctx: { ...ctx, compactedCursor: cursor } }
+  const formatted = fresh.map((turn) => formatTurnLine(turn))
+  const piece = formatted.map((row) => row.line).filter(Boolean).join('\n')
+  if (!piece) return finish(recent, { ...ctx, compactedCursor: cursor })
 
-  const runningSummary = capRunningSummary([ctx.runningSummary, piece].filter(Boolean).join('\n'), MAX_SUMMARY_CHARS)
-  const bullets = fresh
-    .map((turn, index) => observationBulletFromTurn(turn, Date.now() + index))
-    .filter((bullet): bullet is ObservationBullet => bullet != null)
+  const cappedSummary = capRunningSummary([ctx.runningSummary, piece].filter(Boolean).join('\n'), MAX_SUMMARY_CHARS)
+  const drafts = fresh
+    .map((turn, index) => draftObservation(turn, Date.now() + index))
+    .filter((draft): draft is { bullet: ObservationBullet; truncated: boolean } => draft != null)
+  const appended = appendObservationBulletsCounted(ctx.observationalMemory, drafts)
+  const prev = ctx.omBudget ?? emptyOmBudget()
   let next: ThreadContext = {
     ...ctx,
-    runningSummary,
+    runningSummary: cappedSummary.text,
     compactedCursor: cursor,
-    observationalMemory: appendObservationBullets(ctx.observationalMemory, bullets)
+    observationalMemory: appended.bullets,
+    omBudget: {
+      droppedBullets: prev.droppedBullets + appended.dropped,
+      truncatedBullets: prev.truncatedBullets + appended.truncated,
+      summaryTruncated: prev.summaryTruncated || cappedSummary.truncated
+    }
   }
   const chunks = chunkText(piece, MAX_EPISODE_CHARS)
   for (const chunk of chunks) {
@@ -693,7 +814,7 @@ export function compactTranscript(
       })
     )
   }
-  return { recent, ctx: next }
+  return finish(recent, next)
 }
 
 function chunkText(text: string, size: number): string[] {
@@ -847,6 +968,7 @@ export type DurableThreadFields = {
   runningSummary: string
   observationalMemory: ObservationBullet[]
   compactedCursor: string | null
+  omBudget?: OmBudgetMark
 }
 
 /**
@@ -871,6 +993,7 @@ export function archiveAndClearRecord<T extends DurableThreadFields>(record: T):
     runningSummary: '',
     observationalMemory: [],
     compactedCursor: null,
+    omBudget: emptyOmBudget(),
     updatedAt: Date.now()
   }
 }

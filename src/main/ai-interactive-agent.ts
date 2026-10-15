@@ -29,6 +29,7 @@ import {
   compactTranscript,
   confirmBypassAllowed,
   contextBudget,
+  observeOmBudget,
   cancelHitl,
   createHitlLoop,
   formatArchivedGoal,
@@ -941,7 +942,19 @@ export async function runOpenClawCoreAgentChat(
         recentItems: conversation.length,
         systemChars: sysPrompt.length
       })
-      emitDebug({ kind: 'context', round: step, slices: budget.slices, totalChars: budget.totalChars })
+      const omBudget = observeOmBudget(thread)
+      emitDebug({ kind: 'context', round: step, slices: budget.slices, totalChars: budget.totalChars, omBudget })
+      logAi('ai:om-budget', {
+        bullets: omBudget.bullets,
+        bulletCap: omBudget.bulletCap,
+        bulletChars: omBudget.bulletChars,
+        summaryChars: omBudget.summaryChars,
+        droppedBullets: omBudget.droppedBullets,
+        truncatedBullets: omBudget.truncatedBullets,
+        summaryTruncated: omBudget.summaryTruncated,
+        nearBudget: omBudget.nearBudget,
+        truncated: omBudget.truncated
+      })
 
       logAi('ai:step start', {
         step,
