@@ -246,7 +246,7 @@ export function rollbackClock(at: number, now = Date.now()): string {
 }
 
 export function rollbackAuditDetail(path: string, at: number, now = Date.now()): string {
-  return `rollback ${normalizeSnapPath(path)} to ${rollbackClock(at, now)}`
+  return `rollback ${normalizeSnapPath(path)} → ${rollbackClock(at, now)}`
 }
 
 /** S1 file audit for a snapshot rollback. Plain SFTP allows are not audited by the write guard. */

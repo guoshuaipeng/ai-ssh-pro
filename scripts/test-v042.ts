@@ -131,7 +131,7 @@ assert.equal(fileAudit[0]!.type, 'file')
 assert.equal(fileAudit[0]!.source, 'user')
 assert.equal(fileAudit[0]!.outcome, 'allowed')
 assert.equal(fileAudit[0]!.detail, rollbackAuditDetail('/etc/nginx.conf', rolledAt, rolledNow))
-assert.match(fileAudit[0]!.detail, /^rollback \/etc\/nginx\.conf to /)
+assert.match(fileAudit[0]!.detail, /^rollback \/etc\/nginx\.conf → /)
 assert.equal(eventsFor('p1', auditStore).some((e) => e.kind === 'file.rollback'), true)
 const blockedStore = mem()
 recordRollbackAudit(
@@ -222,18 +222,20 @@ assert.ok(toolbar.includes('name="menu"') && toolbar.includes('name="search"') &
 
 function emojiCount(extra = ''): number {
   const re = /\p{Extended_Pictographic}/gu
-  let n = extra.match(re)?.length ?? 0
+  // U+2605 is Extended_Pictographic in Unicode 16 and not in Unicode 17.
+  const count = (text: string) => [...text.matchAll(re)].filter((m) => m[0].codePointAt(0) !== 0x2605).length
+  let n = count(extra)
   const walk = (dir: string) => {
     for (const name of readdirSync(dir)) {
       const p = join(dir, name)
       if (statSync(p).isDirectory()) walk(p)
-      else if (name.endsWith('.tsx')) n += read(p).match(re)?.length ?? 0
+      else if (name.endsWith('.tsx')) n += count(read(p))
     }
   }
   walk('src/renderer/src')
   return n
 }
-assert.equal(emojiCount(), 46)
-assert.ok(emojiCount('▶') > 46)
+assert.equal(emojiCount(), 45)
+assert.ok(emojiCount('▶') > 45)
 
 console.log('test-v042 ok')
