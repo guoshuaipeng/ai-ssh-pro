@@ -16,6 +16,45 @@ export const SETTINGS_SECTIONS = [
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
+/** Extra words so search hits 更新 / 主题 / 密钥 without matching only the nav label. */
+export const SETTINGS_SEARCH_TERMS: Record<SettingsSection, readonly string[]> = {
+  general: ['更新', 'update', '语言', 'language', '启动', 'startup'],
+  appearance: ['主题', 'theme', '外观', 'appearance', '图标'],
+  terminal: ['终端', 'terminal', '字体', 'font'],
+  connections: ['连接', '密钥', 'key', 'agent', '保活'],
+  ops: ['采样', '告警', 'probe', '健康'],
+  ai: ['密钥', 'key', 'api', '模型', 'model'],
+  shortcuts: ['快捷键', 'shortcut'],
+  security: ['安全', '审计', '密钥', 'key', 'audit'],
+  files: ['快照', 'snapshot', '文件'],
+  backup: ['备份', '同步', 'backup', 'sync'],
+  about: ['更新', 'update', '通道', 'channel', 'github', '版本', 'version', '许可证', 'license']
+}
+
+export const SETTINGS_PRIMARY: readonly SettingsSection[] = [
+  'general',
+  'appearance',
+  'terminal',
+  'connections',
+  'ai',
+  'shortcuts',
+  'security',
+  'backup',
+  'about'
+]
+
+export const SETTINGS_ADVANCED: readonly SettingsSection[] = ['ops', 'files']
+
+export function settingsSectionsForQuery(query: string, labels: Record<SettingsSection, string>): SettingsSection[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return [...SETTINGS_SECTIONS]
+  return SETTINGS_SECTIONS.filter((id) => {
+    const label = labels[id].toLowerCase()
+    if (label.includes(needle) || id.includes(needle)) return true
+    return SETTINGS_SEARCH_TERMS[id].some((term) => term.toLowerCase().includes(needle))
+  })
+}
+
 const ACTION_SECTION: Record<string, SettingsSection> = {
   settings: 'general',
   startupSettings: 'general',

@@ -24,6 +24,8 @@ import type { SyncProfile, SyncRow } from '@shared/folder-sync'
 import { normalizeSyncProfile } from '@shared/folder-sync'
 import { tg } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
+import { noticeKind } from '@shared/product-error'
+import ErrorNotice from './ErrorNotice'
 import { askText, confirmDialog } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
 import { registerFolderSyncRunner } from '../lib/folder-sync-run'
@@ -1007,12 +1009,21 @@ export default function SftpPanel({
           </div>
         ) : null}
         {error ? (
-          <div className="sftp-error">
-            {error}
-            {!isLocal ? (
-              <button type="button" onClick={() => void goRemoteHome()}>{tg('d7.home')}</button>
-            ) : null}
-          </div>
+          <ErrorNotice
+            testId="sftp-error"
+            message={noticeKind(error) === 'permission' ? tg('pf5.sftpPerm') : error}
+            detail={noticeKind(error) === 'permission' ? error : null}
+            actions={
+              !isLocal ? (
+                <>
+                  <button type="button" onClick={() => void refreshRemote(parentPosix(remoteCwd))}>{tg('pf5.up')}</button>
+                  <button type="button" onClick={() => remotePathRef.current?.focus()}>{tg('pf5.changePath')}</button>
+                </>
+              ) : (
+                <button type="button" onClick={() => void refreshLocal()}>{tg('pf5.retry')}</button>
+              )
+            }
+          />
         ) : null}
         <div className={`sftp-browser${disconnected ? ' is-disconnected' : ''}`}>
           {unconnected ? (

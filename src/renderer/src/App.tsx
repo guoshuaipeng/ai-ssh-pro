@@ -64,7 +64,9 @@ import {
   type AlertRulesState,
   type FiredAlert
 } from '@shared/alert-rules'
-import { friendlyErrorMessage, stripIpcPrefix } from './lib/friendly-error'
+import { friendlyError, friendlyErrorMessage, stripIpcPrefix } from './lib/friendly-error'
+import { noticeHost, noticeKind, type NoticeKind } from '@shared/product-error'
+import ErrorNotice from './components/ErrorNotice'
 import { placeMenu } from '@shared/menu-place'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
@@ -557,6 +559,27 @@ export default function App() {
 
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
+  const [errorKind, setErrorKind] = useState<NoticeKind>('generic')
+  const failedProfileIdRef = useRef<string | null>(null)
+  const [updateChecking, setUpdateChecking] = useState(false)
+  const openSettingsRef = useRef<(section: SettingsSection) => void>(() => undefined)
+  const noteFailure = useCallback((raw: unknown, forced?: NoticeKind) => {
+    const fe = friendlyError(raw, { locale })
+    const blob = `${fe.message}\n${fe.detail ?? ''}\n${raw instanceof Error ? raw.message : String(raw ?? '')}`
+    const kind = forced ?? noticeKind(blob)
+    const detail = stripIpcPrefix(fe.detail || (raw instanceof Error ? raw.message : String(raw ?? '')))
+    setErrorKind(kind)
+    setErrorDetail(detail && detail !== fe.message ? detail : null)
+    if (kind === 'unreachable') {
+      const host = noticeHost(blob)
+      setError(tg('pf5.sshUnreachable', { host: host || tg('pf5.thisHost') }))
+    } else if (kind === 'auth') setError(tg('pf5.auth'))
+    else if (kind === 'dropped') setError(tg('pf5.dropped'))
+    else if (kind === 'permission') setError(tg('pf5.sftpPerm'))
+    else if (kind === 'import') setError(tg('pf5.importFail'))
+    else setError(fe.message)
+  }, [locale])
 
   const [smartPaste, setSmartPaste] = useState('')
   const [aiParsing, setAiParsing] = useState(false)
@@ -696,12 +719,26 @@ export default function App() {
   const runUpdateCheck = useCallback(async (manual: boolean) => {
     if (checkingUpdateRef.current) return
     checkingUpdateRef.current = true
-    if (manual) showToast(tg('upd.checking'))
+    if (manual) {
+      setUpdateChecking(true)
+      showToast(tg('upd.checking'))
+    }
+    const failUpdate = () => {
+      const prefs = loadUpdateChannelPrefs()
+      showToast(tg('pf5.updateFail', { channel: sourceLabel(prefs.channel, locale) }), {
+        kind: 'error',
+        actions: [
+          { label: tg('pf5.retry'), run: () => void runUpdateCheck(true) },
+          { label: tg('pf5.changeSource'), run: () => openSettingsRef.current('about') }
+        ]
+      })
+    }
     try {
       const prefs = loadUpdateChannelPrefs()
       const r = await window.aiss.app.checkUpdate({ channel: prefs.channel, customUrl: prefs.mirror })
       markChecked()
       if (r.source) rememberUpdateSource({ source: r.source, channel: prefs.channel, at: Date.now() })
+      window.dispatchEvent(new Event('aiss-update-channel'))
       if (r.status === 'available' && r.latestVersion) {
         const info = {
           version: r.latestVersion,
@@ -715,15 +752,13 @@ export default function App() {
         return
       }
       if (!manual) return
-      if (r.status === 'error') {
-        showToast(tg('upd.failed'), { kind: 'error', action: { label: tg('upd.retry'), run: () => void runUpdateCheck(true) } })
-      } else {
-        showToast(tg('upd.upToDate', { version: r.currentVersion }))
-      }
+      if (r.status === 'error') failUpdate()
+      else showToast(tg('upd.upToDate', { version: r.currentVersion }))
     } catch {
-      if (manual) showToast(tg('upd.failed'), { kind: 'error', action: { label: tg('upd.retry'), run: () => void runUpdateCheck(true) } })
+      if (manual) failUpdate()
     } finally {
       checkingUpdateRef.current = false
+      if (manual) setUpdateChecking(false)
     }
   }, [locale])
   useEffect(() => {
@@ -975,7 +1010,7 @@ export default function App() {
       })
       .catch((e) => {
         console.error('[app] sessions.list failed', e)
-        setError(e instanceof Error ? e.message : String(e))
+        noteFailure(e)
         setSessionsReady(true)
       })
   }, [])
@@ -988,7 +1023,7 @@ export default function App() {
   useEffect(() => {
     return window.aiss.ssh.onStatus((st) => {
       if (st.status === 'error' && st.message) {
-        setError(st.message)
+        noteFailure(st.message)
       }
       if (st.status === 'closed') {
         if (st.unexpected) {
@@ -1001,7 +1036,7 @@ export default function App() {
           )
         )
         setRecordingSessionId((cur) => (cur === st.sessionId ? null : cur))
-        if (st.message) setError(st.message)
+        if (st.message) noteFailure(st.message, st.unexpected ? 'dropped' : undefined)
       }
     })
   }, [])
@@ -1150,7 +1185,12 @@ export default function App() {
           : friendlyErrorMessage(raw)
         setHopProgress(null)
         setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: extra?.profileId } : null)
-        setError(shown)
+        failedProfileIdRef.current = extra?.profileId ?? null
+        if (hop) {
+          setErrorKind('generic')
+          setErrorDetail(stripIpcPrefix(raw))
+          setError(shown)
+        } else noteFailure(raw)
         lastConnectErrorRef.current = shown
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected' } : t))
@@ -2629,6 +2669,7 @@ export default function App() {
     ])
     setActiveTabId(tabId)
   }, [ensureMainVisible])
+  openSettingsRef.current = openUnifiedSettings
 
   const openRemoteFileEditor = useCallback(
     (info: { sessionId: string; remotePath: string; name: string; connectOpts?: SshConnectOptions }) => {
@@ -3661,9 +3702,9 @@ export default function App() {
       }
       openImportPreview(model)
     } catch (e) {
-      setError(friendlyErrorMessage(e))
+      noteFailure(e, 'import')
     }
-  }, [openImportPreview, profiles])
+  }, [openImportPreview, profiles, noteFailure])
 
   const applyImport = useCallback(
     (policy: ImportPolicy) => {
@@ -5101,20 +5142,58 @@ export default function App() {
                   demoRenamed={profiles.some((p) => p.id === DEMO_PROFILE_ID && p.demoRenamed)}
                 />
                 {error && activeTab?.view !== 'connection' && (
-                  <div
-                    style={{
-                      color: 'var(--danger)',
-                      fontSize: 11,
-                      marginBottom: 12,
-                      lineHeight: 1.4,
-                      padding: 8,
-                      background: 'var(--bg)',
-                      borderRadius: 6,
-                      border: '1px solid var(--border)'
-                    }}
-                  >
-                    {error}
-                  </div>
+                  <ErrorNotice
+                    message={error}
+                    detail={errorKind === 'unreachable' ? [tg('pf5.sshWhy'), errorDetail].filter(Boolean).join('\n') : errorDetail}
+                    actions={
+                      <>
+                        {errorKind === 'import' ? (
+                          <>
+                            <button type="button" onClick={() => void importSessionsPick()}>{tg('pf5.reselect')}</button>
+                            <button type="button" onClick={() => showToast(tg('pf5.formatList'))}>{tg('pf5.formats')}</button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const id = failedProfileIdRef.current || selectedProfileId
+                                const tab = tabs.find((x) => x.profileId === id && (!x.view || x.view === 'session') && x.status !== 'connected')
+                                if (tab) void reconnectTab(tab.tabId)
+                                else {
+                                  const row = profiles.find((p) => p.id === id)
+                                  if (row) void connectProfile(row)
+                                }
+                                setError(null)
+                              }}
+                            >
+                              {errorKind === 'dropped' ? tg('pf5.reconnect') : tg('pf5.retry')}
+                            </button>
+                            {errorKind === 'auth' ? (
+                              <button
+                                type="button"
+                                onClick={() => openConnectionEditor(profiles.find((p) => p.id === (failedProfileIdRef.current || selectedProfileId)))}
+                              >
+                                {tg('pf5.openKeys')}
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (errorKind === 'dropped') {
+                                  setError(null)
+                                  return
+                                }
+                                openConnectionEditor(profiles.find((p) => p.id === (failedProfileIdRef.current || selectedProfileId)))
+                              }}
+                            >
+                              {errorKind === 'dropped' ? tg('pf5.later') : tg('pf5.editConn')}
+                            </button>
+                          </>
+                        )}
+                      </>
+                    }
+                  />
                 )}
 
                 {sideInfo && (
@@ -6510,9 +6589,12 @@ export default function App() {
                     onBackup={() => setBackupOpen(true)}
                     onCloudSync={() => openM2('sync-settings', tg('m2.cloudSync'))}
                     onCheckUpdate={() => void runUpdateCheck(true)}
+                    onWhatsNew={() => setWhatsNewOpen(true)}
+                    checkingUpdate={updateChecking}
+                    isDev={import.meta.env.DEV}
                     onGithub={() => void window.aiss.app.openGithub().catch(() => undefined)}
                     onOpenMcp={() => openSettingsTab('mcpGuide')}
-                    onOpenUpdates={() => openSettingsTab('updates')}
+                    onOpenUpdates={() => openUnifiedSettings('about')}
                     onTerminalSaved={setTerminalPrefs}
                     probePrefs={probePrefs}
                     onProbePrefs={updateProbePrefs}
@@ -6811,6 +6893,8 @@ export default function App() {
         </button>
       ) : null}
 
+      <footer className="app-statusbar" data-testid="app-statusbar" />
+
       <HostPicker
         open={Boolean(hostPicker)}
         feature={hostPicker?.feature ?? ''}
@@ -6836,7 +6920,15 @@ export default function App() {
         onClose={() => setStartupOpen(false)}
       />
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
-      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <AboutModal
+        open={aboutOpen}
+        version={appVersion}
+        isDev={import.meta.env.DEV}
+        checking={updateChecking}
+        onClose={() => setAboutOpen(false)}
+        onCheckUpdate={() => void runUpdateCheck(true)}
+        onWhatsNew={() => setWhatsNewOpen(true)}
+      />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} onOpenSettings={() => openUnifiedSettings('shortcuts')} />
       <ResourceMonitorModal
         open={resourceOpen}
