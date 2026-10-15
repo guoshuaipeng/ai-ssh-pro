@@ -90,6 +90,7 @@ export type MenuAction =
   | 'refreshHomeHealth'
   | 'switchTab'
   | 'quickStart'
+  | 'replayWelcome'
   | 'enableRuleTemplates'
   | 'retryFailedProbes'
   | 'exportPlaybookPack'
@@ -250,6 +251,7 @@ export const SHARED_MENUS: SharedMenu[] = [
     items: [
       it('shortcuts', '键盘快捷键', 'Keyboard shortcuts'),
       it('quickStart', '快速上手（3 步）', 'Quick start (3 steps)'),
+      it('replayWelcome', '重新欢迎', 'Show welcome again'),
       it('tour', '重看完整引导', 'Replay full tour'),
       it('taskCards', '入门任务', 'Getting started tasks'),
       it('demoHost', '试用演示主机', 'Try demo host'),

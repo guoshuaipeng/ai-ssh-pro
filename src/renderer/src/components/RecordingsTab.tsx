@@ -5,6 +5,8 @@ import { gifFromTextFrames } from '@shared/cast-gif'
 import { askConfirm } from '../lib/dialogs'
 import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
+import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 function bytesToBase64(bytes: Uint8Array): string {
   let bin = ''
@@ -15,7 +17,19 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 type Row = { file: string; host: string; bytes: number; mtime: number }
 
-export function RecordingsList({ onOpen, onClose }: { onOpen: (file: string) => void; onClose: () => void }) {
+export function RecordingsList({
+  onOpen,
+  onClose,
+  hasSession = false,
+  onStart,
+  onPickHost
+}: {
+  onOpen: (file: string) => void
+  onClose: () => void
+  hasSession?: boolean
+  onStart?: () => void
+  onPickHost?: () => void
+}) {
   const [rows, setRows] = useState<Row[]>([])
   const reload = () => {
     void window.aiss.recordings.list().then(setRows)
@@ -28,7 +42,18 @@ export function RecordingsList({ onOpen, onClose }: { onOpen: (file: string) => 
         <button type="button" onClick={onClose}>{tg('common.close')}</button>
       </div>
       <div className="workspace-panel-body">
-        {rows.length === 0 ? <p>{tg('m2.noRecordings')}</p> : null}
+        {rows.length === 0 ? (
+          <EmptyState
+            testId="recordings-empty"
+            icon={<Icon name="play-circle" size={48} strokeWidth={1.5} />}
+            title={tg('pf4.recTitle')}
+            desc={tg('pf4.recDesc')}
+            primary={{
+              label: hasSession ? tg('pf4.recStart') : tg('pf4.pickHost'),
+              onClick: () => (hasSession ? onStart?.() : onPickHost?.())
+            }}
+          />
+        ) : null}
         {rows.map((row) => (
           <div key={row.file} className="m2-row">
             <div>

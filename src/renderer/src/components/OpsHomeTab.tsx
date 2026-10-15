@@ -303,29 +303,15 @@ export default function OpsHomeTab({
         <div className="workspace-panel-body">
           <EmptyState
             testId="l7-empty"
-            icon={<Icon name="monitor" size={32} />}
-            title={t('l7.emptyTitle')}
-            desc={t('l7.emptyDesc')}
-            primary={{ label: t('l7.newConnection'), onClick: onNewConnection, testId: 'l7-new-connection' }}
+            icon={<Icon name="monitor" size={48} strokeWidth={1.5} />}
+            title={t('ux08.sidebarTitle')}
+            desc={t('pf4.hostsDesc')}
+            primary={{ label: t('pf1.new'), onClick: onNewConnection, testId: 'l7-new-connection', command: 'connection' }}
             secondary={[
-              { label: t('l7.import'), onClick: onImport },
-              { label: t('l7.tryDemo'), onClick: onDemo, testId: 'l7-try-demo' }
+              { label: t('pf1.import'), onClick: onImport, command: 'importSessions' },
+              { label: t('pf4.tryDemo'), onClick: onDemo, testId: 'l7-try-demo', command: 'demoHost' }
             ]}
-          >
-            <div className="l7-empty-links">
-              <button type="button" onClick={onTour}>
-                {t('l7.tour')}
-              </button>
-              <button type="button" onClick={onPlaybook}>
-                {t('l7.aboutPlaybooks')}
-              </button>
-              {onRestoreSync ? (
-                <button type="button" onClick={onRestoreSync}>
-                  {t('l7.restoreSync')}
-                </button>
-              ) : null}
-            </div>
-          </EmptyState>
+          />
         </div>
       </div>
     )
@@ -354,11 +340,6 @@ export default function OpsHomeTab({
               {t('l7.newConnection')}
             </button>
           )}
-          {primaryIsAlerts ? (
-            <button type="button" data-testid="l7-open-dashboard" onClick={onOpenDashboard}>
-              {t('l7.openDashboard')}
-            </button>
-          ) : null}
           <button
             type="button"
             aria-label={t('l7.more')}
@@ -372,11 +353,9 @@ export default function OpsHomeTab({
           </button>
           {more ? (
             <div className="l7-more" role="menu" onClick={(e) => e.stopPropagation()}>
-              {!primaryIsAlerts ? (
-                <button type="button" onClick={() => { setMore(false); onOpenDashboard() }}>
-                  {t('l7.openDashboard')}
-                </button>
-              ) : null}
+              <button type="button" data-testid="l7-open-dashboard" onClick={() => { setMore(false); onOpenDashboard() }}>
+                {t('l7.openDashboard')}
+              </button>
               <button type="button" onClick={() => { setMore(false); onRules() }}>
                 {t('menu.alertRules')}
               </button>
@@ -596,10 +575,10 @@ export default function OpsHomeTab({
             <EmptyState
               compact
               testId="l7-inbox-empty"
-              icon={<Icon name="check" size={32} />}
-              title={t('l7.noAlerts')}
-              primary={{ label: t('l2.viewHistory'), onClick: () => onOpenWorkbench() }}
-              secondary={[{ label: t('menu.alertRules'), onClick: onRules }]}
+              icon={<Icon name="bell" size={32} strokeWidth={1.5} />}
+              title={t('pf4.alertTitle')}
+              desc={t('pf4.alertDesc')}
+              primary={{ label: t('pf4.alertRules'), onClick: onRules }}
             />
           ) : (
             <div className="l7-rows" role="listbox" aria-label={t('l7.inbox')}>

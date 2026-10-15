@@ -45,6 +45,7 @@ export default function AlertWorkbenchTab({
   onOpenMonitor,
   onOpenToolbox,
   onOpenDashboard,
+  onOpenHome,
   onInsert,
   onRun,
   buildContext,
@@ -78,6 +79,7 @@ export default function AlertWorkbenchTab({
   onOpenMonitor: (a: FiredAlert) => void
   onOpenToolbox: (a: FiredAlert) => void
   onOpenDashboard: () => void
+  onOpenHome?: () => void
   onInsert: (sessionId: string, command: string) => void
   onRun: (alert: FiredAlert, command: string) => void
   buildContext: (alert: FiredAlert, includeLogs: boolean) => Promise<string>
@@ -366,16 +368,12 @@ export default function AlertWorkbenchTab({
         >
           {rows.length === 0 ? (
             <EmptyState
-              compact
               testId="l2-empty"
-              icon={<Icon name="bell" size={32} />}
-              title={t('l2.empty')}
-              primary={{ label: t('l2.viewHistory'), onClick: () => setFilter('all') }}
-              secondary={[
-                { label: t('l2c.emptyCta'), onClick: onTemplates ?? onRules },
-                { label: t('l7.openDashboard'), onClick: onOpenDashboard },
-                { label: t('menu.alertRules'), onClick: onRules }
-              ]}
+              icon={<Icon name="bell" size={48} strokeWidth={1.5} />}
+              title={t('pf4.alertTitle')}
+              desc={t('pf4.alertDesc')}
+              primary={{ label: t('pf4.alertHome'), onClick: () => (onOpenHome ?? onOpenDashboard)() }}
+              secondary={[{ label: t('pf4.alertRules'), onClick: onRules }]}
             />
           ) : (
             rows.map((a) => (

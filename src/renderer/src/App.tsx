@@ -89,6 +89,7 @@ import ServerToolsModal from './components/ServerToolsModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
 import EmptyState from './components/EmptyState'
+import WelcomePanel from './components/WelcomePanel'
 import Icon, { Twist } from './components/Icon'
 import HostPicker from './components/HostPicker'
 import WelcomeTour, { TOUR_DONE_KEY } from './components/WelcomeTour'
@@ -131,6 +132,7 @@ import { arrangeTabs, closeOthers, closeRight } from '@shared/tab-actions'
 import { collectReminderNotice, REMINDER_FILTER_EVENT, REMINDER_FOCUS_EVENT } from './lib/reminder-tick'
 import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
 import { decideQuickStart, loadFreshProfile, loadQuickDone, noteInstall, saveQuickDone } from '@shared/onboarding'
+import { loadWelcomePrefs, saveWelcomeCompleted, saveWelcomeDismissed, shouldShowWelcome } from '@shared/welcome-prefs'
 import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
@@ -747,6 +749,11 @@ export default function App() {
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
   const [tourOpen, setTourOpen] = useState(false)
+  const [welcomeDismissed, setWelcomeDismissed] = useState(() => loadWelcomePrefs().dismissed)
+  const [welcomeCompleted, setWelcomeCompleted] = useState(() => loadWelcomePrefs().completed)
+  const [welcomeReplay, setWelcomeReplay] = useState(false)
+  const [welcomeNotesHeld, setWelcomeNotesHeld] = useState(false)
+  const welcomeSeen = useRef(false)
   const [quickOpen, setQuickOpen] = useState(false)
   const [quickStep, setQuickStep] = useState(1)
   const [quickResume, setQuickResume] = useState(false)
@@ -3736,6 +3743,12 @@ export default function App() {
         setHostPicker({ action, feature: featureLabel(action, locale) })
         return
       }
+      if (action === 'replayWelcome') {
+        setWelcomeReplay(true)
+        setWelcomeDismissed(false)
+        saveWelcomeDismissed(false)
+        return
+      }
       if (action === 'tour') {
         setTourOpen(true)
         return
@@ -4412,10 +4425,34 @@ export default function App() {
       whatsNewOpen
     })
     if (!decision.show) return
+    const welcome = loadWelcomePrefs()
+    if (profilesRef.current.length === 0 && !welcome.completed) return
     setQuickResume(decision.resume)
     setQuickStep(decision.resume ? 2 : 1)
     setQuickOpen(true)
   }, [sessionsReady, bootNoted, whatsNewOpen])
+
+  useEffect(() => {
+    if (whatsNewOpen) setWelcomeNotesHeld(true)
+  }, [whatsNewOpen])
+
+  useEffect(() => {
+    if (!sessionsReady || profiles.length < 1 || welcomeCompleted) return
+    const seen = welcomeSeen.current
+    saveWelcomeCompleted(true)
+    setWelcomeCompleted(true)
+    setWelcomeReplay(false)
+    if (seen) showToast(tg('pf1.ready'), { ms: 1500 })
+  }, [sessionsReady, profiles.length, welcomeCompleted])
+
+  const dismissWelcome = useCallback(() => {
+    saveWelcomeDismissed(true)
+    setWelcomeDismissed(true)
+    setWelcomeReplay(false)
+    window.setTimeout(() => {
+      document.querySelector<HTMLElement>('[data-testid="empty-new-connection"]')?.focus()
+    }, 0)
+  }, [])
 
   useEffect(() => {
     if (!quickOpen || quickStep !== 1 || profiles.length === 0) return
@@ -4491,7 +4528,14 @@ export default function App() {
       } else if (action === 'portForward') openToolTabRef.current('forward', sid)
       else if (action === 'batchExec') {
         openToolTabRef.current('batch', sid)
-      } else if (action === 'aiCommand') window.setTimeout(() => enterAiMode(sid), 120)
+      }       else if (action === 'aiCommand') window.setTimeout(() => enterAiMode(sid), 120)
+      else if (action === 'toggleRecording') {
+        void window.aiss.ssh.startRecording(sid).then((path) => {
+          if (!path) return
+          setRecordingSessionId(sid)
+          setRecordingStartedAt(Date.now())
+        }).catch(() => undefined)
+      }
     },
     [openMonitorForSession, openSftpTransfer]
   )
@@ -4811,6 +4855,22 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
 
+  const welcomeBlocked = tabs.some((t) => t.view === 'connection' || t.view === 'import-preview')
+  const showWelcome =
+    bootNoted &&
+    !welcomeBlocked &&
+    shouldShowWelcome({
+      hostCount: profiles.length,
+      dismissed: welcomeDismissed,
+      completed: welcomeCompleted,
+      releaseNotesOpen: whatsNewOpen,
+      notesHeld: welcomeNotesHeld,
+      replay: welcomeReplay,
+      tourOpen,
+      quickOpen
+    })
+  if (showWelcome) welcomeSeen.current = true
+
   return (
     <div className="app-root">
       <AppToolbar
@@ -4891,14 +4951,13 @@ export default function App() {
                   <EmptyState
                     testId="sidebar-empty"
                     compact
-                    icon={<Icon name="monitor" size={32} />}
+                    icon={<Icon name="monitor" size={32} strokeWidth={1.5} />}
                     title={tr('ux08.sidebarTitle')}
-                    desc={tr('ux08.sidebarDesc')}
-                    primary={{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor(), testId: 'empty-new-connection', tour: 'new-connection' }}
+                    desc={tr('pf4.hostsDesc')}
+                    primary={{ label: tr('pf1.new'), onClick: () => openConnectionEditor(), testId: 'empty-new-connection', tour: 'new-connection', command: 'connection' }}
                     secondary={[
-                      { label: tr('ux08.import'), onClick: () => void importSessionsPick() },
-                      { label: tr('g1.try'), onClick: () => void addDemoHost(true), testId: 'empty-try-demo' },
-                      { label: tr('l7.title'), onClick: () => openHome() }
+                      { label: tr('pf1.import'), onClick: () => void importSessionsPick(), testId: 'empty-import', command: 'importSessions' },
+                      { label: tr('pf4.tryDemo'), onClick: () => void addDemoHost(true), testId: 'empty-try-demo', command: 'demoHost' }
                     ]}
                   />
                 )}
@@ -5489,6 +5548,14 @@ export default function App() {
           ) : null}
 
           <div className="terminal-stack">
+            {showWelcome ? (
+              <WelcomePanel
+                onImport={() => void importSessionsPick()}
+                onNew={() => openConnectionEditor()}
+                onDemo={() => void addDemoHost(true)}
+                onDismiss={dismissWelcome}
+              />
+            ) : null}
             {activeIsSession && activeTab?.sessionId && activeTab.profileId
               ? (() => {
                   const g = guardForSession(activeTab.sessionId)
@@ -5525,7 +5592,7 @@ export default function App() {
                   )
                 })()
               : null}
-            {tabs.length === 0 ? (
+            {tabs.length === 0 && !showWelcome ? (
               <EmptyState
                 testId="terminal-empty"
                 icon={<Icon name="keyboard" size={32} />}
@@ -5730,6 +5797,7 @@ export default function App() {
                     sessions={connectedSshSessions}
                     activeSessionId={t.boundSessionId ?? activeSessionId ?? null}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    onPickHost={() => setHostPicker({ action: 'portForward', feature: tg('pf4.pickHost') })}
                   />
                 ) : t.view === 'batch' ? (
                   <BatchExecuteModal
@@ -5845,6 +5913,7 @@ export default function App() {
                     onOpenMonitor={(alert) => openToolTabRef.current('monitor', alert.hostKey)}
                     onOpenToolbox={(alert) => openToolTabRef.current('toolbox', alert.hostKey)}
                     onOpenDashboard={() => openDashboard()}
+                    onOpenHome={() => openHome()}
                     onInsert={(sid, command) => {
                       const live = tabs.find((x) => x.sessionId === sid && (!x.view || x.view === 'session'))
                       if (live) setActiveTabId(live.tabId)
@@ -5999,6 +6068,9 @@ export default function App() {
                   <RecordingsList
                     onOpen={(file) => openM2('recording-play', tg('m2.play'), { recordingFile: file })}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    hasSession={connectedSshSessions.length > 0}
+                    onStart={() => void startRecording()}
+                    onPickHost={() => setHostPicker({ action: 'toggleRecording', feature: tg('pf4.pickHost') })}
                   />
                 ) : t.view === 'recording-play' && t.recordingFile ? (
                   <RecordingPlayer file={t.recordingFile} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
@@ -6111,6 +6183,7 @@ export default function App() {
                     tags={profiles.find((p) => p.id === t.profileId)?.tags}
                     connected={tabs.some((x) => x.sessionId === t.boundSessionId && x.status === 'connected')}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
+                    onPickHost={() => setHostPicker({ action: 'sftp', feature: tg('pf4.pickHost') })}
                     onOpenRemoteFile={(info) => {
                       if (!t.boundSessionId) return
                       openRemoteFileEditor({
