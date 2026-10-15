@@ -87,6 +87,8 @@ export type MenuAction =
   | 'fileSnapshots'
   | 'exportPostmortem'
   | 'toggleBlockStrip'
+  | 'refreshHomeHealth'
+  | 'switchTab'
 
 export type Bilingual = { zh: string; en: string }
 

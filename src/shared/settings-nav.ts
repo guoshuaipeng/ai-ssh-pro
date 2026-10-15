@@ -5,6 +5,7 @@ export const SETTINGS_SECTIONS = [
   'appearance',
   'terminal',
   'connections',
+  'ops',
   'ai',
   'shortcuts',
   'security',

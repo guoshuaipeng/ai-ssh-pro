@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+Soft-start toward v0.4.3. Package version stays `0.4.2`. Not tagged or released.
+
+- **运维首页后台采样（L7b）/ Ops home sampling.** 设置里的自动采样默认开启。范围是当前分组；没有分组时用最近连接和置顶，否则只采前 N 台（默认 8，上限 30）。不必先开终端标签。已连接的主机会复用会话。失败只灰那一张卡，不刷密码框。关掉之后又只给已连接的主机画指标。 / Auto sampling is on by default. Scope is the current group; with no group it uses recent and pinned hosts, otherwise only the first N (default 8, cap 30). A terminal tab is not required. A live session is reused. A failure grays that card and does not ask for a password. Turning it off restores metrics for connected hosts only.
+- **标签列表（UX-55b）/ Tab list.** 10 个以上标签时，⌄ 列表可以搜索。行上的 × 关闭该标签。有断开的终端时，页脚可以一次关掉它们并撤销。Ctrl+K「切换标签…」打开同一列表。标签条仍是 36px。 / At 10 tabs the ⌄ list can search. × closes that row. The footer closes disconnected terminals and can undo. Ctrl+K “Switch tab…” opens the same list. The strip stays 36px.
+- **首周浮层（UX-57）/ First-week chip.** 「接下来可以」改到右下角，不盖健康卡和告警列表。知道了只在本次会话里收起；不再显示会记住。Esc 和点外面同样收起。1024 宽时变成底部一条。 / “Next up” sits at the bottom-right and leaves the health cards and alert list usable. Got it hides it for this session; Don’t show again is remembered. Esc and an outside click do the same. At 1024px it becomes a bottom bar.
+
+Deferred for this branch: W1b, UX-12b, UX-50b, UX-39b, UX-19b.
+
 ## v0.4.2
 
 Alert to playbook draft, dry-run, rollback, and postmortem. Package version is `0.4.2`. Do not tag until QA signs off.

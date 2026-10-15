@@ -1,4 +1,75 @@
-/** UX-55: the center tab strip stays one row. Extra tabs scroll or sit in the ⌄ list. */
+/** UX-55: the center tab strip stays one row. Extra tabs scroll or sit in the ⌄ list. UX-55b adds search. */
+
+/** Initials for titles the product itself uses. Unknown characters stay searchable as themselves. */
+const PINYIN_INITIAL: Record<string, string> = {
+  运: 'y', 维: 'w', 首: 's', 页: 'y', 告: 'g', 警: 'j', 工: 'g', 作: 'z', 台: 't',
+  设: 's', 置: 'z', 文: 'w', 件: 'j', 同: 't', 步: 'b', 监: 'j', 控: 'k', 演: 'y',
+  示: 's', 主: 'z', 机: 'j', 标: 'b', 签: 'q', 连: 'l', 接: 'j', 断: 'd', 开: 'k',
+  会: 'h', 话: 'h', 终: 'z', 端: 'd', 资: 'z', 源: 'y', 看: 'k', 板: 'b', 剧: 'j',
+  本: 'b', 审: 's', 计: 'j', 录: 'l', 制: 'z', 云: 'y', 冲: 'c', 突: 't', 预: 'y',
+  览: 'l', 导: 'd', 入: 'r', 出: 'c', 备: 'b', 份: 'f', 快: 'k', 捷: 'j', 键: 'j',
+  帮: 'b', 助: 'z', 关: 'g', 于: 'y', 更: 'g', 新: 'x', 搜: 's', 索: 's', 切: 'q',
+  换: 'h', 已: 'y', 闭: 'b', 无: 'w', 法: 'f', 等: 'd', 待: 'd', 采: 'c', 样: 'y',
+  健: 'j', 康: 'k', 刷: 's', 知: 'z', 道: 'd', 了: 'l', 不: 'b', 再: 'z', 显: 'x',
+  组: 'z', 分: 'f', 历: 'l', 史: 's', 命: 'm', 令: 'l', 片: 'p', 段: 'd', 口: 'k',
+  转: 'z', 发: 'f', 广: 'g', 播: 'b', 自: 'z', 动: 'd', 重: 'c', 试: 's', 正: 'z',
+  在: 'z', 生: 's', 产: 'c', 只: 'z', 读: 'd', 窗: 'c'
+}
+
+export function pinyinInitials(text: string): string {
+  let out = ''
+  for (const ch of text) {
+    const lower = ch.toLowerCase()
+    if (lower >= 'a' && lower <= 'z') out += lower
+    else if (PINYIN_INITIAL[ch]) out += PINYIN_INITIAL[ch]
+  }
+  return out
+}
+
+export const TAB_SEARCH_MIN = 10
+
+export type TabListRow = {
+  tabId: string
+  title: string
+  host?: string
+  username?: string
+  status?: string
+  view?: string
+  kind?: string
+}
+
+export function showTabSearch(count: number): boolean {
+  return count >= TAB_SEARCH_MIN
+}
+
+/** Same word match as the command palette: every word must sit in the haystack. */
+export function tabListHay(row: Pick<TabListRow, 'title' | 'host' | 'username'>): string {
+  const title = row.title ?? ''
+  const host = row.host ?? ''
+  const username = row.username ?? ''
+  const ident = username && host ? `${username}@${host}` : ''
+  return [title, host, username, ident, pinyinInitials(title), pinyinInitials(host)].join(' ').toLowerCase()
+}
+
+export function filterTabList<T extends Pick<TabListRow, 'title' | 'host' | 'username'>>(rows: T[], query: string): T[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return rows
+  return rows.filter((row) => {
+    const hay = tabListHay(row)
+    return words.every((word) => hay.includes(word))
+  })
+}
+
+/** Session tabs that dropped. Tool tabs (home, alerts, settings, …) do not count. */
+export function isDisconnectedSession(row: Pick<TabListRow, 'status' | 'view' | 'kind'>): boolean {
+  if (row.kind === 'local') return false
+  if (row.view && row.view !== 'session') return false
+  return row.status === 'disconnected'
+}
+
+export function disconnectedSessions<T extends Pick<TabListRow, 'status' | 'view' | 'kind'>>(rows: T[]): T[] {
+  return rows.filter(isDisconnectedSession)
+}
 
 export function tabStripOverflow(opts: {
   containerWidth: number

@@ -6,6 +6,7 @@ import { ipcMain } from 'electron'
 import { demoHostManager } from './demo-host'
 import { isDemoSessionId } from '../shared/demo-host'
 import { probeHosts } from './host-probe'
+import { releaseHealthProbes, sampleHealth, sweepHealthProbes } from './health-probe'
 import type { SshSessionManager } from './ssh-manager'
 import {
   getCommandHistory,
@@ -187,6 +188,16 @@ export function registerWorkspaceIpc(sshManager: SshSessionManager): void {
   ipcMain.handle('workspace:recent:pin', (_e, id: string, pinned: boolean) =>
     pinRecentConnection(String(id ?? ''), Boolean(pinned))
   )
+
+  ipcMain.handle('workspace:healthProbe', (_e, payload: unknown) => sampleHealth(sshManager, payload))
+  ipcMain.handle('workspace:healthProbeSweep', (_e, idleMs: unknown) => {
+    sweepHealthProbes(typeof idleMs === 'number' ? idleMs : 30_000)
+    return { ok: true }
+  })
+  ipcMain.handle('workspace:healthProbeRelease', () => {
+    releaseHealthProbes()
+    return { ok: true }
+  })
 
   ipcMain.handle('workspace:locale:get', () => getLocale())
   ipcMain.handle('workspace:locale:set', (_e, locale: LocaleId) => {
