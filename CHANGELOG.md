@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.4.4
 
-v0.4.4 soft-start. Package version stays `0.4.3` until the formal bump. Not tagged.
+Alert packs, sampling filters, share packs, write-gate timeline, clips, and hop chips. Package version is `0.4.4`. Do not tag until QA signs off.
 
 - **告警规则模板（L2c）/ Alert rule packs.** 内置 CPU 过高、磁盘将满、sshd 异常三套模板，一键写入本机规则。可改范围和阈值，可禁用或删除。总开关关闭时只写入、不通知。不执行命令。 / Three built-in packs (high CPU, disk filling, sshd) write local rules in one click. Scope and thresholds stay editable. A disabled master switch writes the rules and does not notify. No command runs.
 - **采样策略（L7c）/ Sampling policy.** 在 L7b 范围上再按标签、仅生产、排除只读过滤。失败退避 30 秒、60 秒、2 分钟，然后封顶（默认 5 分钟）。重试全部只碰失败的主机，10 秒冷却。 / Tag, production-only, and exclude-readonly filters sit on the L7b pool. Failures back off 30s, 60s, 2m, then a cap (default 5 min). Retry all touches the failed hosts only, with a 10s cooldown.
