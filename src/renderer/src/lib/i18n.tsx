@@ -2346,7 +2346,18 @@ const zhCN = {
   'a6.draft': '建议命令（草案）',
   'a6.analyzing': '正在解释选区…',
   'a6.readonly': '只读说明。建议命令需确认后才会发送。',
-  'ux37.needSelection': '要解释选区，请先配置 AI'
+  'ux37.needSelection': '要解释选区，请先配置 AI',
+  'w9.builtin': '内置',
+  'w9.noAuto': '不自动执行',
+  'w9.sampleNoAuto': '示例 · 不自动执行',
+  'w9.saveAs': '另存为',
+  'w9.preview': '预览',
+  'w9.savedAs': '已另存为「{name}」',
+  'w9.try': '试试内置示例',
+  'w9.tryHint': '内置模板只读。另存为之后才能改，打开不会自动执行。',
+  'w9.all': '全部',
+  'w9.sectionBuiltin': '内置',
+  'w9.sectionMine': '我的'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4697,7 +4708,18 @@ const en: Record<MessageKey, string> = {
   'a6.draft': 'Suggested command (draft)',
   'a6.analyzing': 'Explaining selection…',
   'a6.readonly': 'Read-only summary. A suggested command is sent only after you confirm.',
-  'ux37.needSelection': 'Set up AI to explain this selection'
+  'ux37.needSelection': 'Set up AI to explain this selection',
+  'w9.builtin': 'Built-in',
+  'w9.noAuto': 'Does not run on its own',
+  'w9.sampleNoAuto': 'Sample · does not run on its own',
+  'w9.saveAs': 'Save as',
+  'w9.preview': 'Preview',
+  'w9.savedAs': 'Saved as “{name}”',
+  'w9.try': 'Try a built-in sample',
+  'w9.tryHint': 'Built-in templates are read-only. Save as to edit. Opening does not run anything.',
+  'w9.all': 'All',
+  'w9.sectionBuiltin': 'Built-in',
+  'w9.sectionMine': 'Mine'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

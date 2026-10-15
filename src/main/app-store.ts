@@ -433,6 +433,7 @@ function normalizeSnippets(raw: unknown): CommandSnippet[] {
     const title = typeof o.title === 'string' && o.title.trim() ? o.title.trim() : null
     const body = typeof o.body === 'string' ? o.body : null
     if (!id || !title || body == null) continue
+    if (id.startsWith('builtin:snip:')) continue
     out.push({ id, title, body })
   }
   return out

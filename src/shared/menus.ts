@@ -111,6 +111,8 @@ export type MenuAction =
   | 'setProtection'
   | 'batchConnect'
   | 'batchConnectGroup'
+  | 'builtinSnippets'
+  | 'builtinPlaybooks'
 
 export type Bilingual = { zh: string; en: string }
 
