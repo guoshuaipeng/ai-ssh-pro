@@ -1242,9 +1242,10 @@ body.layout-resizing {
   gap: 2px;
   padding: 6px 8px 0;
   background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
+  /* Hairline sits in the 36px box so the content row stays 30px (6px pad + 30px tabs). */
+  box-shadow: inset 0 -1px 0 var(--border);
   flex-shrink: 0;
-  /* UX-55: one row. Extra tabs scroll; the overflow menu lists the rest. */
+  /* UX-55: one 36px row. Extra tabs scroll inside .tab-bar-scroll; ⌄ lists the rest. */
   min-width: 0;
   height: 36px;
   max-height: 36px;
@@ -1258,12 +1259,54 @@ body.layout-resizing {
   gap: 2px;
   flex: 1;
   min-width: 0;
+  height: 30px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
-.tab-bar-scroll > .tab { flex-shrink: 0; }
-.tab-overflow-btn { flex: none; align-self: center; white-space: nowrap; }
+.tab-bar-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.tab-bar-scroll.fade-left {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+  mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+.tab-bar-scroll.fade-right {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 24px);
+  mask-image: linear-gradient(to left, transparent, #000 24px);
+}
+.tab-bar-scroll.fade-left.fade-right {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+.tab-bar-scroll > .tab {
+  flex: 0 1 auto;
+  min-width: 112px;
+  max-width: 200px;
+}
+.tab-bar-scroll > .tab.active {
+  min-width: 140px;
+  flex-shrink: 0;
+}
+.tab-bar-scroll > .tab:has(.tab-rename-input) {
+  min-width: 160px;
+  flex-shrink: 0;
+}
+@media (max-width: 1024px) {
+  .tab-bar-scroll > .tab { min-width: 96px; }
+  .tab-overflow-menu { width: 240px; }
+}
+.tab-overflow-btn {
+  flex: none;
+  align-self: center;
+  white-space: nowrap;
+  height: 24px;
+  min-width: 28px;
+  padding: 0 6px;
+  line-height: 24px;
+}
 .tab-overflow-menu {
   position: absolute;
   right: 8px;
@@ -1275,11 +1318,36 @@ body.layout-resizing {
   padding: 4px;
   display: flex;
   flex-direction: column;
-  min-width: 180px;
-  max-height: 280px;
+  width: 280px;
+  min-width: 240px;
+  max-width: 360px;
+  max-height: min(60vh, 420px);
   overflow: auto;
 }
-.tab-overflow-menu button { white-space: nowrap; text-align: left; }
+.tab-overflow-title {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 8px 6px;
+  white-space: nowrap;
+}
+.tab-overflow-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 28px;
+  width: 100%;
+  white-space: nowrap;
+  text-align: left;
+}
+.tab-overflow-menu button.is-current {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 18%, transparent);
+}
+.tab-overflow-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .main { min-width: 0; }
 
 
@@ -1287,12 +1355,15 @@ body.layout-resizing {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 8px 8px 12px;
+  height: 30px;
+  padding: 0 8px 0 12px;
   border: 1px solid transparent;
+  /* UX-55 D5: every tab reserves the same 2px top edge; prod/ro only change the color. */
+  border-top: 2px solid transparent;
   border-bottom: none;
   border-radius: 6px 6px 0 0;
   background: transparent;
-  max-width: 220px;
+  max-width: 200px;
   color: var(--text);
 }
 
@@ -1305,7 +1376,8 @@ body.layout-resizing {
 
 .tab.active {
   background: var(--bg);
-  border-color: var(--border);
+  border-left-color: var(--border);
+  border-right-color: var(--border);
   border-bottom-color: var(--bg);
 }
 

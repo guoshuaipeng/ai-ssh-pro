@@ -1,11 +1,11 @@
-/** UX-55: the center tab strip stays one row. Extra tabs scroll or sit in an overflow menu. */
+/** UX-55: the center tab strip stays one row. Extra tabs scroll or sit in the ⌄ list. */
 
 export function tabStripOverflow(opts: {
   containerWidth: number
   tabWidths: number[]
   reserved?: number
   gap?: number
-}): { visibleCount: number; overflow: boolean; wraps: false } {
+}): { visibleCount: number; overflow: boolean; hidden: number; wraps: false } {
   const gap = opts.gap ?? 2
   const reserved = opts.reserved ?? 0
   let budget = Math.max(0, opts.containerWidth - reserved)
@@ -17,5 +17,6 @@ export function tabStripOverflow(opts: {
     visible += 1
   }
   if (visible === 0 && opts.tabWidths.length > 0 && opts.containerWidth > 0) visible = 1
-  return { visibleCount: visible, overflow: visible < opts.tabWidths.length, wraps: false }
+  const hidden = Math.max(0, opts.tabWidths.length - visible)
+  return { visibleCount: visible, overflow: hidden > 0, hidden, wraps: false }
 }

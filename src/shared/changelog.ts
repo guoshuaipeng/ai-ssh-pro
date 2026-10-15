@@ -25,8 +25,8 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
     {
       icon: '▦',
       text: {
-        zh: '1366 下运维首页和告警工作台按内容宽度排布，标签条单行滚动，多出来的进 ⋯',
-        en: 'At 1366, Ops home and the alert workbench follow content width. The tab strip stays one row and overflows into ⋯'
+        zh: '1366 下运维首页和告警工作台按内容宽度排布。标签条固定 36px，溢出用 ⌄ 和未显示个数，不显示滚动条',
+        en: 'At 1366, Ops home and the alert workbench follow content width. The tab strip stays 36px, overflows with ⌄ and a hidden count, and hides the scrollbar'
       },
       where: { zh: '运维首页 / 告警工作台', en: 'Ops home / Alert workbench' },
       action: 'opsHome'

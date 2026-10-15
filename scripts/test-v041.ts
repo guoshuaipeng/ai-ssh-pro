@@ -14,6 +14,7 @@ import { dedupeRecent, loadRecentExpanded } from '../src/shared/recent-sidebar'
 import { CHANGELOG_RESTORE_SCOPE, planRestore, snapshotWorkspace } from '../src/shared/session-restore'
 import { sectionForAction } from '../src/shared/settings-nav'
 import { certCardState, detectKeyMaterial, skNeedsAgent } from '../src/shared/ssh-cert'
+import { tabLabel } from '../src/shared/tab-label'
 import { tabStripOverflow } from '../src/shared/tab-overflow'
 import { changelogFor } from '../src/shared/changelog'
 import { applyConnectAuth, SshAuthError } from '../src/main/ssh-auth'
@@ -42,8 +43,50 @@ const strip = tabStripOverflow({ containerWidth: 200, tabWidths: [80, 80, 80, 80
 assert.equal(strip.wraps, false)
 assert.equal(strip.overflow, true)
 assert.ok(strip.visibleCount < 4)
-assert.ok(styles.includes('flex-wrap: nowrap') && styles.includes('.tab-bar-scroll') && styles.includes('.tab-overflow-menu'))
-assert.ok(app.includes('className="tab-bar-scroll"') && app.includes('data-testid="tab-overflow"'))
+assert.equal(strip.hidden, 4 - strip.visibleCount)
+const fit = tabStripOverflow({ containerWidth: 400, tabWidths: [112, 112, 112] })
+assert.equal(fit.wraps, false)
+assert.equal(fit.overflow, false)
+assert.equal(fit.hidden, 0)
+assert.equal(fit.visibleCount, 3)
+const scrollRule = styles.slice(styles.indexOf('.tab-bar-scroll {'), styles.indexOf('.tab-bar-scroll::-webkit-scrollbar'))
+assert.ok(scrollRule.includes('scrollbar-width: none'))
+assert.match(styles, /\.tab-bar-scroll::-webkit-scrollbar\s*\{[^}]*display:\s*none/)
+assert.ok(styles.includes('height: 36px') && styles.includes('height: 30px'))
+assert.ok(styles.includes('min-width: 112px') && styles.includes('min-width: 96px'))
+assert.ok(styles.includes('border-top: 2px solid transparent'))
+assert.ok(styles.includes('mask-image:'))
+assert.ok(css.includes('border-top-color: #ef4444') && css.includes('border-top-color: #f97316'))
+assert.ok(!css.includes('border-top: 2px solid #ef4444') && !css.includes('border-top: 2px solid #f97316'))
+assert.ok(styles.includes('flex-wrap: nowrap') && styles.includes('.tab-overflow-menu'))
+assert.ok(app.includes('data-testid="tab-bar-scroll"') && app.includes('data-testid="tab-overflow"'))
+assert.ok(app.includes('scrollLeft += e.deltaY') && app.includes("{ passive: false }"))
+assert.ok(app.includes("e.key !== 'Escape'") && app.includes("addEventListener('mousedown', onPointer)"))
+const overflowBtn = app.slice(app.indexOf('data-testid="tab-overflow"'), app.indexOf('data-testid="tab-overflow-menu"'))
+assert.ok(overflowBtn.includes('⌄') && !overflowBtn.includes('⋯'))
+const overflowMenu = app.slice(app.indexOf('data-testid="tab-overflow-menu"'), app.indexOf('data-testid="broadcast-bar"'))
+assert.ok(overflowMenu.includes('labelFor(t)') && overflowMenu.includes('aria-current'))
+assert.ok(overflowMenu.includes('✓') && !overflowMenu.includes('{t.title}'))
+assert.ok(app.includes('className="tab-title">{labelFor(t)}'))
+const trStub = (key: string, vars?: Record<string, string | number>) => {
+  const map: Record<string, string> = {
+    'tab.connecting': '{title} (连接中…)',
+    'tab.disconnected': '{title} (已断开)',
+    'l7.title': '运维首页',
+    'l2.title': '告警工作台',
+    'l4.auditTitle': '审计日志'
+  }
+  return (map[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? ''))
+}
+assert.equal(tabLabel({ title: 'Ops home', view: 'home' }, trStub), '运维首页')
+assert.equal(tabLabel({ title: 'Alerts', view: 'alert-workbench' }, trStub), '告警工作台')
+assert.equal(tabLabel({ title: 'web-01', view: 'session', status: 'disconnected' }, trStub), 'web-01 (已断开)')
+assert.equal(tabLabel({ title: 'audit', view: 'audit', auditHost: 'db' }, trStub), '审计日志 · db')
+assert.equal(tabLabel({ title: 'web-02', view: 'session', status: 'connected' }, trStub), 'web-02')
+const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
+assert.ok(i18n.includes("'tab.overflow': '所有标签（{n}）· {hidden} 个未显示'"))
+assert.ok(i18n.includes("'tab.overflow': 'All tabs ({n}) · {hidden} hidden'"))
+assert.ok(i18n.includes("'tab.list.title': '所有标签（{n}）'") && i18n.includes("'tab.list.title': 'All tabs ({n})'"))
 
 assert.deepEqual(railOverflow(200).visible, [...L7_RAIL])
 assert.ok(railOverflow(120).more.includes('syncFolder'))

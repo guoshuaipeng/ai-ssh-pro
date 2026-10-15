@@ -77,6 +77,7 @@ import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind } from './lib/terminal-find'
 import { matchKeymap } from '@shared/keymap'
 import { changelogFor } from '@shared/changelog'
+import { tabLabel } from '@shared/tab-label'
 import { HOST_PROBE_INTERVAL_MS, type HostProbeResult } from '@shared/host-status'
 import BackupModal from './components/BackupModal'
 import ServerToolsModal from './components/ServerToolsModal'
@@ -344,6 +345,8 @@ function syncPhaseKey(phase: SyncPhase): MessageKey {
 
 export default function App() {
   const { t: tr, locale, setLocale } = useI18n()
+  const labelFor = (tab: Pick<Tab, 'title' | 'status' | 'view' | 'auditHost'>) =>
+    tabLabel(tab, (key, vars) => tr(key as MessageKey, vars))
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
@@ -414,7 +417,11 @@ export default function App() {
   const [connFocus, setConnFocus] = useState<'jump' | 'cert' | null>(null)
   const [tabOverflowOpen, setTabOverflowOpen] = useState(false)
   const [tabStripOverflowing, setTabStripOverflowing] = useState(false)
+  const [tabHiddenCount, setTabHiddenCount] = useState(0)
+  const [tabFade, setTabFade] = useState({ left: false, right: false })
   const tabBarRef = useRef<HTMLDivElement>(null)
+  const tabOverflowBtnRef = useRef<HTMLButtonElement>(null)
+  const tabOverflowMenuRef = useRef<HTMLDivElement>(null)
   const syncMeta = useSyncPhase()
   const [syncReady, setSyncReady] = useState(false)
   const [hasPlaybooks, setHasPlaybooks] = useState(() => loadPlaybooks().length > 0)
@@ -970,16 +977,67 @@ export default function App() {
   useEffect(() => {
     const bar = tabBarRef.current
     if (!bar) return
+    const scroll = bar.querySelector('.tab-bar-scroll')
+    if (!(scroll instanceof HTMLElement)) return
     const measure = () => {
-      const scroll = bar.querySelector('.tab-bar-scroll')
-      if (!(scroll instanceof HTMLElement)) return
-      setTabStripOverflowing(scroll.scrollWidth > scroll.clientWidth + 1)
+      const box = scroll.getBoundingClientRect()
+      let hidden = 0
+      for (const node of scroll.querySelectorAll(':scope > .tab')) {
+        if (!(node instanceof HTMLElement)) continue
+        const r = node.getBoundingClientRect()
+        if (r.width < 1) continue
+        if (r.left < box.left - 1 || r.right > box.right + 1) hidden += 1
+      }
+      const overflowing = scroll.scrollWidth > scroll.clientWidth + 1
+      setTabHiddenCount(hidden)
+      setTabStripOverflowing(overflowing || hidden > 0)
+      setTabFade({
+        left: scroll.scrollLeft > 1,
+        right: scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 1
+      })
     }
     const ro = new ResizeObserver(measure)
     ro.observe(bar)
+    ro.observe(scroll)
+    scroll.addEventListener('scroll', measure, { passive: true })
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      if (scroll.scrollWidth <= scroll.clientWidth + 1) return
+      e.preventDefault()
+      scroll.scrollLeft += e.deltaY
+    }
+    scroll.addEventListener('wheel', onWheel, { passive: false })
     measure()
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      scroll.removeEventListener('scroll', measure)
+      scroll.removeEventListener('wheel', onWheel)
+    }
   }, [tabs.length, locale, layout.showMain])
+  useEffect(() => {
+    if (!tabOverflowOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setTabOverflowOpen(false)
+      tabOverflowBtnRef.current?.focus()
+    }
+    const onPointer = (e: MouseEvent) => {
+      const node = e.target
+      if (!(node instanceof Node)) return
+      if (tabOverflowBtnRef.current?.contains(node)) return
+      if (tabOverflowMenuRef.current?.contains(node)) return
+      setTabOverflowOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onPointer)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onPointer)
+    }
+  }, [tabOverflowOpen])
+  useEffect(() => {
+    if (!tabStripOverflowing && tabOverflowOpen) setTabOverflowOpen(false)
+  }, [tabStripOverflowing, tabOverflowOpen])
   tabsRef.current = tabs
   const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
   const [autoRetry, setAutoRetry] = useState<{ tabId: string; attempt: number; delayMs: number } | null>(null)
@@ -4153,7 +4211,10 @@ export default function App() {
                 {tr('ux10.broadcasting', { n: broadcastSessions.length })}
               </button>
             ) : null}
-            <div className="tab-bar-scroll">
+            <div
+              className={`tab-bar-scroll${tabFade.left ? ' fade-left' : ''}${tabFade.right ? ' fade-right' : ''}`}
+              data-testid="tab-bar-scroll"
+            >
             {tabs.map((t) => {
               const isSession = !t.view || t.view === 'session'
               const guardLevel = isSession ? effectiveLevel(profiles.find((p) => p.id === t.profileId)) : 'normal'
@@ -4220,21 +4281,7 @@ export default function App() {
                     ●REC
                   </span>
                 ) : null}
-                <span className="tab-title">
-                  {isSession && t.status === 'connecting'
-                    ? tr('tab.connecting', { title: t.title })
-                    : isSession && t.status === 'disconnected'
-                      ? tr('tab.disconnected', { title: t.title })
-                      : t.view === 'home'
-                        ? tr('l7.title')
-                        : t.view === 'alert-workbench'
-                          ? tr('l2.title')
-                          : t.view === 'audit'
-                            ? t.auditHost
-                              ? `${tr('l4.auditTitle')} · ${t.auditHost}`
-                              : tr('l4.auditTitle')
-                            : t.title}
-                </span>
+                <span className="tab-title">{labelFor(t)}</span>
                 </>
                 )}
                 <span
@@ -4263,31 +4310,50 @@ export default function App() {
             </div>
             {tabStripOverflowing ? (
               <button
+                ref={tabOverflowBtnRef}
                 type="button"
                 className="tab-overflow-btn"
                 data-testid="tab-overflow"
                 aria-expanded={tabOverflowOpen}
-                title={tr('tab.overflow')}
+                aria-label={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
+                title={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
                 onClick={() => setTabOverflowOpen((v) => !v)}
               >
-                ⋯
+                <span aria-hidden>{`⌄ ${tabHiddenCount}`}</span>
               </button>
             ) : null}
             {tabOverflowOpen ? (
-              <div className="tab-overflow-menu" data-testid="tab-overflow-menu" role="menu">
-                {tabs.map((t) => (
-                  <button
-                    key={t.tabId}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setActiveTabId(t.tabId)
-                      setTabOverflowOpen(false)
-                    }}
-                  >
-                    {t.title}
-                  </button>
-                ))}
+              <div
+                ref={tabOverflowMenuRef}
+                className="tab-overflow-menu"
+                data-testid="tab-overflow-menu"
+                role="menu"
+                aria-label={tr('tab.list.title', { n: tabs.length })}
+              >
+                <div className="tab-overflow-title">{tr('tab.list.title', { n: tabs.length })}</div>
+                {tabs.map((t) => {
+                  const current = t.tabId === activeTabId
+                  return (
+                    <button
+                      key={t.tabId}
+                      type="button"
+                      role="menuitem"
+                      className={current ? 'is-current' : undefined}
+                      aria-current={current ? 'true' : undefined}
+                      onClick={() => {
+                        setActiveTabId(t.tabId)
+                        setTabOverflowOpen(false)
+                      }}
+                    >
+                      <span className="tab-overflow-label">{labelFor(t)}</span>
+                      {current ? (
+                        <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
+                          ✓
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
               </div>
             ) : null}
           </div>

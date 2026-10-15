@@ -1104,8 +1104,8 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .tab.tab-kind-home { box-shadow: inset 3px 0 0 var(--accent, #3b82f6); }
 .tab.tab-kind-alert-workbench { box-shadow: inset 3px 0 0 #ef4444; }
 .tab.tab-kind-audit { box-shadow: inset 3px 0 0 #64748b; }
-.tab.tab-guard-prod { border-top: 2px solid #ef4444; }
-.tab.tab-guard-ro { border-top: 2px solid #f97316; }
+.tab.tab-guard-prod { border-top-color: #ef4444; }
+.tab.tab-guard-ro { border-top-color: #f97316; }
 
 .l7-root, .l2-root { min-width: 0; min-height: 0; }
 .l7-head, .l2-head { flex-wrap: nowrap; gap: 8px; }
