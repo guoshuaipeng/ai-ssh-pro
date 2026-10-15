@@ -49,6 +49,7 @@ const CAT: Record<string, PaletteCat> = {
   alertRules: 'ops',
   alertHistory: 'ops',
   auditLog: 'ops',
+  exportAudit: 'ops',
   playbooks: 'ops',
   builtinPlaybooks: 'ops',
   runPlaybook: 'ops',

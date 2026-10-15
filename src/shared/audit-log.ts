@@ -70,6 +70,7 @@ export function loadAudit(store: Pick<Storage, 'getItem'> = globalThis.localStor
 }
 
 const REDACT = [
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi,
   /\b(?:password|passwd|token|secret)\s*=\s*\S+/gi,
   /--password(?:=|\s+)\S+/gi,
   /-p'[^']*'/gi,
@@ -78,9 +79,13 @@ const REDACT = [
   /\bAKIA[0-9A-Z]{16}\b/g
 ]
 
+/** Forced redaction. Password, token, Bearer, AKIA, private-key blocks, and `--password` become bullets. */
 export function redactAuditText(text: string): string {
-  let out = text
-  for (const re of REDACT) out = out.replace(re, '••••')
+  let out = String(text ?? '')
+  for (const re of REDACT) {
+    re.lastIndex = 0
+    out = out.replace(re, '••••')
+  }
   return out
 }
 
@@ -177,7 +182,7 @@ export function gateToCsv(rows: AuditEvent[]): string {
   const lines = [head.join(',')]
   for (const e of rows) {
     lines.push(
-      [new Date(e.at).toISOString(), e.host, e.gateResult ?? e.outcome, e.gateRule ?? '', e.protection ?? '', e.detail].map(csvCell).join(',')
+      [new Date(e.at).toISOString(), e.host, e.gateResult ?? e.outcome, e.gateRule ?? '', e.protection ?? '', redactAuditText(e.detail)].map(csvCell).join(',')
     )
   }
   return lines.join('\n')
@@ -192,11 +197,11 @@ export function auditToCsv(rows: AuditEvent[]): string {
   const head = ['at', 'host', 'type', 'source', 'outcome', 'detail']
   const lines = [head.join(',')]
   for (const e of rows) {
-    lines.push([new Date(e.at).toISOString(), e.host, e.type, e.source ?? '', e.outcome, e.detail].map(csvCell).join(','))
+    lines.push([new Date(e.at).toISOString(), e.host, e.type, e.source ?? '', e.outcome, redactAuditText(e.detail)].map(csvCell).join(','))
   }
   return lines.join('\n')
 }
 
 export function auditToJsonl(rows: AuditEvent[]): string {
-  return rows.map((e) => JSON.stringify(e)).join('\n')
+  return rows.map((e) => JSON.stringify({ ...e, detail: redactAuditText(e.detail) })).join('\n')
 }

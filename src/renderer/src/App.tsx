@@ -114,6 +114,7 @@ import { runGuardedCommand } from './lib/protection-gate'
 import OpsHomeTab, { type HomeHost } from './components/OpsHomeTab'
 import AlertWorkbenchTab from './components/AlertWorkbenchTab'
 import AuditLogPanel from './components/AuditLogPanel'
+import AuditExportModal from './components/AuditExportModal'
 import { PlaybookEditor, PlaybookList, PlaybookResult, PlaybookRun } from './components/PlaybookTabs'
 import { PlaybookImportTab, stageShareImport } from './components/PlaybookShare'
 import AlertRuleTemplatesTab from './components/AlertRuleTemplatesTab'
@@ -163,6 +164,7 @@ import ProtectionSection, { ProtectionLevelField } from './components/Protection
 import ScopePicker from './components/ScopePicker'
 import { activeCount, loadBellPrefs, markHandled, saveBellPrefs, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
 import { appendAudit, appendGate, auditEnabled, clearAudit, loadAudit, setAuditEnabled, type AuditEvent } from '@shared/audit-log'
+import { peekAuditExportContext, type AuditExportSeed } from '@shared/audit-export'
 import { hideFromDashboard, hostInScope, loadDashScope, restoreToDashboard, saveDashScope, type DashScope } from '@shared/dashboard-scope'
 import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from '@shared/right-panel'
 import { assessCommandRisk } from '@shared/command-risk'
@@ -519,6 +521,8 @@ export default function App() {
   }, [])
   const [auditOn, setAuditOn] = useState(() => auditEnabled())
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() => loadAudit())
+  const [auditExport, setAuditExport] = useState<{ nonce: number; seed: AuditExportSeed } | null>(null)
+  const auditExportNonce = useRef(0)
   const [guardCollapsed, setGuardCollapsed] = useState<Record<string, boolean>>({})
   const [protection, setProtection] = useState<ProtectionLevel>('normal')
   const [jumpChain, setJumpChain] = useState<JumpHop[]>([])
@@ -4568,6 +4572,14 @@ export default function App() {
         openAudit()
         return
       }
+      if (action === 'exportAudit') {
+        const ctx = peekAuditExportContext()
+        const tab = tabsRef.current.find((t) => t.view === 'audit')
+        setAuditEvents(loadAudit())
+        auditExportNonce.current += 1
+        setAuditExport({ nonce: auditExportNonce.current, seed: ctx ?? { range: '7d', host: tab?.auditHost || '' } })
+        return
+      }
       if (action === 'playbooks') {
         openM2('playbook-list', tg('m2.playbooks'))
         return
@@ -7130,6 +7142,11 @@ export default function App() {
                         setAuditEvents(loadAudit())
                       })
                     }}
+                    onExport={(seed) => {
+                      setAuditEvents(loadAudit())
+                      auditExportNonce.current += 1
+                      setAuditExport({ nonce: auditExportNonce.current, seed })
+                    }}
                   />
                 ) : t.view === 'dashboard' ? (
                   <MultiHostDashboard
@@ -7776,6 +7793,15 @@ export default function App() {
           openToolTabRef.current('toolbox', sid)
         }}
       />
+      {auditExport ? (
+        <AuditExportModal
+          key={auditExport.nonce}
+          open
+          events={auditEvents}
+          seed={auditExport.seed}
+          onClose={() => setAuditExport(null)}
+        />
+      ) : null}
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

@@ -99,6 +99,7 @@ export function iconForAction(id: string): IconName | null {
     snippets: 'clipboard-list',
     sftp: 'folder',
     auditLog: 'scroll-text',
+    exportAudit: 'file-check',
     fileSnapshots: 'history',
     exportPostmortem: 'file-check',
     alertWorkbench: 'bell-ring',
