@@ -176,6 +176,49 @@ export function restoreEditorFocus(ticket: EditorFocusTicket | null): void {
 }
 
 /**
+ * PNG-1: one focus ticket for the whole product overlay layer.
+ *
+ * The ticket is separate from dialog / palette depth, so closing a menu or
+ * a confirm restores the product overlay underneath it, not the shell.
+ * The shell is restored only when the product layer itself goes away.
+ *
+ * StrictMode and a queued next overlay (welcome → tour) both close and
+ * reopen before the deferred restore runs. That reopen cancels the restore
+ * and keeps the original ticket, so focus is not thrown at a stand-in control.
+ */
+export function bindProductFocus(opts?: {
+  schedule?: (fn: () => void) => number
+  cancel?: (id: number) => void
+  now?: () => EditorFocusTicket
+  restore?: (ticket: EditorFocusTicket | null) => void
+}): { activate(): () => void } {
+  let ticket: EditorFocusTicket | null = null
+  let pending: number | null = null
+  const schedule = opts?.schedule ?? ((fn: () => void) => window.setTimeout(fn, 0) as unknown as number)
+  const cancel = opts?.cancel ?? ((id: number) => window.clearTimeout(id))
+  const now = opts?.now ?? captureEditorFocus
+  const restore = opts?.restore ?? restoreEditorFocus
+  return {
+    activate() {
+      if (pending != null) {
+        cancel(pending)
+        pending = null
+      } else {
+        ticket = now()
+      }
+      return () => {
+        const held = ticket
+        pending = schedule(() => {
+          pending = null
+          ticket = null
+          restore(held)
+        })
+      }
+    }
+  }
+}
+
+/**
  * Host picker and the command palette: one boolean `open`.
  * Capture runs in the open effect, before the overlay's own focus timeout.
  * Restore runs from the cleanup, after the overlay has unmounted.

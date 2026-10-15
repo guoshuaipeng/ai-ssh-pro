@@ -140,7 +140,8 @@ import { collectReminderNotice, REMINDER_FILTER_EVENT, REMINDER_FOCUS_EVENT } fr
 import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
 import { decideQuickStart, loadFreshProfile, loadQuickDone, noteInstall, saveQuickDone } from '@shared/onboarding'
 import { loadWelcomePrefs, saveWelcomeCompleted, saveWelcomeDismissed, shouldShowWelcome } from '@shared/welcome-prefs'
-import { escProductTarget, isHigherChromeOpen, pickProductOverlay, shouldOfferTourAfterWelcome } from '@shared/overlay-stack'
+import { admitProductOverlay, escProductTarget, isHigherChromeOpen, pickProductOverlay, productBackdropCount, shouldOfferTourAfterWelcome } from '@shared/overlay-stack'
+import { bindProductFocus } from './lib/focus-restore'
 import {
   IMPORT_HINT_OFF_KEY,
   FIRST_CONNECT_OFF_KEY,
@@ -5200,9 +5201,6 @@ export default function App() {
     saveWelcomeDismissed(true)
     setWelcomeDismissed(true)
     setWelcomeReplay(false)
-    window.setTimeout(() => {
-      document.querySelector<HTMLElement>('[data-testid="empty-new-connection"]')?.focus()
-    }, 0)
   }, [])
 
   useEffect(() => {
@@ -5675,7 +5673,9 @@ export default function App() {
       !tipsDismissed &&
       !taskState.dismissedForever &&
       pendingTasks(taskState).length > 0)
+  const updateRequested = updateModalOpen && Boolean(updateInfo)
   const product = pickProductOverlay({
+    systemUpdate: updateRequested,
     releaseNotes: whatsNewOpen,
     welcome: welcomeEligible,
     tour: tourOpen,
@@ -5684,12 +5684,13 @@ export default function App() {
     quickExplicit,
     tasks: tasksEligible
   })
+  const productDimmers = productBackdropCount(product)
   const showWelcome = product === 'welcome'
   if (showWelcome) welcomeSeen.current = true
   const valueKind = pickValueMoment({
     importCount: importMoment?.count ?? null,
     firstConnect: firstConnectPending,
-    blocked: product === 'welcome' || product === 'releaseNotes' || product === 'quickStart' || product === 'tour'
+    blocked: product === 'welcome' || product === 'releaseNotes' || product === 'quickStart' || product === 'tour' || product === 'systemUpdate'
   })
   onFirstConnectRef.current = () => {
     let versionKnown = true
@@ -5709,8 +5710,9 @@ export default function App() {
 
   useEffect(() => {
     if (!tourQueued || tourOpen) return
-    if (product === 'welcome' || product === 'releaseNotes' || product === 'quickStart') return
+    if (product === 'welcome' || product === 'releaseNotes' || product === 'quickStart' || product === 'systemUpdate') return
     if (valueKind) return
+    if (admitProductOverlay(product, 'tour') === 'refuse') return
     setTourQueued(false)
     setTourExplicit(false)
     setTourOpen(true)
@@ -5724,7 +5726,7 @@ export default function App() {
         higherChrome: isHigherChromeOpen(document),
         modalBackdrops: document.querySelectorAll('.modal-backdrop').length
       })
-      if (!target || target === 'releaseNotes') return
+      if (!target || target === 'releaseNotes' || target === 'systemUpdate') return
       e.preventDefault()
       e.stopImmediatePropagation()
       if (target === 'welcome') dismissWelcome()
@@ -5739,10 +5741,18 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [product, dismissWelcome, closeTour, finishQuick])
 
+  const productLayerOpen = product != null
+  const productFocusRef = useRef<ReturnType<typeof bindProductFocus> | null>(null)
+  if (!productFocusRef.current) productFocusRef.current = bindProductFocus()
+  useLayoutEffect(() => {
+    if (!productLayerOpen) return
+    return productFocusRef.current?.activate()
+  }, [productLayerOpen])
+
   const closeTip = tr(closeControlTipKey(terminalFocused))
 
   return (
-    <div className="app-root">
+    <div className="app-root" data-product-layer={product ?? 'none'} data-product-dimmers={productDimmers}>
       <AppToolbar
         onMenuAction={handleTitlebarMenuAction}
         onToggleSidebar={toggleSidebar}
@@ -7982,14 +7992,14 @@ export default function App() {
         />
       ) : null}
       <WhatsNewModal
-        open={whatsNewOpen}
+        open={product === 'releaseNotes'}
         version={appVersion}
         onClose={() => setWhatsNewOpen(false)}
         onAction={handleTitlebarMenuAction}
       />
       <BackupModal open={backupOpen} onClose={() => setBackupOpen(false)} />
       <UpdateModal
-        open={updateModalOpen && Boolean(updateInfo)}
+        open={product === 'systemUpdate'}
         version={updateInfo?.version ?? ''}
         notes={updateInfo?.notes}
         sourceLabel={updateInfo?.source}
