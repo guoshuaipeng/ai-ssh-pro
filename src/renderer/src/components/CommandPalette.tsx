@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useOverlayFocusRestore } from '../lib/focus-restore'
 import { menuLabel } from '@shared/menus'
 import { useI18n } from '../lib/i18n'
 import { loadSmartPrefs } from '../lib/smart-history'
@@ -43,6 +44,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  useOverlayFocusRestore(open)
 
   const entries = useMemo<Entry[]>(() => {
     const prefs = loadSmartPrefs()

@@ -538,7 +538,7 @@ export default function TerminalPane({
 
   return (
     <>
-      <div className="terminal-pane-wrap">
+      <div className="terminal-pane-wrap" data-terminal="true" data-session-id={sessionId}>
         <div ref={wrapRef} className="terminal-pane-xterm" title={tg('term.tip')} />
         {ghost && !mirrorOnly ? (
           <span className="term-ghost" data-testid="term-ghost" style={{ left: ghost.x, top: ghost.y }} title={tg('x1.acceptHint')}>
