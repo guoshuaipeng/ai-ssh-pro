@@ -18,7 +18,7 @@ export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 /** Extra words so search hits 更新 / 主题 / 密钥 without matching only the nav label. */
 export const SETTINGS_SEARCH_TERMS: Record<SettingsSection, readonly string[]> = {
-  general: ['更新', 'update', '语言', 'language', '启动', 'startup'],
+  general: ['更新', 'update', '语言', 'language', '启动', 'startup', '布局', 'layout', 'restore'],
   appearance: ['主题', 'theme', '外观', 'appearance', '图标'],
   terminal: ['终端', 'terminal', '字体', 'font'],
   connections: ['连接', '密钥', 'key', 'agent', '保活', '重连', 'reconnect', 'keep-alive'],

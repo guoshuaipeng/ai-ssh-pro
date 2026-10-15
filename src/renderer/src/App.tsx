@@ -139,7 +139,7 @@ import { arrangeTabs, closeOthers, closeRight } from '@shared/tab-actions'
 import { collectReminderNotice, REMINDER_FILTER_EVENT, REMINDER_FOCUS_EVENT } from './lib/reminder-tick'
 import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
 import { decideQuickStart, loadFreshProfile, loadQuickDone, noteInstall, saveQuickDone } from '@shared/onboarding'
-import { loadWelcomePrefs, saveWelcomeCompleted, saveWelcomeDismissed, shouldShowWelcome } from '@shared/welcome-prefs'
+import { loadWelcomePrefs, saveWelcomeCompleted, saveWelcomeDismissed } from '@shared/welcome-prefs'
 import { admitProductOverlay, escProductTarget, isHigherChromeOpen, pickProductOverlay, productBackdropCount, shouldOfferTourAfterWelcome } from '@shared/overlay-stack'
 import { bindProductFocus } from './lib/focus-restore'
 import {
@@ -200,9 +200,9 @@ import {
   summarizeBatch,
   type BatchHost
 } from '@shared/batch-connect'
-import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
+import { loadLastWorkspace, loadRestoreLayout, loadStartupMode, saveLastWorkspace, saveRestoreLayout, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
 import { RESTORE_BIND_MS, snapshotWorkspace } from '@shared/session-restore'
-import { planColdStart, restoreWatchIds } from '@shared/cold-start'
+import { coldStartShowsWelcome, planColdStart, restoreWatchIds, showsDroppedConnection, showsRestoreHold } from '@shared/cold-start'
 import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
 import { editorOpenPlan, type EditorId } from '@shared/editor-surface'
 import SettingsPanel from './components/SettingsPanel'
@@ -390,6 +390,8 @@ type Tab = {
   cold?: boolean
   /** UX-50b: auto-bind gave up; show the click-to-connect placeholder. */
   restoreFailed?: boolean
+  /** PNG-4: reopened from the last layout and not connected this launch. */
+  restored?: boolean
   /** D7: first open lists this session's cwd. Focusing an existing tab leaves the path alone. */
   sftpAlignCwd?: boolean
   /** D5 compare payload */
@@ -504,6 +506,7 @@ export default function App() {
   const [bellPrefs, setBellPrefs] = useState<BellPrefs>(() => loadBellPrefs())
   const [dashScope, setDashScope] = useState<DashScope>(() => loadDashScope())
   const [startupMode, setStartupMode] = useState<StartupMode>(() => loadStartupMode())
+  const [restoreLayout, setRestoreLayout] = useState(() => loadRestoreLayout())
   const [startupOpen, setStartupOpen] = useState(false)
   const [elevateMap, setElevateMap] = useState<ElevateMap>(() => loadElevate())
   const [sessionRo, setSessionRo] = useState<Record<string, boolean>>({})
@@ -3658,9 +3661,11 @@ export default function App() {
   useEffect(() => {
     if (!sessionsReady || bootedRef.current) return
     bootedRef.current = true
-    // planColdStart applies workspaceRestoreRows, isExplicitEmptyWorkspace, and planRestore (PNG-4).
+    // planColdStart applies workspaceRestoreRows, isExplicitEmptyWorkspace, and planRestore.
+    // autoConnect is only the explicit 「上次会话」 path. The default layout restore does not SSH.
     const plan = planColdStart({
       mode: loadStartupMode(),
+      restoreLayout: loadRestoreLayout(),
       saved: loadLastWorkspace(),
       knownProfileIds: new Set(profilesRef.current.map((p) => p.id)),
       titleFor: (id) => profilesRef.current.find((p) => p.id === id)?.label || id
@@ -3689,7 +3694,8 @@ export default function App() {
         focusAlertId: row.focusAlertId,
         settingsSection: isSettingsSection(row.settingsSection) ? row.settingsSection : undefined,
         playbookId: row.playbookId,
-        cold: needsSession
+        cold: plan.autoConnect && needsSession,
+        restored: !plan.autoConnect && needsSession
       } satisfies Tab
     })
     setTabs(next)
@@ -5656,19 +5662,19 @@ export default function App() {
   }, [])
 
   const welcomeBlocked = tabs.some((t) => t.view === 'connection' || t.view === 'import-preview')
-  const welcomeEligible =
-    bootNoted &&
-    !welcomeBlocked &&
-    shouldShowWelcome({
-      hostCount: profiles.length,
-      dismissed: welcomeDismissed,
-      completed: welcomeCompleted,
-      releaseNotesOpen: whatsNewOpen,
-      notesHeld: welcomeNotesHeld,
-      replay: welcomeReplay,
-      tourOpen: false,
-      quickOpen: false
-    })
+  const welcomeEligible = coldStartShowsWelcome({
+    sessionsReady,
+    bootNoted,
+    hostCount: profiles.length,
+    dismissed: welcomeDismissed,
+    completed: welcomeCompleted,
+    releaseNotesOpen: whatsNewOpen,
+    notesHeld: welcomeNotesHeld,
+    replay: welcomeReplay,
+    workspaceBlocked: welcomeBlocked,
+    tourOpen: false,
+    quickOpen: false
+  })
   const tasksEligible =
     tasksManual ||
     ((quickDone || localStorage.getItem(TOUR_DONE_KEY) === '1') &&
@@ -6474,9 +6480,8 @@ export default function App() {
             const toolOwner = activeTab?.boundSessionId
               ? tabs.find((t) => t.sessionId === activeTab.boundSessionId && (!t.view || t.view === 'session') && t.status === 'disconnected')
               : undefined
-            const bannerTab = activeIsSession && activeTab?.status === 'disconnected' && activeTab.kind !== 'local'
-              ? activeTab
-              : toolOwner
+            const bannerCandidate = activeIsSession && showsDroppedConnection(activeTab) ? activeTab : toolOwner
+            const bannerTab = showsDroppedConnection(bannerCandidate) ? bannerCandidate : null
             if (!bannerTab) return null
             const retry = autoRetry?.tabId === bannerTab.tabId ? autoRetry : null
             const phase = retry?.phase ?? (reconnectPolicy.mode === 'off' ? 'off' : 'stopped')
@@ -6803,7 +6808,7 @@ export default function App() {
                       )
                     }}
                   />
-                ) : (t.view === 'monitor' || t.view === 'toolbox') && !t.boundSessionId ? (
+                ) : showsRestoreHold(t) ? (
                   <div className="workspace-panel restore-connecting" data-testid="restore-connecting" data-restore={t.restoreFailed ? 'failed' : t.cold ? 'pending' : 'idle'}>
                     <EmptyState
                       icon={<Icon name="refresh-cw" size={32} />}
@@ -7408,6 +7413,11 @@ export default function App() {
                       saveStartupMode(mode)
                       setStartupMode(mode)
                     }}
+                    restoreLayout={restoreLayout}
+                    onRestoreLayout={(on) => {
+                      saveRestoreLayout(on)
+                      setRestoreLayout(on)
+                    }}
                     showHostStatus={showHostStatus}
                     onShowHostStatus={(on) => {
                       localStorage.setItem('aiss.showHostStatus', on ? '1' : '0')
@@ -7761,9 +7771,8 @@ export default function App() {
           const toolOwner = activeTab?.boundSessionId
             ? tabs.find((t) => t.sessionId === activeTab.boundSessionId && (!t.view || t.view === 'session') && t.status === 'disconnected')
             : undefined
-          const bannerTab = activeIsSession && activeTab?.status === 'disconnected' && activeTab.kind !== 'local'
-            ? activeTab
-            : toolOwner
+          const bannerCandidate = activeIsSession && showsDroppedConnection(activeTab) ? activeTab : toolOwner
+          const bannerTab = showsDroppedConnection(bannerCandidate) ? bannerCandidate : null
           const slots = statusBarSlots({
             syncEnabled: syncMeta.enabled,
             phase: syncMeta.phase,
@@ -7874,6 +7883,11 @@ export default function App() {
         onChange={(mode) => {
           saveStartupMode(mode)
           setStartupMode(mode)
+        }}
+        restoreLayout={restoreLayout}
+        onRestoreLayout={(on) => {
+          saveRestoreLayout(on)
+          setRestoreLayout(on)
         }}
         onClose={() => setStartupOpen(false)}
       />

@@ -16,7 +16,6 @@ export const RESTORE_KINDS = [
   'audit',
   'recordings',
   'sync-settings',
-  'sync-preview',
   'terminal'
 ] as const
 
@@ -29,6 +28,14 @@ export function isRestorableKind(kind: string): boolean {
   return RESTORE_SET.has(kind)
 }
 
+/** A whitelist row that would still open a finished page. Sync preview is absent: its plan is not in the snapshot. */
+export function isCompleteRestoreRow(row: SavedWorkspaceTab): boolean {
+  if (!row || typeof row.kind !== 'string' || !isRestorableKind(row.kind)) return false
+  if (PROFILE_KINDS.has(row.kind) && !row.profileId) return false
+  if (row.kind === 'playbook-edit' && !row.playbookId) return false
+  return true
+}
+
 export function planRestore(
   saved: SavedWorkspaceTab[],
   knownProfileIds: Set<string>
@@ -37,15 +44,13 @@ export function planRestore(
   let skipped = 0
   const sorted = [...saved].sort((a, b) => a.order - b.order)
   for (const row of sorted) {
-    if (!row || typeof row.kind !== 'string' || !isRestorableKind(row.kind)) {
+    if (!row || typeof row.kind !== 'string' || !isCompleteRestoreRow(row)) {
       if (row && typeof row.kind === 'string') skipped += 1
       continue
     }
-    if (PROFILE_KINDS.has(row.kind)) {
-      if (!row.profileId || !knownProfileIds.has(row.profileId)) {
-        skipped += 1
-        continue
-      }
+    if (PROFILE_KINDS.has(row.kind) && !knownProfileIds.has(row.profileId!)) {
+      skipped += 1
+      continue
     }
     keep.push(row)
   }
@@ -79,8 +84,7 @@ export function snapshotWorkspace(
   const rows: SavedWorkspaceTab[] = []
   tabs.forEach((t, order) => {
     const kind = !t.view || t.view === 'session' ? (t.kind === 'local' ? 'local' : 'terminal') : t.view
-    if (!isRestorableKind(kind)) return
-    rows.push({
+    const row: SavedWorkspaceTab = {
       kind,
       profileId: t.profileId,
       title: kind === 'terminal' ? t.title : '',
@@ -90,7 +94,9 @@ export function snapshotWorkspace(
       settingsSection: t.settingsSection,
       playbookId: t.playbookId,
       active: t.tabId === activeId
-    })
+    }
+    if (!isCompleteRestoreRow(row)) return
+    rows.push(row)
   })
   return rows
 }

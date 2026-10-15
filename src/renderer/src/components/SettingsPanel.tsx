@@ -51,6 +51,8 @@ type Props = {
   onSection: (section: SettingsSection) => void
   startupMode: StartupMode
   onStartupMode: (mode: StartupMode) => void
+  restoreLayout: boolean
+  onRestoreLayout: (on: boolean) => void
   showHostStatus: boolean
   onShowHostStatus: (on: boolean) => void
   auditOn: boolean
@@ -79,6 +81,8 @@ export default function SettingsPanel({
   onSection,
   startupMode,
   onStartupMode,
+  restoreLayout,
+  onRestoreLayout,
   showHostStatus,
   onShowHostStatus,
   auditOn,
@@ -214,6 +218,15 @@ export default function SettingsPanel({
                   </label>
                 ))}
               </fieldset>
+              <label className="settings-row" data-testid="restore-layout-row">
+                <input
+                  type="checkbox"
+                  data-testid="restore-layout"
+                  checked={restoreLayout}
+                  onChange={(e) => onRestoreLayout(e.target.checked)}
+                />
+                {t('settings.restoreTabs')}
+              </label>
               <label className="settings-row">
                 <input
                   type="checkbox"

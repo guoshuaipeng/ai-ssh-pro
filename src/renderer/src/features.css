@@ -1319,9 +1319,18 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
   gap: 12px;
   min-height: 220px;
   height: 100%;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
 }
 .restore-connecting .empty-state { width: min(420px, 100%); }
+.restore-connecting .empty-state-title,
+.restore-connecting .empty-state-primary {
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .g3-head, .g3-card { pointer-events: auto; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .g3-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .g3-card p { margin: 2px 0 6px; font-size: 12px; color: var(--muted); }
@@ -1395,6 +1404,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l7-expand { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; font-size: 12px; color: var(--muted); }
 .l7-empty-links { display: flex; gap: 8px; justify-content: center; }
 .l7-startup { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.l7-startup [role='radiogroup'] { display: flex; flex-direction: column; gap: 8px; }
 .l7-startup label { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
 .l7-rail-collapsed { display: none; flex-direction: column; gap: 4px; }
 .scope-picker { display: flex; gap: 6px; min-width: 0; }
