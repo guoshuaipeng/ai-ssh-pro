@@ -9,7 +9,7 @@ import { isExplicitEmptyWorkspace, RESTORE_BIND_MS, workspaceRestoreRows } from 
 import { loadLastWorkspace, saveLastWorkspace } from '../src/shared/startup-pref'
 
 const read = (p: string) => readFileSync(p, 'utf8')
-const pkg = JSON.parse(read('package.json')) as { version: string; build: { win: { fileVersion: string } } }
+const pkg = JSON.parse(read('package.json')) as { version: string; build: { win: Record<string, unknown> } }
 const changelog = read('CHANGELOG.md')
 const app = read('src/renderer/src/App.tsx')
 const alertLine = read('src/renderer/src/components/AlertLine.tsx')
@@ -21,7 +21,7 @@ const styles = read('src/renderer/src/styles.css')
 const main = read('src/main/index.ts')
 
 assert.equal(pkg.version, '0.4.3')
-assert.equal(pkg.build.win.fileVersion, '0.4.3.0')
+assert.equal('fileVersion' in pkg.build.win, false)
 assert.ok(changelog.includes('## v0.4.3\n'))
 assert.ok(changelog.includes('## v0.4.2\n'))
 assert.ok(changelogFor('0.4.3').length >= 4)

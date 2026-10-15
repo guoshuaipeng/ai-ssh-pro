@@ -69,7 +69,6 @@
       }
     ],
     "win": {
-      "fileVersion": "0.4.3.0",
       "target": [
         "nsis",
         "dir"
