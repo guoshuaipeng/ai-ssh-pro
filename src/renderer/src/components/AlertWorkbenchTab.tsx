@@ -348,6 +348,8 @@ export default function AlertWorkbenchTab({
                 explainDisabled={!aiConfigured}
                 explainTitle={aiConfigured ? t('a4.interpret') : t('w1.needAi')}
                 onFixPlaybook={() => requestFix(a)}
+                fixDisabled={!aiConfigured}
+                fixTitle={aiConfigured ? t('w1.create') : t('w1.needAi')}
                 onMarkDone={() => onHandled(a)}
                 onIgnore={() => onDismiss(a)}
                 onBoard={onOpenDashboard}

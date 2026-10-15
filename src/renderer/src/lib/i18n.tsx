@@ -2037,6 +2037,18 @@ const zhCN = {
   'ux60.helpQuick': '快速上手（3 步）',
   'ux60.helpFull': '重看完整引导',
   'ux60.continue': '继续',
+  'l4c.start': '起点',
+  'l4c.end': '终点',
+  'l4c.gif': '导出 GIF',
+  'l4c.md': '导出 Markdown',
+  'l4c.gifMax': 'GIF 上限（秒）',
+  'l4c.includeText': '包含终端文本',
+  'l4c.noRecording': '没有可裁的录像',
+  'l4c.gifTooLong': '片段超过 {n} 秒，缩短后再导出 GIF',
+  'ux58.probing': '探测中',
+  'ux58.unknown': '尚未探测',
+  'ux58.ok': '可达 {ms} ms',
+  'ux58.bad': '失败：{reason}',
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4078,6 +4090,18 @@ const en: Record<MessageKey, string> = {
   'ux60.helpQuick': 'Quick start (3 steps)',
   'ux60.helpFull': 'Replay full tour',
   'ux60.continue': 'Continue',
+  'l4c.start': 'Start',
+  'l4c.end': 'End',
+  'l4c.gif': 'Export GIF',
+  'l4c.md': 'Export Markdown',
+  'l4c.gifMax': 'GIF limit (seconds)',
+  'l4c.includeText': 'Include terminal text',
+  'l4c.noRecording': 'No recording to clip',
+  'l4c.gifTooLong': 'Clip is longer than {n} seconds. Shorten it before exporting a GIF',
+  'ux58.probing': 'Probing',
+  'ux58.unknown': 'Not probed yet',
+  'ux58.ok': 'Reachable {ms} ms',
+  'ux58.bad': 'Failed: {reason}',
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

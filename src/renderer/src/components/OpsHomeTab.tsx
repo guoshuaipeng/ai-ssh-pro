@@ -6,6 +6,8 @@ import { probeFiltersActive, selectProbeTargets, type HealthProbeResult, type Pr
 import type { ProtectionLevel } from '@shared/protection'
 import { useI18n } from '../lib/i18n'
 import { useHealthSampling, type SampleHost } from '../lib/health-sampling'
+import { planAlertFix } from '../lib/alert-fix'
+import { showToast } from '../lib/toast'
 import { AlertLine } from './AlertLine'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
@@ -51,6 +53,8 @@ export default function OpsHomeTab({
   onConnect,
   onLocate,
   onExplain,
+  aiConfigured,
+  onCreateFix,
   onDismiss,
   onUnmute,
   onRules,
@@ -96,6 +100,8 @@ export default function OpsHomeTab({
   onConnect: (host: HomeHost) => void
   onLocate: (a: FiredAlert) => void
   onExplain: (a: FiredAlert) => void
+  aiConfigured?: boolean
+  onCreateFix?: (alert: FiredAlert, fixes: Array<{ command: string; note?: string }>) => void
   onDismiss: (a: FiredAlert) => void
   onUnmute: () => void
   onRules: () => void
@@ -597,6 +603,17 @@ export default function OpsHomeTab({
                     onOpen={() => onLocate(a)}
                     onLocate={() => onLocate(a)}
                     onExplain={() => onExplain(a)}
+                    explainDisabled={aiConfigured === false}
+                    explainTitle={aiConfigured === false ? t('w1.needAi') : t('a4.interpret')}
+                    onFixPlaybook={() => {
+                      const plan = planAlertFix(a.id, aiConfigured !== false)
+                      if (plan.action === 'need-ai') return
+                      if (plan.action === 'draft') onCreateFix?.(a, plan.fixes)
+                      else if (plan.action === 'explain') onExplain(a)
+                      else showToast(t('w1.noFix'))
+                    }}
+                    fixDisabled={aiConfigured === false}
+                    fixTitle={aiConfigured === false ? t('w1.needAi') : t('w1.create')}
                   />
                   {expanded === a.id ? (
                     <div className="l7-expand">

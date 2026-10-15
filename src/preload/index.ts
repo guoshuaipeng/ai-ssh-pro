@@ -371,6 +371,7 @@ const api = {
   },
   files: {
     saveText: (defaultName: string, content: string): Promise<string | null> => ipcRenderer.invoke('fs:saveText', defaultName, content),
+    saveBytes: (defaultName: string, base64: string): Promise<string | null> => ipcRenderer.invoke('fs:saveBytes', defaultName, base64),
     reveal: (target: string): Promise<boolean> => ipcRenderer.invoke('fs:reveal', target)
   },
   snapshots: {

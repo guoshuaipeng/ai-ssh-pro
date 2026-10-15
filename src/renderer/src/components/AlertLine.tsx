@@ -30,6 +30,8 @@ export function AlertLine({
   explainDisabled,
   explainTitle,
   onFixPlaybook,
+  fixDisabled,
+  fixTitle,
   onMarkDone,
   onIgnore,
   onBoard
@@ -45,8 +47,10 @@ export function AlertLine({
   /** Sparkles stays visible but grey when AI is not configured. */
   explainDisabled?: boolean
   explainTitle?: string
-  /** W1b: row overflow / context menu. Does not draft by itself. */
+  /** W1b / W1c: row overflow / context menu. Does not draft by itself. */
   onFixPlaybook?: () => void
+  fixDisabled?: boolean
+  fixTitle?: string
   onMarkDone?: () => void
   onIgnore?: () => void
   onBoard?: () => void
@@ -57,7 +61,7 @@ export function AlertLine({
   const canResolve = alert.status === 'active'
   const openRowMenu = (e: { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }) => {
     const items: ContextMenuItem[] = []
-    if (onFixPlaybook) items.push({ id: 'w1-row-fix', label: t('w1.create'), onSelect: onFixPlaybook })
+    if (onFixPlaybook) items.push({ id: 'w1-row-fix', label: t('w1.create'), disabled: fixDisabled, title: fixTitle || t('w1.create'), onSelect: onFixPlaybook })
     if (onMarkDone) items.push({ id: 'w1-row-done', label: t('w1.rowMenu.markDone'), disabled: !canResolve, onSelect: onMarkDone })
     if (onIgnore) items.push({ id: 'w1-row-ignore', label: t('w1.rowMenu.ignore'), disabled: !canResolve, onSelect: onIgnore })
     items.push('sep')

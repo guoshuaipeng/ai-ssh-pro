@@ -498,6 +498,14 @@ function registerIpc(): void {
     shell.showItemInFolder(file)
     return true
   })
+  ipcMain.handle('fs:saveBytes', async (_e, defaultName: string, base64: string) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const opts = { title: '保存', defaultPath: defaultName || 'export.bin' }
+    const { canceled, filePath } = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts)
+    if (canceled || !filePath) return null
+    writeFileSync(filePath, Buffer.from(String(base64 ?? ''), 'base64'))
+    return filePath
+  })
 
   const requireSshClient = (sessionId: string) => {
     const client = sshManager.getClient(sessionId)

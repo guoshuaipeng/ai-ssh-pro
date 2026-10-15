@@ -26,6 +26,11 @@ import {
   previewShareImport
 } from '../src/shared/playbook-share'
 import { viewTimeline } from '../src/shared/timeline'
+import type { CastEvent } from '../src/shared/asciicast'
+import { clampGifMax, clipCastEvents, clipGifAllowed, clipMarkdown } from '../src/shared/cast-clip'
+import { gifFromTextFrames } from '../src/shared/cast-gif'
+import { hopVisual } from '../src/shared/hop-chip'
+import { planAlertFix } from '../src/renderer/src/lib/alert-fix'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
 assert.equal(pkg.version, '0.4.3')
@@ -266,5 +271,60 @@ assert.equal(shareUi.includes('.start('), false)
 const css = readFileSync('src/renderer/src/features.css', 'utf8')
 assert.ok(css.includes('.ux60-card') && css.includes('pointer-events: none') && css.includes('white-space: nowrap'))
 assert.ok(css.includes('.s2b-row') && css.includes('height: 32px'))
+
+const castEvents: CastEvent[] = [
+  { time: 0, type: 'o', data: 'hello' },
+  { time: 10, type: 'o', data: ' mid' },
+  { time: 40, type: 'o', data: ' tail' }
+]
+const before = castEvents.map((ev) => ({ ...ev }))
+const clipped = clipCastEvents(castEvents, 8, 12)
+assert.deepEqual(castEvents, before)
+assert.equal(clipped.length, 1)
+assert.equal(clipped[0]?.time, 2)
+assert.equal(clipGifAllowed(0, 30), true)
+assert.equal(clipGifAllowed(0, 31), false)
+assert.equal(clampGifMax(1), 5)
+assert.equal(clampGifMax(999), 120)
+const md = clipMarkdown({ title: 'rec', start: 0, end: 10, events: castEvents, includeText: true })
+assert.equal(md.includes('00:00.000'), true)
+assert.equal(md.includes('hello'), true)
+const quiet = clipMarkdown({ title: 'rec', start: 0, end: 10, events: castEvents, includeText: false })
+assert.equal(quiet.includes('hello'), false)
+assert.equal(quiet.includes('00:00.000'), true)
+const gif = gifFromTextFrames(['hi', 'yo'])
+assert.equal(String.fromCharCode(...gif.slice(0, 6)), 'GIF89a')
+assert.equal(gif[gif.length - 1], 0x3b)
+assert.equal(castEvents[1]?.time, 10)
+
+assert.equal(hopVisual({ diagramIndex: 1, role: 'hop', structural: false, probing: false, probe: [{ hop: 1, ok: false, reason: 'timeout' }] }).visual, 'bad')
+assert.equal(hopVisual({ diagramIndex: 1, role: 'hop', structural: false, probing: false, probe: [{ hop: 1, ok: false, reason: 'timeout' }] }).reason, 'timeout')
+assert.equal(hopVisual({ diagramIndex: 2, role: 'target', structural: false, probing: false, probe: [{ hop: 2, ok: true, ms: 12 }] }).visual, 'ok')
+assert.equal(hopVisual({ diagramIndex: 1, role: 'hop', structural: false, probing: true, probe: null }).visual, 'probing')
+assert.equal(hopVisual({ diagramIndex: 1, role: 'hop', structural: false, probing: false, probe: null }).visual, 'unknown')
+assert.equal(hopVisual({ diagramIndex: 1, role: 'hop', structural: true, probing: false, probe: [{ hop: 1, ok: true, ms: 4 }] }).visual, 'bad')
+
+assert.equal(planAlertFix('a1', false, () => [{ command: 'df' }]).action, 'need-ai')
+assert.equal(planAlertFix('a1', true, () => undefined).action, 'explain')
+assert.equal(planAlertFix('a1', true, () => []).action, 'none')
+assert.equal(planAlertFix('a1', true, () => [{ command: 'df' }]).action, 'draft')
+
+const homeSrc = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')
+assert.equal(homeSrc.includes('planAlertFix'), true)
+assert.equal(homeSrc.includes('onFixPlaybook'), true)
+const playerSrc = readFileSync('src/renderer/src/components/RecordingsTab.tsx', 'utf8')
+const playerFn = playerSrc.slice(playerSrc.indexOf('export function RecordingPlayer'))
+assert.equal(playerFn.includes('data-testid="l4c-gif"'), true)
+assert.equal(playerFn.includes('data-testid="l4c-md"'), true)
+assert.equal(playerFn.includes('recordings.write'), false)
+assert.equal(playerFn.includes('recordings.delete'), false)
+const jumpSrc = readFileSync('src/renderer/src/components/JumpChainEditor.tsx', 'utf8')
+assert.equal(jumpSrc.includes('data-state='), true)
+assert.equal(jumpSrc.includes('triangle-alert'), true)
+const hopCss = readFileSync('src/renderer/src/styles-m2.css', 'utf8')
+assert.equal(hopCss.includes('.jump-chip.is-bad'), true)
+assert.equal(hopCss.includes('.jump-chip.is-ok'), true)
+assert.equal(hopCss.includes('.jump-chip.is-probing'), true)
+assert.equal(hopCss.includes('.jump-chip.is-unknown'), true)
 
 console.log('v0.4.4 soft-start ok')

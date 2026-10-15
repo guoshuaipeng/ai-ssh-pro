@@ -298,6 +298,7 @@ export type AissPreload = {
   }
   files: {
     saveText: (defaultName: string, content: string) => Promise<string | null>
+    saveBytes: (defaultName: string, base64: string) => Promise<string | null>
     reveal: (target: string) => Promise<boolean>
   }
   snapshots: {

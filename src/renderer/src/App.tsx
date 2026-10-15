@@ -5419,6 +5419,8 @@ export default function App() {
                     }}
                     onLocate={(alert) => locateAlert(alert)}
                     onExplain={(alert) => openWorkbench({ alertId: alert.id, explain: true })}
+                    aiConfigured={aiConfigured}
+                    onCreateFix={(alert, fixes) => createFixPlaybook(alert, fixes)}
                     onDismiss={dismissAlert}
                     onUnmute={unmuteAlerts}
                     onRules={() => openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })}
