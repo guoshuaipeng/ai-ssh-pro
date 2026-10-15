@@ -1,7 +1,7 @@
 /** UI-N6: EmptyState kit — shared icon slot, token type, one app-mark path. */
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, win32 } from 'node:path'
 import { ICON_PATHS } from '../src/shared/icon-registry'
 import { APP_MARK_PATH, EMPTY_ICON_SIZE, EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE, EMPTY_ICONS } from '../src/renderer/src/components/emptyIcons'
 import { translate } from '../src/renderer/src/lib/i18n'
@@ -87,6 +87,11 @@ assert.equal(icons.split(APP_MARK_PATH).length - 1, 1)
 assert.ok(APP_MARK_PATH.includes('M14 23l5 4-5 4'), 'prompt chevron stays on the shared face')
 assert.doesNotMatch(icons, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
 
+/** Repo-relative asserts use `/`. Windows `path.join` emits `\`. */
+function repoPath(p: string): string {
+  return p.replace(/\\/g, '/')
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name)
@@ -95,8 +100,16 @@ function walk(dir: string, out: string[] = []): string[] {
   }
   return out
 }
-const pathHits = walk('src').filter((f) => readFileSync(f, 'utf8').includes(APP_MARK_PATH))
-assert.deepEqual(pathHits, ['src/renderer/src/components/emptyIcons.ts'])
+const emptyIconsPath = 'src/renderer/src/components/emptyIcons.ts'
+const pathHits = walk('src')
+  .filter((f) => readFileSync(f, 'utf8').includes(APP_MARK_PATH))
+  .map(repoPath)
+assert.deepEqual(pathHits, [repoPath(emptyIconsPath)])
+assert.equal(
+  repoPath(win32.join('src', 'renderer', 'src', 'components', 'emptyIcons.ts')),
+  emptyIconsPath,
+  'Windows path.join still matches the forward-slash expect'
+)
 
 const brand = readFileSync('src/renderer/src/components/BrandMark.tsx', 'utf8')
 assert.match(brand, /d=\{APP_MARK_PATH\}/)
