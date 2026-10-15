@@ -6,6 +6,7 @@
  *   into the planner. Extractive and local — no Mastra package and no extra model call.
  * - LangGraph-style HITL: confirm / interrupt / resume are explicit loop phases.
  *   SSH and other risky tools stay gated; risk level never auto-runs them.
+ *   A `patch` proposal (A-TFL) uses the same interrupt and cannot take the SSH write path.
  * - Graphorin: working tier (current task) vs session transcript vs episodic recall,
  *   fused with Reciprocal Rank Fusion (k=60).
  * - Vercel AI SDK ToolLoopAgent: needsApproval for side-effecting tools.
@@ -130,13 +131,14 @@ export function resolveThreadId(input: {
 }
 
 /**
- * SSH `command` writes are side effects and must pause for confirmation.
- * Read-only tool calls (terminal snapshot, inventory reads/writes to the local
- * knowledge base) do not. Risk level never bypasses this.
+ * SSH `command` writes and A-TFL `patch` drafts are side effects and must pause
+ * for confirmation. Read-only tool calls (terminal snapshot, inventory reads/writes
+ * to the local knowledge base) do not. Risk level never bypasses this.
  * Named SSH-like tools stay gated even when the model wraps them as tool_call.
+ * A patch draft is not an SSH command: agreeing to it does not open the SSH write path.
  */
 export function actionNeedsHumanInterrupt(action: string, toolName?: string | null): boolean {
-  if (action === 'command') return true
+  if (action === 'command' || action === 'patch') return true
   if (action !== 'tool_call') return false
   return RISKY_TOOL_NAMES.has((toolName ?? '').trim().toLowerCase())
 }
@@ -246,6 +248,16 @@ export function markHitlObserving(state: HitlLoopState): HitlLoopState {
  */
 export function sideEffectExecutionPermitted(state: HitlLoopState): boolean {
   return state.phase === 'executing' && state.resume === 'approve' && state.action === 'command'
+}
+
+/**
+ * A source patch may be written only after interrupt → approve → executing,
+ * and only for a `patch` proposal. Decline, an interrupted draft, and an SSH
+ * command never satisfy this. Callers still have to match the draft against
+ * the harness mock; this gate does not touch the filesystem.
+ */
+export function patchWritePermitted(state: HitlLoopState): boolean {
+  return state.phase === 'executing' && state.resume === 'approve' && state.action === 'patch'
 }
 
 export function redactSecrets(raw: string): string {

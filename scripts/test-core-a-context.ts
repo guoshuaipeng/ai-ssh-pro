@@ -22,12 +22,25 @@ import {
   markHitlExecuting,
   markHitlObserving,
   markWorkingStatus,
+  patchWritePermitted,
   recallEpisodes,
   resumeHitl,
   sideEffectExecutionPermitted,
   summarizePlannerStep,
   type TranscriptTurn
 } from '../src/main/core-a-context.ts'
+import {
+  annotateUnappliedFailure,
+  applyPatchDraft,
+  createMockTree,
+  decidePatch,
+  explainGateFailure,
+  isSafeMockPath,
+  parseNpmTestFailure,
+  patchDraftConfirmCard,
+  reviewGateFailure,
+  reviewNpmTestFailure
+} from '../src/main/core-a-tfl.ts'
 
 let n = 0
 const ok = (cond: unknown, msg: string) => {
@@ -295,6 +308,19 @@ const riskyTool = interruptForProposal(planned, { action: 'tool_call', toolName:
 ok(riskyTool.phase === 'interrupted', 'run_command interrupts')
 ok(sideEffectExecutionPermitted(markHitlExecuting(resumeHitl(riskyTool, true))) === false, 'a risky tool_call cannot use the SSH write gate')
 ok(resumeHitl(planned, true).phase === 'planning', 'resume ignores a step that is not interrupted')
+const patchProposal = interruptForProposal(planned, {
+  action: 'patch',
+  toolName: 'apply_patch',
+  command: 'draft',
+  riskLevel: 'high',
+  requestId: 'r-patch',
+  autoApproveLowRisk: true
+})
+ok(patchProposal.phase === 'interrupted', 'a patch draft interrupts even when auto-approve is requested')
+ok(patchWritePermitted(patchProposal) === false, 'an interrupted patch cannot write')
+ok(sideEffectExecutionPermitted(markHitlExecuting(resumeHitl(patchProposal, true))) === false, 'an approved patch is not an SSH write')
+ok(patchWritePermitted(markHitlExecuting(resumeHitl(patchProposal, true))) === true, 'approve then executing opens the patch gate')
+ok(patchWritePermitted(resumeHitl(patchProposal, false)) === false, 'decline keeps the patch gate closed')
 
 const budget = contextBudget({
   workingChars: 10,
@@ -347,6 +373,91 @@ ok(visibleWorkingGoal('  查看磁盘  ') === '查看磁盘', 'a goal collapses 
 ok(visibleWorkingGoal('   ') == null, 'a blank goal is hidden')
 ok(visibleWorkingGoal(null) == null, 'a missing goal is hidden')
 ok(visibleWorkingGoal(undefined) == null, 'an unset goal is hidden')
+
+const npmFail = [
+  'not ok 1 - add returns 3',
+  '  ---',
+  "  error: 'Expected values to be strictly equal token=fixture-only'",
+  "  expected: '3'",
+  "  actual: '1'",
+  "  file: 'src/sample-add.ts'",
+  '  ...'
+].join('\n')
+const parsedFail = parseNpmTestFailure(npmFail)
+ok(parsedFail?.gate === 'npm-test', 'npm test failure is recognized')
+ok(parsedFail?.name === 'add returns 3', 'npm test failure keeps the subtest name')
+ok(parsedFail?.expected === '3' && parsedFail?.actual === '1', 'npm test failure keeps expected and actual')
+ok(parsedFail?.file === 'src/sample-add.ts', 'npm test failure keeps the mock path')
+ok(parseNpmTestFailure('ok 1 - add returns 3') == null, 'a passing line is not a gate failure')
+ok(isSafeMockPath('src/sample-add.ts') === true, 'a relative mock path is safe')
+ok(isSafeMockPath('../package.json') === false, 'parent traversal is not a mock path')
+ok(isSafeMockPath('/etc/passwd') === false, 'an absolute path is not a mock path')
+
+const strictTree = createMockTree({ 'src/sample-add.ts': 'export const value = 1\n' })
+const strictReview = reviewNpmTestFailure(npmFail, strictTree)
+ok(strictReview != null && strictReview.hitl.phase === 'interrupted', 'strict-equal failure interrupts')
+ok(strictTree.writeCount() === 0, 'reviewing a failure does not write')
+ok(strictReview!.draft.explanation.includes('同意') && strictReview!.draft.explanation.includes('agree'), 'explanation asks for agree in zh and en')
+ok(!strictReview!.draft.explanation.includes('fixture-only'), 'explanation redacts the token')
+const strictCard = patchDraftConfirmCard(strictReview!)
+ok(strictCard.autoApproved === false && Boolean(strictCard.requestId), 'the confirm card is not auto-approved')
+ok(strictCard.command.includes('src/sample-add.ts'), 'the confirm card shows the diff path')
+const strictBlocked = applyPatchDraft(strictReview!.hitl, strictReview!.draft, strictTree)
+ok(strictBlocked.applied === false && strictTree.writeCount() === 0, 'apply before agree writes nothing')
+const strictDeclined = decidePatch(strictReview!, false, strictTree)
+ok(strictDeclined.applied === false && strictDeclined.state.resume === 'deny', 'decline does not apply')
+ok(strictTree.snapshot()['src/sample-add.ts'] === 'export const value = 1\n', 'decline leaves the mock file unchanged')
+const strictAgreed = decidePatch(strictReview!, true, createMockTree({ 'src/sample-add.ts': 'export const value = 1\n' }))
+ok(strictAgreed.applied === true && strictAgreed.tree.snapshot()['src/sample-add.ts'] === 'export const value = 3\n', 'agree replaces the strict-equal actual')
+ok(sideEffectExecutionPermitted(strictAgreed.state) === false, 'the applied patch still cannot SSH-write')
+
+const secretFailure = {
+  gate: 'core-a-eval',
+  name: 'redact',
+  message: 'Bearer sk-live-SECRETVALUE missing disk fact',
+  file: 'tests/fixtures/core-a/mock-s1-end.txt',
+  expected: '98%',
+  actual: '磁盘使用率偏高'
+}
+const secretText = explainGateFailure(secretFailure)
+ok(secretText.includes('98%') && !secretText.includes('sk-live-SECRETVALUE'), 'explanation drops the bearer token')
+ok(secretText.includes('[redacted]'), 'explanation marks the redaction')
+
+const escapeTree = createMockTree({ '../package.json': '{}\n' })
+const escapeReview = reviewGateFailure(
+  { gate: 'npm-test', name: 'escape', message: 'missing 1', file: '../package.json', expected: '1', actual: '{}' },
+  escapeTree
+)
+ok(escapeReview.draft.hunks.length === 0, 'a parent path produces no hunk')
+const escapeAgreed = decidePatch(escapeReview, true, escapeTree)
+ok(escapeAgreed.applied === false && escapeTree.writeCount() === 0, 'agree cannot write outside the mock root')
+
+const stale = createMockTree({ 'src/sample-add.ts': 'export const value = 9\n' })
+const staleAgreed = decidePatch(strictReview!, true, stale)
+ok(staleAgreed.applied === false && stale.snapshot()['src/sample-add.ts'] === 'export const value = 9\n', 'a draft that no longer matches writes nothing')
+
+const noteOnly = reviewGateFailure({ gate: 'npm-test', name: 'note', message: 'something broke' }, createMockTree({}))
+const noteAgreed = decidePatch(noteOnly, true, createMockTree({}))
+ok(noteAgreed.applied === false && noteAgreed.written.length === 0, 'an explanation-only draft writes nothing on agree')
+
+let annotated: Error | null = null
+try {
+  throw annotateUnappliedFailure(new Error('S1-T1: end description missing 98%'), {
+    gate: 'core-a-eval',
+    name: 'S1-T1',
+    message: 'end description missing 98%'
+  })
+} catch (error) {
+  annotated = error instanceof Error ? error : new Error(String(error))
+}
+ok(annotated?.message.includes('A-TFL (not applied)') && annotated.message.includes('98%'), 'a failed gate carries an unapplied explanation')
+ok(annotated?.message.includes('同意'), 'the unapplied note still asks before any write')
+
+const tflSource = readFileSync(join(root, 'src/main/core-a-tfl.ts'), 'utf8')
+ok(!tflSource.includes('node:fs') && !tflSource.includes('writeFile'), 'the patch loop does not touch the filesystem')
+ok(!tflSource.includes('child_process') && !tflSource.includes('fetch('), 'the patch loop does not leave the process or the network')
+ok(!tflSource.includes('@mastra') && !tflSource.includes('langgraph'), 'the patch loop stays on the local HITL helpers')
+ok(agent.includes('actionNeedsHumanInterrupt') && !agent.includes('core-a-tfl'), 'the chat loop does not apply patch drafts itself')
 
 const panel = readFileSync(join(root, 'src/renderer/src/components/AIPanel.tsx'), 'utf8')
 const i18n = readFileSync(join(root, 'src/renderer/src/lib/i18n.tsx'), 'utf8')
