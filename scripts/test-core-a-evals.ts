@@ -13,6 +13,15 @@ import { describe, it, before } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { HostServiceKind } from '../src/shared/inventory.ts'
 import type { AiChatMessage, AiSettings, AiStreamEvent } from '../src/shared/ipc.ts'
+import {
+  annotateUnappliedFailure,
+  applyPatchDraft,
+  createMockTree,
+  decidePatch,
+  patchDraftConfirmCard,
+  reviewNpmTestFailure
+} from '../src/main/core-a-tfl.ts'
+import { patchWritePermitted, sideEffectExecutionPermitted } from '../src/main/core-a-context.ts'
 
 const memDir = mkdtempSync(join(tmpdir(), 'core-a-eval-mem-'))
 const invDir = mkdtempSync(join(tmpdir(), 'core-a-eval-inv-'))
@@ -84,6 +93,14 @@ type Turn = {
   expected?: Expectation
 }
 
+type TflSpec = {
+  npmOutput: string
+  mockTree: Record<string, string>
+  explanationMustContain: string[]
+  explanationMustNotContain?: string[]
+  agreeMustContain?: string[]
+}
+
 type Fixture = {
   id: string
   title: string
@@ -91,12 +108,14 @@ type Fixture = {
   session: { targetSessionId: string; historyKey: string }
   settings?: { autoApproveLowRisk?: boolean; useOpenClaw?: boolean }
   env?: Record<string, string>
+  /** A-TFL: a failing gate, explained locally, applied only in the harness mock. */
+  tfl?: TflSpec
   seedInventory?: {
     hostId: string
     services?: Array<{ name: string; kind?: string; ports?: number[]; notes?: string; unit?: string }>
     notes?: string[]
   }
-  turns: Turn[]
+  turns?: Turn[]
   negativeCase?: Turn
 }
 
@@ -507,6 +526,71 @@ function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: 
   if (!expected.ipc) assert.ok(result.events.some((event) => event.type === 'done'), `${label}: missing done`)
 }
 
+function rethrowWithDraft(turnId: string, error: unknown): never {
+  throw annotateUnappliedFailure(error, {
+    gate: 'core-a-eval',
+    name: turnId,
+    message: error instanceof Error ? error.message : String(error)
+  })
+}
+
+/**
+ * S15: a failing npm/eval gate explains itself, then the patch stays a proposal.
+ * Agree writes the harness mock. Decline leaves that tree unchanged.
+ */
+function assertTfl(fixture: Fixture): void {
+  const spec = fixture.tfl
+  assert.ok(spec, `${fixture.id}: missing tfl spec`)
+  const label = fixture.id
+  const started = { ...spec.mockTree }
+  const reviewedOn = createMockTree(spec.mockTree)
+  const review = reviewNpmTestFailure(spec.npmOutput, reviewedOn)
+  assert.ok(review, `${label}: npm test failure was not recognized`)
+  assert.equal(reviewedOn.writeCount(), 0, `${label}: explaining the failure wrote the mock`)
+  assert.equal(review.hitl.phase, 'interrupted', `${label}: draft did not interrupt`)
+  assert.equal(patchWritePermitted(review.hitl), false, `${label}: interrupted draft is writable`)
+  assert.equal(sideEffectExecutionPermitted(review.hitl), false, `${label}: patch draft opened the SSH write path`)
+  for (const fact of spec.explanationMustContain) {
+    assert.ok(review.draft.explanation.includes(fact), `${label}: explanation missing ${fact}`)
+  }
+  for (const fact of spec.explanationMustNotContain ?? []) {
+    assert.equal(review.draft.explanation.includes(fact), false, `${label}: explanation leaked ${fact}`)
+  }
+  assert.ok(review.draft.hunks.length > 0, `${label}: no patch draft`)
+  const card = patchDraftConfirmCard(review)
+  assert.equal(card.autoApproved, false, `${label}: patch card was auto-approved`)
+  assert.ok(card.requestId, `${label}: patch card has no confirm id`)
+  assert.equal(card.riskLevel, 'high')
+  assert.ok(card.command.includes('+++'), `${label}: confirm card has no diff`)
+  const blocked = applyPatchDraft(review.hitl, review.draft, reviewedOn)
+  assert.equal(blocked.applied, false, `${label}: interrupted draft applied`)
+  assert.equal(reviewedOn.writeCount(), 0, `${label}: interrupted draft wrote`)
+  assert.deepEqual(reviewedOn.snapshot(), started, `${label}: review tree changed`)
+
+  const declineTree = createMockTree(spec.mockTree)
+  const declined = decidePatch(review, false, declineTree)
+  assert.equal(declined.state.phase, 'cancelled')
+  assert.equal(declined.state.resume, 'deny')
+  assert.equal(declined.applied, false)
+  assert.deepEqual(declined.written, [])
+  assert.equal(declineTree.writeCount(), 0, `${label}: decline wrote`)
+  assert.deepEqual(declineTree.snapshot(), started, `${label}: decline changed the tree`)
+
+  const agreeTree = createMockTree(spec.mockTree)
+  const agreed = decidePatch(review, true, agreeTree)
+  assert.equal(agreed.state.phase, 'executing')
+  assert.equal(agreed.state.resume, 'approve')
+  assert.equal(agreed.applied, true, `${label}: agree did not apply the draft`)
+  assert.ok(agreed.written.length > 0, `${label}: agree wrote no path`)
+  assert.equal(sideEffectExecutionPermitted(agreed.state), false, `${label}: agreed patch became an SSH write`)
+  assert.equal(patchWritePermitted(agreed.state), true)
+  const body = agreeTree.snapshot()[agreed.written[0] ?? ''] ?? ''
+  for (const fact of spec.agreeMustContain ?? []) {
+    assert.ok(body.includes(fact), `${label}: agreed file missing ${fact}`)
+  }
+  assert.deepEqual(declineTree.snapshot(), started, `${label}: agree mutated the declined tree`)
+}
+
 describe('Core-A eval fixtures', { concurrency: 1 }, () => {
   before(async () => {
     agent = await import('../src/main/ai-interactive-agent.ts')
@@ -518,20 +602,28 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
   for (const fixture of fixtures) {
     it(`${fixture.id} ${fixture.title}`, async () => {
       assert.equal(fixture.settings?.autoApproveLowRisk, false, `${fixture.id} autoApproveLowRisk`)
+      if (fixture.tfl) {
+        assertTfl(fixture)
+        return
+      }
       assert.ok(fixture.turns?.length, `${fixture.id} has no turns`)
       seedInventory(fixture)
       const history: AiChatMessage[] = []
       for (const turn of fixture.turns) {
         history.push({ role: 'user', content: turn.userMessage })
-        const result = await drive({
-          fixture,
-          turn,
-          sessionId: fixture.session.targetSessionId,
-          history,
-          approve: true
-        })
-        assertExpectation(turn, result, false)
-        history.push(...assistantLines(result.events))
+        try {
+          const result = await drive({
+            fixture,
+            turn,
+            sessionId: fixture.session.targetSessionId,
+            history,
+            approve: true
+          })
+          assertExpectation(turn, result, false)
+          history.push(...assistantLines(result.events))
+        } catch (error) {
+          rethrowWithDraft(turn.turnId, error)
+        }
       }
       if (fixture.negativeCase) {
         const sample = fixture.turns[0]
@@ -541,14 +633,18 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
           mockTerminal: fixture.negativeCase.mockTerminal || sample?.mockTerminal,
           mockedPlannerSteps: fixture.negativeCase.mockedPlannerSteps || sample?.mockedPlannerSteps
         }
-        const result = await drive({
-          fixture,
-          turn,
-          sessionId: `${fixture.session.targetSessionId}-deny`,
-          history: [{ role: 'user', content: turn.userMessage }],
-          approve: false
-        })
-        assertExpectation(turn, result, false)
+        try {
+          const result = await drive({
+            fixture,
+            turn,
+            sessionId: `${fixture.session.targetSessionId}-deny`,
+            history: [{ role: 'user', content: turn.userMessage }],
+            approve: false
+          })
+          assertExpectation(turn, result, false)
+        } catch (error) {
+          rethrowWithDraft(turn.turnId, error)
+        }
       }
     })
   }

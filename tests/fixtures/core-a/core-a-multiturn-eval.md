@@ -3,7 +3,7 @@
 **Purpose:** Regression bar for Core-A interactive agent (`runOpenClawCoreAgentChat` in `src/main/ai-interactive-agent.ts`) after memory / intent upgrades.  
 **Industry bar:** [Mastra working memory](https://mastra.ai/docs/memory/working-memory) + [observational compression](https://mastra.ai/docs/memory/observational-memory); LangGraph-style confirm-before-run.  
 **Design align:** `/workspace/ai-ssh-pro-pm/A-intent-memory-v1.md`  
-**Fixtures:** `fixtures/core-a-s{1..14}-*.json` — **14 scenarios** (S1–S12 plus S13 observational memory and S14 HITL interrupt/resume)  
+**Fixtures:** `fixtures/core-a-s{1..15}-*.json` — **15 scenarios** (S1–S12 plus S13 observational memory, S14 HITL interrupt/resume, and S15 test-fail-fix patch drafts)  
 **Do not merge PRs from this folder** — artifacts for QA / mocked planner harness only.
 
 ---
@@ -39,6 +39,7 @@
 | **S12** | High-risk rm/reboot confirm + deny path | 1 ask (+ deny variant) | `riskLevel=high` + `requestId`; approve writes after gate; deny → cancelled+done, 0 writes | `fixtures/core-a-s12-high-risk-confirm.json` |
 | **S13** | Observational memory after a long chat | 10 user messages | Fact from turn 2 leaves the raw window and remains an observational bullet in the planner prompt | `fixtures/core-a-s13-observational-memory.json` |
 | **S14** | Explicit HITL interrupt / resume | 1 ask (+ deny variant) | Snapshot does not interrupt; low and high commands enter `phase=interrupted`; deny writes nothing | `fixtures/core-a-s14-hitl-interrupt.json` |
+| **S15** | Test-fail-fix patch draft | 1 failing gate | Local explanation; Agree writes the harness mock; Decline leaves the tree unchanged | `fixtures/core-a-s15-test-fail-fix.json` |
 
 **Bands:** Core loop S1/S5/S6 · Memory/intent S2/S9/S10 · Anti-loop/anti-ask S3/S8/S11 · Safety HITL S4/S7/S12
 
@@ -63,6 +64,12 @@
 - Default: `command` never auto-runs (`autoApproveLowRisk` off). S4 fails if step is sent with `autoApproved: true` or no `requestId`.
 - S12: `riskLevel=high` must never be bypassed by `autoApproveLowRisk`.
 - Decline path: user cancel → `cancelled` + `done`, no further SSH write.
+
+### Test-fail-fix (A-TFL)
+
+- A failing Core-A eval or `npm test` gate produces a local explanation and a patch draft. The draft is a proposal until Agree.
+- S15: the explanation cites the expected and actual facts; Agree writes that draft only in the harness mock; Decline leaves the mock tree byte-for-byte unchanged. An interrupted draft writes nothing.
+- The explanation redacts secrets. Nothing in this path calls a model or the network.
 
 ### Anti-loop / anti-over-ask
 
