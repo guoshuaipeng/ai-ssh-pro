@@ -154,7 +154,8 @@ import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { type SyncPhase } from '@shared/sync-vault'
-import { statusBarSlots } from '@shared/status-bar'
+import { disconnectStatusSentence, statusBarSlots } from '@shared/status-bar'
+import { trayHoverTitle } from '@shared/product'
 import { showConnectionTrouble } from '@shared/connect-trouble'
 import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
 import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
@@ -776,6 +777,9 @@ export default function App() {
   }, [])
   const [whatsNewOpen, setWhatsNewOpen] = useState(false)
   const [appVersion, setAppVersion] = useState('')
+  useEffect(() => {
+    document.title = trayHoverTitle()
+  }, [])
   useEffect(() => {
     // "What's new" once after an upgrade (not on a fresh install)
     void window.aiss.app
@@ -7732,24 +7736,102 @@ export default function App() {
       <footer className="app-statusbar" data-testid="app-statusbar">
         {(() => {
           const g = activeSessionId ? guardForSession(activeSessionId) : null
-          if (!g || !readonlyActive(g.level, g.elevated)) return null
-          return <span className="prot-badge prot-badge--readonly s4-status-badge" data-testid="s4-status-badge">{tg('s4.badge')}</span>
+          const ro = g && readonlyActive(g.level, g.elevated)
+            ? <span className="prot-badge prot-badge--readonly s4-status-badge" data-testid="s4-status-badge">{tg('s4.badge')}</span>
+            : null
+          const toolOwner = activeTab?.boundSessionId
+            ? tabs.find((t) => t.sessionId === activeTab.boundSessionId && (!t.view || t.view === 'session') && t.status === 'disconnected')
+            : undefined
+          const bannerTab = activeIsSession && activeTab?.status === 'disconnected' && activeTab.kind !== 'local'
+            ? activeTab
+            : toolOwner
+          const slots = statusBarSlots({
+            syncEnabled: syncMeta.enabled,
+            phase: syncMeta.phase,
+            recording: Boolean(recordingSessionId),
+            broadcastCount: broadcastSessions.length,
+            disconnected: Boolean(bannerTab),
+            host: bannerTab ? (bannerTab.connectOpts.label?.trim() || bannerTab.connectOpts.host || bannerTab.title) : '',
+            tabId: bannerTab?.tabId
+          }).slots
+          return (
+            <>
+              {ro}
+              {slots.map((slot) => {
+                if (slot.id === 'disconnect') {
+                  return (
+                    <span key={slot.id} className="statusbar-slot statusbar-slot--disconnect" data-testid="statusbar-disconnect" role="status">
+                      <span className="statusbar-label">{disconnectStatusSentence(slot.host ?? '', locale === 'en' ? 'en' : 'zh-CN')}</span>
+                      <button
+                        type="button"
+                        className="statusbar-reconnect"
+                        data-testid="statusbar-reconnect"
+                        onClick={() => {
+                          const tabId = slot.tabId
+                          if (!tabId) return
+                          haltedRef.current.delete(tabId)
+                          const cur = autoRetryRef.current.get(tabId)
+                          if (cur) clearTimeout(cur.timer)
+                          autoRetryRef.current.delete(tabId)
+                          void reconnectTab(tabId, { full: true }).then((sid) => {
+                            if (sid) cancelAutoReconnect(tabId)
+                            else if (policyRef.current.mode !== 'off') scheduleAutoReconnectRef.current(tabId)
+                          })
+                        }}
+                      >
+                        {tg('pf5.reconnect')}
+                      </button>
+                    </span>
+                  )
+                }
+                if (slot.id === 'broadcast') {
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      className="statusbar-slot"
+                      data-testid="statusbar-broadcast"
+                      title={tg('ux10.broadcastOff')}
+                      onClick={() => setBroadcastEnabled(false)}
+                    >
+                      <span className="statusbar-glyph" aria-hidden>{slot.glyph}</span>
+                      <span className="statusbar-label">{tg('sb.broadcast', { n: slot.count ?? 0 })}</span>
+                    </button>
+                  )
+                }
+                if (slot.id === 'record') {
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      className="statusbar-slot"
+                      data-testid="statusbar-record"
+                      title={tg('ux10.recFor', { time: formatDuration(Date.now() - (recordingStartedAt ?? Date.now())) })}
+                      onClick={() => openM2('recordings', tg('m2.recordings'))}
+                    >
+                      <span className="statusbar-glyph" aria-hidden>{slot.glyph}</span>
+                      <span className="statusbar-label">{tg('sb.recording')}</span>
+                    </button>
+                  )
+                }
+                const phase = slot.phase ?? 'synced'
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    className="statusbar-slot"
+                    data-testid="sync-status"
+                    title={tg(syncPhaseKey(phase))}
+                    onClick={() => openM2(syncMeta.phase === 'conflict' ? 'sync-conflicts' : 'sync-settings', tg('m2.cloudSync'))}
+                  >
+                    <span className="statusbar-glyph" aria-hidden>{slot.glyph}</span>
+                    <span className="statusbar-label">{tg(syncPhaseKey(phase))}</span>
+                  </button>
+                )
+              })}
+            </>
+          )
         })()}
-        {statusBarSlots({ syncEnabled: syncMeta.enabled, phase: syncMeta.phase }).slots.map((slot) => (
-          <button
-            key={slot.id}
-            type="button"
-            className="statusbar-slot"
-            data-testid="sync-status"
-            title={tg(syncPhaseKey(slot.phase))}
-            onClick={() => openM2(syncMeta.phase === 'conflict' ? 'sync-conflicts' : 'sync-settings', tg('m2.cloudSync'))}
-          >
-            <span className="statusbar-glyph" aria-hidden>
-              {slot.glyph}
-            </span>
-            <span className="statusbar-label">{tg(syncPhaseKey(slot.phase))}</span>
-          </button>
-        ))}
       </footer>
 
       <HostPicker

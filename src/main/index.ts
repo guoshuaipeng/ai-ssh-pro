@@ -3,6 +3,8 @@ import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
 import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
+import { applyBrandPresence, applyProductAppName, destroyBrandTray } from './brand-presence'
+import { trayHoverTitle } from '../shared/product'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
@@ -254,7 +256,7 @@ function createWindow(): void {
       // ESM 预加载脚本与 sandbox 并存时，部分环境下 preload 不执行 → window.aiss 不存在
       sandbox: false
     },
-    title: 'AI-SSH-Pro',
+    title: trayHoverTitle(),
     ...(existsSync(iconFile) ? { icon: nativeImage.createFromPath(iconFile) } : {}),
     ...(isMac
       ? {
@@ -277,6 +279,7 @@ function createWindow(): void {
           })
   })
 
+  applyBrandPresence(win, appIconPath())
   attachShowFallback(win)
 
   attachWebContentsDiagnostics(win)
@@ -1000,6 +1003,7 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.exit(0)
 } else {
+  applyProductAppName()
   /** 无窗口空闲一段时间后再退出，避免关窗后立刻再点图标撞上「锁还在、进程已死」 */
   const IDLE_QUIT_MS = 120_000
   let idleQuitTimer: ReturnType<typeof setTimeout> | null = null
@@ -1078,6 +1082,7 @@ if (!gotSingleInstanceLock) {
   app.on('before-quit', () => {
     isQuitting = true
     clearIdleQuitTimer()
+    destroyBrandTray()
     cleanupSessions()
   })
 

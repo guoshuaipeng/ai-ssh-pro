@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PRODUCT_NAME } from '@shared/product'
 import { GITHUB_REPO_URL, effectiveChannelLabel, loadUpdateChannelPrefs } from '@shared/update-channel'
 import { useI18n } from '../lib/i18n'
 import BrandMark from './BrandMark'
@@ -38,7 +39,7 @@ export default function AboutBlock({ version, isDev = false, checking = false, o
     <div className="about-block" data-testid="about-block" data-channel={loadUpdateChannelPrefs().channel}>
       <div className="about-brand-row">
         <BrandMark size={32} />
-        <div className="about-name">AI-SSH-Pro</div>
+        <div className="about-name">{PRODUCT_NAME}</div>
       </div>
       <p className="about-version-line">
         <button type="button" className="about-version-btn" data-testid="about-version" onClick={onWhatsNew}>
