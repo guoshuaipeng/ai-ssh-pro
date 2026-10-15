@@ -1,12 +1,16 @@
 /**
  * Core-A multi-turn evals. Every `*.json` file in tests/fixtures/core-a/ is a
- * scenario (S1–S22 and any later drop-in, including S20-N). The real planner
+ * scenario (S1–S23 and any later drop-in, including S20-N). The real planner
  * runs against the fixture's scripted model and a fake terminal.
  * S20: after contradictory filler, observational memory still has the original
  * rare-fact tokens, and the end must not adopt the filler's path, Use%, or host state.
  * S21: denying one HITL step mid-chain does not write that step or a later
  * file/host update, and does not treat the deny as success. The same chain
  * with every step approved still completes.
+ * S23: cancelling an HITL interrupt mid-plan is not a deny and not an execution.
+ * The loop returns to planning with no sticky interrupt. The next user turn can
+ * plan again. 证据不足 is only for a turn whose evidence is actually missing.
+ * Cancelled steps are not written and are not stored in recentCommands.
  * S22: a red unit test explains itself in human language and opens a
  * confirm-style patch draft. The factory does not auto-apply. Deny leaves
  * no patch on disk, and a half-written change is not success.
@@ -29,7 +33,16 @@ import {
   patchDraftConfirmCard,
   reviewNpmTestFailure
 } from '../src/main/core-a-tfl.ts'
-import { markHitlExecuting, patchWritePermitted, resumeHitl, sideEffectExecutionPermitted } from '../src/main/core-a-context.ts'
+import {
+  cancelHitl,
+  createHitlLoop,
+  hitlIsPlannable,
+  interruptForProposal,
+  markHitlExecuting,
+  patchWritePermitted,
+  resumeHitl,
+  sideEffectExecutionPermitted
+} from '../src/main/core-a-context.ts'
 import { loadPersistedCoreSession } from '../src/main/core-a-memory.ts'
 
 const memDir = mkdtempSync(join(tmpdir(), 'core-a-eval-mem-'))
@@ -115,12 +128,28 @@ type Expectation = {
   recentWindowMustNotContain?: string[]
   /** System prompt must not carry another host's facts (S18). */
   plannerPromptMustNotContain?: string[]
+  /**
+   * S23: cancel mid-plan. The cancelled command is not a write and not a deny.
+   * The loop is plannable again. Later scripted steps must not land.
+   */
+  midChainCancel?: {
+    cancelledCommand: string
+    keptCommands?: string[]
+    laterCommands?: string[]
+    leftoverMarkers: string[]
+  }
+  /** S23 next turn: a real plan. 证据不足 only when this turn has no evidence. */
+  freshPlan?: { evidencePresent?: boolean }
+  recentCommandsMustContain?: string[]
+  recentCommandsMustNotContain?: string[]
   hitl?: {
     minInterrupts?: number
-    resume?: 'approve' | 'deny'
-    /** Resume decisions in confirm order. Deny ≠ an approve of that step. */
-    decisions?: Array<'approve' | 'deny'>
+    resume?: 'approve' | 'deny' | 'cancel'
+    /** Resume decisions in confirm order. Cancel ≠ deny ≠ an executed step. */
+    decisions?: Array<'approve' | 'deny' | 'cancel'>
     interruptRisks?: string[]
+    /** After cancel, phase is planning and no confirm is still waiting. */
+    plannableAfterCancel?: boolean
   }
 }
 
@@ -130,8 +159,8 @@ type Turn = {
   mockTerminal?: { initialRing?: string; afterWrite?: Record<string, string> }
   userConfirm?: {
     policy?: string
-    /** Per confirm, in order. `per-step` fails closed once this list runs out. */
-    decisions?: Array<'approve' | 'deny'>
+    /** Per confirm, in order. `per-step` fails closed once this list runs out. `cancel` is not a deny. */
+    decisions?: Array<'approve' | 'deny' | 'cancel'>
     assert?: { stepHasRequestId?: boolean; autoApproved?: boolean; sshWriteBeforeApprove?: boolean; riskLevelMustBe?: string }
   }
   mockedPlannerSteps?: PlannerStep[]
@@ -313,10 +342,12 @@ async function drive(input: {
   let confirmError: Error | null = null
   const policy = input.turn.userConfirm?.policy ?? 'approve-all-commands'
   const decisions = [...(input.turn.userConfirm?.decisions ?? [])]
-  const takeDecision = (): boolean => {
-    if (decisions.length > 0) return decisions.shift() === 'approve'
-    if (policy === 'per-step') return false
-    return input.approve
+  const takeDecision = (): 'approve' | 'deny' | 'cancel' => {
+    const next = decisions.shift()
+    if (next === 'approve' || next === 'deny' || next === 'cancel') return next
+    if (policy === 'cancel') return 'cancel'
+    if (policy === 'per-step' || policy === 'deny' || policy === 'none') return 'deny'
+    return input.approve ? 'approve' : 'deny'
   }
   const confirmAssert = input.turn.userConfirm?.assert
   const settings = {
@@ -385,7 +416,9 @@ async function drive(input: {
             if (confirmAssert?.autoApproved === false) assert.notEqual(ev.autoApproved, true)
             if (confirmAssert?.riskLevelMustBe) assert.equal(ev.structured.riskLevel, confirmAssert.riskLevelMustBe)
             assert.notEqual(ev.autoApproved, true)
-            agent.resolveAiConfirmStep(requestId, takeDecision())
+            const choice = takeDecision()
+            if (choice === 'cancel') agent.cancelAiConfirmStep(requestId)
+            else agent.resolveAiConfirmStep(requestId, choice === 'approve')
           } catch (error) {
             confirmError = error instanceof Error ? error : new Error(String(error))
             agent.resolveAiConfirmStep(requestId, false)
@@ -455,7 +488,7 @@ function assertExpectation(
   turn: Turn,
   result: DriveResult,
   autoApproveLowRisk: boolean,
-  scope?: { hostId?: string; sessionId?: string }
+  scope?: { hostId?: string; sessionId?: string; historyKey?: string }
 ): void {
   const expected = turn.expected
   if (!expected) return
@@ -605,9 +638,17 @@ function assertExpectation(
     }
     if (expected.hitl.decisions) {
       const decisions = lines
-        .map((line) => /decision=(approve|deny)/.exec(line)?.[1])
-        .filter((item): item is 'approve' | 'deny' => item === 'approve' || item === 'deny')
+        .map((line) => /decision=(approve|deny|cancel)/.exec(line)?.[1])
+        .filter((item): item is 'approve' | 'deny' | 'cancel' => item === 'approve' || item === 'deny' || item === 'cancel')
       assert.deepEqual(decisions, expected.hitl.decisions, `${label}: HITL decisions ${decisions.join(',')}`)
+    }
+    if (expected.hitl.plannableAfterCancel) {
+      const cancelLine = lines.find((line) => line.includes('decision=cancel'))
+      assert.ok(cancelLine, `${label}: cancel did not record a decision`)
+      assert.match(cancelLine ?? '', /phase=planning/, `${label}: cancel left a phase other than planning`)
+      assert.match(cancelLine ?? '', /plannable=true/, `${label}: cancel was not plannable`)
+      assert.equal((cancelLine ?? '').includes('decision=deny'), false, `${label}: cancel was recorded as deny`)
+      assert.equal(agent.pendingAiConfirmCount(), 0, `${label}: confirm waiter stuck after cancel`)
     }
     const risks = interrupts.map((line) => /risk=(\S+)/.exec(line)?.[1] ?? '')
     for (const risk of expected.hitl.interruptRisks ?? []) {
@@ -620,8 +661,30 @@ function assertExpectation(
     )
   }
   if (!expected.ipc) assert.ok(result.events.some((event) => event.type === 'done'), `${label}: missing done`)
+  if (expected.freshPlan?.evidencePresent) {
+    assert.ok(ended && ended.type === 'step', `${label}: replan did not end`)
+    const description = ended && ended.type === 'step' ? ended.structured.description : ''
+    assert.equal(description.includes('证据不足'), false, `${label}: 证据不足 although this turn has evidence`)
+    const status = result.events
+      .filter((event) => event.type === 'status')
+      .map((event) => (event.type === 'status' ? event.text : ''))
+      .join('\n')
+    assert.equal(status.includes('证据不足'), false, `${label}: status claimed 证据不足`)
+  }
+  if (expected.recentCommandsMustContain || expected.recentCommandsMustNotContain) {
+    const persisted = scope?.sessionId ? loadPersistedCoreSession(scope.sessionId) : null
+    assert.ok(persisted, `${label}: session memory missing`)
+    const recent = persisted?.recentCommands ?? []
+    for (const command of expected.recentCommandsMustContain ?? []) {
+      assert.ok(recent.some((item) => item.includes(command)), `${label}: recent commands missing ${command}`)
+    }
+    for (const command of expected.recentCommandsMustNotContain ?? []) {
+      assert.equal(recent.some((item) => item.includes(command)), false, `${label}: recent commands contain ${command}`)
+    }
+  }
   assertHostState(turn, scope?.hostId)
   assertMidChainDeny(turn, result, scope)
+  assertMidChainCancel(turn, result, scope)
 }
 
 function hostBlob(hostId: string): string {
@@ -735,6 +798,114 @@ function assertMidChainDeny(
   assert.equal(endText.includes(denied), false, `${label}: replan treated the denied command as done`)
 }
 
+/**
+ * Cancel is not a deny and not an execution. The pure loop returns to planning
+ * and can interrupt again. The cancelled command is absent from writes, from
+ * recentCommands, and from the persisted session.
+ */
+function assertCancelReturnsToPlanning(): void {
+  const planned = createHitlLoop()
+  assert.equal(hitlIsPlannable(planned), true)
+  const interrupted = interruptForProposal(planned, {
+    action: 'command',
+    command: "printf 'S23_HALF_APPLIED' >> /etc/s23/half.conf",
+    riskLevel: 'high',
+    requestId: 's23-sticky'
+  })
+  assert.equal(hitlIsPlannable(interrupted), false)
+  assert.equal(sideEffectExecutionPermitted(interrupted), false)
+  const denied = resumeHitl(interrupted, false)
+  assert.equal(denied.phase, 'cancelled')
+  assert.equal(denied.resume, 'deny')
+  assert.equal(hitlIsPlannable(denied), false)
+  assert.equal(cancelHitl(denied).phase, 'cancelled', 'cancel must not rewrite a deny')
+  const cleared = cancelHitl(interrupted)
+  assert.equal(hitlIsPlannable(cleared), true)
+  assert.equal(sideEffectExecutionPermitted(markHitlExecuting(cleared)), false)
+  assert.equal(resumeHitl(cleared, true).phase, 'planning')
+  const replanned = interruptForProposal(cleared, {
+    action: 'command',
+    command: 'uptime',
+    riskLevel: 'low',
+    requestId: 's23-replan'
+  })
+  assert.equal(replanned.phase, 'interrupted')
+  assert.equal(replanned.command, 'uptime')
+  assert.notEqual(replanned.requestId, interrupted.requestId)
+}
+
+function persistedBlob(sessionId: string | undefined, historyKey: string | undefined): string {
+  const session = sessionId ? loadPersistedCoreSession(sessionId) : null
+  const thread = historyKey ? loadPersistedCoreSession(historyKey) : null
+  return JSON.stringify({ session, thread })
+}
+
+function assertMidChainCancel(
+  turn: Turn,
+  result: DriveResult,
+  scope?: { hostId?: string; sessionId?: string; historyKey?: string }
+): void {
+  const spec = turn.expected?.midChainCancel
+  if (!spec) return
+  assertCancelReturnsToPlanning()
+  const label = turn.turnId
+  const cancelled = spec.cancelledCommand
+  assert.equal(
+    result.writes.some((write) => write.includes(cancelled)),
+    false,
+    `${label}: cancelled command was written`
+  )
+  for (const write of result.writes) {
+    const body = write.replace(/\s+$/g, '')
+    const half = body.length > 0 && body !== cancelled && cancelled.startsWith(body)
+    assert.equal(half, false, `${label}: half-written prefix of cancelled command: ${body}`)
+  }
+  for (const command of spec.laterCommands ?? []) {
+    assert.equal(
+      result.writes.some((write) => write.includes(command)),
+      false,
+      `${label}: later command written after cancel: ${command}`
+    )
+  }
+  const resumeLines = hitlLines(result.events).filter((line) => line.includes('decision='))
+  const decisions = resumeLines.map((line) => /decision=(approve|deny|cancel)/.exec(line)?.[1] ?? '')
+  assert.ok(decisions.includes('cancel'), `${label}: missing cancel decision`)
+  assert.equal(decisions.includes('deny'), false, `${label}: cancel was recorded as deny`)
+  const cancelEvent = result.events.find((event) => event.type === 'cancelled')
+  assert.ok(cancelEvent && cancelEvent.type === 'cancelled', `${label}: cancel did not emit cancelled`)
+  const cancelMessage = cancelEvent && cancelEvent.type === 'cancelled' ? (cancelEvent.message ?? '') : ''
+  assert.equal(cancelMessage.includes('未同意') || cancelMessage.includes('declined'), false, `${label}: cancel copy is the deny copy`)
+  assert.ok(scope?.sessionId, `${label}: mid-chain cancel without a session id`)
+  const persisted = scope?.sessionId ? loadPersistedCoreSession(scope.sessionId) : null
+  assert.ok(persisted, `${label}: session memory missing after cancel`)
+  const recent = persisted?.recentCommands ?? []
+  assert.equal(
+    recent.some((command) => command.includes(cancelled)),
+    false,
+    `${label}: cancelled command recorded as a successful run`
+  )
+  for (const command of spec.keptCommands ?? []) {
+    assert.ok(result.writes.some((write) => write.includes(command)), `${label}: approved command missing from writes: ${command}`)
+    assert.ok(recent.some((item) => item.includes(command)), `${label}: approved command missing from recent commands: ${command}`)
+  }
+  const ends = result.events.filter((event) => event.type === 'step' && event.structured.action === 'end')
+  const endText = ends.map((event) => (event.type === 'step' ? event.structured.description : '')).join('\n')
+  const surface = [
+    result.writes.join('\n'),
+    result.served.join('\n'),
+    (persisted?.observations ?? []).join('\n'),
+    (persisted?.notes ?? []).join('\n'),
+    (persisted?.taskSummaries ?? []).join('\n'),
+    recent.join('\n'),
+    scope?.hostId ? hostBlob(scope.hostId) : '',
+    endText,
+    persistedBlob(scope?.sessionId, scope?.historyKey)
+  ].join('\n')
+  for (const marker of spec.leftoverMarkers) {
+    assert.equal(surface.includes(marker), false, `${label}: leftover marker ${marker}`)
+  }
+}
+
 async function runTurns(fixture: Fixture, turns: Turn[]): Promise<void> {
   const history: AiChatMessage[] = []
   for (const turn of turns) {
@@ -745,11 +916,12 @@ async function runTurns(fixture: Fixture, turns: Turn[]): Promise<void> {
         turn,
         sessionId: fixture.session.targetSessionId,
         history,
-        approve: turn.userConfirm?.policy !== 'deny'
+        approve: turn.userConfirm?.policy !== 'deny' && turn.userConfirm?.policy !== 'cancel'
       })
       assertExpectation(turn, result, false, {
         hostId: fixture.seedInventory?.hostId || fixture.hostProfile?.hostId,
-        sessionId: fixture.session.targetSessionId
+        sessionId: fixture.session.targetSessionId,
+        historyKey: fixture.session.historyKey
       })
       history.push(...assistantLines(result.events))
     } catch (error) {

@@ -17,7 +17,9 @@ import {
   confirmBypassAllowed,
   contextBudget,
   createEpisode,
+  cancelHitl,
   createHitlLoop,
+  hitlIsPlannable,
   interruptForProposal,
   markHitlExecuting,
   markHitlObserving,
@@ -335,6 +337,21 @@ ok(highRisk.phase === 'interrupted', 'high-risk command interrupts')
 const denied = resumeHitl(highRisk, false)
 ok(denied.phase === 'cancelled' && denied.resume === 'deny', 'decline cancels the interrupt')
 ok(sideEffectExecutionPermitted(markHitlExecuting(denied)) === false, 'a denied command never becomes executable')
+ok(hitlIsPlannable(denied) === false, 'a deny is not a plannable state')
+ok(cancelHitl(denied).phase === 'cancelled' && cancelHitl(denied).resume === 'deny', 'cancel does not rewrite a deny')
+const cancelled = cancelHitl(highRisk)
+ok(hitlIsPlannable(cancelled), 'cancel returns the interrupt to planning')
+ok(cancelled.phase === 'planning' && cancelled.resume == null && cancelled.command == null, 'cancel drops the proposal')
+ok(sideEffectExecutionPermitted(markHitlExecuting(cancelled)) === false, 'a cancelled command cannot write')
+ok(resumeHitl(cancelled, true).phase === 'planning', 'a cleared interrupt cannot be resumed')
+const replanned = interruptForProposal(cancelled, {
+  action: 'command',
+  command: 'uptime',
+  riskLevel: 'low',
+  requestId: 's23-replan'
+})
+ok(replanned.phase === 'interrupted' && replanned.command === 'uptime', 'a cleared loop can interrupt for a new plan')
+ok(replanned.requestId === 's23-replan', 'the new plan is not the cancelled request')
 const approved = markHitlExecuting(resumeHitl(highRisk, true))
 ok(approved.phase === 'executing' && approved.resume === 'approve', 'approve resumes into executing')
 ok(sideEffectExecutionPermitted(approved) === true, 'an approved command may write')
@@ -395,6 +412,8 @@ ok(agent.includes("kind: 'context'"), 'debug channel records context slices')
 ok(agent.includes('actionNeedsHumanInterrupt'), 'confirm-before-run goes through the interrupt helper')
 ok(agent.includes('interruptForProposal'), 'the tool loop enters an explicit interrupt')
 ok(agent.includes('resumeHitl'), 'confirm resumes the interrupt')
+ok(agent.includes('cancelHitl'), 'cancel returns the interrupt to planning')
+ok(agent.includes('HITL cancel'), 'debug records cancel separately from deny')
 ok(agent.includes('sideEffectExecutionPermitted'), 'SSH writes check the resume gate')
 ok(agent.includes('HITL interrupt'), 'debug records the interrupt phase')
 ok(agent.includes('HITL resume'), 'debug records the resume phase')
