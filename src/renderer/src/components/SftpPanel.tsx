@@ -718,6 +718,7 @@ export default function SftpPanel({
 
   const onDropRemote = (ev: React.DragEvent) => {
     ev.preventDefault()
+    if (readOnly || remoteWritesBlocked) return
     const internal = ev.dataTransfer.getData('application/x-aiss-sftp')
     if (internal) {
       try {
@@ -794,7 +795,7 @@ export default function SftpPanel({
   }
 
   const allowRemoteWrite = async (): Promise<boolean> => {
-    if (readOnly) return false
+    if (readOnly || remoteWritesBlocked) return false
     if (!beforeRemoteWrite) return true
     return beforeRemoteWrite()
   }
@@ -1294,7 +1295,7 @@ export default function SftpPanel({
         {showLocal ? renderPane('local') : null}
         {!narrow ? (
           <div className="sftp-mid">
-            <button type="button" disabled={!sessionId || readOnly || !localShown.some((e) => localSel[e.path] && !e.isDirectory)} title={roTitle} onClick={uploadSelected}>
+            <button type="button" data-testid="sftp-upload" disabled={!sessionId || readOnly || remoteWritesBlocked || !localShown.some((e) => localSel[e.path] && !e.isDirectory)} title={remoteWritesBlocked ? tg('s4.sftpDisabled') : roTitle} onClick={uploadSelected}>
               {tg('d1.toRemote')}
             </button>
             <button type="button" disabled={!sessionId || !remoteShown.some((e) => remoteSel[e.path] && !e.isDirectory)} onClick={downloadSelected}>

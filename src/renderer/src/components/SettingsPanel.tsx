@@ -28,6 +28,7 @@ import TerminalPrefsModal from './TerminalPrefsModal'
 import { confirmDialog } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
 import AboutBlock from './AboutBlock'
+import ReconnectPolicySection from './ReconnectPolicySection'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
 
@@ -70,6 +71,7 @@ type Props = {
   tagOptions?: string[]
   onOpenTemplates?: () => void
   onOpenGate?: () => void
+  settingsAnchor?: string | null
 }
 
 export default function SettingsPanel({
@@ -95,7 +97,8 @@ export default function SettingsPanel({
   onProbePrefs,
   tagOptions,
   onOpenTemplates,
-  onOpenGate
+  onOpenGate,
+  settingsAnchor
 }: Props) {
   const { t, locale, setLocale } = useI18n()
   const [q, setQ] = useState('')
@@ -279,6 +282,7 @@ export default function SettingsPanel({
               </label>
               <p className="l7-muted">{t('settings.agent')}</p>
               <p className="l7-muted">{t('settings.keepalive')}</p>
+              <ReconnectPolicySection anchor={settingsAnchor} />
             </section>
           ) : null}
           {active === 'ops' ? (

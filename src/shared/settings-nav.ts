@@ -21,7 +21,7 @@ export const SETTINGS_SEARCH_TERMS: Record<SettingsSection, readonly string[]> =
   general: ['更新', 'update', '语言', 'language', '启动', 'startup'],
   appearance: ['主题', 'theme', '外观', 'appearance', '图标'],
   terminal: ['终端', 'terminal', '字体', 'font'],
-  connections: ['连接', '密钥', 'key', 'agent', '保活'],
+  connections: ['连接', '密钥', 'key', 'agent', '保活', '重连', 'reconnect', 'keep-alive'],
   ops: ['采样', '告警', 'probe', '健康'],
   ai: ['密钥', 'key', 'api', '模型', 'model'],
   shortcuts: ['快捷键', 'shortcut'],

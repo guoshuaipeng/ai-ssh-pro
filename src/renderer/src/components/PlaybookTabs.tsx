@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CommandSnippet, SavedSessionProfile } from '@shared/ipc'
 import { effectiveLevel } from '@shared/protection'
+import { playbookRunDisabled, stricterLevel } from '@shared/readonly-session'
 import {
   AUTOSAVE_MS,
   DEFAULT_PARALLEL,
@@ -54,13 +55,13 @@ export function loadLastResult(): PlaybookRunResult | null {
   return loadResults()[0] ?? null
 }
 
-function hostsFrom(profiles: SavedSessionProfile[], live: Map<string, string>): PlaybookHost[] {
+function hostsFrom(profiles: SavedSessionProfile[], live: Map<string, string>, sessionReadonly?: Readonly<Record<string, boolean>>): PlaybookHost[] {
   return profiles.map((p) => ({
     id: p.id,
     name: p.label || p.host,
     user: p.username,
     host: p.host,
-    level: effectiveLevel(p),
+    level: stricterLevel(effectiveLevel(p), Boolean(sessionReadonly?.[p.id])),
     sessionId: live.get(p.id)
   }))
 }
@@ -386,6 +387,7 @@ export function PlaybookRun({
   profiles,
   live,
   snippets: snippetsProp,
+  sessionReadonly,
   onResult,
   onClose
 }: {
@@ -393,6 +395,7 @@ export function PlaybookRun({
   profiles: SavedSessionProfile[]
   live: Map<string, string>
   snippets?: CommandSnippet[]
+  sessionReadonly?: Readonly<Record<string, boolean>>
   onResult: (result: PlaybookRunResult) => void
   onClose: () => void
 }) {
@@ -405,7 +408,7 @@ export function PlaybookRun({
     void window.aiss.snippets.list().then(setSnippets).catch(() => undefined)
   }, [snippetsProp])
   const playbook = useMemo(() => loadPlaybooks().find((p) => p.id === playbookId) ?? null, [playbookId])
-  const hosts = useMemo(() => hostsFrom(profiles, live), [profiles, live])
+  const hosts = useMemo(() => hostsFrom(profiles, live, sessionReadonly), [profiles, live, sessionReadonly])
   const [picked, setPicked] = useState<string[]>(() => initialHostIds({ targetHint: playbook?.targetHint }))
   const [mode, setMode] = useState<'parallel' | 'serial'>('parallel')
   const [limit, setLimit] = useState(DEFAULT_PARALLEL)
@@ -572,7 +575,16 @@ export function PlaybookRun({
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{playbook.name}</h2>
         <div className="workspace-panel-actions">
-          {fresh && dry?.okToStart ? (
+          {playbookRunDisabled(selected.map((h) => h.level)) ? (
+            <>
+              <button type="button" data-testid="w2-dry" disabled={running || !selected.length || !playbook.steps.length} onClick={runDry}>
+                {tg('w2.dryRun')}
+              </button>
+              <button type="button" className="primary" data-testid="w2-start" disabled title={tg('s4.runDisabled')}>
+                {tg('w2.start')}
+              </button>
+            </>
+          ) : fresh && dry?.okToStart ? (
             <button type="button" className="primary" data-testid="w2-start" disabled={running} onClick={() => void start()}>
               {prodCount ? tg('w2.startProd', { k: prodCount }) : tg('w2.start')}
             </button>

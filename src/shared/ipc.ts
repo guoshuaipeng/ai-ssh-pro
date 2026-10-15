@@ -68,6 +68,12 @@ export type SshConnectOptions = {
   forwards?: LocalPortForward[]
   /** G1: simulated read-only demo host (no network) */
   demo?: boolean
+  /** L9: null/0 disables TCP keep-alive. Omitted keeps the historical 15s interval. */
+  keepAliveSec?: number | null
+  /** L9: 1-based hop to resume from. Earlier hops are reused and skip host-key prompts. */
+  resumeFromHop?: number
+  /** L9: park successful hops when a later hop fails so the next attempt can resume. */
+  jumpRetryFromFailedHop?: boolean
 }
 
 export type SshConnectResult = {

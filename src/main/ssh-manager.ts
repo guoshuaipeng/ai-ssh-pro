@@ -7,6 +7,7 @@ import type { WebContents } from 'electron'
 import { Client, type ClientChannel, type ConnectConfig } from 'ssh2'
 import { applyConnectAuth } from './ssh-auth'
 import { chainFromProfile, formatHopFailure } from '../shared/jump-chain'
+import { keepaliveIntervalMs } from '../shared/reconnect-policy'
 import { randomUUID } from 'node:crypto'
 import { StringDecoder } from 'node:string_decoder'
 import { attachClientGuards } from './ssh-guards'
@@ -30,7 +31,6 @@ import { isDemoSessionId } from '../shared/demo-host'
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
 const RING_MAX_LINES = 4000
-const KEEPALIVE_INTERVAL_MS = 15_000
 const KEEPALIVE_COUNT_MAX = 3
 
 /** 与 OpenSSH 类似：未指定私钥时尝试默认路径（仅在没有密码时） */
@@ -179,8 +179,33 @@ export type ManagedSession = {
   ownsClient: boolean
 }
 
+type JumpSlot = { clients: Client[]; at: number }
+
+function endQuiet(client: Client): void {
+  try {
+    client.end()
+  } catch {
+    /* ignore */
+  }
+}
+
+function jumpSlotKey(opts: SshConnectOptions): string {
+  const hops = chainFromProfile({ jumpChain: opts.jumpChain, jumpHost: opts.jumpHost })
+  const chain = hops.map((h) => `${h.username}@${h.host}:${h.port || 22}`).join('|')
+  return `${chain}>${opts.username}@${opts.host.trim()}:${opts.port ?? 22}`
+}
+
 export class SshSessionManager {
   private sessions = new Map<string, ManagedSession>()
+  /** Successful jump clients parked after a later hop failed. */
+  private jumpSlots = new Map<string, JumpSlot>()
+
+  private dropJumpSlot(key: string): void {
+    const slot = this.jumpSlots.get(key)
+    if (!slot) return
+    this.jumpSlots.delete(key)
+    for (const client of slot.clients) endQuiet(client)
+  }
 
   get(sessionId: string): ManagedSession | undefined {
     return this.sessions.get(sessionId)
@@ -340,9 +365,32 @@ export class SshSessionManager {
 
     const hasAuth = (cfg: ConnectConfig) => Boolean(cfg.password || cfg.privateKey || cfg.agent)
 
+    const slotKey = jumpSlotKey(opts)
+    const keepaliveInterval = keepaliveIntervalMs(opts.keepAliveSec)
+    const preferResume = opts.jumpRetryFromFailedHop !== false
     try {
       let sock: import('stream').Duplex | undefined
-      for (let i = 0; i < hops.length; i++) {
+      let start = 0
+      if (!opts.resumeFromHop) this.dropJumpSlot(slotKey)
+      else if (preferResume && opts.resumeFromHop > 1) {
+        const slot = this.jumpSlots.get(slotKey)
+        if (slot && slot.clients.length >= opts.resumeFromHop - 1) {
+          const kept = slot.clients.slice(0, opts.resumeFromHop - 1)
+          this.jumpSlots.delete(slotKey)
+          jumpClients.push(...kept)
+          const next = opts.resumeFromHop - 1 < hops.length ? hops[opts.resumeFromHop - 1]! : { host, port }
+          try {
+            sock = await forwardOutToTarget(kept[kept.length - 1]!, next.host, next.port || 22)
+            start = opts.resumeFromHop - 1
+          } catch {
+            for (const client of kept) endQuiet(client)
+            jumpClients.length = 0
+            sock = undefined
+            start = 0
+          }
+        }
+      }
+      for (let i = start; i < hops.length; i++) {
         const hop = hops[i]!
         const client = new Client()
         jumpClients.push(client)
@@ -351,7 +399,7 @@ export class SshSessionManager {
           port: hop.port || 22,
           username: hop.username,
           readyTimeout: 20000,
-          keepaliveInterval: KEEPALIVE_INTERVAL_MS,
+          keepaliveInterval,
           keepaliveCountMax: KEEPALIVE_COUNT_MAX,
           hostVerifier: makeHostVerifier(owner, hop.host, hop.port || 22, { hopIndex: i + 1, hopTotal: hops.length }),
           ...(sock ? { sock } : {})
@@ -373,6 +421,13 @@ export class SshSessionManager {
           sock = await forwardOutToTarget(client, next.host, next.port || 22)
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err)
+          if (i > 0 && preferResume) {
+            const kept = jumpClients.slice(0, i)
+            const failed = jumpClients.slice(i)
+            jumpClients.length = 0
+            for (const dead of failed) endQuiet(dead)
+            if (kept.length) this.jumpSlots.set(slotKey, { clients: kept, at: Date.now() })
+          }
           throw new Error(formatHopFailure(i + 1, hops.length, hop.label || hop.host, `${hop.host}:${hop.port || 22}`, reason))
         }
       }
@@ -380,7 +435,7 @@ export class SshSessionManager {
       const targetConfig: ConnectConfig = {
         username,
         readyTimeout: 20000,
-        keepaliveInterval: KEEPALIVE_INTERVAL_MS,
+        keepaliveInterval,
         keepaliveCountMax: KEEPALIVE_COUNT_MAX,
         hostVerifier: makeHostVerifier(owner, host, port),
         ...(sock ? { sock } : { host, port })
@@ -388,6 +443,7 @@ export class SshSessionManager {
       await applyAuth(targetConfig, opts, { allowDefaultKey: opts.authMode !== 'agent' })
       if (!hasAuth(targetConfig)) throw new Error(authMissing)
       await connectClient(targetClient, targetConfig)
+      this.jumpSlots.delete(slotKey)
     } catch (e) {
       failCleanup()
       throw e instanceof Error ? e : new Error(String(e))

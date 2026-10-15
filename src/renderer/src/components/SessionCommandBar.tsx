@@ -5,6 +5,7 @@ import { useI18n } from '../lib/i18n'
 import { notifyHistoryChanged } from '../lib/workspace-events'
 import CommandInput from './CommandInput'
 import { assessCommandRisk } from '../../../shared/command-risk'
+import { clearStagedCommands, currentReconnectEpoch, noteStagedCommand } from '@shared/reconnect-policy'
 import { explainCommand } from '../../../shared/command-explain'
 import { askConfirm } from '../lib/dialogs'
 import { COMMAND_BAR_AI_MODE_EVENT, COMMAND_BAR_FILL_EVENT, aiHasKey, flashAiConfig, noteSubmitted } from '../lib/ai-events'
@@ -202,16 +203,27 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       return
     }
     const risk = assessCommandRisk(command)
+    const epoch = currentReconnectEpoch()
+    noteStagedCommand({ command, dangerous: Boolean(risk), confirmed: false })
     if (beforeSend) {
       const ok = await beforeSend(command, Boolean(risk))
-      if (!ok) return
+      if (!ok) {
+        clearStagedCommands()
+        return
+      }
     } else if (risk) {
       const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${command}`, { id: 'confirm.dangerCommand', danger: true, okLabel: t('risk.run') })
       if (!ok) {
+        clearStagedCommands()
         setError(t('risk.blocked'))
         return
       }
     }
+    if (epoch !== currentReconnectEpoch()) {
+      clearStagedCommands()
+      return
+    }
+    noteStagedCommand({ command, dangerous: Boolean(risk), confirmed: true })
     setBusy(true)
     setError(null)
     try {
@@ -220,6 +232,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       notifyHistoryChanged()
       noteSubmitted(sessionId, command)
       const ok = await window.aiss.ssh.write(sessionId, `${command}\r`)
+      clearStagedCommands()
       if (!ok) setError(t('history.sendFailed'))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

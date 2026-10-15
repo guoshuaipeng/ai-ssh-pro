@@ -27,6 +27,8 @@ type Props = {
   initialTab?: ServerToolsTab
   onClose: () => void
   embedded?: boolean
+  /** S4: kill and service start/stop/restart stay disabled. */
+  writesDisabled?: boolean
 }
 
 const cleanErr = (e: unknown) =>
@@ -35,7 +37,7 @@ const cleanErr = (e: unknown) =>
 const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs', 'df', 'docker']
 
 /** Processes, systemd services, listening ports and log tail of one connected Linux host. */
-export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded }: Props) {
+export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded, writesDisabled = false }: Props) {
   const { t } = useI18n()
   const [sessionId, setSessionId] = useState('')
   const [tab, setTab] = useState<ServerToolsTab>('processes')
@@ -72,7 +74,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
     }
   }, [])
 
-  const common = { sessionId, sudo, busy, guard, setNotice, t }
+  const common = { sessionId, sudo, busy, guard, setNotice, t, writesDisabled }
 
   return (
     <Modal open={open || !!embedded} title={t('st.title')} onClose={onClose} width={900} embedded={embedded} testId="server-tools-panel">
@@ -133,6 +135,7 @@ type TabProps = {
   sessionId: string
   sudo: boolean
   busy: boolean
+  writesDisabled?: boolean
   guard: <T>(fn: () => Promise<T>) => Promise<T | undefined>
   setNotice: (s: string | null) => void
   t: ReturnType<typeof useI18n>['t']
@@ -218,7 +221,7 @@ function DiskTab({ sessionId, busy, guard, t }: TabProps) {
   )
 }
 
-function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
+function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisabled }: TabProps) {
   const [list, setList] = useState<ProcInfo[] | null>(null)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<ProcSort>('cpu')
@@ -297,13 +300,13 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
                     {p.command}
                   </td>
                   <td className="st-actions st-actions--hover">
-                    <button type="button" className="st-icon-btn" onClick={() => void kill(p, 'TERM')} disabled={busy} title={t('st.termHint')} aria-label={t('st.term')}>
+                    <button type="button" className="st-icon-btn" onClick={() => void kill(p, 'TERM')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : t('st.termHint')} aria-label={t('st.term')}>
                       <Icon name="square" size={12} />
                     </button>
                     <details className="st-more">
                       <summary className="st-icon-btn" title="…" aria-label="…">⋯</summary>
                       <div className="st-more-menu">
-                        <button type="button" className="danger" onClick={() => void kill(p, 'KILL')} disabled={busy} title={t('st.killHint')}>
+                        <button type="button" className="danger" onClick={() => void kill(p, 'KILL')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : t('st.killHint')}>
                           {t('st.kill')} (kill -9)
                         </button>
                       </div>
@@ -319,7 +322,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
   )
 }
 
-function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
+function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisabled }: TabProps) {
   const [list, setList] = useState<ServiceInfo[] | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<ServiceFilter>('all')
@@ -409,15 +412,15 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
                     </button>
                     {s.sub === 'running' ? (
                       <>
-                        <button type="button" onClick={() => void act(s, 'restart')} disabled={busy}>
+                        <button type="button" onClick={() => void act(s, 'restart')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : undefined}>
                           {t('st.svc.restart')}
                         </button>
-                        <button type="button" className="danger" onClick={() => void act(s, 'stop')} disabled={busy}>
+                        <button type="button" className="danger" onClick={() => void act(s, 'stop')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : undefined}>
                           {t('st.svc.stop')}
                         </button>
                       </>
                     ) : (
-                      <button type="button" onClick={() => void act(s, 'start')} disabled={busy}>
+                      <button type="button" onClick={() => void act(s, 'start')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : undefined}>
                         {t('st.svc.start')}
                       </button>
                     )}
