@@ -1,0 +1,102 @@
+{
+  "id": "S18",
+  "title": "Host A fact must not appear in host B planner prompts",
+  "industryBar": ["host-scope", "session-isolation"],
+  "hostProfile": {
+    "hostId": "host-s18-b",
+    "label": "host-b-lab",
+    "hostname": "host-b.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s18-b",
+    "historyKey": "hist-s18-host-b"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "seedInventory": {
+    "hostId": "host-s18-b",
+    "services": [
+      {
+        "name": "hostb-plain-http",
+        "kind": "systemd",
+        "ports": [80],
+        "notes": "HOST_B_ONLY_WEB ordinary web"
+      }
+    ],
+    "notes": ["HOST_B_ONLY_WEB"]
+  },
+  "isolationPrelude": {
+    "hostProfile": {
+      "hostId": "host-s18-a",
+      "label": "host-a-lab",
+      "hostname": "host-a.internal"
+    },
+    "session": {
+      "targetSessionId": "sess-s18-a",
+      "historyKey": "hist-s18-host-a"
+    },
+    "seedInventory": {
+      "hostId": "host-s18-a",
+      "services": [
+        {
+          "name": "zephyr-edge-18447",
+          "kind": "systemd",
+          "ports": [18447],
+          "notes": "RARE_PORT_18447 listen loopback only"
+        }
+      ],
+      "notes": ["RARE_PORT_18447 zephyr-edge-18447"]
+    },
+    "turns": [
+      {
+        "turnId": "S18-A1",
+        "userMessage": "这台机器的档案里有什么？只看当前主机。",
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "当前主机档案已读到，本步结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "memoryMustRetain": ["zephyr-edge-18447", "RARE_PORT_18447"]
+        }
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "S18-B1",
+      "userMessage": "这台机器的档案里有哪些服务？只回答当前主机会话。",
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "当前档案只有 hostb-plain-http，没有其它主机的服务。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "memoryMustRetain": ["hostb-plain-http", "HOST_B_ONLY_WEB"],
+        "plannerPromptMustNotContain": ["zephyr-edge-18447", "RARE_PORT_18447"],
+        "recentWindowMustNotContain": ["zephyr-edge-18447", "RARE_PORT_18447"],
+        "descriptionMustContain": ["hostb-plain-http"],
+        "descriptionMustNotContain": ["zephyr-edge-18447", "RARE_PORT_18447", "18447"]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Host A inventory and thread hold zephyr-edge-18447 / RARE_PORT_18447",
+    "Host B uses a different historyKey and hostInventoryId",
+    "Host B planner prompts do not contain host A's service name or rare port"
+  ]
+}
