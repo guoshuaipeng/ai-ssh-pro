@@ -119,8 +119,13 @@ assert.ok(app.includes('data-testid="tab-overflow"'))
 assert.equal(pkg.version, '0.4.4')
 assert.match(pkg.scripts.test, /scripts\/test-ix6-split-close\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
-const ix6 = unreleased.indexOf('IX-6')
-const ix5 = unreleased.indexOf('IX-5')
+/** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */
+function unreleasedBulletAt(section: string, id: string): number {
+  const m = new RegExp(`^- \\*\\*[^\\n*]*（${id}）`, 'm').exec(section)
+  return m ? m.index : -1
+}
+const ix6 = unreleasedBulletAt(unreleased, 'IX-6')
+const ix5 = unreleasedBulletAt(unreleased, 'IX-5')
 assert.ok(ix6 >= 0 && ix5 > ix6, 'IX-6 sits in Unreleased ahead of IX-5')
 const bullet = unreleased.slice(ix6, ix5)
 assert.match(bullet, /Public HOLD/)

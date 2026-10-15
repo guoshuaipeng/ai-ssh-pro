@@ -327,8 +327,13 @@ assert.match(app, /ux45\.finishDialog/)
 assert.match(app, /opsBlocked\.has\(action\) && isDialogOpen\(\)/)
 
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
-const ix3 = unreleased.indexOf('IX-3')
-const n2 = unreleased.indexOf('UI-N2')
+/** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */
+function unreleasedBulletAt(section: string, id: string): number {
+  const m = new RegExp(`^- \\*\\*[^\\n*]*（${id}）`, 'm').exec(section)
+  return m ? m.index : -1
+}
+const ix3 = unreleasedBulletAt(unreleased, 'IX-3')
+const n2 = unreleasedBulletAt(unreleased, 'UI-N2')
 assert.ok(ix3 >= 0 && n2 > ix3, 'IX-3 sits in Unreleased ahead of UI-N2')
 const ix3Bullet = unreleased.slice(ix3, n2)
 assert.match(ix3Bullet, /Public HOLD/)

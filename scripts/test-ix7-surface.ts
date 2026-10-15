@@ -204,9 +204,17 @@ assert.match(narrow, /\.main\s*\{[^}]*min-width:\s*0/)
 assert.equal(pkg.version, '0.4.4')
 assert.match(pkg.scripts.test, /scripts\/test-ix7-surface\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
-const ix7 = unreleased.indexOf('IX-7')
-const ix6 = unreleased.indexOf('IX-6')
+/** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */
+function unreleasedBulletAt(section: string, id: string): number {
+  const m = new RegExp(`^- \\*\\*[^\\n*]*（${id}）`, 'm').exec(section)
+  return m ? m.index : -1
+}
+const ix7 = unreleasedBulletAt(unreleased, 'IX-7')
+const ix6 = unreleasedBulletAt(unreleased, 'IX-6')
 assert.ok(ix7 >= 0 && ix6 > ix7, 'IX-7 sits in Unreleased ahead of IX-6')
+assert.equal(unreleased.slice(ix7, ix6).includes('IX-3'), false)
+assert.equal(unreleased.slice(ix7, ix6).includes('IX-5'), false)
+assert.equal(unreleased.slice(ix7, ix6).includes('IX-6'), false)
 const bullet = unreleased.slice(ix7, ix6)
 assert.match(bullet, /Public HOLD/)
 assert.match(bullet, /0\.4\.4/)
