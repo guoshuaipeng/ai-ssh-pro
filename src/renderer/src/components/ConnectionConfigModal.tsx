@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import { ProtectionLevelField } from './ProtectionSection'
 import JumpChainEditor from './JumpChainEditor'
@@ -11,6 +11,8 @@ export type ConnectionConfigModalProps = {
   saveProfileButtonLabel?: string
   onClose: () => void
   error: string | null
+  /** PNG-5: structured connect-failure card. Replaces the bare error line. */
+  notice?: ReactNode
   host: string
   setHost: (v: string) => void
   port: string
@@ -74,6 +76,7 @@ export default function ConnectionConfigModal({
   saveProfileButtonLabel = tg('conn.save'),
   onClose,
   error,
+  notice,
   host,
   setHost,
   port,
@@ -160,7 +163,7 @@ export default function ConnectionConfigModal({
       </div>
 
       <div className="workspace-panel-body workspace-panel-body--editor conn-form-body">
-        {error ? <div className="ws-error">{error}</div> : null}
+        {notice ?? (error ? <div className="ws-error">{error}</div> : null)}
 
         <div className="conn-form-col">
           <section className="conn-card conn-smart-fill">

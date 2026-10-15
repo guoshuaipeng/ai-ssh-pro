@@ -59,9 +59,9 @@ import {
   type FiredAlert
 } from '@shared/alert-rules'
 import { friendlyError, friendlyErrorMessage, stripIpcPrefix } from './lib/friendly-error'
-import { noticeHost, noticeKind, type NoticeKind } from '@shared/product-error'
+import { isEngineerLeak, noticeHost, noticeKind, type NoticeKind } from '@shared/product-error'
 import ErrorNotice from './components/ErrorNotice'
-import ConnectTrouble from './components/ConnectTrouble'
+import ConnectTrouble, { PNG5_CAUSE } from './components/ConnectTrouble'
 import { placeMenu } from '@shared/menu-place'
 import { hostMenuItems, tabMenuItems, type HostMenuCtx, type MenuEntry, type TabMenuCtx } from '@shared/inline-menus'
 import { BuiltMenu } from './components/BuiltMenu'
@@ -162,7 +162,7 @@ import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { type SyncPhase } from '@shared/sync-vault'
 import { disconnectStatusSentence, statusBarSlots } from '@shared/status-bar'
 import { trayHoverTitle } from '@shared/product'
-import { showConnectionTrouble } from '@shared/connect-trouble'
+import { connectionTechnicalDetail, showConnectionTrouble, troubleshootConnection } from '@shared/connect-trouble'
 import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
 import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
 import { connectOptsFromProfile } from './lib/connect-opts'
@@ -411,7 +411,7 @@ type Tab = {
   openSeq?: number
   /** L2d preset when the maintenance tab opens */
   maintHostKeys?: string[]
-  /** PNG-5: raw connect failure, used for the troubleshooting checklist. */
+  /** PNG-5: raw connect failure, kept for the triage card's collapsed detail. */
   failRaw?: string
 }
 
@@ -637,22 +637,55 @@ export default function App() {
   const failedProfileIdRef = useRef<string | null>(null)
   const [updateChecking, setUpdateChecking] = useState(false)
   const openSettingsRef = useRef<(section: SettingsSection) => void>(() => undefined)
-  const noteFailure = useCallback((raw: unknown, forced?: NoticeKind) => {
+  const noteFailure = useCallback((raw: unknown, forced?: NoticeKind): string => {
     const fe = friendlyError(raw, { locale })
-    const blob = `${fe.message}\n${fe.detail ?? ''}\n${raw instanceof Error ? raw.message : String(raw ?? '')}`
+    const rawText = raw instanceof Error ? raw.message : String(raw ?? '')
+    const blob = `${fe.message}\n${fe.detail ?? ''}\n${rawText}`
     const kind = forced ?? noticeKind(blob)
-    const detail = stripIpcPrefix(fe.detail || (raw instanceof Error ? raw.message : String(raw ?? '')))
+    const detail = connectionTechnicalDetail(rawText || fe.detail || '')
+    const item = troubleshootConnection(blob)
+    const loc = locale === 'en' ? 'en' : 'zh-CN'
     setErrorKind(kind)
-    setErrorRaw(raw instanceof Error ? raw.message : String(raw ?? ''))
+    setErrorRaw(rawText)
     setErrorDetail(detail && detail !== fe.message ? detail : null)
+    if (showConnectionTrouble(kind, blob) || showConnectionTrouble(kind, rawText)) {
+      const host = noticeHost(blob)
+      const cause = item.id === 'dropped' ? disconnectStatusSentence(host, loc) : tg(PNG5_CAUSE[item.id])
+      setError(cause)
+      if (detail) setErrorDetail(detail)
+      return cause
+    }
     if (kind === 'unreachable') {
       const host = noticeHost(blob)
-      setError(tg('pf5.sshUnreachable', { host: host || tg('pf5.thisHost') }))
-    } else if (kind === 'auth') setError(tg('pf5.auth'))
-    else if (kind === 'dropped') setError(tg('pf5.dropped'))
-    else if (kind === 'permission') setError(tg('pf5.sftpPerm'))
-    else if (kind === 'import') setError(tg('pf5.importFail'))
-    else setError(fe.message)
+      const cause = tg('pf5.sshUnreachable', { host: host || tg('pf5.thisHost') })
+      setError(cause)
+      return cause
+    }
+    if (kind === 'auth') {
+      setError(tg('pf5.auth'))
+      return tg('pf5.auth')
+    }
+    if (kind === 'dropped') {
+      const cause = disconnectStatusSentence(noticeHost(blob), loc)
+      setError(cause)
+      return cause
+    }
+    if (kind === 'permission') {
+      setError(tg('pf5.sftpPerm'))
+      return tg('pf5.sftpPerm')
+    }
+    if (kind === 'import') {
+      setError(tg('pf5.importFail'))
+      return tg('pf5.importFail')
+    }
+    if (isEngineerLeak(fe.message)) {
+      const cause = tg('png5.cause.generic')
+      setError(cause)
+      setErrorDetail(detail || fe.message)
+      return cause
+    }
+    setError(fe.message)
+    return fe.message
   }, [locale])
 
   const [smartPaste, setSmartPaste] = useState('')
@@ -922,6 +955,8 @@ export default function App() {
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null)
   const [recentKeys, setRecentKeys] = useState<string[]>([])
   const lastConnectErrorRef = useRef<string | null>(null)
+  /** PNG-5: keep the failure card mounted so the primary button can show a loading guard. */
+  const failureHoldRef = useRef(false)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
   const batchBusyRef = useRef(false)
@@ -1222,7 +1257,7 @@ export default function App() {
       const quiet = Boolean(extra?.quiet)
       const focus = extra?.focus ?? !quiet
       if (!quiet) {
-        setError(null)
+        if (!failureHoldRef.current) setError(null)
         lastConnectErrorRef.current = null
         setConnecting(true)
       }
@@ -1300,6 +1335,7 @@ export default function App() {
           }
         }
         if (!quiet) {
+          setError(null)
           setJumpFail(null)
           setHopProgress(null)
         }
@@ -1318,13 +1354,7 @@ export default function App() {
           setHopProgress(null)
           setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: extra?.profileId } : null)
           failedProfileIdRef.current = extra?.profileId ?? null
-          if (hop) {
-            setErrorKind('generic')
-            setErrorDetail(stripIpcPrefix(raw))
-            setError(shown)
-          } else noteFailure(raw)
-          lastConnectErrorRef.current = shown
-          setErrorRaw(raw)
+          lastConnectErrorRef.current = noteFailure(raw)
         }
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected', failRaw: raw } : t))
@@ -1565,7 +1595,7 @@ export default function App() {
       const tab = tabsRef.current.find((t) => t.tabId === tabId)
       if (!tab || tab.status !== 'disconnected') return null
       const quiet = Boolean(how?.quiet)
-      if (!quiet) setError(null)
+      if (!quiet && !failureHoldRef.current) setError(null)
       setReconnectingTabId(tabId)
       const policy = policyRef.current
       const hop = jumpFailRef.current
@@ -1624,6 +1654,7 @@ export default function App() {
         )
         notifyRecentChanged()
         if (!quiet) {
+          setError(null)
           setJumpFail(null)
           setHopProgress(null)
         }
@@ -1639,8 +1670,8 @@ export default function App() {
         if (!quiet) {
           setHopProgress(null)
           setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: tab.profileId } : null)
-          setErrorRaw(raw)
-          setError(shown)
+          if (tab.profileId) failedProfileIdRef.current = tab.profileId
+          lastConnectErrorRef.current = noteFailure(raw)
         }
         setTabs((prev) => prev.map((t) => (t.tabId === tabId ? { ...t, failRaw: raw } : t)))
         how?.onError?.(shown)
@@ -5760,6 +5791,40 @@ export default function App() {
 
   const closeTip = tr(closeControlTipKey(terminalFocused))
 
+  const failureHostLabel = () => {
+    const id = failedProfileIdRef.current || selectedProfileId
+    const row = profiles.find((p) => p.id === id)
+    return row?.label?.trim() || row?.host || noticeHost(errorRaw || '')
+  }
+  const openFailedConnection = (focus?: 'jump' | 'cert' | null) => {
+    const id = failedProfileIdRef.current || selectedProfileId
+    openConnectionEditor(profiles.find((p) => p.id === id), focus ?? null)
+  }
+  const retryFailedConnection = () => {
+    if (failureHoldRef.current || connecting || reconnectingTabId !== null) return
+    failureHoldRef.current = true
+    const id = failedProfileIdRef.current || selectedProfileId
+    const tab = tabs.find((x) => x.profileId === id && (!x.view || x.view === 'session') && x.status !== 'connected')
+    const release = () => {
+      failureHoldRef.current = false
+    }
+    if (tab) void reconnectTab(tab.tabId).finally(release)
+    else {
+      const row = profiles.find((p) => p.id === id)
+      if (row) void connectProfile(row).finally(release)
+      else release()
+    }
+  }
+  const failureCard = errorRaw && showConnectionTrouble(errorKind, errorRaw) ? (
+    <ConnectTrouble
+      raw={errorRaw}
+      host={failureHostLabel()}
+      busy={connecting || reconnectingTabId !== null}
+      onEdit={openFailedConnection}
+      onRetry={retryFailedConnection}
+    />
+  ) : null
+
   return (
     <div className="app-root" data-product-layer={product ?? 'none'} data-product-dimmers={productDimmers}>
       <AppToolbar
@@ -5859,7 +5924,7 @@ export default function App() {
                   demoRenamed={profiles.some((p) => p.id === DEMO_PROFILE_ID && p.demoRenamed)}
                 />
                 {error && activeTab?.view !== 'connection' && (
-                  <>
+                  failureCard ?? (
                   <ErrorNotice
                     message={error}
                     detail={errorKind === 'unreachable' ? [tg('pf5.sshWhy'), errorDetail].filter(Boolean).join('\n') : errorDetail}
@@ -5912,8 +5977,7 @@ export default function App() {
                       </>
                     }
                   />
-                  {errorRaw && showConnectionTrouble(errorKind, errorRaw) ? <ConnectTrouble raw={errorRaw} /> : null}
-                  </>
+                  )
                 )}
 
                 {sideInfo && (
@@ -6673,7 +6737,8 @@ export default function App() {
                     title={editingSavedId ? tg('app.editSaved') : tg('app.newConnection')}
                     saveProfileButtonLabel={editingSavedId ? tg('app.saveChanges') : tg('app.saveToList')}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
-                    error={error}
+                    error={t.tabId === activeTabId && failureCard ? null : error}
+                    notice={t.tabId === activeTabId ? failureCard : null}
                     host={host}
                     setHost={setHost}
                     port={port}
