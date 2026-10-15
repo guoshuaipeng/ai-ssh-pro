@@ -133,6 +133,18 @@ import { collectReminderNotice, REMINDER_FILTER_EVENT, REMINDER_FOCUS_EVENT } fr
 import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
 import { decideQuickStart, loadFreshProfile, loadQuickDone, noteInstall, saveQuickDone } from '@shared/onboarding'
 import { loadWelcomePrefs, saveWelcomeCompleted, saveWelcomeDismissed, shouldShowWelcome } from '@shared/welcome-prefs'
+import { escProductTarget, isHigherChromeOpen, pickProductOverlay, shouldOfferTourAfterWelcome } from '@shared/overlay-stack'
+import {
+  IMPORT_HINT_OFF_KEY,
+  FIRST_CONNECT_OFF_KEY,
+  FIRST_CONNECT_SEEN_KEY,
+  decideFirstConnect,
+  importedConnectIds,
+  loadPrefFlag,
+  pickValueMoment,
+  savePrefFlag
+} from '@shared/value-moment'
+import ValueMomentBar from './components/ValueMomentBar'
 import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
@@ -754,6 +766,12 @@ export default function App() {
   const [welcomeReplay, setWelcomeReplay] = useState(false)
   const [welcomeNotesHeld, setWelcomeNotesHeld] = useState(false)
   const welcomeSeen = useRef(false)
+  const [tourQueued, setTourQueued] = useState(false)
+  const [tourExplicit, setTourExplicit] = useState(false)
+  const [quickExplicit, setQuickExplicit] = useState(false)
+  const [importMoment, setImportMoment] = useState<{ count: number; ids: string[] } | null>(null)
+  const [firstConnectPending, setFirstConnectPending] = useState(false)
+  const onFirstConnectRef = useRef<() => void>(() => {})
   const [quickOpen, setQuickOpen] = useState(false)
   const [quickStep, setQuickStep] = useState(1)
   const [quickResume, setQuickResume] = useState(false)
@@ -1120,6 +1138,8 @@ export default function App() {
         setJumpFail(null)
         setHopProgress(null)
         if (quickOpenRef.current) setQuickStep(3)
+        const kind = extra?.kind ?? meta.kind ?? 'ssh'
+        if (kind !== 'local') onFirstConnectRef.current()
         return sessionId
       } catch (e) {
         const raw = e instanceof Error ? e.message : String(e)
@@ -3656,6 +3676,14 @@ export default function App() {
         newId: uuid
       })
       void persistSessionState({ folders: applied.folders, profiles: applied.profiles })
+      const count = applied.added + applied.updated
+      const ids = importedConnectIds({
+        beforeIds: profiles.map((p) => p.id),
+        afterIds: applied.profiles.map((p) => p.id),
+        policy,
+        conflictIds: importPreview.rows.flatMap((row) => (row.conflict && row.existingId ? [row.existingId] : []))
+      })
+      if (count > 0 && !loadPrefFlag(IMPORT_HINT_OFF_KEY)) setImportMoment({ count, ids })
       setSideInfo([tg('n2.added', { n: applied.added }), tg('n2.updated', { n: applied.updated }), tg('n2.skipped', { n: applied.skipped })].join(' · '))
       setImportPreview(null)
       setTabs((prev) => prev.filter((t) => t.view !== 'import-preview'))
@@ -3744,21 +3772,33 @@ export default function App() {
         return
       }
       if (action === 'replayWelcome') {
+        setTourOpen(false)
+        setTourExplicit(false)
+        setTourQueued(false)
+        setQuickOpen(false)
+        setQuickExplicit(false)
         setWelcomeReplay(true)
         setWelcomeDismissed(false)
         saveWelcomeDismissed(false)
         return
       }
       if (action === 'tour') {
+        setQuickOpen(false)
+        setQuickExplicit(false)
+        setTourExplicit(true)
         setTourOpen(true)
         return
       }
       if (action === 'quickStart') {
+        setTourOpen(false)
+        setTourExplicit(false)
+        setTourQueued(false)
         saveQuickDone(false)
         setQuickDone(false)
         const hasHost = profilesRef.current.length > 0
         setQuickResume(hasHost)
         setQuickStep(hasHost ? 2 : 1)
+        setQuickExplicit(true)
         setQuickOpen(true)
         return
       }
@@ -4439,11 +4479,22 @@ export default function App() {
   useEffect(() => {
     if (!sessionsReady || profiles.length < 1 || welcomeCompleted) return
     const seen = welcomeSeen.current
+    const replay = welcomeReplay
     saveWelcomeCompleted(true)
     setWelcomeCompleted(true)
     setWelcomeReplay(false)
-    if (seen) showToast(tg('pf1.ready'), { ms: 1500 })
-  }, [sessionsReady, profiles.length, welcomeCompleted])
+    if (seen && !importMoment) showToast(tg('pf1.ready'), { ms: 1500 })
+    if (
+      shouldOfferTourAfterWelcome({
+        welcomeWasVisible: seen,
+        completedNow: true,
+        tourDone: localStorage.getItem(TOUR_DONE_KEY) === '1',
+        replay
+      })
+    ) {
+      setTourQueued(true)
+    }
+  }, [sessionsReady, profiles.length, welcomeCompleted, welcomeReplay, importMoment])
 
   const dismissWelcome = useCallback(() => {
     saveWelcomeDismissed(true)
@@ -4501,6 +4552,7 @@ export default function App() {
     saveQuickDone(true)
     setQuickDone(true)
     setQuickOpen(false)
+    setQuickExplicit(false)
     if (next === 'home') openHomeRef.current()
     else if (next === 'term') {
       const live = tabsRef.current.find((tab) => (!tab.view || tab.view === 'session') && tab.status === 'connected')
@@ -4582,7 +4634,13 @@ export default function App() {
     updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
   }, [updateLayout])
   const closeTour = useCallback(() => {
+    try {
+      localStorage.setItem(TOUR_DONE_KEY, '1')
+    } catch {
+      /* ignore */
+    }
     setTourOpen(false)
+    setTourExplicit(false)
     const state = loadTaskState()
     setTaskState(state)
   }, [])
@@ -4856,7 +4914,7 @@ export default function App() {
   }, [])
 
   const welcomeBlocked = tabs.some((t) => t.view === 'connection' || t.view === 'import-preview')
-  const showWelcome =
+  const welcomeEligible =
     bootNoted &&
     !welcomeBlocked &&
     shouldShowWelcome({
@@ -4866,10 +4924,79 @@ export default function App() {
       releaseNotesOpen: whatsNewOpen,
       notesHeld: welcomeNotesHeld,
       replay: welcomeReplay,
-      tourOpen,
-      quickOpen
+      tourOpen: false,
+      quickOpen: false
     })
+  const tasksEligible =
+    tasksManual ||
+    ((quickDone || localStorage.getItem(TOUR_DONE_KEY) === '1') &&
+      !tipsSnooze &&
+      !tipsDismissed &&
+      !taskState.dismissedForever &&
+      pendingTasks(taskState).length > 0)
+  const product = pickProductOverlay({
+    releaseNotes: whatsNewOpen,
+    welcome: welcomeEligible,
+    tour: tourOpen,
+    tourExplicit,
+    quickStart: quickOpen,
+    quickExplicit,
+    tasks: tasksEligible
+  })
+  const showWelcome = product === 'welcome'
   if (showWelcome) welcomeSeen.current = true
+  const valueKind = pickValueMoment({
+    importCount: importMoment?.count ?? null,
+    firstConnect: firstConnectPending,
+    blocked: product === 'welcome' || product === 'releaseNotes' || product === 'quickStart' || product === 'tour'
+  })
+  onFirstConnectRef.current = () => {
+    let versionKnown = true
+    try {
+      versionKnown = localStorage.getItem('aiss.lastSeenVersion') != null
+    } catch {
+      versionKnown = true
+    }
+    const decision = decideFirstConnect({
+      fresh: loadFreshProfile() || !versionKnown,
+      off: loadPrefFlag(FIRST_CONNECT_OFF_KEY),
+      seen: loadPrefFlag(FIRST_CONNECT_SEEN_KEY)
+    })
+    if (decision === 'stamp') savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
+    if (decision === 'show') setFirstConnectPending(true)
+  }
+
+  useEffect(() => {
+    if (!tourQueued || tourOpen) return
+    if (product === 'welcome' || product === 'releaseNotes' || product === 'quickStart') return
+    if (valueKind) return
+    setTourQueued(false)
+    setTourExplicit(false)
+    setTourOpen(true)
+  }, [tourQueued, tourOpen, product, valueKind])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const target = escProductTarget({
+        product,
+        higherChrome: isHigherChromeOpen(document),
+        modalBackdrops: document.querySelectorAll('.modal-backdrop').length
+      })
+      if (!target || target === 'releaseNotes') return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      if (target === 'welcome') dismissWelcome()
+      else if (target === 'tour') closeTour()
+      else if (target === 'quickStart') finishQuick()
+      else if (target === 'tasks') {
+        setTipsSnooze(true)
+        setTasksManual(false)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [product, dismissWelcome, closeTour, finishQuick])
 
   return (
     <div className="app-root">
@@ -4908,6 +5035,55 @@ export default function App() {
           runPlaybook: hasPlaybooks ? undefined : tg('m2.noPlaybooks')
         }}
       />
+      {valueKind ? (
+        <ValueMomentBar
+          kind={valueKind}
+          importCount={importMoment?.count ?? 0}
+          onConnectAll={() => {
+            const ids = importMoment?.ids ?? []
+            setImportMoment(null)
+            void (async () => {
+              for (const id of ids) {
+                const row = profilesRef.current.find((p) => p.id === id)
+                if (row) await connectProfile(row)
+              }
+            })()
+          }}
+          onView={() => {
+            const id = importMoment?.ids[0]
+            setImportMoment(null)
+            updateLayout((prev) => ({ ...prev, showSidebar: true }))
+            setSessionSearch('')
+            if (id) setSelectedProfileId(id)
+          }}
+          onOpenHome={() => {
+            savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
+            setFirstConnectPending(false)
+            openHome()
+          }}
+          onOpenSftp={() => {
+            savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
+            setFirstConnectPending(false)
+            handleTitlebarMenuAction('sftp')
+          }}
+          onNever={() => {
+            if (valueKind === 'import') savePrefFlag(IMPORT_HINT_OFF_KEY, true)
+            else {
+              savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
+              savePrefFlag(FIRST_CONNECT_OFF_KEY, true)
+            }
+            if (valueKind === 'import') setImportMoment(null)
+            else setFirstConnectPending(false)
+          }}
+          onDismiss={() => {
+            if (valueKind === 'import') setImportMoment(null)
+            else {
+              savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
+              setFirstConnectPending(false)
+            }
+          }}
+        />
+      ) : null}
 
       <div className="app-shell">
         {layout.showSidebar ? (
@@ -5850,7 +6026,12 @@ export default function App() {
                     onSyncFolder={() => handleTitlebarMenuAction('folderSync')}
                     onImport={() => void importSessionsPick()}
                     onDemo={() => void addDemoHost(true)}
-                    onTour={() => setTourOpen(true)}
+                    onTour={() => {
+                      setQuickOpen(false)
+                      setQuickExplicit(false)
+                      setTourExplicit(true)
+                      setTourOpen(true)
+                    }}
                     onTasks={() => setTasksManual(true)}
                     onGuard={(profileId) => {
                       const p = profiles.find((x) => x.id === profileId)
@@ -6644,7 +6825,7 @@ export default function App() {
           setHostPicker(null)
         }}
       />
-      <WelcomeTour open={tourOpen} onClose={closeTour} ensureAiVisible={ensureAiVisible} />
+      <WelcomeTour open={product === 'tour'} onClose={closeTour} ensureAiVisible={ensureAiVisible} />
       <StartupSettingsModal
         open={startupOpen}
         value={startupMode}
@@ -6693,7 +6874,7 @@ export default function App() {
         }}
       />
       <QuickStartWizard
-        open={quickOpen}
+        open={product === 'quickStart'}
         step={quickStep}
         resume={quickResume}
         failReason={quickStep === 2 ? error ?? undefined : undefined}
@@ -6704,7 +6885,10 @@ export default function App() {
           const profile = profilesRef.current[profilesRef.current.length - 1]
           if (profile) openOrFocusProfile(profile)
         }}
-        onLater={() => setQuickOpen(false)}
+        onLater={() => {
+          setQuickOpen(false)
+          setQuickExplicit(false)
+        }}
         onHome={() => finishQuick('home')}
         onTerm={() => finishQuick('term')}
         onSkip={() => finishQuick()}
@@ -6714,7 +6898,7 @@ export default function App() {
         }}
         onDone={() => finishQuick()}
       />
-      {(tasksManual || ((quickDone || localStorage.getItem(TOUR_DONE_KEY) === '1') && !quickOpen && !tourOpen && !tipsSnooze && !tipsDismissed && !taskState.dismissedForever && pendingTasks(taskState).length > 0)) ? (
+      {product === 'tasks' ? (
         <FirstWeekChip
           state={taskState}
           mode={tasksManual ? 'panel' : 'chip'}

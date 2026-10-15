@@ -2194,6 +2194,13 @@ const zhCN = {
   'pf4.paletteTitle': '没有匹配「{q}」',
   'pf4.paletteDesc': '换个词，或清空后再试',
   'pf4.paletteClear': '清空搜索',
+  'png.imported': '已导入 {n} 台',
+  'png.connectAll': '全部连接',
+  'png.view': '查看',
+  'png.never': '不再提示',
+  'png.firstBody': '已连上。可以打开运维首页，或去 SFTP 传文件',
+  'png.openHome': '打开运维首页',
+  'png.openSftp': '打开 SFTP',
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4392,6 +4399,13 @@ const en: Record<MessageKey, string> = {
   'pf4.paletteTitle': 'No match for "{q}"',
   'pf4.paletteDesc': 'Try another word, or clear the search',
   'pf4.paletteClear': 'Clear search',
+  'png.imported': 'Imported {n} hosts',
+  'png.connectAll': 'Connect all',
+  'png.view': 'View',
+  'png.never': "Don't show again",
+  'png.firstBody': 'Connected. Open Ops Home, or SFTP to transfer files',
+  'png.openHome': 'Open Ops Home',
+  'png.openSftp': 'Open SFTP',
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {
