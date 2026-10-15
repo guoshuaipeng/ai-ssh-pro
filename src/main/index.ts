@@ -1,7 +1,7 @@
 import { mt, setMainLocaleGetter } from './main-i18n'
 import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
-import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
@@ -491,6 +491,12 @@ function registerIpc(): void {
     if (canceled || !filePath) return null
     writeFileSync(filePath, content, 'utf8')
     return filePath
+  })
+  ipcMain.handle('fs:reveal', (_e, target: string) => {
+    const file = String(target ?? '')
+    if (!file) return false
+    shell.showItemInFolder(file)
+    return true
   })
 
   const requireSshClient = (sessionId: string) => {

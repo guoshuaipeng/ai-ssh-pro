@@ -35,6 +35,7 @@ type Props = {
   onAuditChange?: (on: boolean) => void
   onOpenAudit?: () => void
   onElevate?: () => void
+  onOpenGate?: () => void
   autoRecord?: boolean
   onAutoRecord?: (on: boolean) => void
   onRecordings?: () => void
@@ -87,7 +88,7 @@ function emptyForm(link?: HostInventoryLink): {
   }
 }
 
-export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool, protectionLevel, auditOn, suggestProd, scrollToGuard, onProtectionChange, onAuditChange, onOpenAudit, onElevate, autoRecord, onAutoRecord, onRecordings }: Props) {
+export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool, protectionLevel, auditOn, suggestProd, scrollToGuard, onProtectionChange, onAuditChange, onOpenAudit, onElevate, onOpenGate, autoRecord, onAutoRecord, onRecordings }: Props) {
   /** 从会话右键打开：只编辑该主机，不显示档案列表 */
   const focused = Boolean(
     link && (link.hostInventoryId?.trim() || link.profileId?.trim() || link.host?.trim())
@@ -709,6 +710,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     onAutoRecord={onAutoRecord}
                     onRecordings={onRecordings ?? (() => undefined)}
                     onElevate={onElevate}
+                    onOpenGate={onOpenGate}
                   />
                 ) : null}
                 <section className="inv20-card">

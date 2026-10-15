@@ -6,7 +6,10 @@ export const PROBE_PREFS_KEY = 'aiss.prefs.opsHome.probe'
 export const PROBE_DEFAULT_MAX = 8
 export const PROBE_HARD_MAX = 30
 export const PROBE_INTERVAL_MS = 30_000
-export const PROBE_BACKOFF_MS = [15_000, 30_000, 60_000] as const
+/** L7c failure ladder: 30s, 60s, 2m, then the cap (default 5 min). */
+export const PROBE_BACKOFF_MS = [30_000, 60_000, 120_000] as const
+export const PROBE_BACKOFF_CAP_MIN = 5
+export const PROBE_RETRY_ALL_COOLDOWN_MS = 10_000
 export const PROBE_IDLE_HIDDEN_MS = 30_000
 export const PROBE_IDLE_VISIBLE_MS = 3 * 60_000
 
@@ -16,12 +19,22 @@ export type ProbePrefs = {
   enabled: boolean
   scope: ProbeScopeMode
   maxConcurrent: number
+  filterTags: boolean
+  tags: string[]
+  prodOnly: boolean
+  excludeReadonly: boolean
+  backoffCapMin: number
 }
 
 export const DEFAULT_PROBE_PREFS: ProbePrefs = {
   enabled: true,
   scope: 'group',
-  maxConcurrent: PROBE_DEFAULT_MAX
+  maxConcurrent: PROBE_DEFAULT_MAX,
+  filterTags: false,
+  tags: [],
+  prodOnly: false,
+  excludeReadonly: true,
+  backoffCapMin: PROBE_BACKOFF_CAP_MIN
 }
 
 export type ProbeCandidate = {
@@ -31,6 +44,8 @@ export type ProbeCandidate = {
   order: number
   recent?: boolean
   pinned?: boolean
+  tags?: string[]
+  protection?: 'normal' | 'production' | 'readonly'
 }
 
 type Store = Pick<Storage, 'getItem' | 'setItem'>
@@ -41,13 +56,41 @@ export function clampProbeMax(value: unknown): number {
   return Math.max(1, Math.min(PROBE_HARD_MAX, Math.round(n)))
 }
 
+export function clampBackoffCap(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return PROBE_BACKOFF_CAP_MIN
+  return Math.max(1, Math.min(30, Math.round(n)))
+}
+
 export function normalizeProbePrefs(raw: Partial<ProbePrefs> | null | undefined): ProbePrefs {
   const scope: ProbeScopeMode = raw?.scope === 'recent' || raw?.scope === 'all' || raw?.scope === 'group' ? raw.scope : 'group'
+  const tags = Array.isArray(raw?.tags) ? raw.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0) : []
   return {
     enabled: raw?.enabled !== false,
     scope,
-    maxConcurrent: clampProbeMax(raw?.maxConcurrent)
+    maxConcurrent: clampProbeMax(raw?.maxConcurrent),
+    filterTags: raw?.filterTags === true,
+    tags,
+    prodOnly: raw?.prodOnly === true,
+    excludeReadonly: raw?.excludeReadonly !== false,
+    backoffCapMin: clampBackoffCap(raw?.backoffCapMin)
   }
+}
+
+export function probeFiltersActive(prefs: ProbePrefs): boolean {
+  return Boolean(prefs.prodOnly || prefs.excludeReadonly || (prefs.filterTags && prefs.tags.length > 0))
+}
+
+/** L7b scope first, then tag / protection filters. All filters off returns the L7b pool. */
+export function applyProbeFilters(pool: ProbeCandidate[], prefs: ProbePrefs): ProbeCandidate[] {
+  let out = pool
+  if (prefs.prodOnly) out = out.filter((h) => h.protection === 'production')
+  else if (prefs.excludeReadonly) out = out.filter((h) => h.protection !== 'readonly')
+  if (prefs.filterTags && prefs.tags.length) {
+    const want = new Set(prefs.tags)
+    out = out.filter((h) => (h.tags ?? []).some((tag) => want.has(tag)))
+  }
+  return out
 }
 
 export function loadProbePrefs(store: Pick<Storage, 'getItem'> = globalThis.localStorage): ProbePrefs {
@@ -107,13 +150,25 @@ export function selectProbeTargets(
     pool = hosts
     limit = max
   }
-  return sortCandidates(pool, now, backoffUntil).slice(0, limit)
+  return sortCandidates(applyProbeFilters(pool, prefs), now, backoffUntil).slice(0, limit)
 }
 
-export function nextBackoffMs(failures: number): number {
+export function nextBackoffMs(failures: number, capMin = PROBE_BACKOFF_CAP_MIN): number {
+  const cap = clampBackoffCap(capMin) * 60_000
   if (failures <= 1) return PROBE_BACKOFF_MS[0]
   if (failures === 2) return PROBE_BACKOFF_MS[1]
-  return PROBE_BACKOFF_MS[2]
+  if (failures === 3) return PROBE_BACKOFF_MS[2]
+  return cap
+}
+
+export function retryAllAllowed(lastAt: number | null | undefined, now: number, cool = PROBE_RETRY_ALL_COOLDOWN_MS): boolean {
+  return lastAt == null || now - lastAt >= cool
+}
+
+/** Retry-all touches the failed set only. */
+export function idsToRetry(failedIds: readonly string[], allIds: readonly string[]): string[] {
+  const failed = new Set(failedIds)
+  return allIds.filter((id) => failed.has(id))
 }
 
 /** FIFO wave: in-flight probes stay; only idle due hosts start, up to the cap. */

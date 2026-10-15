@@ -107,6 +107,10 @@ import OpsHomeTab, { type HomeHost } from './components/OpsHomeTab'
 import AlertWorkbenchTab from './components/AlertWorkbenchTab'
 import AuditLogPanel from './components/AuditLogPanel'
 import { PlaybookEditor, PlaybookList, PlaybookResult, PlaybookRun } from './components/PlaybookTabs'
+import { PlaybookImportTab, stageShareImport } from './components/PlaybookShare'
+import AlertRuleTemplatesTab from './components/AlertRuleTemplatesTab'
+import GateTimelineTab from './components/GateTimelineTab'
+import QuickStartWizard from './components/QuickStartWizard'
 import FileHistoryTab from './components/FileHistoryTab'
 import PostmortemTab from './components/PostmortemTab'
 import { SyncConflicts, SyncSettings, useSyncPhase } from './components/SyncCenter'
@@ -118,6 +122,7 @@ import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJ
 import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabStripWheelDelta } from '@shared/tab-overflow'
 import { loadProbePrefs, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
 import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
+import { decideQuickStart, loadFreshProfile, loadQuickDone, noteInstall, saveQuickDone } from '@shared/onboarding'
 import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
@@ -129,7 +134,7 @@ import StartupSettingsModal from './components/StartupSettingsModal'
 import ProtectionSection, { ProtectionLevelField } from './components/ProtectionSection'
 import ScopePicker from './components/ScopePicker'
 import { activeCount, loadBellPrefs, markHandled, saveBellPrefs, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
-import { appendAudit, auditEnabled, loadAudit, setAuditEnabled, type AuditEvent } from '@shared/audit-log'
+import { appendAudit, appendGate, auditEnabled, loadAudit, setAuditEnabled, type AuditEvent } from '@shared/audit-log'
 import { hostInScope, loadDashScope, saveDashScope, type DashScope } from '@shared/dashboard-scope'
 import { assessCommandRisk } from '@shared/command-risk'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
@@ -214,6 +219,9 @@ type TabView =
   | 'settings'
   | 'file-history'
   | 'postmortem'
+  | 'alert-rules'
+  | 'playbook-import'
+  | 'gate-timeline'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide' | 'updates'
 
@@ -260,7 +268,10 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'sync-preview',
   'settings',
   'file-history',
-  'postmortem'
+  'postmortem',
+  'alert-rules',
+  'playbook-import',
+  'gate-timeline'
 ])
 
 type Tab = {
@@ -302,6 +313,10 @@ type Tab = {
   recordingFile?: string
   syncPlan?: SyncPreviewPlan
   settingsSection?: SettingsSection
+  rulesSeg?: 'mine' | 'templates'
+  focusPackId?: string
+  gateFocusId?: string
+  gateHost?: string
   /** Restored tab that connects when it becomes active. */
   cold?: boolean
   /** UX-50b: auto-bind gave up; show the click-to-connect placeholder. */
@@ -623,10 +638,10 @@ export default function App() {
         setAppVersion(v)
         const last = localStorage.getItem('aiss.lastSeenVersion')
         const auto = localStorage.getItem(WHATS_NEW_AUTO_KEY) !== '0'
+        noteInstall(Boolean(last))
         if (last && last !== v && auto && changelogFor(v).length) setWhatsNewOpen(true)
-        // G2: fresh install only (never together with What's new)
-        else if (!last && localStorage.getItem(TOUR_DONE_KEY) !== '1') window.setTimeout(() => setTourOpen(true), 600)
         localStorage.setItem('aiss.lastSeenVersion', v)
+        setBootNoted(true)
       })
       .catch(() => {})
   }, [])
@@ -700,6 +715,17 @@ export default function App() {
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
   // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
   const [tourOpen, setTourOpen] = useState(false)
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickStep, setQuickStep] = useState(1)
+  const [quickResume, setQuickResume] = useState(false)
+  const [quickDone, setQuickDone] = useState(() => loadQuickDone())
+  const [bootNoted, setBootNoted] = useState(false)
+  const quickOpenRef = useRef(false)
+  const probeFailCountRef = useRef(0)
+  const [probeFailCount, setProbeFailCount] = useState(0)
+  const [retryAllNonce, setRetryAllNonce] = useState(0)
+  quickOpenRef.current = quickOpen
+  probeFailCountRef.current = probeFailCount
   const [hostPicker, setHostPicker] = useState<{ action: MenuAction; feature: string } | null>(null)
   const [aiExplain, setAiExplain] = useState<{ id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert'; alertId?: string } | null>(null)
   const aiExplainSeqRef = useRef(0)
@@ -765,6 +791,7 @@ export default function App() {
           online: Boolean(live) || (probe?.latencyMs != null),
           latencyMs: probe?.latencyMs,
           protection: effectiveLevel(p),
+          tags: p.tags,
           demo: p.demo,
           alerting,
           folderId: p.folderId,
@@ -1048,6 +1075,7 @@ export default function App() {
         }
         setJumpFail(null)
         setHopProgress(null)
+        if (quickOpenRef.current) setQuickStep(3)
         return sessionId
       } catch (e) {
         const raw = e instanceof Error ? e.message : String(e)
@@ -2131,14 +2159,33 @@ export default function App() {
     const map = { ...loadElevate(), [p.id]: until }
     saveElevate(map)
     setElevateMap(map)
+    appendGate({
+      host: p.label?.trim() || p.host,
+      hostKey: p.id,
+      protection: level,
+      gateRule: level === 'production' ? 'prod' : 'readonlyWrite',
+      gateResult: 'unlock',
+      summary: tg('l4.unlocked'),
+      demo: Boolean(p.demo)
+    })
     showToast(tg('l4.unlocked'))
   }, [])
 
   const restoreProtection = useCallback((profileId: string) => {
+    const profile = profilesRef.current.find((row) => row.id === profileId)
     const map = { ...loadElevate() }
     delete map[profileId]
     saveElevate(map)
     setElevateMap(map)
+    appendGate({
+      host: profile?.label?.trim() || profile?.host || profileId,
+      hostKey: profileId,
+      protection: effectiveLevel(profile),
+      gateRule: effectiveLevel(profile) === 'readonly' ? 'readonlyWrite' : 'prod',
+      gateResult: 'restore',
+      summary: tg('l4.restored'),
+      demo: Boolean(profile?.demo)
+    })
     showToast(tg('l4.restored'))
   }, [])
 
@@ -2217,6 +2264,8 @@ export default function App() {
             hostTitle: s.title,
             rules: alertRules.rules,
             readings,
+            profileId: s.profileId,
+            folderId: profilesRef.current.find((p) => p.id === s.profileId)?.folderId,
             breachSince: alertBreachSinceRef.current,
             lastFiredAt: alertLastFiredRef.current
           })
@@ -3463,6 +3512,37 @@ export default function App() {
         setTourOpen(true)
         return
       }
+      if (action === 'quickStart') {
+        saveQuickDone(false)
+        setQuickDone(false)
+        const hasHost = profilesRef.current.length > 0
+        setQuickResume(hasHost)
+        setQuickStep(hasHost ? 2 : 1)
+        setQuickOpen(true)
+        return
+      }
+      if (action === 'enableRuleTemplates') {
+        openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })
+        return
+      }
+      if (action === 'retryFailedProbes') {
+        if (!tabsRef.current.some((tab) => tab.view === 'home') || probeFailCountRef.current === 0) return
+        setRetryAllNonce((n) => n + 1)
+        return
+      }
+      if (action === 'exportPlaybookPack') {
+        openM2('playbook-list', tg('m2.playbooks'))
+        window.setTimeout(() => window.dispatchEvent(new Event('aiss-export-share')), 60)
+        return
+      }
+      if (action === 'importPlaybookPack') {
+        openM2('playbook-import', tg('w5.import'))
+        return
+      }
+      if (action === 'gateTimeline') {
+        openM2('gate-timeline', tg('s2b.tab'))
+        return
+      }
       if (action === 'taskCards') {
         const next = reopenTasks()
         setTaskState(next)
@@ -4030,6 +4110,80 @@ export default function App() {
     [folders, locale, openOrFocusProfile, persistSessionState]
   )
   addDemoHostRef.current = addDemoHost
+
+  const quickDecidedRef = useRef(false)
+  useEffect(() => {
+    if (!sessionsReady || !bootNoted || quickDecidedRef.current) return
+    quickDecidedRef.current = true
+    const decision = decideQuickStart({
+      fresh: loadFreshProfile(),
+      quickDone: loadQuickDone(),
+      hostCount: profilesRef.current.length,
+      whatsNewOpen
+    })
+    if (!decision.show) return
+    setQuickResume(decision.resume)
+    setQuickStep(decision.resume ? 2 : 1)
+    setQuickOpen(true)
+  }, [sessionsReady, bootNoted, whatsNewOpen])
+
+  useEffect(() => {
+    if (!quickOpen || quickStep !== 1 || profiles.length === 0) return
+    setQuickResume(true)
+    setQuickStep(2)
+  }, [profiles.length, quickOpen, quickStep])
+
+  useEffect(() => {
+    const onGate = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; hostKey?: string }>).detail
+      openM2('gate-timeline', tg('s2b.tab'), { gateFocusId: detail?.id, gateHost: detail?.hostKey })
+    }
+    const onImport = () => openM2('playbook-import', tg('w5.import'))
+    const onDrag = (event: DragEvent) => {
+      const items = event.dataTransfer?.items
+      if (!items) return
+      for (const item of items) {
+        if (item.kind === 'file') {
+          event.preventDefault()
+          return
+        }
+      }
+    }
+    const onDrop = (event: DragEvent) => {
+      const file = Array.from(event.dataTransfer?.files ?? []).find((row) => row.name.endsWith('.aiss-playbooks'))
+      if (!file) return
+      event.preventDefault()
+      void file.text().then((raw) => {
+        stageShareImport({ name: file.name, raw })
+        openM2('playbook-import', tg('w5.import'))
+      })
+    }
+    window.addEventListener('aiss-open-gate', onGate)
+    window.addEventListener('aiss-import-share', onImport)
+    window.addEventListener('dragover', onDrag)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('aiss-open-gate', onGate)
+      window.removeEventListener('aiss-import-share', onImport)
+      window.removeEventListener('dragover', onDrag)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [openM2])
+
+  const finishQuick = useCallback((next?: 'home' | 'term') => {
+    saveQuickDone(true)
+    setQuickDone(true)
+    setQuickOpen(false)
+    if (next === 'home') openHomeRef.current()
+    else if (next === 'term') {
+      const live = tabsRef.current.find((tab) => (!tab.view || tab.view === 'session') && tab.status === 'connected')
+      if (live) setActiveTabId(live.tabId)
+      else {
+        const profile = profilesRef.current[0]
+        if (profile) openOrFocusProfile(profile)
+      }
+    }
+  }, [openOrFocusProfile])
 
   // UX-09: picker → connect → open the feature that was asked for
   const openFeatureForSession = useCallback(
@@ -5155,6 +5309,10 @@ export default function App() {
                       setAuditOn(on)
                     }}
                     onOpenAudit={() => openAudit(inventoryLink?.host || inventoryLink?.label)}
+                    onOpenGate={() => {
+                      const hostName = inventoryLink?.host || profiles.find((x) => x.id === inventoryLink?.profileId)?.host
+                      openM2('gate-timeline', tg('s2b.tab'), { gateHost: hostName })
+                    }}
                     onElevate={() => {
                       const p = profiles.find((x) => x.id === inventoryLink?.profileId)
                       if (p) void elevateProfile(p)
@@ -5263,10 +5421,7 @@ export default function App() {
                     onExplain={(alert) => openWorkbench({ alertId: alert.id, explain: true })}
                     onDismiss={dismissAlert}
                     onUnmute={unmuteAlerts}
-                    onRules={() => {
-                      setAlertModalTab('rules')
-                      setAlertModalOpen(true)
-                    }}
+                    onRules={() => openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })}
                     onInspect={() => setInspectOpen(true)}
                     onStartup={() => openUnifiedSettings('general')}
                     onOpenSftp={() => handleTitlebarMenuAction('sftp')}
@@ -5297,6 +5452,8 @@ export default function App() {
                     probeGrouped={dashScope.mode === 'group'}
                     probeActive={activeTab?.view === 'home'}
                     probeNonce={probeNonce}
+                    retryAllNonce={retryAllNonce}
+                    onFailCount={setProbeFailCount}
                     onSample={sampleHomeHost}
                     onSweep={sweepProbes}
                     onRelease={releaseProbes}
@@ -5320,6 +5477,7 @@ export default function App() {
                       setAlertModalTab('rules')
                       setAlertModalOpen(true)
                     }}
+                    onTemplates={() => openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })}
                     onMute={() => muteAlerts()}
                     onUnmute={unmuteAlerts}
                     onDismiss={dismissAlert}
@@ -5432,6 +5590,39 @@ export default function App() {
                   />
                 ) : t.view === 'playbook-result' ? (
                   <PlaybookResult onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                ) : t.view === 'alert-rules' ? (
+                  <AlertRuleTemplatesTab
+                    state={alertRules}
+                    hosts={profiles.map((p) => ({ id: p.id, title: profileSidebarLabel(p, locale) }))}
+                    folderId={dashScope.mode === 'group' ? dashScope.folderId : undefined}
+                    initialSegment={t.rulesSeg}
+                    focusPackId={t.focusPackId}
+                    onChange={(next) => {
+                      setAlertRules(next)
+                      saveAlertRules(next)
+                    }}
+                    onOpenWorkbench={() => openWorkbench()}
+                  />
+                ) : t.view === 'playbook-import' ? (
+                  <PlaybookImportTab appVersion={appVersion || '0.4.3'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                ) : t.view === 'gate-timeline' ? (
+                  <GateTimelineTab
+                    focusId={t.gateFocusId}
+                    hostKey={t.gateHost}
+                    onEditProtection={(profileId) => {
+                      const profile = profiles.find((p) => p.id === profileId)
+                      if (!profile) return
+                      openInventoryEditor({
+                        profileId: profile.id,
+                        host: profile.host,
+                        port: profile.port,
+                        username: profile.username,
+                        label: profile.label,
+                        hostInventoryId: profile.hostInventoryId
+                      }, true)
+                    }}
+                    onOpenAudit={() => openAudit(t.gateHost)}
+                  />
                 ) : t.view === 'sync-settings' ? (
                   <SyncSettings
                     profiles={profiles}
@@ -5705,6 +5896,9 @@ export default function App() {
                     onTerminalSaved={setTerminalPrefs}
                     probePrefs={probePrefs}
                     onProbePrefs={updateProbePrefs}
+                    tagOptions={[...new Set(profiles.flatMap((p) => p.tags ?? []))]}
+                    onOpenTemplates={() => openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })}
+                    onOpenGate={() => openM2('gate-timeline', tg('s2b.tab'))}
                   />
                 ) : t.view === 'ai' ? (
                   <AiConfigModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
@@ -6002,10 +6196,36 @@ export default function App() {
               ? {}
               : { fixPlaybook: tg('w1.needAi') }
             : { fixPlaybook: tg('w1.paletteNeedAlert'), exportPostmortem: tg('w1.paletteNeedAlert') }),
-          ...(tabs.some((t) => t.view === 'home') ? {} : { refreshHomeHealth: tg('l7b.needHome') })
+          ...(tabs.some((t) => t.view === 'home')
+            ? probeFailCount === 0
+              ? { retryFailedProbes: tg('l7c.noFails') }
+              : {}
+            : { refreshHomeHealth: tg('l7b.needHome'), retryFailedProbes: tg('l7b.needHome') })
         }}
       />
-      {(tasksManual || (localStorage.getItem(TOUR_DONE_KEY) === '1' && !tourOpen && !tipsSnooze && !tipsDismissed && !taskState.dismissedForever && pendingTasks(taskState).length > 0)) ? (
+      <QuickStartWizard
+        open={quickOpen}
+        step={quickStep}
+        resume={quickResume}
+        failReason={quickStep === 2 ? error ?? undefined : undefined}
+        onNew={() => openConnectionEditor()}
+        onDemo={() => void addDemoHost(true)}
+        onImport={() => void importSessionsPick()}
+        onConnect={() => {
+          const profile = profilesRef.current[profilesRef.current.length - 1]
+          if (profile) openOrFocusProfile(profile)
+        }}
+        onLater={() => setQuickOpen(false)}
+        onHome={() => finishQuick('home')}
+        onTerm={() => finishQuick('term')}
+        onSkip={() => finishQuick()}
+        onEdit={() => {
+          const profile = profilesRef.current[profilesRef.current.length - 1]
+          if (profile) openConnectionEditor(profile)
+        }}
+        onDone={() => finishQuick()}
+      />
+      {(tasksManual || ((quickDone || localStorage.getItem(TOUR_DONE_KEY) === '1') && !quickOpen && !tourOpen && !tipsSnooze && !tipsDismissed && !taskState.dismissedForever && pendingTasks(taskState).length > 0)) ? (
         <FirstWeekChip
           state={taskState}
           mode={tasksManual ? 'panel' : 'chip'}

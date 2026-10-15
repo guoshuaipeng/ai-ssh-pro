@@ -1,4 +1,4 @@
-import { appendAudit, type AuditOutcome } from '@shared/audit-log'
+import { appendAudit, appendGate, type AuditOutcome, type GateResult, type GateRule } from '@shared/audit-log'
 import { decideWrite, hostNameMatches, type ProtectionLevel, type WriteChannel } from '@shared/protection'
 import { confirmDialog, promptDialog, toast } from './dialogs'
 import { tg } from './i18n'
@@ -14,6 +14,23 @@ export type GuardRequest = {
   dangerReason?: string
   command: string
   source: 'AI' | 'user'
+  alertId?: string
+  playbookId?: string
+  demo?: boolean
+}
+
+function gateRuleFor(opts: GuardRequest): GateRule {
+  if (opts.channel === 'sftp') return 'sftp'
+  if (opts.level === 'readonly') return opts.dangerous ? 'danger' : 'readonlyWrite'
+  if (opts.level === 'production') return 'prod'
+  return 'danger'
+}
+
+function gateResultFor(decision: string, ok: boolean, outcome: AuditOutcome): GateResult {
+  if (decision === 'block' || outcome === 'blocked') return 'blocked'
+  if (!ok) return 'cancelled'
+  if (decision.startsWith('confirm')) return 'confirmed'
+  return 'allowed'
 }
 
 /** Dialogs + S1 events for one write. Returns true when the caller may send. */
@@ -28,7 +45,6 @@ export async function runGuardedCommand(opts: GuardRequest): Promise<boolean> {
   let outcome: AuditOutcome = 'cancelled'
 
   if (decision === 'block') {
-    toast({ text: tg('l4.readonlyBlocked') })
     outcome = 'blocked'
   } else if (decision === 'confirm-danger') {
     ok = await confirmDialog({
@@ -72,6 +88,31 @@ export async function runGuardedCommand(opts: GuardRequest): Promise<boolean> {
   } else {
     ok = true
     outcome = 'allowed'
+  }
+
+  const shouldRecord = decision !== 'allow' || opts.channel === 'sftp' || opts.dangerous
+  if (shouldRecord) {
+    const row = appendGate({
+      host: host,
+      hostKey: opts.profileId,
+      protection: opts.level,
+      gateRule: gateRuleFor(opts),
+      gateResult: gateResultFor(decision, ok, outcome),
+      summary: `${opts.command}`.slice(0, 180),
+      alertId: opts.alertId,
+      playbookId: opts.playbookId,
+      demo: opts.demo,
+      source: opts.source === 'AI' ? 'AI' : 'user'
+    })
+    if (outcome === 'blocked') {
+      toast({
+        text: tg('l4.readonlyBlocked'),
+        action: {
+          label: tg('s2b.why'),
+          run: () => window.dispatchEvent(new CustomEvent('aiss-open-gate', { detail: { id: row.id, hostKey: opts.profileId } }))
+        }
+      })
+    }
   }
 
   if (opts.channel === 'alert') {

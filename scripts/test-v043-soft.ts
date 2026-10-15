@@ -45,7 +45,16 @@ assert.equal(clampProbeMax(0), 1)
 assert.deepEqual(loadProbePrefs(mem()), DEFAULT_PROBE_PREFS)
 const store = mem()
 saveProbePrefs({ enabled: false, scope: 'all', maxConcurrent: 40 }, store)
-assert.deepEqual(loadProbePrefs(store), { enabled: false, scope: 'all', maxConcurrent: 30 })
+assert.deepEqual(loadProbePrefs(store), {
+  enabled: false,
+  scope: 'all',
+  maxConcurrent: 30,
+  filterTags: false,
+  tags: [],
+  prodOnly: false,
+  excludeReadonly: true,
+  backoffCapMin: 5
+})
 
 const hosts: ProbeCandidate[] = Array.from({ length: 50 }, (_, i) => ({
   profileId: `h${i}`,
@@ -76,9 +85,10 @@ const backed = selectProbeTargets(hosts.slice(0, 4), DEFAULT_PROBE_PREFS, {
 })
 assert.ok(backed.findIndex((h) => h.profileId === 'h1') > backed.findIndex((h) => h.profileId === 'h0'))
 
-assert.equal(nextBackoffMs(1), 15_000)
-assert.equal(nextBackoffMs(2), 30_000)
-assert.equal(nextBackoffMs(5), 60_000)
+assert.equal(nextBackoffMs(1), 30_000)
+assert.equal(nextBackoffMs(2), 60_000)
+assert.equal(nextBackoffMs(3), 120_000)
+assert.equal(nextBackoffMs(5), 300_000)
 assert.deepEqual(planProbeWave(['a', 'b', 'c', 'd'], 1, 3), { start: ['a', 'b'], queued: ['c', 'd'] })
 assert.equal(planProbeWave(['a'], 8, 8).start.length, 0)
 

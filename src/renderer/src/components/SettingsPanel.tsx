@@ -47,6 +47,9 @@ type Props = {
   onTerminalSaved?: (prefs: TerminalPrefs) => void
   probePrefs: ProbePrefs
   onProbePrefs: (patch: Partial<ProbePrefs>) => void
+  tagOptions?: string[]
+  onOpenTemplates?: () => void
+  onOpenGate?: () => void
 }
 
 export default function SettingsPanel({
@@ -67,7 +70,10 @@ export default function SettingsPanel({
   onOpenUpdates,
   onTerminalSaved,
   probePrefs,
-  onProbePrefs
+  onProbePrefs,
+  tagOptions,
+  onOpenTemplates,
+  onOpenGate
 }: Props) {
   const { t, locale, setLocale } = useI18n()
   const [q, setQ] = useState('')
@@ -204,7 +210,12 @@ export default function SettingsPanel({
           {active === 'ops' ? (
             <section>
               <h3>{t('settings.ops')}</h3>
-              <HealthProbeFields prefs={probePrefs} onChange={onProbePrefs} />
+              <HealthProbeFields prefs={probePrefs} tagOptions={tagOptions} onChange={onProbePrefs} />
+              {onOpenTemplates ? (
+                <button type="button" data-testid="l2c-settings" onClick={onOpenTemplates}>
+                  {t('l2c.seg.templates')}
+                </button>
+              ) : null}
             </section>
           ) : null}
           {active === 'ai' ? (
@@ -241,6 +252,11 @@ export default function SettingsPanel({
                 {t('settings.audit')}
               </label>
               <p className="l7-muted">{t('settings.dangerHint')}</p>
+              {onOpenGate ? (
+                <button type="button" data-testid="s2b-settings" onClick={onOpenGate}>
+                  {t('s2b.tab')}
+                </button>
+              ) : null}
             </section>
           ) : null}
           {active === 'files' ? (

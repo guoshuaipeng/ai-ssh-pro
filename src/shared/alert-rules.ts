@@ -3,12 +3,38 @@ import type { ResourceSnapshot } from './resource-monitor'
 
 export type AlertMetric = 'cpu' | 'mem' | 'disk' | 'offline'
 
+export type AlertScope = 'all' | 'group' | 'hosts'
+
+export type AlertSeverity = 'warning' | 'critical'
+
+/** L2c: a template-sourced rule kept in the same alert store (not a second database). */
+export type PackRule = {
+  id: string
+  packId: string
+  metric: AlertMetric | 'proc'
+  enabled: boolean
+  threshold: number
+  sustainMin: number
+  severity: AlertSeverity
+  scope: AlertScope
+  hostIds: string[]
+  folderId?: string
+  unit?: string
+  customized?: boolean
+}
+
 export type AlertRule = {
   id: AlertMetric
   enabled: boolean
   threshold: number
   /** minutes of sustained breach before fire (offline uses minutes too) */
   sustainMin: number
+  packId?: string
+  customized?: boolean
+  severity?: AlertSeverity
+  scope?: AlertScope
+  hostIds?: string[]
+  folderId?: string
 }
 
 export type AlertNotifyPrefs = {
@@ -22,6 +48,8 @@ export type AlertRulesState = {
   rules: AlertRule[]
   notify: AlertNotifyPrefs
   mutedUntil: number | null
+  /** L2c process/service rows. CPU and disk packs write the built-in rule instead. */
+  packRules: PackRule[]
 }
 
 export type FiredAlert = {
@@ -55,25 +83,62 @@ export const DEFAULT_ALERT_NOTIFY: AlertNotifyPrefs = {
 export const ALERT_LS_KEY = 'aiss.alert.rules.v1'
 export const ALERT_HISTORY_LS_KEY = 'aiss.alert.history.v1'
 
-export function loadAlertRules(): AlertRulesState {
-  try {
-    const raw = localStorage.getItem(ALERT_LS_KEY)
-    if (!raw) return { rules: DEFAULT_ALERT_RULES.map((r) => ({ ...r })), notify: { ...DEFAULT_ALERT_NOTIFY }, mutedUntil: null }
-    const parsed = JSON.parse(raw) as Partial<AlertRulesState>
-    const byId = new Map((parsed.rules ?? []).map((r) => [r.id, r]))
-    const rules = DEFAULT_ALERT_RULES.map((d) => ({ ...d, ...(byId.get(d.id) ?? {}) }))
-    return {
-      rules,
-      notify: { ...DEFAULT_ALERT_NOTIFY, ...(parsed.notify ?? {}) },
-      mutedUntil: typeof parsed.mutedUntil === 'number' ? parsed.mutedUntil : null
-    }
-  } catch {
-    return { rules: DEFAULT_ALERT_RULES.map((r) => ({ ...r })), notify: { ...DEFAULT_ALERT_NOTIFY }, mutedUntil: null }
+function blankRules(): AlertRulesState {
+  return { rules: DEFAULT_ALERT_RULES.map((r) => ({ ...r })), notify: { ...DEFAULT_ALERT_NOTIFY }, mutedUntil: null, packRules: [] }
+}
+
+function asScope(value: unknown): AlertScope {
+  return value === 'group' || value === 'hosts' ? value : 'all'
+}
+
+function normalizePackRule(raw: unknown): PackRule | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Partial<PackRule>
+  if (typeof o.id !== 'string' || typeof o.packId !== 'string') return null
+  const metric = o.metric === 'cpu' || o.metric === 'mem' || o.metric === 'disk' || o.metric === 'offline' || o.metric === 'proc' ? o.metric : null
+  if (!metric) return null
+  return {
+    id: o.id,
+    packId: o.packId,
+    metric,
+    enabled: o.enabled !== false,
+    threshold: typeof o.threshold === 'number' ? o.threshold : 0,
+    sustainMin: typeof o.sustainMin === 'number' ? o.sustainMin : 0,
+    severity: o.severity === 'warning' ? 'warning' : 'critical',
+    scope: asScope(o.scope),
+    hostIds: Array.isArray(o.hostIds) ? o.hostIds.filter((id): id is string => typeof id === 'string') : [],
+    folderId: typeof o.folderId === 'string' ? o.folderId : undefined,
+    unit: typeof o.unit === 'string' ? o.unit : undefined,
+    customized: Boolean(o.customized) || undefined
   }
 }
 
-export function saveAlertRules(state: AlertRulesState): void {
-  localStorage.setItem(ALERT_LS_KEY, JSON.stringify(state))
+export function loadAlertRules(store: Pick<Storage, 'getItem'> = globalThis.localStorage): AlertRulesState {
+  try {
+    const raw = store.getItem(ALERT_LS_KEY)
+    if (!raw) return blankRules()
+    const parsed = JSON.parse(raw) as Partial<AlertRulesState>
+    const byId = new Map((parsed.rules ?? []).map((r) => [r.id, r]))
+    const rules = DEFAULT_ALERT_RULES.map((d) => {
+      const saved = byId.get(d.id)
+      const rule: AlertRule = { ...d, ...(saved ?? {}) }
+      if (saved?.scope) rule.scope = asScope(saved.scope)
+      if (Array.isArray(saved?.hostIds)) rule.hostIds = saved.hostIds.filter((id) => typeof id === 'string')
+      return rule
+    })
+    return {
+      rules,
+      notify: { ...DEFAULT_ALERT_NOTIFY, ...(parsed.notify ?? {}) },
+      mutedUntil: typeof parsed.mutedUntil === 'number' ? parsed.mutedUntil : null,
+      packRules: Array.isArray(parsed.packRules) ? parsed.packRules.map(normalizePackRule).filter((r): r is PackRule => Boolean(r)) : []
+    }
+  } catch {
+    return blankRules()
+  }
+}
+
+export function saveAlertRules(state: AlertRulesState, store: Pick<Storage, 'setItem'> = globalThis.localStorage): void {
+  store.setItem(ALERT_LS_KEY, JSON.stringify({ ...state, packRules: state.packRules ?? [] }))
 }
 
 export function loadAlertHistory(): FiredAlert[] {
@@ -104,6 +169,14 @@ export function readingsFromSnapshot(snap: ResourceSnapshot | null, online: bool
 }
 
 /** Returns newly fired alerts (not yet in cooldown). breachSinceMs tracks continuous breach start. */
+function ruleMatchesHost(rule: AlertRule, opts: { profileId?: string; folderId?: string }): boolean {
+  if (rule.scope === 'hosts' && rule.hostIds?.length) {
+    return Boolean(opts.profileId && rule.hostIds.includes(opts.profileId))
+  }
+  if (rule.scope === 'group' && rule.folderId) return opts.folderId === rule.folderId
+  return true
+}
+
 export function evaluateAlerts(opts: {
   hostKey: string
   hostTitle: string
@@ -113,6 +186,8 @@ export function evaluateAlerts(opts: {
   lastFiredAt: Map<string, number>
   now?: number
   cooldownMs?: number
+  profileId?: string
+  folderId?: string
 }): FiredAlert[] {
   const now = opts.now ?? Date.now()
   const cooldown = opts.cooldownMs ?? 30 * 60 * 1000
@@ -120,7 +195,7 @@ export function evaluateAlerts(opts: {
   const byMetric = new Map(opts.readings.map((r) => [r.metric, r.value]))
 
   for (const rule of opts.rules) {
-    if (!rule.enabled) {
+    if (!rule.enabled || !ruleMatchesHost(rule, opts)) {
       opts.breachSince.delete(`${opts.hostKey}:${rule.id}`)
       continue
     }

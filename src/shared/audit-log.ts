@@ -10,6 +10,11 @@ export type AuditType =
   | 'playbook.draft'
   | 'playbook.dryrun'
   | 'protection.change'
+  | 'gate'
+
+export type GateResult = 'allowed' | 'confirmed' | 'denied' | 'blocked' | 'cancelled' | 'unlock' | 'restore'
+
+export type GateRule = 'danger' | 'prod' | 'readonlyWrite' | 'sftp' | 'playbook'
 
 export type AuditOutcome = 'allowed' | 'blocked' | 'cancelled'
 
@@ -26,6 +31,12 @@ export type AuditEvent = {
   detail: string
   /** W4: explicit link from an alert-workbench action. */
   alertId?: string
+  /** S2b: present on type `gate`. Recorded even when the audit switch is off. */
+  gateResult?: GateResult
+  gateRule?: GateRule
+  protection?: 'normal' | 'production' | 'readonly'
+  playbookId?: string
+  demo?: boolean
 }
 
 export const AUDIT_LS_KEY = 'aiss.audit.v1'
@@ -90,6 +101,52 @@ export function appendAudit(
   return row
 }
 
+export type GateInput = {
+  host: string
+  hostKey?: string
+  protection?: 'normal' | 'production' | 'readonly'
+  gateRule: GateRule
+  gateResult: GateResult
+  summary: string
+  alertId?: string
+  playbookId?: string
+  demo?: boolean
+  source?: AuditSource
+}
+
+function gateOutcome(result: GateResult): AuditOutcome {
+  if (result === 'blocked' || result === 'denied') return 'blocked'
+  if (result === 'cancelled') return 'cancelled'
+  return 'allowed'
+}
+
+/** Safety-critical. Written even when the audit master switch is off. */
+export function appendGate(event: GateInput, store: Store = globalThis.localStorage, now = Date.now()): AuditEvent {
+  const row: AuditEvent = {
+    id: `gate-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    at: now,
+    type: 'gate',
+    host: event.host,
+    profileId: event.hostKey,
+    source: event.source ?? 'user',
+    outcome: gateOutcome(event.gateResult),
+    detail: redactAuditText(event.summary).slice(0, 240),
+    alertId: event.alertId,
+    gateResult: event.gateResult,
+    gateRule: event.gateRule,
+    protection: event.protection,
+    playbookId: event.playbookId,
+    demo: event.demo || undefined
+  }
+  const next = [row, ...loadAudit(store)].slice(0, MAX)
+  store.setItem(AUDIT_LS_KEY, JSON.stringify(next))
+  return row
+}
+
+export function loadGateEvents(store: Pick<Storage, 'getItem'> = globalThis.localStorage): AuditEvent[] {
+  return loadAudit(store).filter((e) => e.type === 'gate')
+}
+
 export function filterAudit(
   list: AuditEvent[],
   q: { host?: string; type?: AuditType | ''; text?: string; since?: number; until?: number }
@@ -106,7 +163,19 @@ export function filterAudit(
 }
 
 export function clearAudit(store: Store = globalThis.localStorage): void {
-  store.setItem(AUDIT_LS_KEY, '[]')
+  const gates = loadAudit(store).filter((e) => e.type === 'gate')
+  store.setItem(AUDIT_LS_KEY, JSON.stringify(gates))
+}
+
+export function gateToCsv(rows: AuditEvent[]): string {
+  const head = ['at', 'host', 'result', 'rule', 'protection', 'summary']
+  const lines = [head.join(',')]
+  for (const e of rows) {
+    lines.push(
+      [new Date(e.at).toISOString(), e.host, e.gateResult ?? e.outcome, e.gateRule ?? '', e.protection ?? '', e.detail].map(csvCell).join(',')
+    )
+  }
+  return lines.join('\n')
 }
 
 function csvCell(value: string): string {

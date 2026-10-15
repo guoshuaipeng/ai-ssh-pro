@@ -298,6 +298,7 @@ export type AissPreload = {
   }
   files: {
     saveText: (defaultName: string, content: string) => Promise<string | null>
+    reveal: (target: string) => Promise<boolean>
   }
   snapshots: {
     list: (query?: { profileId?: string; path?: string }) => Promise<Array<Record<string, unknown>>>

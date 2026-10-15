@@ -58,6 +58,12 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   refreshDocker: 'docker sxd shuaxin',
   updateChannel: 'gengxin tongdao gitee github',
   taskCards: 'renwu rukou onboarding',
+  quickStart: 'quick start shouqi ux60',
+  enableRuleTemplates: 'rule template gzmb gaojing muban',
+  retryFailedProbes: 'retry failed probes csb caiyang',
+  exportPlaybookPack: 'share playbook jbfx daochu',
+  importPlaybookPack: 'share playbook jbfx daoru',
+  gateTimeline: 'gate timeline zmjl zhamen',
   sftpComfort: 'midu shushi compact sftp',
   setJumpHosts: 'jump tiaoban bastion proxy',
   checkCerts: 'cert zhengshu sk fido key',
@@ -85,7 +91,12 @@ export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: str
   { id: 'exportPostmortem', zh: '导出当前告警复盘…', en: 'Export postmortem for selected alert…' },
   { id: 'toggleBlockStrip', zh: '显示 / 隐藏输出分块条', en: 'Show / hide output blocks' },
   { id: 'refreshHomeHealth', zh: '刷新首页健康', en: 'Refresh home health' },
-  { id: 'switchTab', zh: '切换标签…', en: 'Switch tab…' }
+  { id: 'switchTab', zh: '切换标签…', en: 'Switch tab…' },
+  { id: 'enableRuleTemplates', zh: '启用告警规则模板…', en: 'Enable alert rule templates…' },
+  { id: 'retryFailedProbes', zh: '重试失败的健康采样', en: 'Retry failed health samples' },
+  { id: 'exportPlaybookPack', zh: '导出剧本分享包…', en: 'Export playbook share pack…' },
+  { id: 'importPlaybookPack', zh: '导入剧本分享包…', en: 'Import playbook share pack…' },
+  { id: 'gateTimeline', zh: '查看写闸门记录', en: 'View write-gate log' }
 ]
 
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {
