@@ -600,6 +600,23 @@ export type AiDebugEntry =
         items?: number
       }>
       totalChars: number
+      /**
+       * Observational-memory budget. The harness asserts this; it is not a product-shell control.
+       * `truncated` is a drop or a cut. `nearBudget` is at least 80% of the bullet or summary cap.
+       */
+      omBudget: {
+        bulletCap: number
+        bulletCharCap: number
+        summaryCharCap: number
+        bullets: number
+        bulletChars: number
+        summaryChars: number
+        droppedBullets: number
+        truncatedBullets: number
+        summaryTruncated: boolean
+        nearBudget: boolean
+        truncated: boolean
+      }
     }
 
 export type AiDebugStreamPayload = {

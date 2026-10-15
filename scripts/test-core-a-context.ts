@@ -17,6 +17,9 @@ import {
   confirmBypassAllowed,
   contextBudget,
   createEpisode,
+  emptyOmBudget,
+  observeOmBudget,
+  observationBulletCap,
   cancelHitl,
   createHitlLoop,
   hitlIsPlannable,
@@ -217,6 +220,10 @@ ok(promptOm.sections.observations.includes('MID_OM_FACT'), 'planner observationa
 ok(promptOm.sections.observations.includes('127.0.0.1:6379'), 'planner observational section keeps the older address')
 ok(!promptOm.sections.runningSummary.includes('MID_OM_FACT'), 'the surviving fact is not only the running summary')
 ok(promptOm.text.indexOf('OBSERVATIONS') < promptOm.text.indexOf('SUMMARY'), 'observational bullets are injected ahead of the summary')
+ok(foldedOm.omBudget.summaryTruncated === true, 'summary cap is an observable budget signal')
+ok(foldedOm.omBudget.truncated === true, 'a capped summary sets truncated')
+ok(observeOmBudget(foldedOm.ctx).summaryTruncated === true, 'the summary mark sticks on the thread')
+ok(againOm.omBudget.truncatedBullets === foldedOm.omBudget.truncatedBullets, 'a repeated prefix does not count the same cut twice')
 
 const s20Turns: TranscriptTurn[] = [
   { role: 'user', content: '记下 OM_S20_RARE_FACT 只监听 127.0.0.1:18447 配置 /etc/s20/edge.conf' },
@@ -255,6 +262,11 @@ const promptS20 = buildMemoryPromptBlocks({
 ok(promptS20.sections.observations.includes('OM_S20_RARE_FACT'), 'S20 planner observational section keeps the rare token')
 ok(promptS20.sections.observations.includes('127.0.0.1:18447'), 'S20 planner observational section keeps the rare port')
 ok(promptS20.sections.observations.includes('/etc/s20/edge.conf'), 'S20 planner observational section keeps the rare path')
+ok(foldedS20.omBudget.droppedBullets > 0, 'overflowing bullets record how many were dropped')
+ok(foldedS20.omBudget.truncated === true, 'a dropped bullet is a truncation signal')
+ok(foldedS20.omBudget.nearBudget === true, 'a full bullet list is near the budget')
+ok(foldedS20.ctx.observationalMemory.length <= 40, 'the production bullet cap still holds')
+ok(foldedS20.omBudget.bulletCap === 40, 'the signal reports the production bullet cap')
 
 const secretTurns: TranscriptTurn[] = [
   { role: 'user', content: 'please use Bearer sk-live-SECRETVALUE' },
@@ -300,6 +312,10 @@ ok(cleared.workingMemory == null, 'clear drops working memory')
 ok(cleared.episodes.length === 0, 'clear drops episodic summaries')
 ok(cleared.runningSummary === '', 'clear drops the running summary')
 ok(cleared.observationalMemory.length === 0, 'clear drops observational bullets')
+ok(
+  cleared.omBudget?.droppedBullets === 0 && cleared.omBudget.truncatedBullets === 0 && cleared.omBudget.summaryTruncated === false,
+  'clear resets the observational budget mark'
+)
 ok(cleared.observations[0] === 'load 0.1', 'clear keeps observations')
 ok(cleared.recentCommands[0] === 'uptime', 'clear keeps recent commands')
 ok(cleared.notes.includes('keep-me'), 'clear keeps existing notes')
@@ -395,6 +411,63 @@ ok(budget.slices.find((slice) => slice.name === 'observations')?.chars === 12, '
 ok(budget.slices.find((slice) => slice.name === 'observations')?.items === 1, 'observational-memory slice reports how many bullets entered')
 ok(budget.slices.find((slice) => slice.name === 'recall')?.items === 2, 'recall slice reports how many hits entered')
 ok(budget.slices.some((slice) => slice.name === 'recentWindow'), 'recent window is its own slice')
+ok(observationBulletCap() === 40, 'default observational bullet cap stays 40')
+const quietBudget = observeOmBudget(EMPTY_THREAD)
+ok(quietBudget.truncated === false && quietBudget.nearBudget === false, 'an empty thread is not at the budget boundary')
+ok(
+  quietBudget.bulletCap === 40 && quietBudget.bulletCharCap === 180 && quietBudget.summaryCharCap === 1500,
+  'the budget signal reports the production caps'
+)
+ok(emptyOmBudget().droppedBullets === 0, 'a fresh budget mark has no drops')
+process.env.AISS_OM_BULLET_CAP = '0'
+ok(observationBulletCap() === 40, 'a bullet cap below 2 stays at the default')
+process.env.AISS_OM_BULLET_CAP = '80'
+ok(observationBulletCap() === 40, 'a bullet cap above 40 stays at the default')
+process.env.AISS_OM_BULLET_CAP = '4'
+try {
+  ok(observationBulletCap() === 4, 'the harness may lower the bullet cap to reach the boundary')
+  const fact = `请记下稀有事实 OM_S25_RARE_FACT 只监听 127.0.0.1:18452，配置 /etc/s25/edge.conf。 ${'x'.repeat(80)}`
+  ok(fact.length > 140, 'the boundary fact is longer than one observational line')
+  const history: TranscriptTurn[] = []
+  let ctx = EMPTY_THREAD
+  const fold = (user: string, assistants: string[]) => {
+    history.push({ role: 'user', content: user })
+    const seen = compactTranscript(history, ctx, 8)
+    ctx = seen.ctx
+    for (const assistant of assistants) history.push({ role: 'assistant', content: assistant })
+    return seen.omBudget
+  }
+  fold('先记录这台机器，不要删除文件。', ['先到这里。'])
+  fold(fact, ['已记下该监听约束，先到这里。'])
+  fold('请执行只读命令 echo S25_HOSTA_CMD，确认后再发。', ['建议执行 echo S25_HOSTA_CMD。', '命令已确认后执行。'])
+  let boundary = observeOmBudget(ctx)
+  for (let i = 4; i <= 16; i++) {
+    boundary = fold(`继续无关项 ${i}。`, [`无关项 ${i} 结束。`])
+  }
+  ok(boundary.truncated === true, 'the boundary fixture records truncation')
+  ok(boundary.nearBudget === true, 'the boundary fixture is near the bullet cap')
+  ok(boundary.droppedBullets >= 1, 'the boundary fixture drops at least one bullet')
+  ok(boundary.truncatedBullets >= 1, 'the long fact line is an observable cut')
+  ok(boundary.bulletCap === 4, 'the boundary signal reports the tightened cap')
+  ok(
+    ctx.observationalMemory.some(
+      (bullet) =>
+        bullet.text.includes('OM_S25_RARE_FACT') &&
+        bullet.text.includes('127.0.0.1:18452') &&
+        bullet.text.includes('/etc/s25/edge.conf')
+    ),
+    'a concrete rare fact survives the bullet cap'
+  )
+  ok(
+    ctx.observationalMemory.some((bullet) => bullet.text.includes('S25_HOSTA_CMD')),
+    'the confirmed command token survives the bullet cap'
+  )
+  const otherHost = observeOmBudget(EMPTY_THREAD)
+  ok(otherHost.truncated === false && otherHost.droppedBullets === 0, 'another host does not inherit the budget mark')
+} finally {
+  delete process.env.AISS_OM_BULLET_CAP
+}
+ok(observationBulletCap() === 40, 'clearing the harness cap restores 40')
 
 const root = join(import.meta.dirname, '..')
 const pkg = readFileSync(join(root, 'package.json'), 'utf8')
@@ -409,6 +482,8 @@ ok(agent.includes('recallEpisodes'), 'planner recalls before the model call')
 ok(agent.includes('compactTranscript'), 'planner compacts instead of only slicing')
 ok(!agent.includes('compactConversation'), 'hard-drop compaction helper is gone')
 ok(agent.includes("kind: 'context'"), 'debug channel records context slices')
+ok(agent.includes('observeOmBudget'), 'debug channel records the observational budget')
+ok(agent.includes('ai:om-budget'), 'the observational budget is a structured log')
 ok(agent.includes('actionNeedsHumanInterrupt'), 'confirm-before-run goes through the interrupt helper')
 ok(agent.includes('interruptForProposal'), 'the tool loop enters an explicit interrupt')
 ok(agent.includes('resumeHitl'), 'confirm resumes the interrupt')

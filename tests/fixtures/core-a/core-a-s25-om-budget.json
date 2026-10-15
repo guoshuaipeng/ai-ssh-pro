@@ -1,0 +1,658 @@
+{
+  "id": "S25",
+  "title": "Observational-memory budget and truncation stay observable",
+  "industryBar": [
+    "observational-compression",
+    "budget-observability",
+    "host-scope",
+    "confirm-before-run"
+  ],
+  "hostProfile": {
+    "hostId": "host-s25-b",
+    "label": "host-b-s25",
+    "hostname": "host-b-s25.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s25-b",
+    "historyKey": "hist-s25-host-b"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_OM_BULLET_CAP": "4"
+  },
+  "seedInventory": {
+    "hostId": "host-s25-b",
+    "services": [
+      {
+        "name": "hostb-s25-web",
+        "kind": "systemd",
+        "ports": [
+          80
+        ],
+        "notes": "HOST_B_S25_ONLY ordinary web"
+      }
+    ],
+    "notes": [
+      "HOST_B_S25_ONLY"
+    ]
+  },
+  "isolationPrelude": {
+    "hostProfile": {
+      "hostId": "host-s25-a",
+      "label": "host-a-s25",
+      "hostname": "host-a-s25.internal"
+    },
+    "session": {
+      "targetSessionId": "sess-s25-a",
+      "historyKey": "hist-s25-host-a"
+    },
+    "seedInventory": {
+      "hostId": "host-s25-a",
+      "services": [
+        {
+          "name": "hosta-s25-plain",
+          "kind": "systemd",
+          "ports": [
+            22
+          ],
+          "notes": "HOST_A_S25_PLAIN"
+        }
+      ],
+      "notes": [
+        "HOST_A_S25_PLAIN"
+      ]
+    },
+    "turns": [
+      {
+        "turnId": "S25-A1",
+        "userMessage": "先记录这台机器，不要删除文件。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "先到这里。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A2",
+        "userMessage": "请记下稀有事实 OM_S25_RARE_FACT 只监听 127.0.0.1:18452，配置 /etc/s25/edge.conf。 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "已记下该监听约束，先到这里。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0,
+          "descriptionMustNotContain": [
+            "OM_S25_RARE_FACT",
+            "18452",
+            "/etc/s25/edge.conf"
+          ]
+        }
+      },
+      {
+        "turnId": "S25-A3",
+        "userMessage": "请执行只读命令 echo S25_HOSTA_CMD，确认后再发。",
+        "mockTerminal": {
+          "initialRing": "",
+          "afterWrite": {
+            "echo S25_HOSTA_CMD": "S25_HOSTA_CMD\n"
+          }
+        },
+        "userConfirm": {
+          "policy": "approve-all-commands",
+          "assert": {
+            "stepHasRequestId": true,
+            "autoApproved": false,
+            "sshWriteBeforeApprove": false
+          }
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "建议执行 echo S25_HOSTA_CMD。",
+              "action": "command",
+              "command": "echo S25_HOSTA_CMD",
+              "riskLevel": "low",
+              "completed": false
+            }
+          },
+          {
+            "response": {
+              "description": "命令已确认后执行。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 1,
+          "commandsRequiringConfirm": [
+            "echo S25_HOSTA_CMD"
+          ],
+          "recentCommandsMustContain": [
+            "echo S25_HOSTA_CMD"
+          ],
+          "confirmGate": {
+            "required": true,
+            "riskLevel": "low",
+            "settingsAutoApproveLowRisk": false
+          }
+        }
+      },
+      {
+        "turnId": "S25-A4",
+        "userMessage": "继续无关项 4。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 4 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A5",
+        "userMessage": "继续无关项 5。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 5 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A6",
+        "userMessage": "继续无关项 6。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 6 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A7",
+        "userMessage": "继续无关项 7。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 7 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A8",
+        "userMessage": "继续无关项 8。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 8 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A9",
+        "userMessage": "继续无关项 9。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 9 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A10",
+        "userMessage": "继续无关项 10。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 10 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A11",
+        "userMessage": "继续无关项 11。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 11 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A12",
+        "userMessage": "继续无关项 12。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 12 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A13",
+        "userMessage": "继续无关项 13。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 13 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A14",
+        "userMessage": "继续无关项 14。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 14 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A15",
+        "userMessage": "继续无关项 15。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 15 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S25-A16",
+        "userMessage": "继续无关项 16。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 16 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0,
+          "observationalMemoryMustContain": [
+            "OM_S25_RARE_FACT",
+            "127.0.0.1:18452",
+            "/etc/s25/edge.conf",
+            "S25_HOSTA_CMD"
+          ],
+          "recentWindowMustNotContain": [
+            "OM_S25_RARE_FACT",
+            "127.0.0.1:18452",
+            "/etc/s25/edge.conf",
+            "S25_HOSTA_CMD"
+          ],
+          "recentCommandsMustContain": [
+            "echo S25_HOSTA_CMD"
+          ],
+          "omBudget": {
+            "truncated": true,
+            "nearBudget": true,
+            "minDroppedBullets": 1,
+            "minTruncatedBullets": 1,
+            "bulletCap": 4
+          }
+        }
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "S25-B1",
+      "userMessage": "先前的监听事实还在吗？不够就说明。不要执行命令。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {}
+      },
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "当前主机没有这条记录，证据不足。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "mustNotEmitCommands": [
+          "echo",
+          "S25_HOSTA_CMD",
+          "OM_S25_RARE_FACT"
+        ],
+        "descriptionMustContain": [
+          "证据不足"
+        ],
+        "descriptionMustNotContain": [
+          "OM_S25_RARE_FACT",
+          "127.0.0.1:18452",
+          "/etc/s25/edge.conf",
+          "S25_HOSTA_CMD",
+          "HOST_A_S25_PLAIN"
+        ],
+        "plannerPromptMustNotContain": [
+          "OM_S25_RARE_FACT",
+          "127.0.0.1:18452",
+          "/etc/s25/edge.conf",
+          "S25_HOSTA_CMD",
+          "HOST_A_S25_PLAIN"
+        ],
+        "observationalMemoryMustNotContain": [
+          "OM_S25_RARE_FACT",
+          "127.0.0.1:18452",
+          "/etc/s25/edge.conf",
+          "S25_HOSTA_CMD"
+        ],
+        "recentCommandEvidenceMustNotContain": [
+          "S25_HOSTA_CMD",
+          "OM_S25_RARE_FACT"
+        ],
+        "recentCommandsMustNotContain": [
+          "S25_HOSTA_CMD",
+          "OM_S25_RARE_FACT"
+        ],
+        "recentWindowMustNotContain": [
+          "OM_S25_RARE_FACT",
+          "S25_HOSTA_CMD",
+          "18452"
+        ],
+        "omBudget": {
+          "truncated": false,
+          "nearBudget": false,
+          "bulletCap": 4
+        }
+      }
+    }
+  ],
+  "hostScopeReturn": {
+    "hostProfile": {
+      "hostId": "host-s25-a",
+      "label": "host-a-s25",
+      "hostname": "host-a-s25.internal"
+    },
+    "session": {
+      "targetSessionId": "sess-s25-a",
+      "historyKey": "hist-s25-host-a"
+    },
+    "seedInventory": {
+      "hostId": "host-s25-a",
+      "services": [
+        {
+          "name": "hosta-s25-plain",
+          "kind": "systemd",
+          "ports": [
+            22
+          ],
+          "notes": "HOST_A_S25_PLAIN"
+        }
+      ],
+      "notes": [
+        "HOST_A_S25_PLAIN"
+      ]
+    },
+    "turns": [
+      {
+        "turnId": "S25-A17",
+        "userMessage": "先前的监听和配置路径还在吗？只回答当前主机。",
+        "mockTerminal": {
+          "initialRing": "",
+          "afterWrite": {}
+        },
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "先读终端缓冲。",
+              "action": "tool_call",
+              "toolName": "get_terminal_snapshot",
+              "toolInput": {
+                "maxLines": 200,
+                "fromCurrentCommand": true
+              },
+              "riskLevel": "low",
+              "completed": false
+            },
+            "expectToolResultContains": [
+              "暂无缓冲"
+            ]
+          },
+          {
+            "response": {
+              "description": "仍记得 OM_S25_RARE_FACT 只监听 127.0.0.1:18452，配置 /etc/s25/edge.conf。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "completed": true,
+          "sshWriteCount": 0,
+          "mustNotEmitCommands": [
+            "echo",
+            "S25_HOSTA_CMD"
+          ],
+          "descriptionMustContain": [
+            "OM_S25_RARE_FACT",
+            "127.0.0.1:18452",
+            "/etc/s25/edge.conf"
+          ],
+          "descriptionMustNotContain": [
+            "证据不足",
+            "HOST_B_S25_ONLY"
+          ],
+          "observationalMemoryMustContain": [
+            "OM_S25_RARE_FACT",
+            "127.0.0.1:18452",
+            "/etc/s25/edge.conf",
+            "S25_HOSTA_CMD"
+          ],
+          "recentWindowMustNotContain": [
+            "OM_S25_RARE_FACT",
+            "127.0.0.1:18452",
+            "/etc/s25/edge.conf",
+            "S25_HOSTA_CMD"
+          ],
+          "recentCommandsMustContain": [
+            "echo S25_HOSTA_CMD"
+          ],
+          "recentCommandEvidenceMustContain": [
+            "S25_HOSTA_CMD"
+          ],
+          "plannerPromptMustNotContain": [
+            "HOST_B_S25_ONLY",
+            "hostb-s25-web"
+          ],
+          "omBudget": {
+            "truncated": true,
+            "nearBudget": true,
+            "minDroppedBullets": 1,
+            "minTruncatedBullets": 1,
+            "bulletCap": 4
+          }
+        }
+      }
+    ]
+  },
+  "passCriteriaSummary": [
+    "Host A records OM_S25_RARE_FACT and a confirmed echo S25_HOSTA_CMD, then fillers cross the observational-memory bullet cap",
+    "The context debug event reports truncated, nearBudget, dropped bullets, and a cut line",
+    "Host B recall says 证据不足, does not inherit host A bullets or the budget mark, and does not run a command",
+    "The same host A thread still recalls the rare fact after truncation, and confirm-before-run stays on"
+  ]
+}
