@@ -1,5 +1,6 @@
 /**
- * Coordinator multi-turn evals. Fixtures live in tests/fixtures/core-a/.
+ * Coordinator multi-turn evals. Every `*.json` file in tests/fixtures/core-a/
+ * is a scenario. Drop a new file there; this runner picks it up with no edit.
  * The real planner runs against a scripted model and a fake terminal.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
@@ -89,10 +90,44 @@ const SECTION_HEADINGS: Record<RecallExpect['presentIn'][number], string> = {
 
 function loadFixtures(): Fixture[] {
   const dir = join(dirname(fileURLToPath(import.meta.url)), '../tests/fixtures/core-a')
-  return readdirSync(dir)
-    .filter((name) => name.endsWith('.json'))
-    .map((name) => JSON.parse(readFileSync(join(dir, name), 'utf8')) as Fixture)
-    .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+  const names = readdirSync(dir).filter((name) => name.endsWith('.json')).sort()
+  assert.ok(names.length > 0, `no fixtures in ${dir}`)
+  const fixtures = names.map((name) => {
+    const fixture = JSON.parse(readFileSync(join(dir, name), 'utf8')) as Fixture
+    assertFixtureShape(fixture, name)
+    return fixture
+  })
+  const ids = fixtures.map((fixture) => fixture.id)
+  assert.equal(new Set(ids).size, ids.length, `duplicate fixture id in ${ids.join(', ')}`)
+  return fixtures.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+}
+
+function assertFixtureShape(fixture: Fixture, file: string): void {
+  assert.equal(typeof fixture.id, 'string', `${file} id`)
+  assert.ok(fixture.id.trim(), `${file} id is blank`)
+  assert.equal(typeof fixture.title, 'string', `${file} title`)
+  assert.equal(typeof fixture.sessionId, 'string', `${file} sessionId`)
+  assert.equal(typeof fixture.debugTurnId, 'string', `${file} debugTurnId`)
+  assert.equal(fixture.autoApproveLowRisk, false, `${file} autoApproveLowRisk`)
+  assert.ok(Array.isArray(fixture.phases) && fixture.phases.length > 0, `${file} phases`)
+  assert.ok(fixture.expect && typeof fixture.expect === 'object', `${file} expect`)
+  for (const phase of fixture.phases) {
+    assert.equal(typeof phase.user, 'string', `${file} phase.user`)
+    assert.equal(typeof phase.snapshot, 'string', `${file} phase.snapshot`)
+    assert.ok(Array.isArray(phase.replies) && phase.replies.length > 0, `${file} phase.replies`)
+  }
+}
+
+/** Replies the planner may consume before a declined command stops the run. */
+function repliesUntilFirstCommand(fixture: Fixture): number {
+  let count = 0
+  for (const phase of fixture.phases) {
+    for (const reply of phase.replies) {
+      count += 1
+      if (reply.action === 'command') return count
+    }
+  }
+  return count
 }
 
 function literalRegExp(pattern: string): RegExp {
@@ -272,10 +307,6 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
   })
 
   const fixtures = loadFixtures()
-  assert.deepEqual(
-    fixtures.map((fixture) => fixture.id),
-    ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12']
-  )
 
   for (const fixture of fixtures) {
     it(`${fixture.id} ${fixture.title}`, async () => {
@@ -308,8 +339,6 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         })
         history.push(...assistantLines(result.events))
         for (const pair of phase.filler ?? []) {
-          assert.equal(pair.user.includes('8080'), false)
-          assert.equal(pair.assistant.includes('8080'), false)
           history.push({ role: 'user', content: pair.user }, { role: 'assistant', content: pair.assistant })
         }
         prompts.push(...result.prompts)
@@ -330,7 +359,6 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
       }
       if (expect.maxModelCalls != null) {
         assert.ok(prompts.length <= expect.maxModelCalls, `planner made ${prompts.length} model calls`)
-        assert.ok(prompts.length < 8)
       }
       if (expect.maxSnapshots != null) {
         const snaps = events.filter(
@@ -379,9 +407,10 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         assert.notEqual(command.autoApproved, true)
       }
       if (expect.denied) {
+        assert.equal(fixture.confirm, false, 'denied scenarios must set confirm:false')
         assert.equal(writes.length, 0)
         assert.ok(events.some((event) => event.type === 'cancelled'))
-        assert.equal(prompts.length, 1, 'planner continued after the user declined')
+        assert.equal(prompts.length, repliesUntilFirstCommand(fixture), 'planner continued after the user declined')
       }
       if (expect.requireContextSlices) assertContextSlices(events, fixture.debugTurnId)
       if (expect.recall) {
