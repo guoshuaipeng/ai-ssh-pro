@@ -49,6 +49,13 @@ import {
 } from './core-a-context'
 import { getInventoryStore } from './inventory-store'
 import type { HostServiceKind } from '../shared/inventory'
+import {
+  classifyCommandFailure,
+  explainFailedCommand,
+  readConfirmedCommandOutcome,
+  retryWritePermitted,
+  type CommandFailureEvidence
+} from './core-a-command-failure'
 
 function send(wc: WebContents, ev: AiStreamEvent): void {
   if (!wc.isDestroyed()) wc.send('ai:stream', ev)
@@ -621,6 +628,8 @@ function buildCoreSystemPrompt(
     lastWriteOk?: boolean | null
     plannerHint?: string | null
     memoryBlocks?: string | null
+    /** Structured failure of the last confirmed command. Empty when that command did not fail. */
+    commandFailure?: string | null
   }
 ): string {
   const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : mt('（暂无）', "(none)")
@@ -695,6 +704,15 @@ function buildCoreSystemPrompt(
 
   if (ctx.lastCommand) {
     parts.push(mt(`上一条命令已发送（writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}）：\n\`\`\`\n${ctx.lastCommand}\n\`\`\``, `Previous command sent (writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}):\n\`\`\`\n${ctx.lastCommand}\n\`\`\``))
+  }
+
+  if (ctx.commandFailure?.trim()) {
+    parts.push(
+      mt(
+        `上一条已确认命令失败（禁止自动重跑，重试须新的确认）：\n${ctx.commandFailure.trim()}`,
+        `The last confirmed command failed (do not run it again; a retry needs a new confirmation):\n${ctx.commandFailure.trim()}`
+      )
+    )
   }
 
   return parts.join('\n')
@@ -843,6 +861,8 @@ export async function runOpenClawCoreAgentChat(
   let lastToolResult: string | null = null
   let lastCommand: string | null = null
   let lastWriteOk: boolean | null = null
+  let lastFailure: (CommandFailureEvidence & { requestId: string }) | null = null
+  const writtenRequestIds = new Set<string>()
 
   const MAX_TOOL_RESULT_CHARS = 6000
 
@@ -893,7 +913,12 @@ export async function runOpenClawCoreAgentChat(
       }
 
       let plannerHint: string | null = null
-      if (!lastToolResult && targetSessionId && step <= 2) {
+      if (lastFailure) {
+        plannerHint = mt(
+          '上一条已确认命令失败。说明里要引用失败证据，禁止自动重跑。同一命令只有在新的确认之后才能再写。',
+          'The last confirmed command failed. Cite the failure evidence. Do not run it again. The same command can be written only after a new confirmation.'
+        )
+      } else if (!lastToolResult && targetSessionId && step <= 2) {
         plannerHint = mt('尚无终端证据，本轮应优先 tool_call(get_terminal_snapshot)，不要直接 command。', "No terminal evidence yet; this round should prefer tool_call(get_terminal_snapshot) rather than a command.")
       } else if (lastCommand && lastToolResult) {
         plannerHint = mt('上一条命令已执行且已有自动观测，请基于快照给出结论或下一步；证据充分时请 end。', "The previous command ran and was observed automatically; give a conclusion or next step from the snapshot, and end when evidence is sufficient.")
@@ -921,7 +946,8 @@ export async function runOpenClawCoreAgentChat(
         lastCommand,
         lastWriteOk,
         plannerHint,
-        memoryBlocks: memory.text
+        memoryBlocks: memory.text,
+        commandFailure: lastFailure?.evidence ?? null
       })
 
       const messages: Array<{ role: string; content: string }> = [
@@ -1054,6 +1080,17 @@ export async function runOpenClawCoreAgentChat(
           label: 'HITL interrupt',
           detail: `phase=${hitl.phase} action=${parsed.action} risk=${parsed.riskLevel}`
         })
+      }
+
+      if (parsed.action === 'end' && lastFailure) {
+        parsed = {
+          ...parsed,
+          description: explainFailedCommand(
+            parsed.description,
+            lastFailure,
+            mt('不会自动重跑。若要再执行，需要新的确认。', 'This will not run again on its own. Another run needs a new confirmation.')
+          )
+        }
       }
 
       send(wc, {
@@ -1361,6 +1398,30 @@ export async function runOpenClawCoreAgentChat(
           return
         }
 
+        if (requestId && writtenRequestIds.has(requestId)) {
+          send(wc, {
+            type: 'error',
+            message: mt('同一确认不会再次写入终端。', 'The same confirmation does not write to the terminal again.')
+          })
+          return
+        }
+        if (
+          !retryWritePermitted({
+            command: oneLineCmd,
+            failedCommand: lastFailure?.command ?? null,
+            requestId: requestId ?? null,
+            priorRequestId: lastFailure?.requestId ?? null,
+            approved: true
+          })
+        ) {
+          send(wc, {
+            type: 'error',
+            message: mt('失败的命令不会自动重跑。若要再执行，需要新的确认。', 'A failed command does not run again on its own. Another run needs a new confirmation.')
+          })
+          return
+        }
+        if (requestId) writtenRequestIds.add(requestId)
+
         logAi('ssh:write exec', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
         lastWriteOk = ssh.write(targetSessionId, `${oneLineCmd}\n`)
         lastCommand = oneLineCmd
@@ -1395,6 +1456,30 @@ export async function runOpenClawCoreAgentChat(
               detail: capDebugDetail(postCmdSnap)
             })
           }
+        }
+
+        const reported = readConfirmedCommandOutcome(ssh, targetSessionId, oneLineCmd)
+        const failure =
+          reported || lastWriteOk === false
+            ? classifyCommandFailure(oneLineCmd, {
+                exitCode: reported?.exitCode,
+                stderr: reported?.stderr,
+                timedOut: reported?.timedOut,
+                timeoutMark: reported?.timeoutMark,
+                writeOk: lastWriteOk === true
+              })
+            : null
+        if (failure && requestId) {
+          if (lastWriteOk) sessionState.failureStreak += 1
+          lastFailure = { ...failure, requestId }
+          lastToolResult = lastToolResult?.trim() ? `${lastToolResult.trim()}\n${failure.evidence}` : failure.evidence
+          rememberNote(sessionState, failure.evidence)
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: mt('命令失败', 'Command failed'),
+            detail: `failed=true kind=${failure.kind} autoRetry=false\n${failure.evidence}`
+          })
         }
       }
 
