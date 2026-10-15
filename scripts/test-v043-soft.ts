@@ -53,7 +53,11 @@ assert.deepEqual(loadProbePrefs(store), {
   tags: [],
   prodOnly: false,
   excludeReadonly: true,
-  backoffCapMin: 5
+  backoffCapMin: 5,
+  extraLoad: false,
+  extraInode: false,
+  extraMounts: false,
+  mounts: ['/']
 })
 
 const hosts: ProbeCandidate[] = Array.from({ length: 50 }, (_, i) => ({

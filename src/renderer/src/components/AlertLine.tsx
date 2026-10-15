@@ -34,7 +34,9 @@ export function AlertLine({
   fixTitle,
   onMarkDone,
   onIgnore,
-  onBoard
+  onBoard,
+  maintenanceUntil,
+  onMaintenance
 }: {
   alert: FiredAlert
   selected?: boolean
@@ -54,6 +56,8 @@ export function AlertLine({
   onMarkDone?: () => void
   onIgnore?: () => void
   onBoard?: () => void
+  maintenanceUntil?: number | null
+  onMaintenance?: () => void
 }) {
   const { t } = useI18n()
   const age = ageBucket(alert.at, now)
@@ -66,6 +70,7 @@ export function AlertLine({
     if (onIgnore) items.push({ id: 'w1-row-ignore', label: t('w1.rowMenu.ignore'), disabled: !canResolve, onSelect: onIgnore })
     items.push('sep')
     if (onBoard) items.push({ id: 'w1-row-board', label: t('w1.rowMenu.board'), onSelect: onBoard })
+    if (onMaintenance) items.push({ id: 'l2d-row', label: t('l2d.openForHost'), onSelect: onMaintenance })
     items.push({
       id: 'w1-row-copy',
       label: t('w1.rowMenu.copy'),
@@ -96,7 +101,10 @@ export function AlertLine({
         {alert.ruleId}
       </span>
       <span className="alert-line-value">{value}</span>
-      <span className="alert-line-age">{t(AGE_KEY[age.key], { n: age.n })}</span>
+      <span className="alert-line-age" title={maintenanceUntil ? t('l2d.until', { time: new Date(maintenanceUntil).toLocaleTimeString() }) : undefined}>
+        {t(AGE_KEY[age.key], { n: age.n })}
+      </span>
+      {maintenanceUntil ? <span className="l2d-badge" data-testid="l2d-row-badge">{t('l2d.badge')}</span> : null}
       <span className="alert-line-actions">
         {onLocate ? (
           <button

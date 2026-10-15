@@ -11,6 +11,7 @@ import type { TerminalPrefs } from '@shared/ipc'
 import type { ProbePrefs } from '@shared/health-probe'
 import AiConfigForm from './AiConfigForm'
 import HealthProbeFields from './HealthProbeFields'
+import { loadLoopPrefs, saveLoopPrefs } from '@shared/alert-loop'
 import TerminalPrefsModal from './TerminalPrefsModal'
 import { confirmDialog } from '../lib/dialogs'
 
@@ -83,6 +84,7 @@ export default function SettingsPanel({
   const [autoIcon, setAutoIcon] = useState(() => localStorage.getItem('aiss.toolbar.autoIcon') !== '0')
   const [snapOn, setSnapOn] = useState(() => snapshotsEnabled())
   const [snapKeep, setSnapKeep] = useState(() => snapshotKeep())
+  const [loopOn, setLoopOn] = useState(() => loadLoopPrefs().show)
   const [snapStats, setSnapStats] = useState({ files: 0, bytes: 0, count: 0 })
   useEffect(() => {
     if (section !== 'files') return
@@ -211,6 +213,20 @@ export default function SettingsPanel({
             <section>
               <h3>{t('settings.ops')}</h3>
               <HealthProbeFields prefs={probePrefs} tagOptions={tagOptions} onChange={onProbePrefs} />
+              <label className="settings-row">
+                <input
+                  type="checkbox"
+                  data-testid="w7-settings"
+                  checked={loopOn}
+                  onChange={(e) => {
+                    setLoopOn(e.target.checked)
+                    saveLoopPrefs(e.target.checked)
+                    window.dispatchEvent(new Event('aiss-loop-pref'))
+                  }}
+                />
+                {t('w7.settings')}
+              </label>
+              <p className="l7-muted">{t('w7.settingsHint')}</p>
               {onOpenTemplates ? (
                 <button type="button" data-testid="l2c-settings" onClick={onOpenTemplates}>
                   {t('l2c.seg.templates')}

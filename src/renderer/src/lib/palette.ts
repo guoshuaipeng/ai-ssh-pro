@@ -64,6 +64,12 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   exportPlaybookPack: 'share playbook jbfx daochu',
   importPlaybookPack: 'share playbook jbfx daoru',
   gateTimeline: 'gate timeline zmjl zhamen',
+  maintOpen: 'maintenance weihu chuangkou l2d',
+  maintEnd: 'end maintenance jieshu weihu',
+  setDryRunReminder: 'dry-run reminder shipao tixing w6',
+  aiPostmortem: 'postmortem fupan a5',
+  explainDiff: 'diff explain chayi l8b',
+  diffFixPlaybook: 'diff playbook xiufu l8b',
   sftpComfort: 'midu shushi compact sftp',
   setJumpHosts: 'jump tiaoban bastion proxy',
   checkCerts: 'cert zhengshu sk fido key',
@@ -96,7 +102,13 @@ export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: str
   { id: 'retryFailedProbes', zh: '重试失败的健康采样', en: 'Retry failed health samples' },
   { id: 'exportPlaybookPack', zh: '导出剧本分享包…', en: 'Export playbook share pack…' },
   { id: 'importPlaybookPack', zh: '导入剧本分享包…', en: 'Import playbook share pack…' },
-  { id: 'gateTimeline', zh: '查看写闸门记录', en: 'View write-gate log' }
+  { id: 'gateTimeline', zh: '查看写闸门记录', en: 'View write-gate log' },
+  { id: 'maintOpen', zh: '维护窗口', en: 'Maintenance window' },
+  { id: 'maintEnd', zh: '结束维护', en: 'End maintenance' },
+  { id: 'setDryRunReminder', zh: '试跑提醒', en: 'Dry-run reminder' },
+  { id: 'aiPostmortem', zh: 'AI 复盘摘要', en: 'AI postmortem summary' },
+  { id: 'explainDiff', zh: 'AI 解释差异', en: 'Explain diff' },
+  { id: 'diffFixPlaybook', zh: '从差异生成修复剧本', en: 'Draft fix playbook from diff' }
 ]
 
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {

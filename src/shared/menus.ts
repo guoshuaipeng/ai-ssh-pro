@@ -95,6 +95,12 @@ export type MenuAction =
   | 'exportPlaybookPack'
   | 'importPlaybookPack'
   | 'gateTimeline'
+  | 'maintOpen'
+  | 'maintEnd'
+  | 'setDryRunReminder'
+  | 'aiPostmortem'
+  | 'explainDiff'
+  | 'diffFixPlaybook'
 
 export type Bilingual = { zh: string; en: string }
 

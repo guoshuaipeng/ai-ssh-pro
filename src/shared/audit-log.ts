@@ -11,6 +11,7 @@ export type AuditType =
   | 'playbook.dryrun'
   | 'protection.change'
   | 'gate'
+  | 'alert.maintenance'
 
 export type GateResult = 'allowed' | 'confirmed' | 'denied' | 'blocked' | 'cancelled' | 'unlock' | 'restore'
 

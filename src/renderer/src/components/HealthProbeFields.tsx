@@ -1,4 +1,5 @@
-import { PROBE_HARD_MAX, type ProbePrefs, type ProbeScopeMode } from '@shared/health-probe'
+import { PROBE_HARD_MAX, PROBE_MOUNT_MAX, normalizeMountPath, type ProbePrefs, type ProbeScopeMode } from '@shared/health-probe'
+import { promptDialog } from '../lib/dialogs'
 import { useI18n } from '../lib/i18n'
 
 /** Shared auto-sampling controls for the home ⋯ panel and Settings → Ops. */
@@ -96,6 +97,46 @@ export default function HealthProbeFields({
       </label>
       <p className="l7-muted">{t('l7c.backoffHint')}</p>
       <p className="l7-muted">{t('l7b.prefNote')}</p>
+      <p className="l7-muted l7c-section">{t('l7d.section')}</p>
+      <label className="settings-row">
+        <input type="checkbox" data-testid="l7d-load" checked={prefs.extraLoad} onChange={(e) => onChange({ extraLoad: e.target.checked })} />
+        {t('l7d.load')}
+      </label>
+      <label className="settings-row">
+        <input type="checkbox" data-testid="l7d-inode" checked={prefs.extraInode} onChange={(e) => onChange({ extraInode: e.target.checked })} />
+        {t('l7d.inode')}
+      </label>
+      <label className="settings-row">
+        <input type="checkbox" data-testid="l7d-mounts" checked={prefs.extraMounts} onChange={(e) => onChange({ extraMounts: e.target.checked })} />
+        {t('l7d.mounts')}
+      </label>
+      {prefs.extraMounts ? (
+        <div className="l7c-tags" data-testid="l7d-mount-list">
+          {prefs.mounts.map((path) => (
+            <button key={path} type="button" onClick={() => onChange({ mounts: prefs.mounts.filter((p) => p !== path).length ? prefs.mounts.filter((p) => p !== path) : ['/'] })}>
+              {path}
+            </button>
+          ))}
+          {prefs.mounts.length < PROBE_MOUNT_MAX ? (
+            <button
+              type="button"
+              data-testid="l7d-add-mount"
+              title={t('l7d.mounts')}
+              onClick={() => {
+                void promptDialog({ title: t('l7d.mounts'), defaultValue: '/var' }).then((value) => {
+                  if (!value) return
+                  const next = normalizeMountPath(value)
+                  if (!next || prefs.mounts.includes(next)) return
+                  onChange({ mounts: [...prefs.mounts, next] })
+                })
+              }}
+            >
+              +
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <p className="l7-muted">{t('l7d.hint')}</p>
     </div>
   )
 }

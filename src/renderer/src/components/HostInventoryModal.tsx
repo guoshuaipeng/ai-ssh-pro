@@ -665,6 +665,18 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                   {headerMenu ? (
                     <div className="inv20-more-menu" role="menu">
                       {rootHint ? <div className="inv20-more-hint" title={rootHint}>{tg('ui.184')}{rootHint}</div> : null}
+                      <button
+                        type="button"
+                        data-testid="l2d-inventory"
+                        onClick={() => {
+                          setHeaderMenu(false)
+                          const hostId = form.profileId || link?.profileId
+                          if (!hostId) return
+                          window.dispatchEvent(new CustomEvent('aiss-maintenance-open', { detail: { hostKeys: [hostId] } }))
+                        }}
+                      >
+                        {tg('l2d.openForHost')}
+                      </button>
                       <button type="button" className="danger" disabled={saving || !(form.id || selectedId)} onClick={() => { setHeaderMenu(false); void onDelete() }}>{tg('ux20.deleteProfile')}</button>
                     </div>
                   ) : null}

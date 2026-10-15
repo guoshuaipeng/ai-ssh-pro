@@ -331,8 +331,13 @@ const api = {
     batchExec: (payload: BatchExecRequest): Promise<BatchExecResult> =>
       ipcRenderer.invoke('workspace:batchExec', payload),
     resources: (sessionId: string): Promise<ResourceSnapshot & { at: number }> => ipcRenderer.invoke('workspace:resources', sessionId),
-    healthProbe: (req: import('../shared/ipc').SshConnectOptions & { profileId: string; reuseSessionId?: string }): Promise<import('../shared/health-probe').HealthProbeResult> =>
-      ipcRenderer.invoke('workspace:healthProbe', req),
+    healthProbe: (
+      req: import('../shared/ipc').SshConnectOptions & {
+        profileId: string
+        reuseSessionId?: string
+        extras?: import('../shared/health-probe').ProbeExtras
+      }
+    ): Promise<import('../shared/health-probe').HealthProbeResult> => ipcRenderer.invoke('workspace:healthProbe', req),
     healthProbeSweep: (idleMs: number): Promise<{ ok: boolean }> => ipcRenderer.invoke('workspace:healthProbeSweep', idleMs),
     healthProbeRelease: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('workspace:healthProbeRelease'),
     forwards: {

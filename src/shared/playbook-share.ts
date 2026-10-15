@@ -18,7 +18,7 @@ export type SharePlaybook = {
   steps: PlaybookStep[]
   varsDefaults?: PlaybookVar[]
   tags?: string[]
-  origin?: { kind: 'alert' | 'error'; ruleId?: string }
+  origin?: { kind: 'alert' | 'error' | 'diff'; ruleId?: string }
   draft?: boolean
 }
 
