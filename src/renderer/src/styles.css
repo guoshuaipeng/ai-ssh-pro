@@ -4902,16 +4902,23 @@ button.app-toolbar-version:hover:not(:disabled) {
 .toast--error { border-color: var(--danger); }
 .toast button { margin-left: auto; background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; padding: 2px 8px; cursor: pointer; }
 
-/* PNG-6: non-blocking import / first-connect bar. One primary, no wrap. */
+/* PNG-6: in-flow info strip. One row at 1366; text ellipsizes, actions do not wrap or scroll. */
 .value-moment {
   flex: none;
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: var(--space-3);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   min-height: 40px;
-  padding: 4px 12px;
-  background: var(--color-bg-surface);
-  border-bottom: 1px solid var(--color-border-default);
+  max-height: 40px;
+  padding: 0 12px;
+  overflow: hidden;
+  background: var(--color-info-muted);
+  color: var(--color-info);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-info) 45%, transparent);
   z-index: 20;
 }
 .value-moment-text {
@@ -4930,9 +4937,15 @@ button.app-toolbar-version:hover:not(:disabled) {
   gap: var(--space-2);
   flex: none;
   flex-wrap: nowrap;
-  overflow-x: auto;
+  overflow: hidden;
 }
 .value-moment-actions > button { white-space: nowrap; flex: none; }
+.value-moment-actions .link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 4px;
+}
 .value-moment-x {
   background: transparent;
   border: none;
