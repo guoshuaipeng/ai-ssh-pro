@@ -65,6 +65,14 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
         en: 'Fix main window not showing on first cold-start launch'
       },
       where: { zh: '启动应用', en: 'Launch the app' }
+    },
+    {
+      icon: '▢',
+      text: {
+        zh: '快速关闭后，重叠的第二次启动不会再把窗口自己打开',
+        en: 'After a quick close, an overlapping second launch no longer reopens the window by itself'
+      },
+      where: { zh: '关闭窗口', en: 'Close the window' }
     }
   ],
   '0.4.0': [

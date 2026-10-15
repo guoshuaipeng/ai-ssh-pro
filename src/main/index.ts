@@ -9,7 +9,7 @@ import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
 import { probeJumpChain } from './jump-probe'
-import { attachShowFallback, retryLock } from './window-show'
+import { attachShowFallback, shouldCreateOnSecondInstance } from './window-show'
 import { detectKeyFileKind } from './key-kind'
 import {
   getAiSettings,
@@ -969,20 +969,17 @@ function registerIpc(): void {
   registerServerToolsIpc(sshManager)
 }
 
-const gotSingleInstanceLock = retryLock(
-  () => app.requestSingleInstanceLock(),
-  (ms) => {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
-  }
-)
+// 只申请一次。失败的 requestSingleInstanceLock 会通知第一个实例；
+// 重试会在关窗后的空闲保活里反复触发 second-instance，把窗口重新打开。
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
-  // 已有实例：尽快退出，把焦点交给第一个进程的 second-instance
   app.exit(0)
 } else {
   /** 无窗口空闲一段时间后再退出，避免关窗后立刻再点图标撞上「锁还在、进程已死」 */
   const IDLE_QUIT_MS = 120_000
   let idleQuitTimer: ReturnType<typeof setTimeout> | null = null
   let isQuitting = false
+  let lastWindowClosedAt: number | null = null
 
   const clearIdleQuitTimer = () => {
     if (idleQuitTimer) {
@@ -1030,18 +1027,21 @@ if (!gotSingleInstanceLock) {
   }
 
   const focusOrCreateMainWindow = () => {
-    clearIdleQuitTimer()
     const fromRef = getMainBrowserWindow()
     const existing =
       fromRef && !fromRef.isDestroyed()
         ? fromRef
         : BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null
     if (existing) {
+      clearIdleQuitTimer()
       if (existing.isMinimized()) existing.restore()
       existing.show()
       existing.focus()
       return
     }
+    // 关窗后约 1.5s 内没有窗口：当作重叠启动 / 锁通知，不要重建。
+    if (!shouldCreateOnSecondInstance(lastWindowClosedAt, Date.now())) return
+    clearIdleQuitTimer()
     if (app.isReady()) createWindow()
   }
 
@@ -1057,6 +1057,7 @@ if (!gotSingleInstanceLock) {
   })
 
   app.on('window-all-closed', () => {
+    lastWindowClosedAt = Date.now()
     if (process.platform === 'darwin') return
     cleanupSessions()
     // 菜单退出过程中不要再排程；否则关窗后进程保活，第一次点击即可开窗
