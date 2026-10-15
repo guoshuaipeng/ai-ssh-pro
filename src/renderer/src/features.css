@@ -1097,11 +1097,6 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
 .a3-report-body { overflow: auto; padding: 12px; }
 .a3-report-pre { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; }
 button.linkish { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
-button.primary.danger, .primary.danger {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: var(--color-text-on-danger);
-}
 
 /* D4 editor highlight + diff */
 .d4-editor-stack { position: relative; flex: 1; min-height: 0; display: flex; }
