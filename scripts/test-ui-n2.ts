@@ -1,7 +1,6 @@
 /** UI-N2: solid primary buttons. Welcome/About secondary actions stay secondary. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
 
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
@@ -145,12 +144,26 @@ const toolbar = readFileSync('src/renderer/src/components/AppToolbar.tsx', 'utf8
 assert.equal(toolbar.includes('className="primary"'), false)
 assert.equal(toolbar.includes("className='primary'"), false)
 
-const rg = spawnSync('rg', ['-n', 'accent-dim', '-g', 'styles.css', 'src/renderer/src/styles.css'], { encoding: 'utf8' })
-assert.equal(rg.status, 0, 'accent-dim still exists outside primary')
-const primaryHits = (rg.stdout || '')
-  .split('\n')
-  .filter((line) => /button\.primary|primary\.danger/.test(line))
-assert.deepEqual(primaryHits, [])
+/** accent-dim may remain on non-primary chrome. It must not be a primary or danger-primary fill. */
+function cssRules(source: string): Array<{ selector: string; body: string }> {
+  const out: Array<{ selector: string; body: string }> = []
+  const re = /([^{}]+)\{([^{}]*)\}/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(source))) out.push({ selector: m[1]!, body: m[2]! })
+  return out
+}
+const primarySelectors = /button\.primary|\.primary\.danger/
+const primaryRules = cssRules(css).filter((r) => primarySelectors.test(r.selector))
+assert.ok(primaryRules.length >= 4, 'primary and danger-primary rules are present')
+for (const r of primaryRules) {
+  assert.doesNotMatch(r.body, /accent-dim/, `${r.selector.trim()} uses accent-dim`)
+}
+const accentDimLines = styles.split('\n').filter((line) => line.includes('accent-dim'))
+assert.ok(accentDimLines.length > 0, 'accent-dim still exists outside primary')
+assert.deepEqual(
+  accentDimLines.filter((line) => primarySelectors.test(line)),
+  []
+)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
 assert.equal(pkg.version, '0.4.4')
