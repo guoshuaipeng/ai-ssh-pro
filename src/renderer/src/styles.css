@@ -127,8 +127,9 @@
   --color-text-secondary: #c9d1d9;
   --color-text-muted: var(--muted);
   --color-text-disabled: var(--scroll-thumb);
-  --color-text-on-accent: #ffffff;
-  --color-text-on-danger: #ffffff;
+  /* UI-N2: dark themes paint light accent and danger fills, so the label ink is dark. Light/sand override to white. */
+  --color-text-on-accent: #0d1117;
+  --color-text-on-danger: #0d1117;
   --color-accent-muted: var(--accent-dim);
   --color-accent-hover: #79b8ff;
   --color-ok: #3fb950;
@@ -204,7 +205,7 @@
 [data-ui-theme='light'] {
   --color-ok: #1a7f37;
   --color-warn: #9a6700;
-  --color-accent-hover: #0969da;
+  --color-accent-hover: #0757ba;
   --color-danger-muted: #cf222e33;
   --color-focus-ring-offset: var(--bg);
   --color-text-secondary: var(--text);
@@ -216,9 +217,11 @@
 [data-ui-theme='sand'] {
   --color-ok: #1a7f37;
   --color-warn: #9a6700;
-  --color-accent-hover: #b45309;
+  --color-accent-hover: #8f3d07;
   --color-danger-muted: #b91c1c33;
   --color-text-secondary: var(--text);
+  --color-text-on-accent: #ffffff;
+  --color-text-on-danger: #ffffff;
   --color-focus-ring: var(--color-accent);
   --color-focus-ring-offset: var(--bg-panel);
 }
@@ -769,18 +772,39 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* N2: solid accent primary. Welcome CTAs stay Secondary. */
+/* UI-N2: solid accent primary. No accent-dim fill and no var() fallback — a missing token fails visibly.
+   Welcome CTAs and About secondary actions stay Secondary. */
 button.primary {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-text-on-accent);
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
   white-space: nowrap;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-base);
 }
 
 button.primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
   color: var(--color-text-on-accent);
+}
+
+/* Filled danger is one danger token plus on-danger text. Not red text on a red fill. */
+button.primary.danger,
+.primary.danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-text-on-danger);
+}
+
+button.primary.danger:hover:not(:disabled),
+.primary.danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-text-on-danger);
 }
 
 button.secondary {
@@ -4043,6 +4067,7 @@ body:has(.debug-window-root) #root {
   font-size: 11px;
 }
 
+/* Text-only danger (menus). The filled path is button.primary.danger. */
 button.danger {
   color: var(--danger);
 }
