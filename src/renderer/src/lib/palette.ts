@@ -72,6 +72,11 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   aiPostmortem: 'postmortem fupan a5',
   explainDiff: 'diff explain chayi l8b',
   diffFixPlaybook: 'diff playbook xiufu l8b',
+  reconnectPolicy: '重连策略 reconnect chonglian celue l9 keepalive',
+  reconnectNow: '立即重连 reconnect now l9',
+  readonlyOn: '只读会话 readonly session zhidu s4',
+  readonlyOff: '关闭只读 readonly off s4',
+  setProtection: '保护级别 protection level baohu s2 s4',
   sftpComfort: 'midu shushi compact sftp',
   setJumpHosts: '跳板 jump tiaoban bastion proxy proxyjump',
   checkCerts: 'cert zhengshu sk fido key',
@@ -111,7 +116,12 @@ export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: str
   { id: 'setDryRunReminder', zh: '试跑提醒', en: 'Dry-run reminder' },
   { id: 'aiPostmortem', zh: 'AI 复盘摘要', en: 'AI postmortem summary' },
   { id: 'explainDiff', zh: 'AI 解释差异', en: 'Explain diff' },
-  { id: 'diffFixPlaybook', zh: '从差异生成修复剧本', en: 'Draft fix playbook from diff' }
+  { id: 'diffFixPlaybook', zh: '从差异生成修复剧本', en: 'Draft fix playbook from diff' },
+  { id: 'reconnectPolicy', zh: '重连策略…', en: 'Reconnect policy…' },
+  { id: 'reconnectNow', zh: '立即重连当前会话', en: 'Reconnect current session now' },
+  { id: 'readonlyOn', zh: '开启只读会话', en: 'Enable read-only session' },
+  { id: 'readonlyOff', zh: '关闭只读会话', en: 'Disable read-only session' },
+  { id: 'setProtection', zh: '设置保护级别…', en: 'Set protection level…' }
 ]
 
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {

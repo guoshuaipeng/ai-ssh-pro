@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  AUTO_RECONNECT_DELAYS_MS,
-  autoReconnectDelay,
-  moveById,
-  normalizeTabTitle
-} from '@shared/workspace-features'
+import { moveById, normalizeTabTitle } from '@shared/workspace-features'
 import type {
   LocalPortForward,
   SavedSessionProfile,
@@ -166,11 +161,22 @@ import { hideFromDashboard, hostInScope, loadDashScope, restoreToDashboard, save
 import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from '@shared/right-panel'
 import { assessCommandRisk } from '@shared/command-risk'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
+import {
+  delayForAttempt,
+  discardOnReconnect,
+  loadReconnectPolicy,
+  maxAttemptsFor,
+  resumeStartHop,
+  secondsRemaining,
+  type ReconnectPolicy
+} from '@shared/reconnect-policy'
+import { gateTerminalChunk, readonlyActive, stricterLevel, writeToken } from '@shared/readonly-session'
 import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
 import { RESTORE_BIND_MS, snapshotWorkspace } from '@shared/session-restore'
 import { planColdStart, restoreWatchIds } from '@shared/cold-start'
 import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
 import SettingsPanel from './components/SettingsPanel'
+import DisconnectBanner from './components/DisconnectBanner'
 import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel, profileDisplayLabel } from '@shared/demo-host'
 import { findAlertDraft, playbookFromFixes, ruleShortName } from '@shared/playbook-draft'
 import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
@@ -471,6 +477,9 @@ export default function App() {
   const [startupMode, setStartupMode] = useState<StartupMode>(() => loadStartupMode())
   const [startupOpen, setStartupOpen] = useState(false)
   const [elevateMap, setElevateMap] = useState<ElevateMap>(() => loadElevate())
+  const [sessionRo, setSessionRo] = useState<Record<string, boolean>>({})
+  const sessionRoRef = useRef(sessionRo)
+  sessionRoRef.current = sessionRo
   useEffect(() => {
     const id = window.setInterval(() => {
       const now = Date.now()
@@ -497,7 +506,7 @@ export default function App() {
   const [certificatePath, setCertificatePath] = useState('')
   const [formAutoRecord, setFormAutoRecord] = useState(false)
   const [blocksOn, setBlocksOn] = useState(() => blocksEnabled())
-  const [jumpFail, setJumpFail] = useState<{ hop: number; total: number; name: string; profileId?: string } | null>(null)
+  const [jumpFail, setJumpFail] = useState<{ hop: number; total: number; name: string; reason: string; profileId?: string } | null>(null)
   const [hopProgress, setHopProgress] = useState<{ hop: number; total: number; name: string } | null>(null)
   const [connFocus, setConnFocus] = useState<'jump' | 'cert' | null>(null)
   const [tabOverflowOpen, setTabOverflowOpen] = useState(false)
@@ -894,10 +903,11 @@ export default function App() {
             port: tab.connectOpts.port || 22,
             username: tab.connectOpts.username,
             profileId: tab.profileId,
-            folderId: prof?.folderId
+            folderId: prof?.folderId,
+            readonly: stricterLevel(effectiveLevel(prof), Boolean(tab.profileId && sessionRo[tab.profileId])) === 'readonly' && !isElevated(prof?.id, elevateMap)
           }
         }),
-    [tabs, profiles]
+    [tabs, profiles, sessionRo, elevateMap]
   )
   const onlineSessionIds = useMemo(() => new Set(connectedSshSessions.map((s) => s.sessionId)), [connectedSshSessions])
   const recentIdSet = useMemo(() => {
@@ -1071,7 +1081,7 @@ export default function App() {
       if (st.status === 'closed') {
         if (st.unexpected) {
           const tab = tabsRef.current.find((t) => t.sessionId === st.sessionId)
-          if (tab && tab.kind !== 'local') scheduleAutoReconnectRef.current(tab.tabId)
+          if (tab && tab.kind !== 'local' && !haltedRef.current.has(tab.tabId)) scheduleAutoReconnectRef.current(tab.tabId)
         }
         setTabs((prev) =>
           prev.map((t) =>
@@ -1164,7 +1174,12 @@ export default function App() {
       ])
       setActiveTabId(tabId)
       try {
-        const { sessionId, meta } = await window.aiss.ssh.connect(opts)
+        const policy = policyRef.current
+        const { sessionId, meta } = await window.aiss.ssh.connect({
+          ...opts,
+          keepAliveSec: policy.keepAliveSec,
+          jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop
+        })
         if (cancelledConnectingTabsRef.current.has(tabId)) {
           cancelledConnectingTabsRef.current.delete(tabId)
           void window.aiss.ssh.disconnect(sessionId)
@@ -1228,7 +1243,7 @@ export default function App() {
           ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
           : friendlyErrorMessage(raw)
         setHopProgress(null)
-        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: extra?.profileId } : null)
+        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: extra?.profileId } : null)
         failedProfileIdRef.current = extra?.profileId ?? null
         if (hop) {
           setErrorKind('generic')
@@ -1334,40 +1349,84 @@ export default function App() {
   tabsRef.current = tabs
   activeTabIdRef.current = activeTabId
   const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
-  const [autoRetry, setAutoRetry] = useState<{ tabId: string; attempt: number; delayMs: number } | null>(null)
-  const reconnectTabRef = useRef<(tabId: string) => Promise<string | null>>(async () => null)
+  const [autoRetry, setAutoRetry] = useState<{
+    tabId: string
+    attempt: number
+    delayMs: number
+    startedAt: number
+    max: number
+    phase: 'off' | 'countdown' | 'stopped' | 'exhausted'
+  } | null>(null)
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  const [reconnectPolicy, setReconnectPolicy] = useState<ReconnectPolicy>(() => loadReconnectPolicy())
+  const policyRef = useRef(reconnectPolicy)
+  policyRef.current = reconnectPolicy
+  const haltedRef = useRef(new Set<string>())
+  const roBufRef = useRef(new Map<string, string>())
+  const [roBlock, setRoBlock] = useState<{ sessionId: string; text: string; command: string } | null>(null)
+  const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null)
+  const jumpFailRef = useRef(jumpFail)
+  jumpFailRef.current = jumpFail
+  const reconnectTabRef = useRef<(tabId: string, how?: { full?: boolean }) => Promise<string | null>>(async () => null)
   const scheduleAutoReconnectRef = useRef<(tabId: string) => void>(() => {})
 
   const cancelAutoReconnect = useCallback((tabId: string) => {
     const cur = autoRetryRef.current.get(tabId)
     if (cur) clearTimeout(cur.timer)
     autoRetryRef.current.delete(tabId)
+    haltedRef.current.delete(tabId)
     setAutoRetry((s) => (s?.tabId === tabId ? null : s))
   }, [])
 
+  const noteReconnectAudit = useCallback((tabId: string, kind: 'session.reconnect.fail' | 'session.reconnect.stop') => {
+    const tab = tabsRef.current.find((t) => t.tabId === tabId)
+    appendAudit({
+      type: kind,
+      host: tab?.connectOpts.label?.trim() || tab?.connectOpts.host || tab?.title || tabId,
+      profileId: tab?.profileId,
+      source: 'user',
+      outcome: 'blocked',
+      detail: kind
+    })
+    setAuditEvents(loadAudit())
+  }, [])
+
   scheduleAutoReconnectRef.current = (tabId: string) => {
-    const prev = autoRetryRef.current.get(tabId)
-    if (prev) clearTimeout(prev.timer)
-    const attempt = (prev?.attempt ?? 0) + 1
-    const delayMs = autoReconnectDelay(attempt)
-    if (delayMs === null) {
-      autoRetryRef.current.delete(tabId)
-      setAutoRetry((s) => (s?.tabId === tabId ? null : s))
+    if (haltedRef.current.has(tabId)) {
+      setAutoRetry((s) => (s?.tabId === tabId && s.phase === 'stopped' ? s : { tabId, attempt: 0, delayMs: 0, startedAt: 0, max: 0, phase: 'stopped' }))
       return
     }
+    const policy = policyRef.current
+    const prev = autoRetryRef.current.get(tabId)
+    if (prev) clearTimeout(prev.timer)
+    const max = maxAttemptsFor(policy)
+    if (policy.mode === 'off') {
+      autoRetryRef.current.delete(tabId)
+      setAutoRetry({ tabId, attempt: 0, delayMs: 0, startedAt: 0, max: 0, phase: 'off' })
+      return
+    }
+    const attempt = (prev?.attempt ?? 0) + 1
+    const delayMs = delayForAttempt(policy, attempt)
+    if (delayMs === null) {
+      autoRetryRef.current.delete(tabId)
+      setAutoRetry({ tabId, attempt: Math.max(1, attempt - 1), delayMs: 0, startedAt: 0, max, phase: 'exhausted' })
+      noteReconnectAudit(tabId, 'session.reconnect.fail')
+      return
+    }
+    const startedAt = Date.now()
     const timer = setTimeout(() => {
       void (async () => {
         if (!tabsRef.current.some((t) => t.tabId === tabId && t.status === 'disconnected')) {
           cancelAutoReconnect(tabId)
           return
         }
-        const ok = await reconnectTabRef.current(tabId)
+        const ok = await reconnectTabRef.current(tabId, { full: false })
         if (ok) cancelAutoReconnect(tabId)
         else if (autoRetryRef.current.has(tabId)) scheduleAutoReconnectRef.current(tabId)
       })()
     }, delayMs)
     autoRetryRef.current.set(tabId, { attempt, timer })
-    setAutoRetry({ tabId, attempt, delayMs })
+    setAutoRetry({ tabId, attempt, delayMs, startedAt, max, phase: 'countdown' })
   }
 
   useEffect(() => {
@@ -1377,13 +1436,53 @@ export default function App() {
       map.clear()
     }
   }, [])
+  useEffect(() => {
+    if (autoRetry?.phase !== 'countdown') return
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [autoRetry?.phase, autoRetry?.tabId, autoRetry?.startedAt])
+  useEffect(() => {
+    const onPolicy = (e: Event) => {
+      const detail = (e as CustomEvent<ReconnectPolicy>).detail
+      if (!detail) return
+      policyRef.current = detail
+      setReconnectPolicy(detail)
+    }
+    window.addEventListener('aiss-reconnect-policy', onPolicy)
+    return () => window.removeEventListener('aiss-reconnect-policy', onPolicy)
+  }, [])
+  useEffect(() => {
+    if (!roBlock) return
+    const id = window.setTimeout(() => setRoBlock(null), 3000)
+    return () => window.clearTimeout(id)
+  }, [roBlock])
+  useEffect(() => {
+    const live = new Set(tabs.filter((t) => (!t.view || t.view === 'session') && t.profileId).map((t) => t.profileId as string))
+    setSessionRo((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const id of Object.keys(next)) {
+        if (!live.has(id)) {
+          delete next[id]
+          changed = true
+        }
+      }
+      if (!changed) return prev
+      sessionRoRef.current = next
+      return next
+    })
+  }, [tabs])
 
   const reconnectTab = useCallback(
-    async (tabId: string): Promise<string | null> => {
+    async (tabId: string, how?: { full?: boolean }): Promise<string | null> => {
       const tab = tabsRef.current.find((t) => t.tabId === tabId)
       if (!tab || tab.status !== 'disconnected') return null
       setError(null)
       setReconnectingTabId(tabId)
+      const policy = policyRef.current
+      const hop = jumpFailRef.current
+      const startHop = resumeStartHop(hop?.total ?? 0, hop && hop.profileId === tab.profileId ? hop.hop : null, policy.jumpRetryFromFailedHop, Boolean(how?.full))
+      const resumeFromHop = how?.full ? undefined : startHop > 1 ? startHop : undefined
       try {
         if (tab.kind === 'local') {
           const { sessionId, meta } = await window.aiss.ssh.openLocalShell()
@@ -1406,12 +1505,16 @@ export default function App() {
                 : t
             )
           )
+          discardOnReconnect()
           return sessionId
         }
         const { sessionId, meta } = await window.aiss.ssh.connect({
           ...tab.connectOpts,
           termCols: tab.connectOpts.termCols,
-          termRows: tab.connectOpts.termRows
+          termRows: tab.connectOpts.termRows,
+          keepAliveSec: policy.keepAliveSec,
+          jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop,
+          resumeFromHop
         })
         setTabs((prev) =>
           prev.map((t) =>
@@ -1434,6 +1537,7 @@ export default function App() {
         notifyRecentChanged()
         setJumpFail(null)
         setHopProgress(null)
+        discardOnReconnect()
         return sessionId
       } catch (e) {
         const raw = e instanceof Error ? e.message : String(e)
@@ -1443,7 +1547,7 @@ export default function App() {
           ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
           : friendlyErrorMessage(raw)
         setHopProgress(null)
-        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: tab.profileId } : null)
+        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: tab.profileId } : null)
         setErrorRaw(raw)
         setError(shown)
         setTabs((prev) => prev.map((t) => (t.tabId === tabId ? { ...t, failRaw: raw } : t)))
@@ -2442,7 +2546,7 @@ export default function App() {
 
   const guardForSession = useCallback((sessionId: string) => {
     const profile = profileForSession(sessionId)
-    const level = effectiveLevel(profile)
+    const level = stricterLevel(effectiveLevel(profile), Boolean(profile?.id && sessionRo[profile.id]))
     return {
       profile,
       level,
@@ -2450,7 +2554,7 @@ export default function App() {
       hostName: profile?.host || profile?.label || '',
       hostLabel: profile?.label || profile?.host || ''
     }
-  }, [elevateMap, profileForSession])
+  }, [elevateMap, profileForSession, sessionRo])
 
   useEffect(() => {
     const onRun = (e: Event) => {
@@ -2516,7 +2620,7 @@ export default function App() {
   }, [])
 
   const elevateProfile = useCallback(async (p: SavedSessionProfile) => {
-    const level = effectiveLevel(p)
+    const level = stricterLevel(effectiveLevel(p), Boolean(sessionRoRef.current[p.id]))
     if (level === 'normal') return
     if (level === 'production') {
       const typed = await promptDialog({
@@ -2550,6 +2654,131 @@ export default function App() {
     })
     showToast(tg('l4.unlocked'))
   }, [])
+
+  const noteReadonlyAudit = useCallback((profile: SavedSessionProfile | undefined, on: boolean) => {
+    const host = profile?.label?.trim() || profile?.host || 'session'
+    const type = on ? 'session.readonly.on' : 'session.readonly.off'
+    appendAudit({ type, host, profileId: profile?.id, source: 'user', outcome: 'allowed', detail: type })
+    const alert = alertHistory.find((a) => a.status === 'active' && (a.hostKey === profile?.id || a.hostTitle === host))
+    if (alert && profile?.id) {
+      appendTimeline({ alertId: alert.id, kind: 'note', hostKey: profile.id, summary: type })
+    }
+    setAuditEvents(loadAudit())
+  }, [alertHistory])
+
+  const toggleSessionReadonly = useCallback((tab: Tab) => {
+    const profile = profilesRef.current.find((p) => p.id === tab.profileId)
+    const id = tab.profileId || tab.tabId
+    const sessionOn = Boolean(sessionRoRef.current[id])
+    const profileRo = effectiveLevel(profile) === 'readonly'
+    if (sessionOn) {
+      if (profileRo) {
+        showToast(tg('s4.needProfile'), {
+          action: profile ? { label: tg('s4.unlock'), run: () => void elevateProfile(profile) } : undefined
+        })
+        return
+      }
+      setSessionRo((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        sessionRoRef.current = next
+        return next
+      })
+      noteReadonlyAudit(profile, false)
+      return
+    }
+    if (profileRo) {
+      showToast(tg('s4.needProfile'), {
+        action: profile ? { label: tg('s4.unlock'), run: () => void elevateProfile(profile) } : undefined
+      })
+      return
+    }
+    setSessionRo((prev) => {
+      const next = { ...prev, [id]: true }
+      sessionRoRef.current = next
+      return next
+    })
+    noteReadonlyAudit(profile, true)
+  }, [elevateProfile, noteReadonlyAudit])
+
+  const showRoBlock = useCallback((sessionId: string, block: { multiline: boolean; command: string; token: string }) => {
+    const g = guardForSession(sessionId)
+    const reason = block.multiline ? tg('s4.blockPaste') : tg('s4.reason', { token: block.token || writeToken(block.command) })
+    const text = block.multiline ? tg('s4.blockPaste') : tg('s4.block', { reason })
+    setRoBlock({ sessionId, text, command: block.command })
+    appendGate({
+      host: g.hostLabel || g.hostName || sessionId,
+      hostKey: g.profile?.id,
+      protection: 'readonly',
+      gateRule: 'readonlyWrite',
+      gateResult: 'blocked',
+      summary: block.command.slice(0, 180),
+      source: 'terminal',
+      demo: Boolean(g.profile?.demo)
+    })
+    appendAudit({
+      type: 'danger',
+      host: g.hostLabel || g.hostName || sessionId,
+      profileId: g.profile?.id,
+      source: 'terminal',
+      outcome: 'blocked',
+      detail: block.command
+    })
+    setAuditEvents(loadAudit())
+  }, [guardForSession])
+
+  const writeGuarded = useCallback((sessionId: string, data: string) => {
+    const g = guardForSession(sessionId)
+    if (!readonlyActive(g.level, g.elevated)) {
+      void window.aiss.ssh.write(sessionId, data)
+      return
+    }
+    const prev = roBufRef.current.get(sessionId) ?? ''
+    const gate = gateTerminalChunk(prev, data)
+    roBufRef.current.set(sessionId, gate.buffer)
+    if (gate.block) {
+      showRoBlock(sessionId, gate.block)
+      if (gate.clear) void window.aiss.ssh.write(sessionId, gate.clear)
+      return
+    }
+    if (gate.send) void window.aiss.ssh.write(sessionId, gate.send)
+  }, [guardForSession, showRoBlock])
+
+  const handleTermInput = useCallback((origin: string, data: string) => {
+    const fan = broadcastEnabled && broadcastSessions.includes(origin) && broadcastSessions.length > 1 ? broadcastSessions : [origin]
+    const originRo = readonlyActive(guardForSession(origin).level, guardForSession(origin).elevated)
+    if (originRo) {
+      const prev = roBufRef.current.get(origin) ?? ''
+      const gate = gateTerminalChunk(prev, data)
+      roBufRef.current.set(origin, gate.buffer)
+      if (gate.block) {
+        showRoBlock(origin, gate.block)
+        if (gate.clear) void window.aiss.ssh.write(origin, gate.clear)
+        return
+      }
+      if (gate.send) void window.aiss.ssh.write(origin, gate.send)
+      let skipped = 0
+      for (const sid of fan) {
+        if (sid === origin) continue
+        if (readonlyActive(guardForSession(sid).level, guardForSession(sid).elevated)) {
+          skipped += 1
+          continue
+        }
+        void window.aiss.ssh.write(sid, gate.send)
+      }
+      if (skipped) showToast(tg('s4.skipped'))
+      return
+    }
+    let skipped = 0
+    for (const sid of fan) {
+      if (readonlyActive(guardForSession(sid).level, guardForSession(sid).elevated)) {
+        skipped += 1
+        continue
+      }
+      void window.aiss.ssh.write(sid, data)
+    }
+    if (skipped) showToast(tg('s4.skipped'))
+  }, [broadcastEnabled, broadcastSessions, guardForSession, showRoBlock])
 
   const restoreProtection = useCallback((profileId: string) => {
     const profile = profilesRef.current.find((row) => row.id === profileId)
@@ -2740,8 +2969,9 @@ export default function App() {
     [ensureMainVisible, tabs]
   )
 
-  const openUnifiedSettings = useCallback((section: SettingsSection = 'general') => {
+  const openUnifiedSettings = useCallback((section: SettingsSection = 'general', anchor?: string | null) => {
     ensureMainVisible()
+    setSettingsAnchor(anchor ?? null)
     saveSettingsSection(section)
     const title = tg('settings.title')
     const existing = tabsRef.current.find((t) => t.view === 'settings')
@@ -3496,6 +3726,7 @@ export default function App() {
     <SessionDockerBranch
       key={p.id}
       profile={{ ...p, label: profileSidebarLabel(p, locale) }}
+      sessionReadonly={Boolean(sessionRo[p.id])}
       selected={highlightedProfileId === p.id || multiSelected.includes(p.id)}
       inFolder={inFolder}
       hostStatus={showHostStatus ? (hostStatus[p.id] ?? null) : undefined}
@@ -4383,6 +4614,46 @@ export default function App() {
         void window.aiss.app.openGithub().catch(() => undefined)
         return
       }
+      if (action === 'reconnectPolicy') {
+        openUnifiedSettings('connections', 'l9-reconnect')
+        return
+      }
+      if (action === 'reconnectNow') {
+        const tab = tabs.find((x) => x.tabId === activeTabId)
+        const subject = tab && tab.status === 'disconnected' && (!tab.view || tab.view === 'session')
+          ? tab
+          : tabs.find((x) => x.sessionId && x.sessionId === tab?.boundSessionId && x.status === 'disconnected')
+        if (!subject) {
+          showToast(tg('toolbar.needSession'))
+          return
+        }
+        haltedRef.current.delete(subject.tabId)
+        const cur = autoRetryRef.current.get(subject.tabId)
+        if (cur) clearTimeout(cur.timer)
+        autoRetryRef.current.delete(subject.tabId)
+        void reconnectTab(subject.tabId, { full: false }).then((sid) => {
+          if (sid) cancelAutoReconnect(subject.tabId)
+          else if (policyRef.current.mode !== 'off') scheduleAutoReconnectRef.current(subject.tabId)
+        })
+        return
+      }
+      if (action === 'readonlyOn' || action === 'readonlyOff' || action === 'setProtection') {
+        const tab = tabs.find((x) => x.tabId === activeTabId) ?? tabs.find((x) => x.profileId && (!x.view || x.view === 'session'))
+        if (action === 'setProtection') {
+          handleTitlebarMenuAction('openProdGuard')
+          return
+        }
+        if (!tab) {
+          showToast(tg('toolbar.needSession'))
+          return
+        }
+        const id = tab.profileId || tab.tabId
+        const on = Boolean(sessionRo[id]) || effectiveLevel(profiles.find((p) => p.id === tab.profileId)) === 'readonly'
+        if (action === 'readonlyOn' && on) return
+        if (action === 'readonlyOff' && !on && effectiveLevel(profiles.find((p) => p.id === tab.profileId)) !== 'readonly') return
+        toggleSessionReadonly(tab)
+        return
+      }
       if (action === 'reconnect' || action === 'duplicateSession') {
         const tab = tabs.find((x) => x.tabId === activeTabId)
         if (!tab || (tab.view && tab.view !== 'session') || tab.kind === 'local') {
@@ -4489,6 +4760,10 @@ export default function App() {
       runUpdateCheck,
       sftpComfort,
       reconnectTab,
+      cancelAutoReconnect,
+      toggleSessionReadonly,
+      profiles,
+      sessionRo,
       openSession,
       openHome,
       openWorkbench,
@@ -5472,12 +5747,15 @@ export default function App() {
             >
             {orderedTabs.map((t) => {
               const isSession = !t.view || t.view === 'session'
-              const guardLevel = isSession ? effectiveLevel(profiles.find((p) => p.id === t.profileId)) : 'normal'
-              const guardClass = guardLevel === 'production' ? 'tab-guard-prod' : guardLevel === 'readonly' ? 'tab-guard-ro' : ''
+              const profileForTab = profiles.find((p) => p.id === t.profileId)
+              const guardLevel = stricterLevel(effectiveLevel(profileForTab), Boolean(t.profileId && sessionRo[t.profileId]))
+              const guardElevated = isElevated(profileForTab?.id, elevateMap)
+              const showRo = guardLevel === 'readonly' && !guardElevated
+              const guardClass = !showRo && guardLevel === 'production' ? 'tab-guard-prod' : showRo ? 'tab-guard-ro' : ''
               const sftpAddr = t.view === 'sftp' && t.connectOpts.host
                 ? `${t.connectOpts.username}@${t.connectOpts.host}:${t.connectOpts.port || 22}`
                 : ''
-              const guardTip = guardLevel === 'normal' ? '' : tg(guardLevel === 'production' ? 'l4.bannerProd' : 'l4.bannerRo')
+              const guardTip = showRo ? tg('s4.tip') : guardLevel === 'production' ? tg('l4.bannerProd') : ''
               return (
               <button
                 key={t.tabId}
@@ -5546,6 +5824,7 @@ export default function App() {
                   </span>
                 ) : null}
                 <span className="tab-title">{labelFor(t)}</span>
+                {showRo ? <span className="prot-badge prot-badge--readonly" data-testid="s4-tab-badge">{tg('s4.badge')}</span> : null}
                 </>
                 )}
                 <span
@@ -5771,6 +6050,19 @@ export default function App() {
                     <button
                       type="button"
                       role="menuitem"
+                      data-testid="s4-session-toggle"
+                      onClick={() => {
+                        setTabMenu(null)
+                        toggleSessionReadonly(tab)
+                      }}
+                    >
+                      {Boolean(tab.profileId && sessionRo[tab.profileId]) || effectiveLevel(profiles.find((p) => p.id === tab.profileId)) === 'readonly'
+                        ? tr('s4.offSession')
+                        : tr('s4.onSession')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
                       data-testid="tab-pin"
                       onClick={() => {
                         setTabMenu(null)
@@ -5872,36 +6164,60 @@ export default function App() {
             </div>
           )}
 
-          {activeIsSession && activeTab?.status === 'disconnected' && (
-            <div className="session-disconnect-banner" role="status">
-              <ConnectTrouble raw={activeTab.failRaw || 'disconnected'} />
-              {autoRetry?.tabId === activeTab.tabId ? (
-                <>
-                  <span className="session-autoretry">
-                    {tr('banner.autoReconnect', {
-                      sec: String(Math.round(autoRetry.delayMs / 1000)),
-                      n: String(autoRetry.attempt),
-                      max: String(AUTO_RECONNECT_DELAYS_MS.length)
-                    })}
-                  </span>
-                  <button type="button" onClick={() => cancelAutoReconnect(activeTab.tabId)}>
-                    {tr('banner.autoReconnectCancel')}
-                  </button>
-                </>
-              ) : null}
-              <button
-                type="button"
-                className="primary"
-                disabled={reconnectingTabId === activeTab.tabId}
-                onClick={() => {
-                  cancelAutoReconnect(activeTab.tabId)
-                  void reconnectTab(activeTab.tabId)
+          {(() => {
+            const toolOwner = activeTab?.boundSessionId
+              ? tabs.find((t) => t.sessionId === activeTab.boundSessionId && (!t.view || t.view === 'session') && t.status === 'disconnected')
+              : undefined
+            const bannerTab = activeIsSession && activeTab?.status === 'disconnected' && activeTab.kind !== 'local'
+              ? activeTab
+              : toolOwner
+            if (!bannerTab) return null
+            const retry = autoRetry?.tabId === bannerTab.tabId ? autoRetry : null
+            const phase = retry?.phase ?? (reconnectPolicy.mode === 'off' ? 'off' : 'stopped')
+            const hop = jumpFail && jumpFail.profileId === bannerTab.profileId ? jumpFail : null
+            const manual = (full: boolean) => {
+              haltedRef.current.delete(bannerTab.tabId)
+              const cur = autoRetryRef.current.get(bannerTab.tabId)
+              if (cur) clearTimeout(cur.timer)
+              autoRetryRef.current.delete(bannerTab.tabId)
+              void reconnectTab(bannerTab.tabId, { full }).then((sid) => {
+                if (sid) cancelAutoReconnect(bannerTab.tabId)
+                else if (policyRef.current.mode !== 'off') scheduleAutoReconnectRef.current(bannerTab.tabId)
+              })
+            }
+            return (
+              <DisconnectBanner
+                model={{
+                  phase,
+                  seconds: retry ? secondsRemaining(retry.delayMs, retry.startedAt, nowTick) : 0,
+                  attempt: retry?.attempt ?? 1,
+                  max: retry?.max || maxAttemptsFor(reconnectPolicy),
+                  host: bannerTab.connectOpts.label?.trim() || bannerTab.connectOpts.host || bannerTab.title,
+                  reason: bannerTab.failRaw ? friendlyErrorMessage(bannerTab.failRaw) : '',
+                  jumpHop: hop?.hop ?? null,
+                  jumpReason: hop?.reason || hop?.name || '',
+                  busy: reconnectingTabId === bannerTab.tabId,
+                  showEdit: !bannerTab.view || bannerTab.view === 'session'
                 }}
-              >
-                {reconnectingTabId === activeTab.tabId ? tr('banner.reconnecting') : tr('banner.reconnect')}
-              </button>
-            </div>
-          )}
+                onNow={() => manual(false)}
+                onHop={() => manual(false)}
+                onFull={() => manual(true)}
+                onStop={() => {
+                  const cur = autoRetryRef.current.get(bannerTab.tabId)
+                  if (cur) clearTimeout(cur.timer)
+                  autoRetryRef.current.delete(bannerTab.tabId)
+                  haltedRef.current.add(bannerTab.tabId)
+                  setAutoRetry({ tabId: bannerTab.tabId, attempt: retry?.attempt ?? 0, delayMs: 0, startedAt: 0, max: retry?.max ?? 0, phase: 'stopped' })
+                  noteReconnectAudit(bannerTab.tabId, 'session.reconnect.stop')
+                }}
+                onClose={() => closeTab(bannerTab.tabId, bannerTab.sessionId, bannerTab.status, bannerTab.view)}
+                onEdit={() => {
+                  const p = profiles.find((x) => x.id === bannerTab.profileId)
+                  openConnectionEditor(p)
+                }}
+              />
+            )
+          })()}
 
           {activeIsDemo ? (
             <div className="demo-banner" data-testid="demo-banner" role="status">
@@ -5924,6 +6240,14 @@ export default function App() {
               })()}
               beforeSend={async (command, dangerous) => {
                 const g = guardForSession(activeTab.sessionId)
+                if (readonlyActive(g.level, g.elevated)) {
+                  const gate = gateTerminalChunk('', command.endsWith('\n') ? command : `${command}\n`)
+                  if (gate.block) {
+                    showRoBlock(activeTab.sessionId, gate.block)
+                    return false
+                  }
+                  return true
+                }
                 const risk = assessCommandRisk(command)
                 return runGuardedCommand({
                   level: g.level,
@@ -5965,9 +6289,10 @@ export default function App() {
                     <div
                       className={`term-guard-banner${paused ? ' is-paused' : g.level === 'readonly' ? ' is-ro' : ' is-prod'}`}
                       data-testid="term-guard-banner"
-                      title={paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('l4.bannerRo') : tg('l4.bannerProd')}
+                      title={paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('s4.banner') : tg('l4.bannerProd')}
                     >
-                      <span>{paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('l4.bannerRo') : tg('l4.bannerProd')}</span>
+                      <span className="s4-banner-long">{paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('s4.banner') : tg('l4.bannerProd')}</span>
+                      <span className="s4-banner-short">{paused ? `${mm}:${ss}` : g.level === 'readonly' ? tg('s4.bannerShort') : tg('l4.bannerProd')}</span>
                       {paused && pid ? (
                         <button type="button" onClick={() => restoreProtection(pid)}>
                           {tg('l4.restore')}
@@ -5986,6 +6311,28 @@ export default function App() {
                   )
                 })()
               : null}
+            {roBlock && activeTab?.sessionId === roBlock.sessionId ? (
+              <div className="s4-block" role="status" data-testid="s4-block">
+                <span>{roBlock.text}</span>
+                <button
+                  type="button"
+                  data-testid="s4-copy"
+                  onClick={() => void navigator.clipboard.writeText(roBlock.command)}
+                >
+                  {tg('s4.copyCmd')}
+                </button>
+                <button
+                  type="button"
+                  data-testid="s4-unlock"
+                  onClick={() => {
+                    const g = guardForSession(roBlock.sessionId)
+                    if (g.profile) void elevateProfile(g.profile)
+                  }}
+                >
+                  {tg('s4.unlock')}
+                </button>
+              </div>
+            ) : null}
             {tabs.length === 0 && !showWelcome ? (
               <EmptyState
                 testId="terminal-empty"
@@ -6182,6 +6529,7 @@ export default function App() {
                     sessions={connectedSshSessions}
                     activeSessionId={t.boundSessionId}
                     initialTab={t.toolboxTab}
+                    writesDisabled={readonlyActive(guardForSession(t.boundSessionId).level, guardForSession(t.boundSessionId).elevated)}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'forward' ? (
@@ -6353,7 +6701,7 @@ export default function App() {
                     profileId={t.profileId || ''}
                     hostLabel={profiles.find((p) => p.id === t.profileId)?.label || t.title}
                     path={t.remotePath || ''}
-                    level={effectiveLevel(profiles.find((p) => p.id === t.profileId))}
+                    level={stricterLevel(effectiveLevel(profiles.find((p) => p.id === t.profileId)), Boolean(t.profileId && sessionRo[t.profileId]))}
                     sessionId={t.boundSessionId}
                     onOpenFile={(path) => {
                       if (!t.boundSessionId) return
@@ -6416,6 +6764,7 @@ export default function App() {
                     playbookId={t.playbookId}
                     profiles={profiles}
                     live={liveSessions}
+                    sessionReadonly={sessionRo}
                     onResult={() => openM2('playbook-result', tg('m2.playbooks'))}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
@@ -6769,6 +7118,7 @@ export default function App() {
                     tagOptions={[...new Set(profiles.flatMap((p) => p.tags ?? []))]}
                     onOpenTemplates={() => openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })}
                     onOpenGate={() => openM2('gate-timeline', tg('s2b.tab'))}
+                    settingsAnchor={settingsAnchor}
                   />
                 ) : t.view === 'ai' ? (
                   <AiConfigModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
@@ -6868,11 +7218,7 @@ export default function App() {
                       prefs={terminalPrefs}
                       broadcastEnabled={broadcastEnabled}
                       hostKey={sessionHostKey(t)}
-                      inputBlocked={(() => {
-                        const g = guardForSession(t.sessionId)
-                        return g.level === 'readonly' && !g.elevated
-                      })()}
-                      onInputBlocked={() => showToast(tg('l4.readonlyBlocked'))}
+                      onGateInput={handleTermInput}
                       onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
                       onSecondaryChange={setSplitSecondary}
                       peers={connectedSshSessions
@@ -6886,19 +7232,8 @@ export default function App() {
                       active={t.tabId === activeTabId}
                       prefs={terminalPrefs}
                       hostKey={sessionHostKey(t)}
-                      inputBlocked={(() => {
-                        const g = guardForSession(t.sessionId)
-                        return g.level === 'readonly' && !g.elevated
-                      })()}
-                      onInputBlocked={() => showToast(tg('l4.readonlyBlocked'))}
                       onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
-                      onUserData={
-                        broadcastEnabled && broadcastSessions.length > 1
-                          ? (data) => {
-                              for (const sid of broadcastSessions) void window.aiss.ssh.write(sid, data)
-                            }
-                          : undefined
-                      }
+                      onUserData={(data) => handleTermInput(t.sessionId, data)}
                     />
                     <TerminalBlocks sessionId={t.sessionId} />
                     </>
@@ -6983,6 +7318,11 @@ export default function App() {
                 onRun={(sid, command) => {
                   focusSessionTab(sid)
                   const g = guardForSession(sid)
+                  if (readonlyActive(g.level, g.elevated)) {
+                    void navigator.clipboard.writeText(command)
+                    showToast(tg('s4.block', { reason: tg('s4.reason', { token: writeToken(command) }) }))
+                    return
+                  }
                   window.setTimeout(() => void confirmAndRunAiCommand({
                     sessionId: sid,
                     command,
@@ -7066,6 +7406,11 @@ export default function App() {
         </div>
       ) : null}
       <footer className="app-statusbar" data-testid="app-statusbar">
+        {(() => {
+          const g = activeSessionId ? guardForSession(activeSessionId) : null
+          if (!g || !readonlyActive(g.level, g.elevated)) return null
+          return <span className="prot-badge prot-badge--readonly s4-status-badge" data-testid="s4-status-badge">{tg('s4.badge')}</span>
+        })()}
         {statusBarSlots({ syncEnabled: syncMeta.enabled, phase: syncMeta.phase }).slots.map((slot) => (
           <button
             key={slot.id}

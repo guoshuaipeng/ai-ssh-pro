@@ -103,6 +103,11 @@ export type MenuAction =
   | 'explainDiff'
   | 'diffFixPlaybook'
   | 'openProdGuard'
+  | 'reconnectPolicy'
+  | 'reconnectNow'
+  | 'readonlyOn'
+  | 'readonlyOff'
+  | 'setProtection'
 
 export type Bilingual = { zh: string; en: string }
 

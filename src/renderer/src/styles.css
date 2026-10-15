@@ -1757,6 +1757,53 @@ body.layout-resizing {
   flex-shrink: 0;
 }
 .session-disconnect-banner > button { flex: none; white-space: nowrap; }
+.session-disconnect-banner.is-stopped { background: #2a2a2a; color: #d0d0d0; }
+.session-disconnect-banner.is-exhausted { background: #3d1214; color: #ffb4b4; }
+.session-disconnect-banner .l9-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.l9-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.l9-actions button, .l9-actions summary { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.l9-more { position: relative; }
+.l9-more summary { cursor: pointer; list-style: none; }
+.l9-more button { display: block; }
+.l9-policy { min-width: 0; }
+.l9-policy h4 { margin: 12px 0 8px; }
+.l9-row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.l9-row span { flex: none; }
+.l9-row input, .l9-row select { min-width: 0; max-width: 280px; }
+.l9-error { color: #f85149; font-size: 12px; margin: 0; }
+.s4-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-height: 24px;
+  max-height: 28px;
+  padding: 0 10px;
+  background: rgba(248, 81, 73, 0.16);
+  color: #ffb4b4;
+  font-size: 12px;
+  overflow: hidden;
+}
+.s4-block span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.s4-block button { flex: none; white-space: nowrap; }
+.term-guard-banner.is-ro { min-height: 24px; max-height: 24px; }
+.prot-badge { white-space: nowrap; }
+.s4-status-badge { margin-left: auto; }
+@media (max-width: 1100px) {
+  .l9-btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .l9-full-wide { display: none; }
+  .s4-banner-long { display: none; }
+}
+@media (min-width: 1101px) {
+  .l9-full-narrow { display: none; }
+  .s4-banner-short { display: none; }
+}
 .connect-trouble { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .connect-trouble-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .connect-trouble-steps { display: flex; flex-wrap: nowrap; gap: 8px; margin: 0; padding: 0; list-style: none; overflow: hidden; min-width: 0; }

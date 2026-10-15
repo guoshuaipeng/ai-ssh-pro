@@ -184,7 +184,7 @@ export default function FileHistoryTab({ profileId, hostLabel, path, level, sess
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title" title={path}>{tg('w3.tabFile', { name: path.split('/').pop() || path })}</h2>
         <div className="workspace-panel-actions">
-          <button type="button" className="primary" data-testid="w3-rollback" disabled={!canRollback || busy} title={!selected ? tg('w3.pickSnapshot') : !rollbackAllowed(level) ? tg('w3.readonly') : undefined} onClick={() => void rollback()}>
+          <button type="button" className="primary" data-testid="w3-rollback" disabled={!canRollback || busy} title={!selected ? tg('w3.pickSnapshot') : !rollbackAllowed(level) ? tg('s4.rollbackDisabled') : undefined} onClick={() => void rollback()}>
             {busy ? tg('w3.rollingBack') : currentState === 'missing' ? tg('w3.restore') : tg('w3.rollback')}
           </button>
           <button type="button" title={tg('w3.openDir')} onClick={() => void window.aiss.snapshots.openDir()}>

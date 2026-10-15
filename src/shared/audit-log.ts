@@ -12,6 +12,10 @@ export type AuditType =
   | 'protection.change'
   | 'gate'
   | 'alert.maintenance'
+  | 'session.reconnect.fail'
+  | 'session.reconnect.stop'
+  | 'session.readonly.on'
+  | 'session.readonly.off'
 
 export type GateResult = 'allowed' | 'confirmed' | 'denied' | 'blocked' | 'cancelled' | 'unlock' | 'restore'
 

@@ -16,6 +16,8 @@ export type BatchSessionOption = {
   username: string
   profileId?: string
   folderId?: string
+  /** S4: this host is skipped. */
+  readonly?: boolean
 }
 
 type Props = {
@@ -72,7 +74,10 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
 
   const run = async () => {
     const line = normalizeCommandLine(command)
-    const ids = sessions.map((s) => s.sessionId).filter((id) => selected.has(id))
+    const picked = sessions.filter((s) => selected.has(s.sessionId))
+    const skipped = picked.filter((s) => s.readonly)
+    const ids = picked.filter((s) => !s.readonly).map((s) => s.sessionId)
+    if (skipped.length) setFormError(t('s4.skipped'))
     if (!line) {
       setFormError(t('batch.needCommand'))
       return

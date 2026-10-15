@@ -20,6 +20,7 @@ type Props = {
   hostKey?: string
   inputBlocked?: boolean
   onInputBlocked?: () => void
+  onGateInput?: (sessionId: string, data: string) => void
   onOpenSftp?: (sessionId: string) => void
 }
 
@@ -49,6 +50,7 @@ export default function SplitTerminalView({
   hostKey,
   inputBlocked,
   onInputBlocked,
+  onGateInput,
   onOpenSftp
 }: Props) {
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>(() => {
@@ -137,7 +139,7 @@ export default function SplitTerminalView({
         style={{ display: 'flex', flexDirection: horizontal ? 'row' : 'column', flex: 1, minHeight: 0, minWidth: 0 }}
       >
         <div className="split-pane" data-session-id={a.id} style={{ flex: `0 0 ${ratio * 100}%`, minWidth: 0, minHeight: 0 }}>
-          <TerminalPane key={`a-${a.id}-${a.mirror}`} sessionId={a.id} active={active} prefs={prefs} mirrorOnly={a.mirror} hostKey={hostKey} inputBlocked={inputBlocked} onInputBlocked={onInputBlocked} onOpenSftp={onOpenSftp} />
+          <TerminalPane key={`a-${a.id}-${a.mirror}`} sessionId={a.id} active={active} prefs={prefs} mirrorOnly={a.mirror} hostKey={hostKey} inputBlocked={inputBlocked} onInputBlocked={onInputBlocked} onOpenSftp={onOpenSftp} onUserData={onGateInput ? (data) => onGateInput(a.id, data) : undefined} />
         </div>
         <div
           className="split-divider"
@@ -149,7 +151,7 @@ export default function SplitTerminalView({
           onDoubleClick={() => setRatio(0.5)}
         />
         <div className="split-pane" data-session-id={b.id} style={{ flex: '1 1 0', minWidth: 0, minHeight: 0 }}>
-          <TerminalPane key={`b-${b.id}-${b.mirror}`} sessionId={b.id} active={active} prefs={prefs} mirrorOnly={b.mirror} hostKey={hostKey} onOpenSftp={onOpenSftp} />
+          <TerminalPane key={`b-${b.id}-${b.mirror}`} sessionId={b.id} active={active} prefs={prefs} mirrorOnly={b.mirror} hostKey={hostKey} onOpenSftp={onOpenSftp} onUserData={onGateInput && !b.mirror ? (data) => onGateInput(b.id, data) : undefined} />
         </div>
       </div>
     </div>

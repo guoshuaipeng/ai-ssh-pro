@@ -12,6 +12,7 @@ import type {
 import { normalizeQuery, profileMatches } from '../lib/session-filter'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 import { effectiveLevel } from '@shared/protection'
+import { stricterLevel } from '@shared/readonly-session'
 import Icon, { Twist } from './Icon'
 
 export type DockerTreeCache = {
@@ -49,6 +50,8 @@ type Props = {
   inFolder?: boolean
   /** 侧栏搜索词：非空时只显示命中的容器，并自动展开 */
   searchQuery?: string
+  /** S4: session-level read-only, stricter than the profile. */
+  sessionReadonly?: boolean
 }
 
 type StatusTone = 'running' | 'healthy' | 'unhealthy' | 'starting' | 'exited' | 'other'
@@ -105,7 +108,8 @@ export default function SessionDockerBranch({
   onOpenCompose,
   onOpenSwarmService,
   inFolder,
-  searchQuery = ''
+  searchQuery = '',
+  sessionReadonly = false
 }: Props) {
   const label = profile.label?.trim() || profile.host || `${profile.username}@${profile.host}`
   const busy = tree?.status === 'connecting' || tree?.status === 'loading'
@@ -275,7 +279,7 @@ export default function SessionDockerBranch({
             })()
           : null}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: profile.demo ? 'nowrap' : undefined }}>
+          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {label}
             {profile.demo ? (
               <span className="demo-badge" data-testid="demo-badge">
@@ -287,11 +291,15 @@ export default function SessionDockerBranch({
                 <Icon name="chevron-right" size={12} />
               </span>
             ) : null}
-            {effectiveLevel(profile) !== 'normal' ? (
-              <span className={`prot-badge prot-badge--${effectiveLevel(profile)}`} data-testid="prot-badge">
-                {tg(effectiveLevel(profile) === 'production' ? 'l4.production' : 'l4.readonly')}
-              </span>
-            ) : null}
+            {(() => {
+              const level = stricterLevel(effectiveLevel(profile), sessionReadonly)
+              if (level === 'normal') return null
+              return (
+                <span className={`prot-badge prot-badge--${level}`} data-testid="prot-badge">
+                  {tg(level === 'production' ? 'l4.production' : 's4.badge')}
+                </span>
+              )
+            })()}
           </div>
           {profile.tags?.length ? (
             <div className="profile-tags">
