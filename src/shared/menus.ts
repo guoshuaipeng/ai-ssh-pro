@@ -217,7 +217,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('runPlaybook', '运行剧本…', 'Run playbook…'),
       sep,
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
-      it('dashboard', '多主机看板', 'Multi-host dashboard'),
+      it('dashboard', '多主机看板', 'Multi-host dashboard', { menuHidden: true }),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
       it('refreshDocker', '刷新 Docker', 'Refresh Docker', { menuHidden: true }),
       sep,
@@ -227,7 +227,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       sep,
       it('alertRules', '告警规则…', 'Alert rules…'),
       it('alertHistory', '告警历史', 'Alert history', { menuHidden: true }),
-      it('auditLog', '审计日志', 'Audit log')
+      it('auditLog', '审计日志', 'Audit log', { menuHidden: true })
     ]
   },
   {

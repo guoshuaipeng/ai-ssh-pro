@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { QUICK_STEPS } from '@shared/onboarding'
 import { useI18n } from '../lib/i18n'
 
@@ -34,14 +33,6 @@ export default function QuickStartWizard({
   onDone: () => void
 }) {
   const { t } = useI18n()
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onSkip()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onSkip])
   if (!open) return null
   const n = Math.min(QUICK_STEPS, Math.max(1, step))
   return (

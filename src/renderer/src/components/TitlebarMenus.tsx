@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { SHARED_MENUS, menuLabel, visibleMenuItems, type MenuAction } from '@shared/menus'
+import { placeMenuDropdown } from '@shared/menu-fit'
 import { useI18n } from '../lib/i18n'
 import Icon from './Icon'
 
@@ -22,6 +23,33 @@ export default function TitlebarMenus({ onAction, toggles, disabled, hints }: Pr
   const { locale } = useI18n()
   const [openId, setOpenId] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const el = dropRef.current
+    if (!openId || !el) return
+    const anchor = el.parentElement?.getBoundingClientRect()
+    if (!anchor) return
+    const placed = placeMenuDropdown({
+      anchorTop: anchor.top,
+      anchorBottom: anchor.bottom + 4,
+      anchorLeft: anchor.left,
+      menuWidth: Math.max(el.offsetWidth, 220),
+      menuHeight: el.scrollHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight
+    })
+    el.style.maxHeight = `${placed.maxHeight}px`
+    el.style.overflowY = 'auto'
+    if (placed.openUp) {
+      el.style.top = 'auto'
+      el.style.bottom = 'calc(100% + 4px)'
+    } else {
+      el.style.top = 'calc(100% + 4px)'
+      el.style.bottom = 'auto'
+    }
+    el.style.left = `${placed.left - anchor.left}px`
+  }, [openId, locale])
 
   useEffect(() => {
     if (!openId) return
@@ -58,7 +86,7 @@ export default function TitlebarMenus({ onAction, toggles, disabled, hints }: Pr
               {menuLabel(menu.label, locale)}
             </button>
             {open ? (
-              <div className="titlebar-menu-dropdown" role="menu">
+              <div className="titlebar-menu-dropdown" role="menu" ref={dropRef}>
                 {visibleMenuItems(menu).map((item, i) =>
                   item.type === 'sep' ? (
                     <div key={`sep-${menu.id}-${i}`} className="titlebar-menu-sep" />

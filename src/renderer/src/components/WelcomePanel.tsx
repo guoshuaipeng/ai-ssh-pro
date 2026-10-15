@@ -18,22 +18,6 @@ export default function WelcomePanel({ onImport, onNew, onDemo, onDismiss }: Pro
     importRef.current?.focus()
   }, [])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      const target = e.target
-      if (target instanceof HTMLElement) {
-        const tag = target.tagName
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return
-        if (target.closest('[role="dialog"], .modal-backdrop, .cmdp-backdrop, .tour-root')) return
-      }
-      e.preventDefault()
-      onDismiss()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onDismiss])
-
   return (
     <div className="welcome-stage" data-testid="welcome-panel">
       <section className="welcome-card" aria-labelledby="welcome-headline">

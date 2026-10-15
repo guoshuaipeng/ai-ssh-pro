@@ -121,12 +121,6 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
         }
         return
       }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        finish()
-        return
-      }
       if (e.key === 'ArrowRight' || e.key === 'Enter') {
         e.preventDefault()
         e.stopPropagation()
@@ -147,7 +141,7 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
       window.removeEventListener('resize', onResize)
       window.removeEventListener('keydown', onKey, true)
     }
-  }, [open, idx, finish, go])
+  }, [open, idx, go])
 
   useLayoutEffect(() => {
     const h = cardRef.current?.offsetHeight
