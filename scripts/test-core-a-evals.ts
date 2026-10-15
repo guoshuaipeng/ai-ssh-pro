@@ -1,7 +1,9 @@
 /**
  * Core-A multi-turn evals. Every `*.json` file in tests/fixtures/core-a/ is a
- * scenario (S1–S19 and any later drop-in). The real planner runs against the
- * fixture's scripted model and a fake terminal.
+ * scenario (S1–S20 and any later drop-in, including S20-N). The real planner
+ * runs against the fixture's scripted model and a fake terminal.
+ * S20: after contradictory filler, observational memory still has the original
+ * rare-fact tokens, and the end must not adopt the filler's path, Use%, or host state.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -59,6 +61,7 @@ type Expectation = {
   finalAction?: string
   completed?: boolean
   descriptionMustContain?: string[]
+  /** End text must not adopt these literals (S17 invented disk; S20 contradictory filler). */
   descriptionMustNotContain?: string[]
   descriptionMustMatchAny?: string[]
   commandsRequiringConfirm?: string[]
@@ -79,6 +82,7 @@ type Expectation = {
   sshWriteCount?: number
   noFurtherPlannerStepsAfterDeny?: boolean
   riskLevel?: string
+  /** Observational-memory section must still contain these tokens (S13 / S16 / S20). */
   observationalMemoryMustContain?: string[]
   recentWindowMustNotContain?: string[]
   /** System prompt must not carry another host's facts (S18). */

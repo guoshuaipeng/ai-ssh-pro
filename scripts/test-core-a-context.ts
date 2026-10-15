@@ -216,6 +216,44 @@ ok(promptOm.sections.observations.includes('127.0.0.1:6379'), 'planner observati
 ok(!promptOm.sections.runningSummary.includes('MID_OM_FACT'), 'the surviving fact is not only the running summary')
 ok(promptOm.text.indexOf('OBSERVATIONS') < promptOm.text.indexOf('SUMMARY'), 'observational bullets are injected ahead of the summary')
 
+const s20Turns: TranscriptTurn[] = [
+  { role: 'user', content: '记下 OM_S20_RARE_FACT 只监听 127.0.0.1:18447 配置 /etc/s20/edge.conf' },
+  { role: 'assistant', content: JSON.stringify({ action: 'end', description: 'noted' }) }
+]
+for (let i = 0; i < 48; i++) {
+  s20Turns.push({
+    role: 'user',
+    content: `更正监听为 10.8.8.8:9${String(i).padStart(3, '0')} 路径 /opt/factory/s20-invented Use% ${50 + (i % 40)}% 状态 FACTORY_DOWN`
+  })
+  s20Turns.push({ role: 'assistant', content: JSON.stringify({ action: 'end', description: `filler ${i}` }) })
+}
+s20Turns.push({ role: 'user', content: '先前的稀有事实还在吗' })
+const foldedS20 = compactTranscript(s20Turns, EMPTY_THREAD, 8)
+ok(!foldedS20.recent.some((turn) => turn.content.includes('OM_S20_RARE_FACT')), 'S20 rare fact leaves the raw window')
+ok(
+  foldedS20.ctx.observationalMemory.some(
+    (bullet) =>
+      bullet.text.includes('OM_S20_RARE_FACT') &&
+      bullet.text.includes('127.0.0.1:18447') &&
+      bullet.text.includes('/etc/s20/edge.conf')
+  ),
+  'S20 contradictory filler does not overwrite the earlier rare fact'
+)
+ok(
+  foldedS20.ctx.observationalMemory.some((bullet) => bullet.text.includes('/opt/factory/s20-invented')),
+  'S20 contradictory filler stays as history beside the rare fact'
+)
+const promptS20 = buildMemoryPromptBlocks({
+  working: foldedS20.ctx.workingMemory,
+  observations: foldedS20.ctx.observationalMemory,
+  runningSummary: foldedS20.ctx.runningSummary,
+  hits: [],
+  headings: { working: 'WORKING', observations: 'OBSERVATIONS', summary: 'SUMMARY', recall: 'RECALL' }
+})
+ok(promptS20.sections.observations.includes('OM_S20_RARE_FACT'), 'S20 planner observational section keeps the rare token')
+ok(promptS20.sections.observations.includes('127.0.0.1:18447'), 'S20 planner observational section keeps the rare port')
+ok(promptS20.sections.observations.includes('/etc/s20/edge.conf'), 'S20 planner observational section keeps the rare path')
+
 const secretTurns: TranscriptTurn[] = [
   { role: 'user', content: 'please use Bearer sk-live-SECRETVALUE' },
   { role: 'assistant', content: '{"action":"end","description":"noted"}' },
