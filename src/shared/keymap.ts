@@ -8,7 +8,7 @@
  *  - 'display'     handled elsewhere (xterm / Electron role); listed for the F1 panel only
  *  - 'terminalBlocks' only while a block is focused and blocks are on; not a global binding
  */
-export type KeymapScope = 'global' | 'nonTerminal' | 'display' | 'terminalBlocks'
+export type KeymapScope = 'global' | 'nonTerminal' | 'display' | 'terminalBlocks' | 'alertWorkbench' | 'playbookEdit' | 'playbookRun' | 'fileHistory' | 'postmortem' | 'blocks'
 export type KeymapGroup = 'general' | 'session' | 'terminal' | 'view'
 
 export type KeymapEntry = {
@@ -49,12 +49,17 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'toggleAi', keys: 'Ctrl+Alt+B', scope: 'global', group: 'view', label: { zh: '显示/隐藏 AI 面板', en: 'Show/hide AI panel' } },
   { id: 'nextTab', keys: 'Ctrl+Tab', scope: 'display', group: 'view', label: { zh: '下一个标签', en: 'Next tab' } },
   { id: 'gotoTab', keys: 'Ctrl+1…9', scope: 'display', group: 'view', label: { zh: '切换到第 N 个标签（9 = 最后一个）', en: 'Go to tab N (9 = last)' } },
-  { id: 'toggleBroadcast', keys: 'Ctrl+Alt+I', scope: 'global', group: 'session', label: { zh: '广播输入开/关', en: 'Toggle broadcast input' } }
+  { id: 'toggleBroadcast', keys: 'Ctrl+Alt+I', scope: 'global', group: 'session', label: { zh: '广播输入开/关', en: 'Toggle broadcast input' } },
+  { id: 'fixPlaybook', keys: 'Ctrl+Shift+Enter', scope: 'alertWorkbench', group: 'session', label: { zh: '为当前告警生成修复剧本', en: 'Create fix playbook for selected alert' } },
+  { id: 'dryRunPlaybook', keys: 'Ctrl+Enter', scope: 'playbookRun', group: 'session', label: { zh: '试运行 / 开始执行', en: 'Dry run / start' } },
+  { id: 'fileHistory', keys: 'Ctrl+H', scope: 'fileHistory', group: 'session', label: { zh: '打开文件历史', en: 'Open file history' } },
+  { id: 'toggleBlockStrip', keys: 'Ctrl+Shift+C', scope: 'blocks', group: 'terminal', label: { zh: '复制块输出', en: 'Copy block output' } }
 ]
 
 /** Actions that open the palette (both key combos map to the same action). */
 export const KEYMAP_ACTION_ALIAS: Readonly<Record<string, string>> = {
-  commandPaletteAlt: 'commandPalette'
+  commandPaletteAlt: 'commandPalette',
+  fileHistory: 'fileSnapshots'
 }
 
 export function keysFor(id: string): string | undefined {
@@ -78,12 +83,16 @@ function eventKeyName(e: KeyLike): string {
   return e.key
 }
 
-/** Returns the action id for a keyboard event, honouring terminal focus (UX-01). */
-export function matchKeymap(e: KeyLike, inTerminal: boolean): string | undefined {
+/** Returns the action id for a keyboard event, honouring terminal focus (UX-01).
+ * Extra scopes (alert workbench, playbook run, file history, blocks) match only when the caller says that surface is active.
+ */
+export function matchKeymap(e: KeyLike, inTerminal: boolean, scopes: readonly KeymapScope[] = []): string | undefined {
   if (e.metaKey) return undefined
   const name = eventKeyName(e)
+  const extra = new Set(scopes)
   for (const k of KEYMAP) {
-    if (k.scope === 'display' || k.scope === 'terminalBlocks') continue
+    const scoped = k.scope !== 'global' && k.scope !== 'nonTerminal'
+    if (scoped && !extra.has(k.scope)) continue
     if (k.scope === 'nonTerminal' && inTerminal) continue
     const c = parseCombo(k.keys)
     if (c.ctrl !== e.ctrlKey || c.shift !== e.shiftKey || c.alt !== e.altKey) continue

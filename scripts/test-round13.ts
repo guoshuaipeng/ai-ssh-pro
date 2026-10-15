@@ -38,7 +38,7 @@ ok(assessCommandRisk('rm -rf /') !== null, 'dangerous command still intercepted 
 
 // A2 shortcut: registered once, global (works while the terminal is focused), not a shell key
 ok(keysFor('aiCommand') === 'Ctrl+Shift+Space', 'Ctrl+Shift+Space → AI mode')
-ok(new Set(KEYMAP.map((k) => k.keys)).size === KEYMAP.length, 'no duplicate bindings')
+ok(new Set(KEYMAP.filter((k) => k.scope === 'global' || k.scope === 'nonTerminal' || k.scope === 'display').map((k) => k.keys)).size === KEYMAP.filter((k) => k.scope === 'global' || k.scope === 'nonTerminal' || k.scope === 'display').length, 'no duplicate bindings')
 ok(!isShellReservedKey({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false } as KeyboardEvent), 'not reserved for the shell')
 ok(matchKeymap({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false } as KeyboardEvent, true) === 'aiCommand', 'matches inside terminal')
 

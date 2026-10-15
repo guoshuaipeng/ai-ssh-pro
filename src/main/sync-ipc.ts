@@ -6,6 +6,7 @@ import { encryptBackup, decryptBackup } from './backup-crypto'
 import { encryptSecret, decryptSecret } from './secret-crypto'
 import { gistRead, gistWrite, testGithubToken, testWebdav, webdavRead, webdavWrite } from './sync-remote'
 import type { SyncScope } from '../shared/sync-vault'
+import { readSyncPassphrase, writeSyncPassphrase } from '../shared/sync-passphrase'
 
 export type SyncConfig = {
   provider: 'gist' | 'webdav'
@@ -14,12 +15,19 @@ export type SyncConfig = {
   username?: string
   token?: string
   password?: string
-  /** Local-only vault passphrase. Never written into the remote payload. */
+  /** Local-only sync passphrase. Never written into the remote payload. */
+  syncPassphrase?: string
+  /** @deprecated read fallback only */
   vaultPass?: string
   scope: SyncScope
 }
 
-type Stored = Omit<SyncConfig, 'token' | 'password' | 'vaultPass'> & { token?: string; password?: string; vaultPass?: string }
+type Stored = Omit<SyncConfig, 'token' | 'password' | 'syncPassphrase' | 'vaultPass'> & {
+  token?: string
+  password?: string
+  syncPassphrase?: string
+  vaultPass?: string
+}
 
 function configPath(): string {
   return join(app.getPath('userData'), 'sync-config.json')
@@ -42,7 +50,10 @@ export function loadSyncConfig(): SyncConfig | null {
       username: raw.username,
       token: raw.token ? decryptSecret(raw.token) : undefined,
       password: raw.password ? decryptSecret(raw.password) : undefined,
-      vaultPass: raw.vaultPass ? decryptSecret(raw.vaultPass) : undefined,
+      syncPassphrase: (() => {
+        const read = readSyncPassphrase(raw)
+        return read.stored ? decryptSecret(read.stored) : undefined
+      })(),
       scope: {
         connections: raw.scope?.connections !== false,
         snippets: raw.scope?.snippets !== false,
@@ -65,7 +76,7 @@ function saveSyncConfig(cfg: SyncConfig): void {
     scope: cfg.scope,
     token: cfg.token ? encryptSecret(cfg.token) : undefined,
     password: cfg.password ? encryptSecret(cfg.password) : undefined,
-    vaultPass: cfg.vaultPass ? encryptSecret(cfg.vaultPass) : undefined
+    ...writeSyncPassphrase(cfg.syncPassphrase ? encryptSecret(cfg.syncPassphrase) : undefined)
   }
   mkdirSync(app.getPath('userData'), { recursive: true })
   writeFileSync(configPath(), JSON.stringify(stored), 'utf8')
@@ -80,7 +91,8 @@ function publicConfig(cfg: SyncConfig | null) {
     username: cfg.username ?? '',
     hasToken: Boolean(cfg.token),
     hasPassword: Boolean(cfg.password),
-    hasVaultPass: Boolean(cfg.vaultPass),
+    hasSyncPassphrase: Boolean(cfg.syncPassphrase),
+    hasVaultPass: Boolean(cfg.syncPassphrase),
     scope: cfg.scope
   }
 }
@@ -97,7 +109,7 @@ export function registerSyncIpc(): void {
       username: patch.username ?? prev?.username,
       token: patch.clearToken ? undefined : patch.token || prev?.token,
       password: patch.clearPassword ? undefined : patch.password || prev?.password,
-      vaultPass: patch.vaultPass || prev?.vaultPass,
+      syncPassphrase: patch.syncPassphrase || patch.vaultPass || prev?.syncPassphrase,
       scope: patch.scope ?? prev?.scope ?? { connections: true, snippets: true, forwards: true, settings: true, credentials: false }
     }
     saveSyncConfig(next)
@@ -120,7 +132,7 @@ export function registerSyncIpc(): void {
   ipcMain.handle('sync:push', async (_e, payload: unknown, passphrase: string) => {
     const cfg = loadSyncConfig()
     if (!cfg) return { ok: false, message: 'not-configured' }
-    const pass = passphrase || cfg.vaultPass || ''
+    const pass = passphrase || cfg.syncPassphrase || ''
     let envelope: string
     try {
       envelope = JSON.stringify(encryptBackup(payload, pass))
@@ -156,7 +168,7 @@ export function registerSyncIpc(): void {
     }
     if (!raw.trim()) return { ok: true, empty: true, payload: null }
     try {
-      const payload = decryptBackup(raw, passphrase || cfg.vaultPass || '')
+      const payload = decryptBackup(raw, passphrase || cfg.syncPassphrase || '')
       return { ok: true, empty: false, payload }
     } catch {
       return { ok: false, message: 'decrypt' }

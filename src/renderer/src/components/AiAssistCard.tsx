@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiAssistResult } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
+import { rememberAiFixes } from '../lib/ai-fix-memory'
 import AiConfigCard from './AiConfigCard'
 
-export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert' }
+export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert'; alertId?: string }
 
 type Props = {
   request: AiExplainRequest
@@ -11,12 +12,14 @@ type Props = {
   onOpenSettings: () => void
   onInsert: (sessionId: string, command: string) => void
   onRun: (sessionId: string, command: string) => void
+  /** W1: build a reviewable draft. Never runs the commands. */
+  onCreatePlaybook?: (fixes: Array<{ command: string; note?: string }>) => void
   /** Keep the UX-37 card inside this surface instead of jumping to the AI panel. */
   embed?: boolean
 }
 
 /** A1: "Explain with AI" result in the right-hand AI panel — cause, fix commands (Insert / Run), notes. */
-export default function AiAssistCard({ request, onClose, onOpenSettings, onInsert, onRun, embed }: Props) {
+export default function AiAssistCard({ request, onClose, onOpenSettings, onInsert, onRun, onCreatePlaybook, embed }: Props) {
   const { t, locale } = useI18n()
   const [state, setState] = useState<{ phase: 'loading' } | { phase: 'done'; result: AiAssistResult }>({ phase: 'loading' })
   const reqIdRef = useRef('')
@@ -37,6 +40,10 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
           }
           setState({ phase: 'done', result })
           return
+        }
+        if (result.ok && result.kind !== 'nlCommand') {
+          const key = request.alertId ? `explainAlert:${request.alertId}` : `${request.kind ?? 'explainError'}:${request.sessionId}`
+          rememberAiFixes(key, result.fixes)
         }
         setState({ phase: 'done', result })
       })
@@ -114,6 +121,21 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
               </ul>
             </>
           ) : null}
+          <div className="w1-create-row">
+            <button
+              type="button"
+              className="w1-create"
+              data-testid="w1-create"
+              disabled={!r.fixes.length}
+              title={r.fixes.length ? t('w1.createHint', { n: r.fixes.length }) : t('w1.noFix')}
+              onClick={() => r.fixes.length && onCreatePlaybook?.(r.fixes)}
+            >
+              {t('w1.create')}
+            </button>
+            {r.fixes.length ? <span className="w1-create-hint">{t('w1.createHint', { n: r.fixes.length })}</span> : (
+              <button type="button" className="linkish" data-testid="w1-blank" onClick={() => onCreatePlaybook?.([])}>{t('w1.blank')}</button>
+            )}
+          </div>
           {r.notes ? (
             <>
               <h4>{t('a1.notes')}</h4>

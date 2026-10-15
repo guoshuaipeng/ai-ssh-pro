@@ -17,9 +17,14 @@ const ev = (keys: string) => {
   return { key: k, code, ctrlKey: parts.includes('Ctrl'), shiftKey: parts.includes('Shift'), altKey: parts.includes('Alt'), metaKey: false }
 }
 
-// UX-02: one registry, no duplicate bindings, expected final keys
+// UX-02: one registry. Global/display bindings stay unique. v0.4.2 scoped keys may reuse a combo (Ctrl+Shift+C is copy in the terminal and copy-block inside the strip).
 const keys = KEYMAP.map((k) => k.keys)
-assert.equal(new Set(keys).size, keys.length, 'no duplicate key bindings')
+const primary = KEYMAP.filter((k) => k.scope === 'global' || k.scope === 'nonTerminal' || k.scope === 'display').map((k) => k.keys)
+assert.equal(new Set(primary).size, primary.length, 'no duplicate key bindings')
+for (const scope of new Set(KEYMAP.map((k) => k.scope))) {
+  const inScope = KEYMAP.filter((k) => k.scope === scope).map((k) => k.keys)
+  assert.equal(new Set(inScope).size, inScope.length, `no duplicate bindings in ${scope}`)
+}
 assert.equal(new Set(KEYMAP.map((k) => k.id)).size, KEYMAP.length, 'unique ids')
 const want: Record<string, string> = {
   connection: 'Ctrl+Shift+N', sftp: 'Ctrl+Alt+F', serverTools: 'Ctrl+Alt+T', find: 'Ctrl+Shift+F', settings: 'Ctrl+,',

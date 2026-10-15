@@ -12,6 +12,53 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.2': [
+    {
+      icon: '▷',
+      text: {
+        zh: '告警可以生成修复剧本草稿。草稿在中间标签里审阅，不会自动执行',
+        en: 'An alert can become a fix-playbook draft. The draft opens in a center tab and never runs on its own'
+      },
+      where: { zh: '告警工作台 → 生成修复剧本', en: 'Alert workbench → Create fix playbook' },
+      action: 'alertWorkbench'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运行剧本前必须先试运行。变量会代入，只读主机会标成将被阻止',
+        en: 'A playbook must be dry-run before it runs. Variables are filled in, and read-only hosts are marked as blocked'
+      },
+      where: { zh: '运维剧本 → 运行', en: 'Playbooks → Run' },
+      action: 'runPlaybook'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '覆盖远端文件前在本机留快照，可以对比并回滚。回滚仍走写保护',
+        en: 'A local snapshot is kept before a remote file is overwritten. You can diff and roll back, still through the write guard'
+      },
+      where: { zh: '设置 → 文件', en: 'Settings → Files' },
+      action: 'settings'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '告警时间线和 Markdown 复盘。主机、IP 和用户默认隐藏',
+        en: 'Alert timeline and a Markdown postmortem. Host, IP, and user are hidden by default'
+      },
+      where: { zh: '告警工作台 → 时间线', en: 'Alert workbench → Timeline' },
+      action: 'alertWorkbench'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运维菜单只留 12 项。命令片段先看列表，终端块高度可拖',
+        en: 'The Ops menu keeps 12 items. Snippets open as a list, and the terminal block strip can be resized'
+      },
+      where: { zh: '运维 / 命令片段', en: 'Ops / Snippets' },
+      action: 'snippets'
+    }
+  ],
   '0.4.1': [
     {
       icon: '⤳',

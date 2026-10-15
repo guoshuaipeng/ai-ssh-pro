@@ -8,6 +8,7 @@ export type SyncPreviewPlan = {
   rows: SyncRow[]
   deleteExtra: boolean
   sessionId?: string
+  profileId?: string
 }
 
 export default function SyncPreviewTab({

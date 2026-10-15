@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { StartupMode } from '@shared/startup-pref'
 import { KEYMAP } from '@shared/keymap'
 import { SETTINGS_SECTIONS, type SettingsSection } from '@shared/settings-nav'
+import { setSnapshotKeep, setSnapshotsEnabled, snapshotKeep, snapshotsEnabled, SNAPSHOT_KEEP_OPTIONS } from '@shared/snapshots'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { applyUiTheme, loadUiThemeId, UI_THEME_OPTIONS, type UiThemeId } from '../lib/ui-themes'
 import { loadAutoUpdate, saveAutoUpdate } from '../lib/update-check'
@@ -9,6 +10,7 @@ import { TOUR_DONE_KEY } from './WelcomeTour'
 import type { TerminalPrefs } from '@shared/ipc'
 import AiConfigForm from './AiConfigForm'
 import TerminalPrefsModal from './TerminalPrefsModal'
+import { confirmDialog } from '../lib/dialogs'
 
 const SECTION_KEY: Record<SettingsSection, MessageKey> = {
   general: 'settings.general',
@@ -18,6 +20,7 @@ const SECTION_KEY: Record<SettingsSection, MessageKey> = {
   ai: 'settings.ai',
   shortcuts: 'settings.shortcuts',
   security: 'settings.security',
+  files: 'settings.files',
   backup: 'settings.backup',
   about: 'settings.about'
 }
@@ -65,6 +68,13 @@ export default function SettingsPanel({
   const [autoUpdate, setAutoUpdate] = useState(() => loadAutoUpdate())
   const [tour, setTour] = useState(() => localStorage.getItem(TOUR_DONE_KEY) !== '1')
   const [autoIcon, setAutoIcon] = useState(() => localStorage.getItem('aiss.toolbar.autoIcon') !== '0')
+  const [snapOn, setSnapOn] = useState(() => snapshotsEnabled())
+  const [snapKeep, setSnapKeep] = useState(() => snapshotKeep())
+  const [snapStats, setSnapStats] = useState({ files: 0, bytes: 0, count: 0 })
+  useEffect(() => {
+    if (section !== 'files') return
+    void window.aiss?.snapshots?.stats?.().then((s) => setSnapStats(s)).catch(() => undefined)
+  }, [section, snapOn, snapKeep])
 
   const needle = q.trim().toLowerCase()
   const visible = useMemo(() => {
@@ -218,6 +228,58 @@ export default function SettingsPanel({
                 {t('settings.audit')}
               </label>
               <p className="l7-muted">{t('settings.dangerHint')}</p>
+            </section>
+          ) : null}
+          {active === 'files' ? (
+            <section data-testid="settings-files">
+              <h3>{t('settings.files')}</h3>
+              <label className="settings-row">
+                <input
+                  type="checkbox"
+                  checked={snapOn}
+                  onChange={(e) => {
+                    setSnapOn(e.target.checked)
+                    setSnapshotsEnabled(e.target.checked)
+                  }}
+                />
+                {t('w3.settingAuto')}
+              </label>
+              <label className="settings-row">
+                <span>{t('w3.settingKeep')}</span>
+                <select
+                  value={snapKeep}
+                  onChange={(e) => {
+                    const n = Number(e.target.value)
+                    setSnapKeep(n)
+                    setSnapshotKeep(n)
+                  }}
+                >
+                  {SNAPSHOT_KEEP_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="l7-muted">{t('w3.settingUsed', { size: snapStats.bytes < 1024 * 1024 ? `${Math.ceil(snapStats.bytes / 1024)} KB` : `${(snapStats.bytes / (1024 * 1024)).toFixed(1)} MB` })}</p>
+              <p className="l7-muted">{t('w3.filesN', { n: snapStats.files, size: String(snapStats.count) })}</p>
+              <div className="settings-actions">
+                <button type="button" onClick={() => void window.aiss.snapshots.openDir()}>{t('w3.openDir')}</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void confirmDialog({
+                      title: t('w3.clearAll'),
+                      body: t('w3.clearAllConfirm', { n: snapStats.count, size: `${snapStats.bytes}` }),
+                      confirmText: t('w3.clearAllBtn', { n: snapStats.count }),
+                      danger: true
+                    }).then((ok) => {
+                      if (!ok) return
+                      void window.aiss.snapshots.clear().then(() => setSnapStats({ files: 0, bytes: 0, count: 0 }))
+                    })
+                  }}
+                >
+                  {t('w3.clearAll')}
+                </button>
+              </div>
             </section>
           ) : null}
           {active === 'backup' ? (

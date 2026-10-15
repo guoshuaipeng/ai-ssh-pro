@@ -26,7 +26,8 @@ type PublicCfg = {
   username: string
   hasToken: boolean
   hasPassword: boolean
-  hasVaultPass: boolean
+  hasSyncPassphrase?: boolean
+  hasVaultPass?: boolean
   scope: SyncScope
 }
 
@@ -94,10 +95,10 @@ export function SyncSettings({
     setCfg(next)
     publish({ ...(loadSyncMeta()), enabled: true, provider, phase: 'synced', remoteCount: 0 })
   }
-  const setSecret = async (kind: 'token' | 'password' | 'vaultPass') => {
-    const value = await askText(tg(kind === 'vaultPass' ? 'm2.vaultPass' : kind === 'token' ? 'm2.token' : 'm2.webdavPass'), '')
+  const setSecret = async (kind: 'token' | 'password' | 'passphrase') => {
+    const value = await askText(tg(kind === 'passphrase' ? 'm2.vaultPass' : kind === 'token' ? 'm2.token' : 'm2.webdavPass'), '')
     if (!value) return
-    await save({ [kind]: value })
+    await save(kind === 'passphrase' ? { syncPassphrase: value } : { [kind]: value })
   }
   const test = async () => {
     const r = await window.aiss.sync.test()
@@ -172,8 +173,8 @@ export function SyncSettings({
         )}
         <div className="workspace-panel-actions">
           <button type="button" onClick={() => void setSecret(provider === 'gist' ? 'token' : 'password')}>{provider === 'gist' ? tg('m2.token') : tg('m2.webdavPass')}</button>
-          <button type="button" onClick={() => void setSecret('vaultPass')}>{tg('m2.vaultPass')}</button>
-          <span className="l7-meta">{cfg?.hasVaultPass ? tg('m2.keyLocal') : tg('m2.needKey')}</span>
+          <button type="button" onClick={() => void setSecret('passphrase')}>{tg('m2.vaultPass')}</button>
+          <span className="l7-meta">{cfg?.hasSyncPassphrase || cfg?.hasVaultPass ? tg('m2.keyLocal') : tg('m2.needKey')}</span>
         </div>
         {(Object.keys(DEFAULT_SCOPE) as Array<keyof SyncScope>).map((key) => (
           <label key={key} className="l4-check">

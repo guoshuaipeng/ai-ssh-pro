@@ -1,0 +1,101 @@
+/** UX-12a: one linear icon per action. Built-in 24px grid, stroke 1.75, currentColor. */
+
+export const ICON_NAMES = [
+  'sparkles',
+  'play',
+  'play-circle',
+  'chevron-down',
+  'chevron-right',
+  'chevron-up',
+  'arrow-up',
+  'arrow-down',
+  'arrow-left',
+  'triangle-alert',
+  'check',
+  'activity',
+  'bell',
+  'bell-ring',
+  'folder',
+  'folder-open',
+  'file-text',
+  'wrench',
+  'lock',
+  'search',
+  'arrow-left-right',
+  'clipboard-list',
+  'menu',
+  'refresh-cw',
+  'git-compare',
+  'book-open',
+  'file-pen',
+  'table',
+  'scroll-text',
+  'history',
+  'list-tree',
+  'file-check',
+  'wand-sparkles',
+  'plus'
+] as const
+
+export type IconName = (typeof ICON_NAMES)[number]
+
+/** One path (or several, space-separated commands) per name. */
+export const ICON_PATHS: Record<IconName, string> = {
+  sparkles: 'M12 3l1.2 3.6L17 8l-3.8 1.4L12 13l-1.2-3.6L7 8l3.8-1.4L12 3zM18 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z',
+  play: 'M8 5v14l11-7-11-7z',
+  'play-circle': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM10 9l6 3-6 3V9z',
+  'chevron-down': 'M6 9l6 6 6-6',
+  'chevron-right': 'M9 6l6 6-6 6',
+  'chevron-up': 'M6 15l6-6 6 6',
+  'arrow-up': 'M12 19V5M6 11l6-6 6 6',
+  'arrow-down': 'M12 5v14M6 13l6 6 6-6',
+  'arrow-left': 'M19 12H5M11 6l-6 6 6 6',
+  'triangle-alert': 'M12 3l10 18H2L12 3zM12 10v4M12 17h.01',
+  check: 'M5 12l5 5L20 7',
+  activity: 'M3 12h4l2-6 4 12 2-6h6',
+  bell: 'M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16zM10 19a2 2 0 0 0 4 0',
+  'bell-ring': 'M6 16V11a6 6 0 0 1 9-5M18 8v3M6 16l-1.5 2h15L18 16M10 19a2 2 0 0 0 4 0M18 4l2-1M20 8h2',
+  folder: 'M3 7h6l2 2h10v10H3V7z',
+  'folder-open': 'M3 8h6l2 2h10v2H4L3 18V8zM4 12h17l-2 7H5l-1-7z',
+  'file-text': 'M6 3h8l4 4v14H6V3zM14 3v4h4M8 12h8M8 16h6',
+  wrench: 'M14 6a4 4 0 0 0-5 5L4 16l4 4 5-5a4 4 0 0 0 5-5l-3 3-2-2 3-3z',
+  lock: 'M8 11V8a4 4 0 0 1 8 0v3M6 11h12v9H6v-9z',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5',
+  'arrow-left-right': 'M7 7H3l4-4M3 7h14M17 17h4l-4 4M21 17H7',
+  'clipboard-list': 'M9 4h6v3H9V4zM8 5H6v16h12V5h-2M9 11h6M9 15h6',
+  menu: 'M4 7h16M4 12h16M4 17h16',
+  'refresh-cw': 'M21 12a9 9 0 0 1-15 6L4 16M3 12a9 9 0 0 1 15-6l2 2M4 4v5h5M20 20v-5h-5',
+  'git-compare': 'M6 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 22a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 6v12M18 6v8M6 12h8a4 4 0 0 0 4-4',
+  'book-open': 'M12 6c-2-2-6-2-8 0v14c2-2 6-2 8 0 2-2 6-2 8 0V6c-2-2-6-2-8 0z',
+  'file-pen': 'M6 3h8l4 4v6M14 3v4h4M4 20l4-1 9-9-3-3-9 9-1 4z',
+  table: 'M4 5h16v14H4V5zM4 10h16M4 15h16M10 5v14',
+  'scroll-text': 'M8 4h10v16H8a2 2 0 0 1-2-2V6h2M10 9h6M10 13h6',
+  history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 4v4h4M12 8v5l3 2',
+  'list-tree': 'M4 6h6M4 12h6M4 18h6M14 6h6M14 12h6M14 18h6M10 6v12',
+  'file-check': 'M6 3h8l4 4v14H6V3zM14 3v4h4M9 15l2 2 4-4',
+  'wand-sparkles': 'M4 20L14 10M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2zM18 14l.6 1.4L20 16l-1.4.6L18 18l-.6-1.4L16 16l1.4-.6L18 14z',
+  plus: 'M12 5v14M5 12h14'
+}
+
+export function iconForAction(id: string): IconName | null {
+  const map: Record<string, IconName> = {
+    aiExplainError: 'sparkles',
+    aiCommand: 'sparkles',
+    openAi: 'sparkles',
+    fixPlaybook: 'wand-sparkles',
+    runPlaybook: 'play',
+    dryRunPlaybook: 'play-circle',
+    playbooks: 'book-open',
+    snippets: 'clipboard-list',
+    sftp: 'folder',
+    auditLog: 'scroll-text',
+    fileSnapshots: 'history',
+    exportPostmortem: 'file-check',
+    alertWorkbench: 'bell-ring',
+    refreshDocker: 'refresh-cw',
+    serverTools: 'wrench',
+    resourceMonitor: 'activity',
+    search: 'search'
+  }
+  return map[id] ?? null
+}

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.2
+
+Alert to playbook draft, dry-run, rollback, and postmortem. Package version is `0.4.2`. Do not tag until QA signs off.
+
+- **修复剧本草稿（W1）/ Fix playbook draft.** 告警解读卡的「生成修复剧本」在中间标签打开草稿，不连主机、不发命令。危险步骤锁定确认。同一告警再次生成会打开已有草稿。 / Create fix playbook opens a center-tab draft. It does not connect or send a command. Dangerous steps lock confirm. Generating again for the same alert focuses the existing draft.
+- **试运行（W2）/ Dry run.** 运行前必须先试运行。`{{变量}}` 与试运行、正式运行共用同一套展开。只读主机可以勾选，试运行标「将被阻止」，真正执行仍跳过。 / A run requires a dry run first. `{{vars}}` expand with the same function for dry run and run. Read-only hosts can be selected, the dry run marks them blocked, and the real run still skips them.
+- **文件快照（W3）/ Snapshots.** 编辑保存和文件夹同步覆盖前，在本机加密保存文本快照。可对比、钉住、回滚。回滚走原来的写闸门和审计。快照不进云同步。 / Editor saves and folder-sync overwrites keep an encrypted local text snapshot. Diff, pin, and roll back. Rollback uses the existing write guard and audit. Snapshots stay out of cloud sync.
+- **复盘（W4）/ Postmortem.** 告警时间线可导出 Markdown。主机、IP、用户默认替换成别名，命令输出和文件 diff 默认不写入。摘要是模板拼接，不调用 AI。 / The alert timeline exports Markdown. Host, IP, and user become aliases by default. Command output and file diffs stay out unless opted in. The summary is a template, not an AI call.
+- **体验（UX-31b / UX-28 / UX-44b / UX-12a / UX-39 / UX-40）/ Polish.** 运维菜单可见项不超过 12，刷新 Docker 和告警历史仍可在 Ctrl+K 找到。命令片段先列表后编辑。终端块条高度可调，没有块时不占位。线性图标用内置 SVG。演示主机名跟随当前语言。空标签栏不再写「未打开会话」。 / The Ops menu shows at most 12 items. Refresh Docker and alert history stay in Ctrl+K. Snippets are list-first. The block strip height is adjustable and hidden when there are no blocks. Icons are built-in SVGs. The demo host name follows the current language. An empty tab bar no longer says “no session open”.
+
 ## v0.4.1
 
 Jump hosts and the 1366 layout pass. Package version is `0.4.1`. Do not tag until QA signs off.

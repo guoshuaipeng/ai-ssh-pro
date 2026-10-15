@@ -1,5 +1,8 @@
 import type { SyncRow } from '@shared/folder-sync'
 import { joinPosix } from '@shared/sftp-queue'
+import { tg } from './i18n'
+import { captureRemoteSnapshot } from './remote-snapshot'
+import { showToast } from './toast'
 
 export type FolderSyncPlan = {
   direction: 'upload' | 'download'
@@ -8,6 +11,7 @@ export type FolderSyncPlan = {
   rows: SyncRow[]
   deleteExtra: boolean
   sessionId?: string
+  profileId?: string
 }
 
 type Runner = (plan: FolderSyncPlan) => void | Promise<void>
@@ -46,11 +50,19 @@ export async function runFolderSyncDurable(
   }
   if (!sid) return 'no-session'
   if (!beforeRemoteWrite || !(await beforeRemoteWrite())) return 'blocked'
+  let kept = 0
+  let skipped = 0
   for (const row of plan.rows) {
     if (row.kind === 'deleted') {
       if (!plan.deleteExtra) continue
       try {
-        if (plan.direction === 'upload') await window.aiss.sftp.remove(sid, joinPosix(plan.remoteRoot, row.rel))
+        if (plan.direction === 'upload') {
+          const remotePath = joinPosix(plan.remoteRoot, row.rel)
+          const snap = await captureRemoteSnapshot({ sessionId: sid, profileId: plan.profileId, path: remotePath, source: 'syncDelete' })
+          if (snap === 'kept') kept += 1
+          else if (snap === 'skipped') skipped += 1
+          await window.aiss.sftp.remove(sid, remotePath)
+        }
         if (plan.direction === 'download') await window.aiss.localFs.trash(joinLocal(plan.localRoot, row.rel))
       } catch {
         /* deletes are best-effort, same as the SFTP panel */
@@ -60,6 +72,11 @@ export async function runFolderSyncDurable(
     if (row.kind !== 'new' && row.kind !== 'changed') continue
     const localPath = joinLocal(plan.localRoot, row.rel)
     const remotePath = joinPosix(plan.remoteRoot, row.rel)
+    if (plan.direction === 'upload' && row.kind === 'changed') {
+      const snap = await captureRemoteSnapshot({ sessionId: sid, profileId: plan.profileId, path: remotePath, source: 'sync' })
+      if (snap === 'kept') kept += 1
+      else if (snap === 'skipped') skipped += 1
+    }
     const transferId = `sync-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     await window.aiss.sftp.transfer({
       sessionId: sid,
@@ -71,5 +88,7 @@ export async function runFolderSyncDurable(
     })
   }
   window.dispatchEvent(new CustomEvent('aiss-task-transfer'))
+  if (kept) showToast(tg('w3.syncSnapN', { n: kept }))
+  if (skipped) showToast(tg('w3.syncSkippedN', { n: skipped }))
   return 'ran'
 }

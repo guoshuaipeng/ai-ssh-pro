@@ -5,6 +5,9 @@ import { tg, useI18n } from '../lib/i18n'
 import { confirmDialog } from '../lib/dialogs'
 import { detectLang, diffLines, diffStats, highlightToHtml, type LangId } from '../lib/simple-highlight'
 import { friendlyErrorMessage } from '../lib/friendly-error'
+import { snapshotsEnabled } from '@shared/snapshots'
+import { showToast } from '../lib/toast'
+import Icon from './Icon'
 
 type Props = {
   tabId: string
@@ -15,6 +18,8 @@ type Props = {
   /** Same C1 gate as SFTP mkdir/rename. Read-only hosts must not write. */
   beforeRemoteWrite?: () => Promise<boolean>
   remoteWritesBlocked?: boolean
+  profileId?: string
+  onOpenHistory?: () => void
 }
 
 const TEXT_EXT =
@@ -50,7 +55,9 @@ export default function RemoteTextEditor({
   onClose,
   onTitleChange,
   beforeRemoteWrite,
-  remoteWritesBlocked = false
+  remoteWritesBlocked = false,
+  profileId,
+  onOpenHistory
 }: Props) {
   const { locale } = useI18n()
   const [loading, setLoading] = useState(true)
@@ -127,6 +134,15 @@ export default function RemoteTextEditor({
         setStatus(null)
         return
       }
+      let snapped = false
+      if (profileId && snapshotsEnabled() && window.aiss?.snapshots?.put) {
+        try {
+          const kept = await window.aiss.snapshots.put({ profileId, path: remotePath, content: baseline, source: 'edit', isText: true })
+          snapped = Boolean(kept.added || kept.skipped === 'duplicate')
+        } catch (err) {
+          showToast(tg('w3.snapFail', { reason: err instanceof Error ? err.message : String(err) }))
+        }
+      }
       if (bakPref) {
         try {
           await window.aiss.sftp.writeText(sessionId, `${remotePath}.bak`, baseline)
@@ -138,7 +154,7 @@ export default function RemoteTextEditor({
       setBaseline(content)
       setRemoteFileDirty(tabId, false)
       setMeta((m) => (m ? { ...m, size: new TextEncoder().encode(content).length, truncated: false } : m))
-      setStatus(tg('ui.261', { 0: String(new Date().toLocaleTimeString()) }))
+      setStatus(snapped ? tg('w3.savedWithSnap') : tg('ui.261', { 0: String(new Date().toLocaleTimeString()) }))
       setMode('edit')
     } catch (e) {
       setError(friendlyErrorMessage(e, locale === 'en' ? 'en' : 'zh-CN'))
@@ -146,7 +162,7 @@ export default function RemoteTextEditor({
     } finally {
       setSaving(false)
     }
-  }, [bakPref, baseline, beforeRemoteWrite, content, loading, locale, meta?.truncated, remotePath, remoteWritesBlocked, saving, sessionId, tabId])
+  }, [bakPref, baseline, beforeRemoteWrite, content, loading, locale, meta?.truncated, profileId, remotePath, remoteWritesBlocked, saving, sessionId, tabId])
 
   const requestSave = useCallback(() => {
     if (!dirty || saving || loading || meta?.truncated) return
@@ -232,6 +248,12 @@ export default function RemoteTextEditor({
                 />
                 {tg('d4.bak')}
               </label>
+              <span className="l7-muted">{tg('w3.bakHint')}</span>
+              {onOpenHistory ? (
+                <button type="button" title={tg('w3.history')} data-testid="w3-history" onClick={onOpenHistory}>
+                  <Icon name="history" size={16} />
+                </button>
+              ) : null}
               <button type="button" disabled={loading || saving} onClick={() => void load()}>
                 {tg('ui.264')}
               </button>

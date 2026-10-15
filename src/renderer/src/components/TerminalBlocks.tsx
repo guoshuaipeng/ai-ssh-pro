@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { COMMAND_SUBMITTED_EVENT } from '../lib/ai-events'
 import {
+  BLOCK_HEIGHT_DEFAULT,
   appendBlockOutput,
+  blockStripPx,
   blocksEnabled,
   disableBlocksKeepsScrollback,
+  loadBlockRatio,
+  saveBlockRatio,
   setBlocksEnabled,
   snippetFromBlock,
   upsertCommandSnippet,
@@ -29,10 +33,18 @@ export function turnBlocks(on: boolean): boolean {
 export default function TerminalBlocks({ sessionId }: { sessionId: string | null }) {
   const [on, setOn] = useState(() => blocksEnabled())
   const [blocks, setBlocks] = useState<TermBlock[]>([])
+  const [ratio, setRatio] = useState(() => loadBlockRatio())
+  const [collapsed, setCollapsed] = useState(false)
+  const [selected, setSelected] = useState(0)
   useEffect(() => {
     const sync = () => setOn(blocksEnabled())
     window.addEventListener('aiss-blocks', sync)
     return () => window.removeEventListener('aiss-blocks', sync)
+  }, [])
+  useEffect(() => {
+    const toggle = () => setCollapsed((v) => !v)
+    window.addEventListener('aiss-toggle-block-strip', toggle)
+    return () => window.removeEventListener('aiss-toggle-block-strip', toggle)
   }, [])
   useEffect(() => {
     if (!on || !sessionId) return
@@ -54,6 +66,7 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
     }
   }, [on, sessionId])
   if (!on || !sessionId || blocks.length === 0) return null
+  const height = collapsed ? 24 : blockStripPx(600, ratio).px
   const explain = (b: TermBlock) => {
     window.dispatchEvent(new CustomEvent('aiss-ai-explain', { detail: { sessionId, text: b.output || b.command, source: 'palette' } }))
   }
@@ -70,12 +83,43 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       .catch(() => showToast(tg('m2.snippetFail')))
   }
   return (
-    <div className="term-blocks" data-testid="terminal-blocks">
-      {blocks.map((b) => (
+    <div className="term-blocks" data-testid="terminal-blocks" style={{ maxHeight: height, height }}>
+      <div
+        className="term-blocks-resize"
+        title={tg('blocks.resize')}
+        onDoubleClick={() => {
+          const next = saveBlockRatio(BLOCK_HEIGHT_DEFAULT)
+          setRatio(next)
+          setCollapsed(false)
+        }}
+        onMouseDown={(e) => {
+          const startY = e.clientY
+          const start = ratio
+          const move = (ev: MouseEvent) => {
+            const delta = startY - ev.clientY
+            const next = saveBlockRatio(start + delta / 600)
+            setRatio(next)
+            setCollapsed(blockStripPx(600, next).collapsed && delta > 200)
+          }
+          const up = () => {
+            window.removeEventListener('mousemove', move)
+            window.removeEventListener('mouseup', up)
+          }
+          window.addEventListener('mousemove', move)
+          window.addEventListener('mouseup', up)
+        }}
+      />
+      <div className="term-blocks-head">
+        <span>{tg('blocks.title', { n: blocks.length })}</span>
+        <button type="button" onClick={() => setBlocks((cur) => cur.map((b) => ({ ...b, collapsed: true })))}>{tg('blocks.collapseAll')}</button>
+        <button type="button" title={collapsed ? tg('blocks.show') : tg('blocks.hide')} onClick={() => setCollapsed((v) => !v)}>{collapsed ? '⌃' : '⌄'}</button>
+      </div>
+      {collapsed ? null : blocks.map((b, index) => (
         <div
           key={b.id}
-          className={`term-block${b.collapsed ? ' is-collapsed' : ''}`}
+          className={`term-block${b.collapsed ? ' is-collapsed' : ''}${index === selected ? ' is-selected' : ''}`}
           tabIndex={0}
+          onClick={() => setSelected(index)}
           onKeyDown={(e) => {
             if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey)) return
             if (e.key.toLowerCase() !== 'e') return

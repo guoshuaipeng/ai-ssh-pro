@@ -32,6 +32,7 @@ import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
 import FolderSyncModal from './FolderSyncModal'
 import { isLikelyTextFile } from './RemoteTextEditor'
+import { captureRemoteSnapshot } from '../lib/remote-snapshot'
 import { loadSftpDensity, resolveSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT, type SftpDensityPref } from '@shared/sftp-density'
 
 type Props = {
@@ -52,6 +53,9 @@ type Props = {
   remoteWritesBlocked?: boolean
   /** L8: pin the current sync plan into a center tab. */
   onPinPreview?: (plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => void
+  /** W3: host profile that owns snapshots for this session. */
+  profileId?: string
+  onOpenHistory?: (remotePath: string) => void
 }
 
 type PaneId = 'local' | 'remote'
@@ -121,9 +125,12 @@ export default function SftpPanel({
   onCompare,
   beforeRemoteWrite,
   remoteWritesBlocked = false,
-  onPinPreview
+  onPinPreview,
+  profileId,
+  onOpenHistory
 }: Props) {
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
+  const [snapPaths, setSnapPaths] = useState<Set<string>>(new Set())
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
   const rootRef = useRef<HTMLDivElement>(null)
   const runSyncRef = useRef<(plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => void>(() => {})
@@ -154,6 +161,12 @@ export default function SftpPanel({
   const [remoteCwd, setRemoteCwd] = useState('/')
   const [remoteInput, setRemoteInput] = useState('/')
   const [remoteEntries, setRemoteEntries] = useState<SftpListEntry[]>([])
+  useEffect(() => {
+    if (!profileId || !window.aiss?.snapshots?.list) return
+    void window.aiss.snapshots.list({ profileId }).then((rows) => {
+      setSnapPaths(new Set(rows.map((r) => String(r.path || ''))))
+    }).catch(() => undefined)
+  }, [profileId, remoteEntries])
   const [remoteSel, setRemoteSel] = useState<Record<string, boolean>>({})
   const [remoteLoading, setRemoteLoading] = useState(false)
   const [remoteError, setRemoteError] = useState<string | null>(null)
@@ -876,9 +889,10 @@ export default function SftpPanel({
                         ])
                         return
                       }
-                      if (isLocal || !onCompare) return
+                      if (isLocal || (!onCompare && !onOpenHistory)) return
                       openContextMenu(ev, [
-                        {
+                        ...(onCompare
+                          ? [{
                           id: 'compare-local',
                           label: tg('d5.compareWithLocal'),
                           onSelect: () => {
@@ -896,6 +910,14 @@ export default function SftpPanel({
                               remoteSize: e.size
                             })
                           }
+                        }]
+                          : []),
+                        {
+                          id: 'version-history',
+                          label: tg('w3.history'),
+                          disabled: !isLikelyTextFile(e.name) || e.size > 2 * 1024 * 1024 || !snapPaths.has(e.path),
+                          title: !isLikelyTextFile(e.name) || e.size > 2 * 1024 * 1024 ? tg('w3.notText') : snapPaths.has(e.path) ? tg('w3.history') : tg('w3.empty'),
+                          onSelect: () => onOpenHistory?.(e.path)
                         }
                       ])
                     }}
@@ -936,11 +958,19 @@ export default function SftpPanel({
   const runSync = (plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => {
     void (async () => {
       if (!(await allowRemoteWrite())) return
+      let kept = 0
+      let skipped = 0
       for (const row of plan.rows) {
         if (row.kind === 'deleted') {
           if (!plan.deleteExtra) continue
           try {
-            if (plan.direction === 'upload' && sessionId) await window.aiss.sftp.remove(sessionId, joinPosix(plan.remoteRoot, row.rel))
+            if (plan.direction === 'upload' && sessionId) {
+              const remotePath = joinPosix(plan.remoteRoot, row.rel)
+              const snap = await captureRemoteSnapshot({ sessionId, profileId, path: remotePath, source: 'syncDelete' })
+              if (snap === 'kept') kept += 1
+              else if (snap === 'skipped') skipped += 1
+              await window.aiss.sftp.remove(sessionId, remotePath)
+            }
             if (plan.direction === 'download') await window.aiss.localFs.trash(joinLocal(plan.localRoot, row.rel))
           } catch {
             /* counted in queue errors below when copies fail; deletes are best-effort */
@@ -950,8 +980,15 @@ export default function SftpPanel({
         if (row.kind !== 'new' && row.kind !== 'changed') continue
         const localPath = joinLocal(plan.localRoot, row.rel)
         const remotePath = joinPosix(plan.remoteRoot, row.rel)
+        if (plan.direction === 'upload' && row.kind === 'changed' && sessionId) {
+          const snap = await captureRemoteSnapshot({ sessionId, profileId, path: remotePath, source: 'sync' })
+          if (snap === 'kept') kept += 1
+          else if (snap === 'skipped') skipped += 1
+        }
         await enqueueFile(plan.direction, localPath, remotePath, baseName(row.rel))
       }
+      if (kept) showToast(tg('w3.syncSnapN', { n: kept }))
+      if (skipped) showToast(tg('w3.syncSkippedN', { n: skipped }))
       void refreshLocal(localCwd)
       void refreshRemote(remoteCwd)
     })()

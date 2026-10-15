@@ -1,8 +1,28 @@
 /** L1 playbooks: ordered steps, parallel or serial runs, confirm gates. Hosts are chosen at run time. */
 import { assessCommandRisk } from './command-risk'
 import type { ProtectionLevel } from './protection'
+import { expandTemplate } from './template-vars'
 
 export type PlaybookStepType = 'command' | 'snippet' | 'toolbox'
+
+export type PlaybookVar = {
+  name: string
+  label?: string
+  defaultValue?: string
+  required: boolean
+  sensitive: boolean
+  quote: boolean
+  unused?: boolean
+}
+
+export type PlaybookOrigin = {
+  kind: 'alert' | 'error'
+  alertId?: string
+  hostKey: string
+  hostTitle: string
+  ruleId?: string
+  at: number
+}
 
 export type PlaybookStep = {
   id: string
@@ -12,6 +32,10 @@ export type PlaybookStep = {
   confirm: boolean
   stopOnError: boolean
   timeoutSec: number
+  title?: string
+  aiGenerated?: boolean
+  lockedConfirm?: boolean
+  checkPlaceholder?: boolean
 }
 
 export type Playbook = {
@@ -22,6 +46,10 @@ export type Playbook = {
   updatedAt: number
   lastRunAt?: number
   sample?: boolean
+  draft?: boolean
+  origin?: PlaybookOrigin
+  targetHint?: string[]
+  vars?: PlaybookVar[]
 }
 
 export type PlaybookFile = {
@@ -36,7 +64,9 @@ export type PlaybookFile = {
     confirm?: boolean
     stopOnError?: boolean
     timeoutSec?: number
+    title?: string
   }>
+  vars?: PlaybookVar[]
 }
 
 export const PLAYBOOK_LS_KEY = 'aiss.playbooks.v1'
@@ -158,7 +188,7 @@ function normalizeStep(raw: unknown, index: number): PlaybookStep | null {
   const o = raw as Partial<PlaybookStep>
   const type: PlaybookStepType = o.type === 'snippet' || o.type === 'toolbox' ? o.type : 'command'
   const timeout = typeof o.timeoutSec === 'number' && o.timeoutSec > 0 ? Math.min(600, Math.floor(o.timeoutSec)) : 60
-  return {
+  const step: PlaybookStep = {
     id: typeof o.id === 'string' && o.id ? o.id : `st-${index}`,
     type,
     command: typeof o.command === 'string' ? o.command : '',
@@ -167,6 +197,11 @@ function normalizeStep(raw: unknown, index: number): PlaybookStep | null {
     stopOnError: o.stopOnError !== false,
     timeoutSec: timeout
   }
+  if (typeof o.title === 'string' && o.title) step.title = o.title.slice(0, 60)
+  if (o.aiGenerated) step.aiGenerated = true
+  if (o.lockedConfirm) step.lockedConfirm = true
+  if (o.checkPlaceholder) step.checkPlaceholder = true
+  return step
 }
 
 export function normalizePlaybook(raw: unknown): Playbook | null {
@@ -174,15 +209,41 @@ export function normalizePlaybook(raw: unknown): Playbook | null {
   const o = raw as Partial<Playbook>
   if (typeof o.name !== 'string' || !o.name.trim()) return null
   const steps = Array.isArray(o.steps) ? o.steps.map(normalizeStep).filter((s): s is PlaybookStep => Boolean(s)) : []
-  return {
+  const playbook: Playbook = {
     id: typeof o.id === 'string' && o.id ? o.id : `pb-${Date.now()}`,
     name: o.name.trim(),
     description: typeof o.description === 'string' ? o.description : '',
     steps,
     updatedAt: typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
     lastRunAt: typeof o.lastRunAt === 'number' ? o.lastRunAt : undefined,
-    sample: Boolean(o.sample)
+    sample: Boolean(o.sample) || undefined
   }
+  if (o.draft) playbook.draft = true
+  if (o.origin && typeof o.origin === 'object' && (o.origin.kind === 'alert' || o.origin.kind === 'error') && typeof o.origin.hostKey === 'string') {
+    playbook.origin = {
+      kind: o.origin.kind,
+      alertId: typeof o.origin.alertId === 'string' ? o.origin.alertId : undefined,
+      hostKey: o.origin.hostKey,
+      hostTitle: typeof o.origin.hostTitle === 'string' ? o.origin.hostTitle : o.origin.hostKey,
+      ruleId: typeof o.origin.ruleId === 'string' ? o.origin.ruleId : undefined,
+      at: typeof o.origin.at === 'number' ? o.origin.at : playbook.updatedAt
+    }
+  }
+  if (Array.isArray(o.targetHint)) playbook.targetHint = o.targetHint.filter((id): id is string => typeof id === 'string')
+  if (Array.isArray(o.vars)) {
+    playbook.vars = o.vars
+      .filter((v): v is PlaybookVar => Boolean(v) && typeof v.name === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v.name) && v.name !== 'host' && v.name !== 'user')
+      .map((v) => ({
+        name: v.name,
+        label: typeof v.label === 'string' ? v.label.slice(0, 40) : undefined,
+        defaultValue: v.sensitive ? undefined : typeof v.defaultValue === 'string' ? v.defaultValue : undefined,
+        required: v.required !== false,
+        sensitive: Boolean(v.sensitive),
+        quote: v.quote !== false,
+        unused: v.unused || undefined
+      }))
+  }
+  return playbook
 }
 
 export function exportPlaybook(playbook: Playbook): string {
@@ -197,7 +258,18 @@ export function exportPlaybook(playbook: Playbook): string {
       snippetId: s.snippetId,
       confirm: s.confirm,
       stopOnError: s.stopOnError,
-      timeoutSec: s.timeoutSec
+      timeoutSec: s.timeoutSec,
+      title: s.title
+    }))
+  }
+  if (playbook.vars?.length) {
+    file.vars = playbook.vars.map((v) => ({
+      name: v.name,
+      label: v.label,
+      defaultValue: v.sensitive ? undefined : v.defaultValue,
+      required: v.required,
+      sensitive: v.sensitive,
+      quote: v.quote
     }))
   }
   return JSON.stringify(file, null, 2)
@@ -218,6 +290,7 @@ export function importPlaybook(raw: string, now = Date.now()): { ok: true; playb
     name: o.name,
     description: o.description,
     steps: o.steps,
+    vars: o.vars,
     updatedAt: now
   })
   if (!playbook) return { ok: false, reason: 'name' }
@@ -266,6 +339,7 @@ export async function runPlaybook(opts: {
   mode: 'parallel' | 'serial'
   parallelLimit: number
   snippets?: Array<{ id: string; body: string }>
+  values?: Record<string, string>
   now?: number
   confirm: (req: ConfirmRequest) => Promise<ConfirmAnswer>
   exec: (host: PlaybookHost, command: string, timeoutMs: number) => Promise<ExecOutcome>
@@ -300,7 +374,8 @@ export async function runPlaybook(opts: {
         put({ hostId: host.id, stepId: step.id, state: 'skipped', code: null, ms: 0, stdout: '', stderr: '', error: 'toolbox-soon' })
         continue
       }
-      const command = substituteVars(stepCommand(step, snippets), host).trim()
+      const expanded = expandTemplate(stepCommand(step, snippets), opts.values ?? {}, opts.playbook.vars ?? [], { host: host.host, user: host.user })
+      const command = expanded.text.trim()
       if (!command) {
         put({ hostId: host.id, stepId: step.id, state: 'skipped', code: null, ms: 0, stdout: '', stderr: '', error: 'empty' })
         continue
