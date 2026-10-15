@@ -39,6 +39,9 @@
  * marker outside the naive head cut remains citeable after the bullet budget
  * drops filler. Dropped filler does not come back as a cite. Confirm-before-run
  * stays on. Another host does not inherit the marker.
+ * S31: the same hold stays stable when a later turn in that host session forces
+ * observational memory to compress again. The scarce marker stays in the
+ * bullet and the end. Filler the cite window already dropped is not cited again.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -86,6 +89,7 @@ import {
   patchWritePermitted,
   resumeHitl,
   sideEffectExecutionPermitted,
+  type ObservationBullet,
   type TranscriptTurn
 } from '../src/main/core-a-context.ts'
 import { loadPersistedCoreSession } from '../src/main/core-a-memory.ts'
@@ -1488,8 +1492,8 @@ function assertCiteHold(
  * The cap cannot be raised from the env.
  */
 function assertCiteableTruncateModes(): void {
-  assert.equal(tipSuggest, '0.4.8-s30')
-  assert.equal(rollback, '0.4.8-s29')
+  assert.equal(tipSuggest, '0.4.8-s31')
+  assert.equal(rollback, '0.4.8-s30')
   assert.equal(OUTPUT_VIEW_CAP, 6000)
   const short = truncateCiteableOutput('short ring')
   assert.equal(short.truncated, false)
@@ -1508,8 +1512,8 @@ function assertCiteableTruncateModes(): void {
   const view = truncateCiteableOutput(raw)
   assert.equal(view.truncated, true)
   assert.equal(view.cap, OUTPUT_VIEW_CAP)
-  assert.equal(view.tipSuggest, '0.4.8-s30')
-  assert.equal(view.rollback, '0.4.8-s29')
+  assert.equal(view.tipSuggest, '0.4.8-s31')
+  assert.equal(view.rollback, '0.4.8-s30')
   assert.ok(view.originalChars > view.cap)
   assert.ok(view.shownChars <= view.cap)
   assert.ok(view.shownChars < view.originalChars)
@@ -1565,6 +1569,40 @@ function assertCiteableTruncateModes(): void {
     assert.match(bullets, /S29_RARE_MARKER/)
     assert.equal(bullets.includes('s29-dropped-filler-token'), false)
     assert.equal(folded.ctx.runningSummary.includes('s29-dropped-filler-token'), false)
+
+    const markerBullet = folded.ctx.observationalMemory.find((bullet) => bullet.text.includes('S29_RARE_MARKER'))
+    assert.ok(markerBullet, 'first compression kept a bullet for the scarce marker')
+    const pad = (id: string, at: number): ObservationBullet => ({ id, text: `user: ${id}`, createdAt: at })
+    const crowded: ObservationBullet[] = [
+      pad('S29_EARLY_TOKEN', 1),
+      pad('S29_EARLY_TOKENB', 2),
+      { ...markerBullet, createdAt: 3 },
+      pad('S29_LATE_TOKENA', 4),
+      pad('S29_LATE_TOKENB', 5),
+      pad('S29_LATE_TOKENC', 6)
+    ]
+    const again: TranscriptTurn[] = [
+      ...turns,
+      { role: 'user', content: '继续把 s29-dropped-filler-token 再写进摘要。' },
+      { role: 'assistant', content: '第二次压缩不应引用已经丢掉的填充。' }
+    ]
+    for (let i = 0; i < 10; i++) {
+      again.push({ role: 'user', content: `继续第二轮 ${i}。` })
+      again.push({ role: 'assistant', content: `第二轮 ${i} 结束。` })
+    }
+    const recompressed = compactTranscript(again, { ...folded.ctx, observationalMemory: crowded }, 8)
+    assert.equal(recompressed.omBudget.truncated, true)
+    assert.equal(recompressed.ctx.citeHold?.stable, true)
+    assert.ok(recompressed.ctx.citeHold?.outsideHeadTail.includes('S29_RARE_MARKER'))
+    assert.ok(recompressed.ctx.citeHold?.droppedFiller.includes('s29-dropped-filler-token'))
+    const recompressedBullets = recompressed.ctx.observationalMemory.map((bullet) => bullet.text).join('\n')
+    assert.match(recompressedBullets, /S29_RARE_MARKER/)
+    assert.equal(recompressedBullets.includes('s29-dropped-filler-token'), false)
+    assert.equal(recompressed.ctx.runningSummary.includes('s29-dropped-filler-token'), false)
+    assert.ok(
+      recompressed.ctx.episodes.every((episode) => !episode.text.includes('s29-dropped-filler-token')),
+      're-compression episode cited dropped filler'
+    )
   } finally {
     if (previousOm == null) delete process.env.AISS_OM_BULLET_CAP
     else process.env.AISS_OM_BULLET_CAP = previousOm

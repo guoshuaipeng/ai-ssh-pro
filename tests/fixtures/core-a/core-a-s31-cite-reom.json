@@ -1,0 +1,1035 @@
+{
+  "id": "S31",
+  "title": "Cite hold stays stable across a second observational compression",
+  "industryBar": [
+    "observational-compression",
+    "evidence-grounding",
+    "confirm-before-run",
+    "host-scope"
+  ],
+  "hostProfile": {
+    "hostId": "host-s31-cite",
+    "label": "s31-cite-lab",
+    "hostname": "s31-cite.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s31-cite",
+    "historyKey": "hist-s31-cite"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_OM_BULLET_CAP": "4",
+    "AISS_OUTPUT_VIEW_CAP": "1000"
+  },
+  "seedInventory": {
+    "hostId": "host-s31-cite",
+    "services": [
+      {
+        "name": "s31-edge",
+        "kind": "systemd",
+        "ports": [
+          22
+        ],
+        "notes": "S31_BASELINE"
+      }
+    ],
+    "notes": [
+      "S31 baseline"
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "S31-T1-truncate",
+      "userMessage": "请执行 echo S31_LONG_CMD。确认后再发。输出会很长，引用真实证据，不要编造没有的行。\ns31-head-kept\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\ns31-dropped-filler-token\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nS31_RARE_MARKER\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\ns31-tail-kept\n",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {
+          "echo S31_LONG_CMD": "s31-head-kept\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\nh\ns31-dropped-filler-token\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nS31_RARE_MARKER\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nm\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\nt\ns31-tail-kept\n"
+        }
+      },
+      "userConfirm": {
+        "policy": "per-step",
+        "decisions": [
+          "approve"
+        ],
+        "assert": {
+          "stepHasRequestId": true,
+          "autoApproved": false,
+          "sshWriteBeforeApprove": false
+        }
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "提议执行 echo S31_LONG_CMD，等待确认。",
+            "action": "command",
+            "command": "echo S31_LONG_CMD",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "response": {
+            "description": "甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲我还看到 S31_ABSENT_LINE。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "minPlannerSteps": 2,
+        "maxPlannerSteps": 2,
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 1,
+        "commandsRequiringConfirm": [
+          "echo S31_LONG_CMD"
+        ],
+        "descriptionMustContain": [
+          "S31_RARE_MARKER"
+        ],
+        "descriptionMustNotContain": [
+          "S31_ABSENT_LINE",
+          "s31-dropped-filler-token"
+        ],
+        "outputView": {
+          "truncated": true,
+          "cap": 1000,
+          "minOriginalChars": 1001,
+          "markers": [
+            "S31_RARE_MARKER"
+          ],
+          "keptInPrompt": [
+            "S31_RARE_MARKER",
+            "s31-head-kept",
+            "s31-tail-kept"
+          ],
+          "droppedFromPrompt": [
+            "s31-dropped-filler-token"
+          ],
+          "presentInRaw": [
+            "S31_RARE_MARKER",
+            "s31-dropped-filler-token"
+          ],
+          "tipSuggest": "0.4.8-s31",
+          "rollback": "0.4.8-s30",
+          "citeWindow": {
+            "stable": true,
+            "outsideHeadTail": [
+              "S31_RARE_MARKER"
+            ],
+            "droppedFiller": [
+              "s31-dropped-filler-token"
+            ]
+          }
+        },
+        "confirmGate": {
+          "required": true,
+          "riskLevel": "low",
+          "settingsAutoApproveLowRisk": false
+        },
+        "hitl": {
+          "minInterrupts": 1,
+          "resume": "approve",
+          "decisions": [
+            "approve"
+          ],
+          "interruptRisks": [
+            "low"
+          ],
+          "released": true
+        }
+      }
+    },
+    {
+      "turnId": "S31-T2-noise",
+      "userMessage": "继续无关噪声 02，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 02 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T3-noise",
+      "userMessage": "继续无关噪声 03，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 03 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T4-noise",
+      "userMessage": "继续无关噪声 04，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 04 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T5-noise",
+      "userMessage": "继续无关噪声 05，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 05 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T6-noise",
+      "userMessage": "继续无关噪声 06，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 06 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T7-noise",
+      "userMessage": "继续无关噪声 07，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 07 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T8-noise",
+      "userMessage": "继续无关噪声 08，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 08 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T9-noise",
+      "userMessage": "继续无关噪声 09，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 09 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T10-noise",
+      "userMessage": "继续无关噪声 10，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 10 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T11-noise",
+      "userMessage": "继续无关噪声 11，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 11 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T12-noise",
+      "userMessage": "继续无关噪声 12，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 12 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T13-noise",
+      "userMessage": "继续无关噪声 13，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 13 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T-snap",
+      "userMessage": "先读终端缓冲，然后结束。不要执行命令。",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {}
+      },
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "读取终端快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "response": {
+            "description": "快照已看过，这一步结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0,
+        "maxGetTerminalSnapshot": 2
+      }
+    },
+    {
+      "turnId": "S31-T-hold",
+      "userMessage": "先前那条长输出里的稀有记号还在吗？被截掉的填充不要当成证据。没有的行不要编。",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {}
+      },
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "我还看到 S31_RARE_MARKER，以及 s31-dropped-filler-token，还有 S31_ABSENT_LINE。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "descriptionMustContain": [
+          "S31_RARE_MARKER"
+        ],
+        "descriptionMustNotContain": [
+          "s31-dropped-filler-token",
+          "S31_ABSENT_LINE",
+          "证据不足"
+        ],
+        "observationalMemoryMustContain": [
+          "S31_RARE_MARKER"
+        ],
+        "observationalMemoryMustNotContain": [
+          "s31-dropped-filler-token"
+        ],
+        "recentWindowMustNotContain": [
+          "S31_RARE_MARKER",
+          "s31-dropped-filler-token"
+        ],
+        "plannerPromptMustNotContain": [
+          "s31-dropped-filler-token",
+          "S31_ABSENT_LINE"
+        ],
+        "omBudget": {
+          "truncated": true,
+          "nearBudget": true,
+          "minDroppedBullets": 1,
+          "minTruncatedBullets": 1,
+          "bulletCap": 4
+        },
+        "citeHold": {
+          "stable": true,
+          "head": 140,
+          "outsideHeadTail": [
+            "S31_RARE_MARKER"
+          ],
+          "droppedFiller": [
+            "s31-dropped-filler-token"
+          ]
+        },
+        "mustNotEmitCommands": [
+          "echo S31_LONG_CMD"
+        ]
+      }
+    },
+    {
+      "turnId": "S31-T-restate",
+      "userMessage": "继续记录先前截掉的 s31-dropped-filler-token 只是填充。",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {}
+      },
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先看一眼终端。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "response": {
+            "description": "我还看到 S31_RARE_MARKER，以及 s31-dropped-filler-token，还有 S31_ABSENT_LINE。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "maxGetTerminalSnapshot": 2,
+        "descriptionMustContain": [
+          "S31_RARE_MARKER"
+        ],
+        "descriptionMustNotContain": [
+          "s31-dropped-filler-token",
+          "S31_ABSENT_LINE",
+          "证据不足"
+        ],
+        "plannerPromptMustNotContain": [
+          "s31-dropped-filler-token",
+          "S31_ABSENT_LINE"
+        ],
+        "citeHold": {
+          "stable": true,
+          "head": 140,
+          "outsideHeadTail": [
+            "S31_RARE_MARKER"
+          ],
+          "droppedFiller": [
+            "s31-dropped-filler-token"
+          ]
+        },
+        "mustNotEmitCommands": [
+          "echo S31_LONG_CMD"
+        ]
+      }
+    },
+    {
+      "turnId": "S31-T14-noise",
+      "userMessage": "继续无关噪声 14，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 14 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T15-noise",
+      "userMessage": "继续无关噪声 15，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 15 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T16-noise",
+      "userMessage": "继续无关噪声 16，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 16 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T17-noise",
+      "userMessage": "继续无关噪声 17，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 17 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T18-noise",
+      "userMessage": "继续无关噪声 18，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 18 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T19-noise",
+      "userMessage": "继续无关噪声 19，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 19 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T20-noise",
+      "userMessage": "继续无关噪声 20，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 20 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T21-noise",
+      "userMessage": "继续无关噪声 21，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 21 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T22-noise",
+      "userMessage": "继续无关噪声 22，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 22 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T23-noise",
+      "userMessage": "继续无关噪声 23，不要执行命令。",
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "噪声 23 结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0
+      }
+    },
+    {
+      "turnId": "S31-T-snap-2",
+      "userMessage": "先读终端缓冲，然后结束。不要执行命令。",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {}
+      },
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "读取终端快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "response": {
+            "description": "快照已看过，这一步结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0,
+        "maxGetTerminalSnapshot": 2
+      }
+    },
+    {
+      "turnId": "S31-T-recall",
+      "userMessage": "第二次压缩之后，先前那条长输出里的稀有记号还在吗？截掉的填充不要当成证据。没有的行不要编。",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {}
+      },
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "我还看到 S31_RARE_MARKER，以及 s31-dropped-filler-token，还有 S31_ABSENT_LINE。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "descriptionMustContain": [
+          "S31_RARE_MARKER"
+        ],
+        "descriptionMustNotContain": [
+          "s31-dropped-filler-token",
+          "S31_ABSENT_LINE",
+          "证据不足"
+        ],
+        "observationalMemoryMustContain": [
+          "S31_RARE_MARKER"
+        ],
+        "observationalMemoryMustNotContain": [
+          "s31-dropped-filler-token"
+        ],
+        "recentWindowMustNotContain": [
+          "S31_RARE_MARKER",
+          "s31-dropped-filler-token"
+        ],
+        "plannerPromptMustNotContain": [
+          "s31-dropped-filler-token",
+          "S31_ABSENT_LINE"
+        ],
+        "omBudget": {
+          "truncated": true,
+          "nearBudget": true,
+          "minDroppedBullets": 1,
+          "minTruncatedBullets": 1,
+          "bulletCap": 4
+        },
+        "citeHold": {
+          "stable": true,
+          "head": 140,
+          "outsideHeadTail": [
+            "S31_RARE_MARKER"
+          ],
+          "droppedFiller": [
+            "s31-dropped-filler-token"
+          ]
+        },
+        "mustNotEmitCommands": [
+          "echo S31_LONG_CMD"
+        ]
+      }
+    }
+  ],
+  "negativeCase": {
+    "turnId": "S31-T-host-b",
+    "userMessage": "这台机器上有没有那条长输出里的稀有记号？没有证据就说证据不足。不要执行命令。",
+    "mockTerminal": {
+      "initialRing": "user@other:~$\n",
+      "afterWrite": {}
+    },
+    "userConfirm": {
+      "policy": "none"
+    },
+    "session": {
+      "targetSessionId": "sess-s31-host-b",
+      "historyKey": "hist-s31-host-b"
+    },
+    "hostProfile": {
+      "hostId": "host-s31-b",
+      "label": "s31-host-b",
+      "hostname": "s31-host-b.internal"
+    },
+    "seedInventory": {
+      "hostId": "host-s31-b",
+      "notes": [
+        "S31 host B baseline"
+      ]
+    },
+    "mockedPlannerSteps": [
+      {
+        "response": {
+          "description": "这台机器没有这条输出。证据不足。",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      }
+    ],
+    "expected": {
+      "finalAction": "end",
+      "completed": true,
+      "sshWriteCount": 0,
+      "descriptionMustContain": [
+        "证据不足"
+      ],
+      "descriptionMustNotContain": [
+        "S31_RARE_MARKER",
+        "S31_ABSENT_LINE",
+        "s31-dropped-filler-token"
+      ],
+      "plannerPromptMustNotContain": [
+        "S31_RARE_MARKER",
+        "s31-dropped-filler-token",
+        "s31-head-kept"
+      ],
+      "observationalMemoryMustNotContain": [
+        "S31_RARE_MARKER",
+        "s31-dropped-filler-token"
+      ],
+      "omBudget": {
+        "truncated": false,
+        "nearBudget": false,
+        "bulletCap": 4
+      },
+      "citeHold": {
+        "stable": true,
+        "outsideHeadTail": [],
+        "droppedFiller": []
+      },
+      "mustNotEmitCommands": [
+        "echo S31_LONG_CMD"
+      ]
+    }
+  },
+  "regressionCase": {
+    "turnId": "S31-T-no-second-write",
+    "userMessage": "再执行一次 echo S31_LONG_CMD。第一次确认后可以发。第二次我若拒绝，就不要再写。",
+    "mockTerminal": {
+      "initialRing": "user@web:~$\n",
+      "afterWrite": {
+        "echo S31_LONG_CMD": "s31-retry\n"
+      }
+    },
+    "userConfirm": {
+      "policy": "per-step",
+      "decisions": [
+        "approve",
+        "deny"
+      ],
+      "assert": {
+        "stepHasRequestId": true,
+        "autoApproved": false,
+        "sshWriteBeforeApprove": false
+      }
+    },
+    "session": {
+      "targetSessionId": "sess-s31-retry",
+      "historyKey": "hist-s31-retry"
+    },
+    "hostProfile": {
+      "hostId": "host-s31-retry",
+      "label": "s31-retry-lab",
+      "hostname": "s31-retry.internal"
+    },
+    "seedInventory": {
+      "hostId": "host-s31-retry",
+      "notes": [
+        "S31 retry baseline"
+      ]
+    },
+    "mockedPlannerSteps": [
+      {
+        "response": {
+          "description": "第一次提议 echo S31_LONG_CMD，等待确认。",
+          "action": "command",
+          "command": "echo S31_LONG_CMD",
+          "riskLevel": "low",
+          "completed": false
+        }
+      },
+      {
+        "response": {
+          "description": "再次提议同一命令，必须新的确认。",
+          "action": "command",
+          "command": "echo S31_LONG_CMD",
+          "riskLevel": "low",
+          "completed": false
+        }
+      },
+      {
+        "response": {
+          "description": "拒绝后不应再写。",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      }
+    ],
+    "expected": {
+      "minPlannerSteps": 2,
+      "maxPlannerSteps": 2,
+      "ipc": [
+        "cancelled",
+        "done"
+      ],
+      "sshWriteCount": 1,
+      "commandsRequiringConfirm": [
+        "echo S31_LONG_CMD"
+      ],
+      "hitl": {
+        "minInterrupts": 2,
+        "resume": "deny",
+        "decisions": [
+          "approve",
+          "deny"
+        ],
+        "released": true
+      }
+    }
+  }
+}

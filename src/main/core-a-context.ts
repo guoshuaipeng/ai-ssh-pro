@@ -76,8 +76,9 @@ export type ThreadContext = {
   /** Cumulative budget loss for this thread. Not shared across hosts. */
   omBudget?: OmBudgetMark
   /**
-   * Cite window held after observational compression. Scarce markers stay
-   * citeable; dropped filler must not come back. Not shared across hosts.
+   * Cite window held after observational compression, and after a later
+   * re-compression of the same thread. Scarce markers stay citeable; filler
+   * the cite window already dropped must not come back. Not shared across hosts.
    */
   citeHold?: CiteWindow
 }
@@ -679,6 +680,20 @@ function observationLineCap(role: TranscriptTurn['role']): number {
   return role === 'system' ? 100 : 140
 }
 
+/** Drop filler the cite window already rejected so a later fold cannot cite it again. */
+function scrubCiteFillers(text: string, fillers: readonly string[]): string {
+  let out = text
+  for (const filler of fillers) {
+    if (!filler || !out.includes(filler)) continue
+    out = out.split(filler).join('')
+  }
+  return out
+}
+
+function lineHasBody(line: string): boolean {
+  return line.replace(/^(?:user|assistant|system):\s*/, '').trim().length > 0
+}
+
 function formatTurnLine(turn: TranscriptTurn): { line: string; truncated: boolean } {
   const raw = redactSecrets(turn.content)
   const cited = citeObservationLine(raw, observationLineCap(turn.role))
@@ -787,18 +802,19 @@ export function observationBulletFromTurn(turn: TranscriptTurn, now = Date.now()
 
 function appendObservationBulletsCounted(
   existing: ObservationBullet[],
-  fresh: Array<{ bullet: ObservationBullet; truncated: boolean }>
+  fresh: Array<{ bullet: ObservationBullet; truncated: boolean }>,
+  pinned: readonly string[] = []
 ): { bullets: ObservationBullet[]; dropped: number; truncated: number } {
   const next = [...existing]
   let truncated = 0
   for (const item of fresh) {
     const text = item.bullet.text.trim()
-    if (!text) continue
+    if (!text || !lineHasBody(text)) continue
     if (next.some((row) => row.text === text)) continue
     next.push({ ...item.bullet, text })
     if (item.truncated) truncated += 1
   }
-  const capped = capObservationBullets(next)
+  const capped = capObservationBullets(next, pinned)
   return { bullets: capped.bullets, dropped: capped.dropped, truncated }
 }
 
@@ -810,8 +826,8 @@ export function appendObservationBullets(existing: ObservationBullet[], fresh: O
 }
 
 /** Keep concrete facts when the bullet list overflows. Narrative fillers go first. */
-function capObservationBullets(bullets: ObservationBullet[]): { bullets: ObservationBullet[]; dropped: number } {
-  const cap = observationBulletCap()
+function capObservationPool(bullets: ObservationBullet[], cap: number): { bullets: ObservationBullet[]; dropped: number } {
+  if (cap <= 0) return { bullets: [], dropped: bullets.length }
   if (bullets.length <= cap) return { bullets, dropped: 0 }
   const concrete: ObservationBullet[] = []
   const rest: ObservationBullet[] = []
@@ -831,6 +847,83 @@ function capObservationBullets(bullets: ObservationBullet[]): { bullets: Observa
   const kept = [...concrete, ...narrative]
   kept.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
   return { bullets: kept, dropped: bullets.length - kept.length }
+}
+
+function pickPinnedBullets(rows: ObservationBullet[], markers: readonly string[], cap: number): ObservationBullet[] {
+  const chosen: ObservationBullet[] = []
+  const covered = new Set<string>()
+  for (const marker of markers) {
+    if (covered.has(marker) || chosen.length >= cap) continue
+    const row = rows.find((bullet) => bullet.text.includes(marker) && !chosen.includes(bullet))
+    if (!row) continue
+    chosen.push(row)
+    for (const item of markers) {
+      if (row.text.includes(item)) covered.add(item)
+    }
+  }
+  return chosen
+}
+
+/**
+ * A later compression can re-cap the bullet list. Scarce markers already held
+ * stay in some bullet even when they sit in the middle of the concrete list.
+ */
+function coverMissingMarkers(
+  kept: ObservationBullet[],
+  markers: readonly string[],
+  cap: number
+): { bullets: ObservationBullet[]; extraDropped: number } {
+  let bullets = kept
+  let extraDropped = 0
+  for (const marker of markers) {
+    if (!marker || bullets.some((bullet) => bullet.text.includes(marker))) continue
+    const replacement: ObservationBullet = {
+      id: randomUUID(),
+      text: marker.slice(0, MAX_OBSERVATION_CHARS),
+      createdAt: Date.now()
+    }
+    if (bullets.length < cap) {
+      bullets = [...bullets, replacement]
+      continue
+    }
+    const index = bullets.findIndex((bullet) => !markers.some((item) => item && bullet.text.includes(item)))
+    if (index >= 0) {
+      bullets = bullets.map((bullet, at) => (at === index ? replacement : bullet))
+      extraDropped += 1
+      continue
+    }
+    if (bullets.length === 0) {
+      bullets = [replacement]
+      continue
+    }
+    bullets = [...bullets.slice(0, -1), replacement]
+    extraDropped += 1
+  }
+  return { bullets, extraDropped }
+}
+
+function capObservationBullets(
+  bullets: ObservationBullet[],
+  pinned: readonly string[] = []
+): { bullets: ObservationBullet[]; dropped: number } {
+  const cap = observationBulletCap()
+  const markers = pinned.filter((marker) => marker.trim().length > 0)
+  if (markers.length === 0) return capObservationPool(bullets, cap)
+  const pinnedRows: ObservationBullet[] = []
+  const pool: ObservationBullet[] = []
+  for (const bullet of bullets) {
+    if (markers.some((marker) => bullet.text.includes(marker))) pinnedRows.push(bullet)
+    else pool.push(bullet)
+  }
+  const pinnedKept = pinnedRows.length > cap ? pickPinnedBullets(pinnedRows, markers, cap) : pinnedRows
+  const rest = capObservationPool(pool, Math.max(0, cap - pinnedKept.length))
+  let kept = [...pinnedKept, ...rest.bullets]
+  let dropped = bullets.length - kept.length
+  const covered = coverMissingMarkers(kept, markers, cap)
+  kept = covered.bullets
+  dropped += covered.extraDropped
+  kept.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+  return { bullets: kept, dropped }
 }
 
 export function normalizeObservationBullets(value: unknown): ObservationBullet[] {
@@ -894,17 +987,44 @@ export function compactTranscript(
     return finish(recent, { ...ctx, compactedCursor: cursor })
   }
 
-  const formatted = fresh.map((turn) => formatTurnLine(turn))
-  const piece = formatted.map((row) => row.line).filter(Boolean).join('\n')
+  const citeHold = mergeCiteHold(ctx.citeHold, fresh)
+  const fillers = citeHold?.droppedFiller ?? []
+  const markers = citeHold?.outsideHeadTail ?? []
+  const formatted = fresh.map((turn) => {
+    const row = formatTurnLine(turn)
+    const line = scrubCiteFillers(row.line, fillers)
+    return { line, truncated: row.truncated || line !== row.line }
+  })
+  const piece = formatted
+    .map((row) => row.line)
+    .filter((line) => lineHasBody(line))
+    .join('\n')
   if (!piece) return finish(recent, { ...ctx, compactedCursor: cursor })
 
-  const cappedSummary = capRunningSummary([ctx.runningSummary, piece].filter(Boolean).join('\n'), MAX_SUMMARY_CHARS)
+  const cappedSummary = capRunningSummary(
+    [scrubCiteFillers(ctx.runningSummary, fillers), piece].filter(Boolean).join('\n'),
+    MAX_SUMMARY_CHARS
+  )
   const drafts = fresh
     .map((turn, index) => draftObservation(turn, Date.now() + index))
     .filter((draft): draft is { bullet: ObservationBullet; truncated: boolean } => draft != null)
-  const appended = appendObservationBulletsCounted(ctx.observationalMemory, drafts)
+    .flatMap((draft) => {
+      const text = scrubCiteFillers(draft.bullet.text, fillers).slice(0, MAX_OBSERVATION_CHARS)
+      if (!lineHasBody(text)) return []
+      return [
+        {
+          bullet: { ...draft.bullet, text },
+          truncated: draft.truncated || text !== draft.bullet.text
+        }
+      ]
+    })
+  const existing = ctx.observationalMemory.flatMap((bullet) => {
+    const text = scrubCiteFillers(bullet.text, fillers).slice(0, MAX_OBSERVATION_CHARS)
+    if (!lineHasBody(text)) return []
+    return [{ ...bullet, text }]
+  })
+  const appended = appendObservationBulletsCounted(existing, drafts, markers)
   const prev = ctx.omBudget ?? emptyOmBudget()
-  const citeHold = mergeCiteHold(ctx.citeHold, fresh)
   let next: ThreadContext = {
     ...ctx,
     runningSummary: cappedSummary.text,
