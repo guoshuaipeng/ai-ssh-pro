@@ -24,6 +24,7 @@ import {
   setRecentPinned
 } from '../shared/workspace-features'
 import { decryptOptional, encryptOptional, encryptSecret, decryptSecret, isEncryptedSecret } from './secret-crypto'
+import { archiveAndClearThreadContext } from './core-a-memory'
 
 type AiChatHistoryStore = Record<string, AiChatMessage[]>
 
@@ -526,8 +527,10 @@ export function setAiChatHistory(key: string, messages: AiChatMessage[]): void {
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({ role: m.role, content: String(m.content ?? '').slice(0, 20000) }))
     .slice(-200)
-  if (cleaned.length === 0) delete all[k]
-  else all[k] = cleaned
+  if (cleaned.length === 0) {
+    delete all[k]
+    archiveAndClearThreadContext(k)
+  } else all[k] = cleaned
   appStore.set('aiChatHistory', all)
 }
 

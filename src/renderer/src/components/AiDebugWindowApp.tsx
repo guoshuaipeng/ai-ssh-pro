@@ -18,6 +18,9 @@ function entryLabel(session: AiDebugSession, index: number): string {
     const tail = e.parseError ? tg('dbg.0') : e.structured ? `action=${e.structured.action}` : '—'
     return tg('dbg.1', { 0: String(e.round), 1: String(tail) })
   }
+  if (e.kind === 'context') {
+    return tg('dbg.23', { 0: String(e.round), 1: String(e.totalChars) })
+  }
   return tg('dbg.2', { 0: String(e.round), 1: String(e.label) })
 }
 
@@ -34,6 +37,17 @@ function buildDetailJson(session: AiDebugSession, index: number): string {
         response_raw: e.responseRaw,
         structured: e.structured,
         parse_error: e.parseError ?? null
+      },
+      null,
+      2
+    )
+  }
+  if (e.kind === 'context') {
+    return JSON.stringify(
+      {
+        round: e.round,
+        total_chars: e.totalChars,
+        slices: e.slices
       },
       null,
       2

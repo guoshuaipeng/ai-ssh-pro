@@ -584,6 +584,13 @@ export type AiDebugEntry =
       label: string
       detail?: string
     }
+  | {
+      /** Which context slices were placed in the planner request, with approximate sizes. */
+      kind: 'context'
+      round: number
+      slices: Array<{ name: 'working' | 'runningSummary' | 'recall' | 'recentWindow' | 'system'; chars: number; items?: number }>
+      totalChars: number
+    }
 
 export type AiDebugStreamPayload = {
   debugTurnId: string

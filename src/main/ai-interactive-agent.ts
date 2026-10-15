@@ -13,7 +13,29 @@ import {
 import type { SshSessionManager } from './ssh-manager'
 import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
 import { buildBootstrapPrompt } from './core-a-bootstrap'
-import { loadPersistedCoreSession, savePersistedCoreSession } from './core-a-memory'
+import {
+  appendStoredArchive,
+  currentThreadEpoch,
+  loadPersistedCoreSession,
+  loadThreadContext,
+  onThreadContextCleared,
+  savePersistedCoreSession,
+  saveThreadContext
+} from './core-a-memory'
+import {
+  absorbUserTurn,
+  actionNeedsHumanInterrupt,
+  buildMemoryPromptBlocks,
+  compactTranscript,
+  contextBudget,
+  formatArchivedGoal,
+  appendEpisode,
+  markWorkingStatus,
+  recallEpisodes,
+  resolveThreadId,
+  summarizePlannerStep,
+  type TranscriptTurn
+} from './core-a-context'
 import { getInventoryStore } from './inventory-store'
 import type { HostServiceKind } from '../shared/inventory'
 
@@ -152,11 +174,18 @@ type ToolScore = {
 }
 
 const coreStateBySession = new Map<string, CoreSessionState>()
+const sessionEpochAtLoad = new Map<string, number>()
+
+onThreadContextCleared((key) => {
+  coreStateBySession.delete(key)
+  sessionEpochAtLoad.delete(key)
+})
 
 function getSessionState(targetSessionId?: string): CoreSessionState {
   const key = targetSessionId?.trim() || 'global'
   const existing = coreStateBySession.get(key)
   if (existing) return existing
+  sessionEpochAtLoad.set(key, currentThreadEpoch(key))
 
   const persisted = loadPersistedCoreSession(key)
   const created: CoreSessionState = {
@@ -191,12 +220,32 @@ function getSessionState(targetSessionId?: string): CoreSessionState {
 }
 
 function persistSessionState(targetSessionId: string | undefined, state: CoreSessionState): void {
-  savePersistedCoreSession(targetSessionId?.trim() || 'global', {
-    notes: state.notes,
-    recentCommands: state.recentCommands,
-    observations: state.observations,
-    taskGraph: state.taskGraph.map((t) => ({ title: t.title, status: t.status }))
+  const key = targetSessionId?.trim() || 'global'
+  savePersistedCoreSession(
+    key,
+    {
+      notes: state.notes,
+      recentCommands: state.recentCommands,
+      observations: state.observations,
+      taskGraph: state.taskGraph.map((t) => ({ title: t.title, status: t.status }))
+    },
+    sessionEpochAtLoad.get(key) ?? 0
+  )
+}
+
+function rememberArchivedGoal(state: CoreSessionState, goal: string): void {
+  const archived = formatArchivedGoal(goal)
+  rememberNote(state, archived.note)
+  const title = truncate(goal, 120)
+  if (!title || state.taskGraph.some((task) => task.title === title)) return
+  state.taskGraph.push({
+    id: `T${state.nextTaskId++}`,
+    title,
+    status: 'done',
+    confidence: 0.5,
+    updatedAt: Date.now()
   })
+  if (state.taskGraph.length > 10) state.taskGraph = state.taskGraph.slice(-10)
 }
 
 function lastUserQuestion(messages: { role: string; content: string }[]): string {
@@ -206,13 +255,7 @@ function lastUserQuestion(messages: { role: string; content: string }[]): string
   return ''
 }
 
-type PlannerTurn = { role: 'user' | 'assistant' | 'system'; content: string }
-
-function compactConversation(conv: PlannerTurn[], maxTurns = 8): PlannerTurn[] {
-  const maxMessages = maxTurns * 2
-  if (conv.length <= maxMessages) return conv
-  return conv.slice(-maxMessages)
-}
+type PlannerTurn = TranscriptTurn
 
 function appendObservation(state: CoreSessionState, snapshot: string, command?: string | null): void {
   const raw = snapshot.trim()
@@ -522,6 +565,7 @@ function buildCoreSystemPrompt(
     lastCommand?: string | null
     lastWriteOk?: boolean | null
     plannerHint?: string | null
+    memoryBlocks?: string | null
   }
 ): string {
   const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : mt('（暂无）', "(none)")
@@ -535,6 +579,7 @@ function buildCoreSystemPrompt(
 
   const parts: string[] = [
     buildBootstrapPrompt(ctx.userQuestion),
+    ...(ctx.memoryBlocks?.trim() ? [ctx.memoryBlocks.trim()] : []),
     '---',
     mt('你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。', "Output a single JSON object; no Markdown, no code fences, no text outside the JSON."),
     mt('action（必填）：tool_call | command | end。', "action (required): tool_call | command | end."),
@@ -711,9 +756,24 @@ export async function runOpenClawCoreAgentChat(
     content: m.content
   }))
   const userQuestion = lastUserQuestion(conversation)
+  const sessionKey = payload.targetSessionId?.trim() || 'global'
   const sessionState = getSessionState(payload.targetSessionId)
   ensureSeedTask(sessionState, userQuestion || lastUserQuestionForDebug(payload.messages))
-  logAi('ai:engine core-a', { session: payload.targetSessionId ?? 'global' })
+  const threadId = resolveThreadId({
+    historyKey: payload.historyKey,
+    targetSessionId: payload.targetSessionId
+  })
+  let { ctx: thread, epoch: threadEpoch } = loadThreadContext(threadId)
+  const absorbed = absorbUserTurn(thread, conversation)
+  thread = absorbed.ctx
+  if (absorbed.switchedFrom) {
+    rememberArchivedGoal(sessionState, absorbed.switchedFrom.goal)
+    if (threadId !== sessionKey) {
+      const archived = formatArchivedGoal(absorbed.switchedFrom.goal)
+      appendStoredArchive(threadId, archived.note, archived.taskSummary, threadEpoch)
+    }
+  }
+  logAi('ai:engine core-a', { session: payload.targetSessionId ?? 'global', thread: threadId })
   const debugTurnId = payload.debugTurnId?.trim() ?? ''
   const debugUserQuestion = lastUserQuestionForDebug(payload.messages)
   const emitDebug = (entry: AiDebugEntry): void => {
@@ -741,6 +801,11 @@ export async function runOpenClawCoreAgentChat(
   const MAX_SAME_SNAPSHOT_REPEAT = 2
   const MAX_CONSECUTIVE_SNAPSHOT_TOOLS = 6
 
+  const persistAll = (): void => {
+    persistSessionState(payload.targetSessionId, sessionState)
+    saveThreadContext(threadId, thread, threadEpoch)
+  }
+
   if (targetSessionId && !payload.terminalExcerpt?.trim()) {
     const bootSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
     if (bootSnap) {
@@ -753,7 +818,9 @@ export async function runOpenClawCoreAgentChat(
 
   try {
     for (let step = 1; step <= maxSteps; step++) {
-      conversation = compactConversation(conversation)
+      const compacted = compactTranscript(conversation, thread)
+      conversation = compacted.recent
+      thread = compacted.ctx
       if (runCtx.userAborted) {
         send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
         send(wc, { type: 'done' })
@@ -774,13 +841,25 @@ export async function runOpenClawCoreAgentChat(
         plannerHint = mt('连续失败：优先只读快照或低风险 command，避免重复相同动作。', "Consecutive failures: prefer a read-only snapshot or low-risk command and avoid repeating the same action.")
       }
 
+      const recalled = recallEpisodes(userQuestion, thread.episodes, { topK: 5 })
+      const memory = buildMemoryPromptBlocks({
+        working: thread.workingMemory,
+        runningSummary: thread.runningSummary,
+        hits: recalled,
+        headings: {
+          working: mt('工作记忆（当前目标）：', 'Working memory (current goal):'),
+          summary: mt('较早对话摘要：', 'Earlier transcript summary:'),
+          recall: mt('相关历史回忆：', 'Recalled history:')
+        }
+      })
       const sysPrompt = buildCoreSystemPrompt(payload, sessionState, {
         step,
         userQuestion,
         lastToolResult: lastToolResult ? lastToolResult.slice(0, MAX_TOOL_RESULT_CHARS) : null,
         lastCommand,
         lastWriteOk,
-        plannerHint
+        plannerHint,
+        memoryBlocks: memory.text
       })
 
       const messages: Array<{ role: string; content: string }> = [
@@ -788,6 +867,18 @@ export async function runOpenClawCoreAgentChat(
         { role: 'system', content: sysPrompt },
         ...conversation
       ]
+      const recentChars = conversation.reduce((sum, turn) => sum + turn.content.length, 0)
+      const budget = contextBudget({
+        workingChars: memory.sections.working.length,
+        workingItems: thread.workingMemory ? 1 : 0,
+        summaryChars: memory.sections.runningSummary.length,
+        recallChars: memory.sections.recall.length,
+        recallItems: recalled.length,
+        recentChars,
+        recentItems: conversation.length,
+        systemChars: sysPrompt.length
+      })
+      emitDebug({ kind: 'context', round: step, slices: budget.slices, totalChars: budget.totalChars })
 
       logAi('ai:step start', {
         step,
@@ -844,7 +935,7 @@ export async function runOpenClawCoreAgentChat(
           appendObservation(sessionState, gateSnap, lastCommand)
           rememberNote(sessionState, mt('结束前轮询：证据不足，已自动补充终端观测', "Pre-end check: evidence insufficient, terminal observation added automatically"))
           send(wc, { type: 'status', text: mt('证据不足，已自动读取终端后继续分析…', "Evidence insufficient; read the terminal automatically and continuing…") })
-          persistSessionState(targetSessionId, sessionState)
+          persistAll()
           await new Promise<void>((r) => setTimeout(r, 300))
           continue
         }
@@ -861,9 +952,9 @@ export async function runOpenClawCoreAgentChat(
         parseError
       })
 
-      // Commands always wait for Agree / Decline. riskLevel=low does not auto-run.
-      // Read-only tools such as get_terminal_snapshot still omit requestId and run immediately.
-      const requestId = parsed.action === 'command' ? randomUUID() : undefined
+      // Side-effecting SSH commands pause for confirmation (LangGraph interrupt / ToolLoopAgent needsApproval).
+      // Read-only tools still omit requestId and run immediately. riskLevel never skips the wait.
+      const requestId = actionNeedsHumanInterrupt(parsed.action) ? randomUUID() : undefined
 
       send(wc, {
         type: 'step',
@@ -873,18 +964,28 @@ export async function runOpenClawCoreAgentChat(
 
       // 让下一轮请求带上本步助手 JSON，避免模型「失忆」而在每步重复同一段 description。
       conversation.push({ role: 'assistant' as const, content: content.trim() })
+      thread = appendEpisode(
+        thread,
+        summarizePlannerStep({
+          step,
+          action: parsed.action,
+          description: parsed.description,
+          command: parsed.command
+        })
+      )
       rememberNote(sessionState, parsed.description)
       rememberAction(sessionState, parsed.action)
       updateTaskGraphOnAction(sessionState, parsed)
 
       if (parsed.action === 'end') {
-        persistSessionState(targetSessionId, sessionState)
+        thread = markWorkingStatus(thread, 'done')
+        persistAll()
         send(wc, { type: 'done' })
         return
       }
 
       // Command steps wait for user confirmation before anything is written to the terminal.
-      if (parsed.action === 'command') {
+      if (actionNeedsHumanInterrupt(parsed.action)) {
         consecutiveSnapshotTools = 0
         if (!requestId) {
           send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
@@ -1153,7 +1254,7 @@ export async function runOpenClawCoreAgentChat(
         }
       }
 
-      persistSessionState(targetSessionId, sessionState)
+      persistAll()
       await new Promise<void>((resolve) => setTimeout(resolve, pollWaitMs))
     }
 
@@ -1180,6 +1281,11 @@ export async function runOpenClawCoreAgentChat(
     send(wc, { type: 'error', message: msg })
     send(wc, { type: 'done' })
   } finally {
+    try {
+      persistAll()
+    } catch {
+      /* persistence must not hide the original chat error */
+    }
     if (activeAiChat?.ac === ac) activeAiChat = null
   }
 }
