@@ -1415,6 +1415,7 @@ body.layout-resizing {
   user-select: none;
   overflow: hidden;
   white-space: nowrap;
+  flex-wrap: nowrap;
 }
 .statusbar-slot {
   display: inline-flex;
@@ -1432,6 +1433,32 @@ body.layout-resizing {
 }
 .statusbar-glyph { flex: none; }
 .statusbar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar-slot--disconnect { flex: 1 1 auto; min-width: 96px; }
+.statusbar-slot:not(.statusbar-slot--disconnect) { flex: 0 1 auto; max-width: 220px; }
+.app-statusbar .s4-status-badge { flex: none; }
+.statusbar-reconnect {
+  flex: none;
+  height: 18px;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.statusbar-reconnect:hover { text-decoration: underline; }
+@media (max-width: 1366px) {
+  .app-statusbar {
+    height: 24px;
+    min-height: 22px;
+    max-height: 24px;
+    overflow: hidden;
+  }
+  .main { min-width: 0; }
+}
 
 .ai-panel-shell {
   flex-shrink: 0;

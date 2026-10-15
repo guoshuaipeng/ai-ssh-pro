@@ -111,7 +111,7 @@ assert.ok(app.includes('openUnifiedSettings') && app.includes("sectionForAction(
 assert.ok(!app.includes('window.confirm') && !settings.includes('window.confirm'))
 assert.ok(toolbar.includes('pf7.connectFirst'))
 assert.ok(!toolbar.includes('file://'))
-assert.ok(toolbar.includes('AI-SSH-Pro') && toolbar.includes("-dev"))
+assert.ok(toolbar.includes('PRODUCT_NAME') && toolbar.includes("-dev"))
 const opsStart = toolbar.indexOf('OPS_BUTTONS')
 const opsEnd = toolbar.indexOf(']', opsStart)
 assert.equal((toolbar.slice(opsStart, opsEnd).match(/id: '/g) ?? []).length, 3)

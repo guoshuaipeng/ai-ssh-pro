@@ -11,6 +11,7 @@ import {
 } from '../lib/ui-themes'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
+import { PRODUCT_NAME } from '@shared/product'
 import type { IconName } from '@shared/icon-registry'
 import Icon, { Twist } from './Icon'
 
@@ -188,7 +189,7 @@ export default function AppToolbar({
   return (
     <header className={`app-titlebar titlebar-compact-${compactLevel}`} ref={headerRef} data-compact={compactLevel}>
       <div className="app-titlebar-drag">
-        <span className="app-toolbar-brand" title={versionText ? `AI-SSH-Pro ${versionText}` : 'AI-SSH-Pro'}>AI-SSH-Pro</span>
+        <span className="app-toolbar-brand" title={versionText ? `${PRODUCT_NAME} ${versionText}` : PRODUCT_NAME}>{PRODUCT_NAME}</span>
         {versionText && !hideVersion ? (
           <button
             type="button"
