@@ -2338,7 +2338,15 @@ const zhCN = {
   'l10.cardTitle': '有 {n} 台没有连上',
   'l10.queue': '正在连接 {started}/{total}，还有 {n} 台在排队',
   'l10.cancelQueue': '取消排队',
-  'l10.queueCancelled': '已取消 {n} 台排队'
+  'l10.queueCancelled': '已取消 {n} 台排队',
+  'a6.explain': '解释选区',
+  'a6.title': '解释选区',
+  'a6.needSelection': '请先在终端选中一段文本',
+  'a6.summary': '说明',
+  'a6.draft': '建议命令（草案）',
+  'a6.analyzing': '正在解释选区…',
+  'a6.readonly': '只读说明。建议命令需确认后才会发送。',
+  'ux37.needSelection': '要解释选区，请先配置 AI'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4681,7 +4689,15 @@ const en: Record<MessageKey, string> = {
   'l10.cardTitle': '{n} hosts did not connect',
   'l10.queue': 'Connecting {started}/{total}, {n} still queued',
   'l10.cancelQueue': 'Cancel queue',
-  'l10.queueCancelled': 'Cancelled {n} queued hosts'
+  'l10.queueCancelled': 'Cancelled {n} queued hosts',
+  'a6.explain': 'Explain selection',
+  'a6.title': 'Explain selection',
+  'a6.needSelection': 'Select some terminal text first',
+  'a6.summary': 'Summary',
+  'a6.draft': 'Suggested command (draft)',
+  'a6.analyzing': 'Explaining selection…',
+  'a6.readonly': 'Read-only summary. A suggested command is sent only after you confirm.',
+  'ux37.needSelection': 'Set up AI to explain this selection'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

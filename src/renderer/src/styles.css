@@ -2437,6 +2437,25 @@ body.layout-resizing {
   padding: 0 1px;
 }
 
+.a6-card {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px 4px;
+}
+
+.a6-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.a6-card-head .modal-close {
+  margin-left: auto;
+}
+
 .ai-risk-badge {
   display: inline-block;
   font-size: 11px;

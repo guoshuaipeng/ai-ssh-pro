@@ -45,7 +45,7 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
           setState({ phase: 'done', result })
           return
         }
-        if (result.ok && result.kind !== 'nlCommand') {
+        if (result.ok && (result.kind === 'explainError' || result.kind === 'explainAlert')) {
           const key = request.alertId ? `explainAlert:${request.alertId}` : `${request.kind ?? 'explainError'}:${request.sessionId}`
           rememberAiFixes(key, result.fixes)
         }

@@ -43,6 +43,7 @@ const CAT: Record<string, PaletteCat> = {
   setDryRunReminder: 'ops',
   aiPostmortem: 'ai',
   explainDiff: 'file',
+  explainSelection: 'ai',
   diffFixPlaybook: 'ai',
   alertWorkbench: 'ops',
   alertRules: 'ops',

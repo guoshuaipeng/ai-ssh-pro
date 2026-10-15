@@ -92,8 +92,10 @@ import Icon, { Twist } from './components/Icon'
 import HostPicker from './components/HostPicker'
 import WelcomeTour, { TOUR_DONE_KEY } from './components/WelcomeTour'
 import AiAssistCard from './components/AiAssistCard'
+import SelectionExplainCard from './components/SelectionExplainCard'
 import {
   AI_EXPLAIN_EVENT,
+  SELECTION_EXPLAIN_EVENT,
   aiHasKey,
   enterAiMode,
   fillCommandBar,
@@ -101,8 +103,12 @@ import {
   lastErrorFor,
   lastErrorSessionId,
   requestAiExplain,
-  type AiExplainDetail
+  requestSelectionExplain,
+  type AiExplainDetail,
+  type SelectionExplainDetail
 } from './lib/ai-events'
+import { currentTerminalSelection } from './lib/terminal-selection'
+import { selectionRiskToAi } from '@shared/selection-explain'
 import { confirmAndRunAiCommand } from './lib/ai-run'
 import { runGuardedCommand } from './lib/protection-gate'
 import OpsHomeTab, { type HomeHost } from './components/OpsHomeTab'
@@ -894,6 +900,8 @@ export default function App() {
   const [hostPicker, setHostPicker] = useState<{ action: MenuAction; feature: string } | null>(null)
   const [aiExplain, setAiExplain] = useState<{ id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert'; alertId?: string } | null>(null)
   const aiExplainSeqRef = useRef(0)
+  const [selectionExplain, setSelectionExplain] = useState<{ id: number; sessionId: string; text: string; host?: string } | null>(null)
+  const selectionExplainSeqRef = useRef(0)
   const [splitSecondary, setSplitSecondary] = useState('')
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null)
   const [recentKeys, setRecentKeys] = useState<string[]>([])
@@ -4272,6 +4280,13 @@ export default function App() {
 
   const handleTitlebarMenuAction = useCallback(
     (action: TitlebarMenuAction) => {
+      if (action === 'explainSelection') {
+        const sel = currentTerminalSelection()
+        void requestSelectionExplain({ sessionId: sel?.sessionId ?? '', text: sel?.text ?? '' }).then((status) => {
+          if (status === 'empty') showToast(tg('a6.needSelection'))
+        })
+        return
+      }
       if (action === 'aiExplainError' || action === 'aiCommand' || action === 'aiInspect') {
         void aiHasKey().then((ready) => {
           if (!ready) {
@@ -5259,6 +5274,22 @@ export default function App() {
     window.addEventListener(AI_EXPLAIN_EVENT, onExplain)
     return () => window.removeEventListener(AI_EXPLAIN_EVENT, onExplain)
   }, [updateLayout])
+  useEffect(() => {
+    const onSelection = (e: Event) => {
+      const d = (e as CustomEvent<SelectionExplainDetail>).detail
+      if (!d?.sessionId || !d.text) return
+      const tab = tabsRef.current.find((x) => x.sessionId === d.sessionId)
+      selectionExplainSeqRef.current += 1
+      setSelectionExplain({
+        id: selectionExplainSeqRef.current,
+        sessionId: d.sessionId,
+        text: d.text,
+        host: tab ? tab.connectOpts.label?.trim() || tab.title : undefined
+      })
+    }
+    window.addEventListener(SELECTION_EXPLAIN_EVENT, onSelection)
+    return () => window.removeEventListener(SELECTION_EXPLAIN_EVENT, onSelection)
+  }, [])
   const ensureAiVisible = useCallback(() => {
     updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
   }, [updateLayout])
@@ -7557,6 +7588,36 @@ export default function App() {
                       channel: aiExplain.kind === 'explainAlert' ? 'alert' : 'command'
                     }
                   }), 60)
+                }}
+              />
+            ) : null}
+            {rightPane === 'ai' && selectionExplain ? (
+              <SelectionExplainCard
+                key={selectionExplain.id}
+                request={selectionExplain}
+                onClose={() => setSelectionExplain(null)}
+                onOpenSettings={() => openUnifiedSettings('ai')}
+                onAgree={async (command, risk) => {
+                  const sid = selectionExplain.sessionId
+                  focusSessionTab(sid)
+                  const g = guardForSession(sid)
+                  if (readonlyActive(g.level, g.elevated)) {
+                    showToast(tg('s4.block', { reason: tg('s4.reason', { token: writeToken(command) }) }))
+                    return false
+                  }
+                  return confirmAndRunAiCommand({
+                    sessionId: sid,
+                    command,
+                    host: selectionExplain.host,
+                    aiRisk: selectionRiskToAi(risk),
+                    protection: {
+                      level: g.level,
+                      hostName: g.hostName || selectionExplain.host || '',
+                      elevated: g.elevated,
+                      profileId: g.profile?.id,
+                      channel: 'command'
+                    }
+                  })
                 }}
               />
             ) : null}

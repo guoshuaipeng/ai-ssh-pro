@@ -57,7 +57,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
       }
       if (e.id === 'clearHostHistory') return { ...e, group: settingsGroup, hay: `${e.hay} ${settingsGroup}`.toLowerCase() }
       if (e.id === 'folderSync') return { ...e, group: fileGroup, hay: `${e.hay} ${fileGroup}`.toLowerCase() }
-      if (!aiReady && (e.id === 'aiExplainError' || e.id === 'aiCommand' || e.id === 'aiInspect')) {
+      if (!aiReady && (e.id === 'aiExplainError' || e.id === 'aiCommand' || e.id === 'aiInspect' || e.id === 'explainSelection')) {
         const note = t('ux37.notConfigured')
         return { ...e, note, hay: `${e.hay} ${note}`.toLowerCase() }
       }
