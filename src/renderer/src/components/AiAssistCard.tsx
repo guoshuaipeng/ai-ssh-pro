@@ -16,12 +16,15 @@ type Props = {
   onCreatePlaybook?: (fixes: Array<{ command: string; note?: string }>) => void
   /** Keep the UX-37 card inside this surface instead of jumping to the AI panel. */
   embed?: boolean
+  /** W1 row menu: pulse the create button after explain. Does not draft. */
+  highlightCreate?: boolean
 }
 
 /** A1: "Explain with AI" result in the right-hand AI panel — cause, fix commands (Insert / Run), notes. */
-export default function AiAssistCard({ request, onClose, onOpenSettings, onInsert, onRun, onCreatePlaybook, embed }: Props) {
+export default function AiAssistCard({ request, onClose, onOpenSettings, onInsert, onRun, onCreatePlaybook, embed, highlightCreate }: Props) {
   const { t, locale } = useI18n()
   const [state, setState] = useState<{ phase: 'loading' } | { phase: 'done'; result: AiAssistResult }>({ phase: 'loading' })
+  const [pulseCreate, setPulseCreate] = useState(false)
   const reqIdRef = useRef('')
 
   const start = useCallback(() => {
@@ -59,6 +62,21 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
       reqIdRef.current = ''
     }
   }, [start])
+
+  useEffect(() => {
+    if (!highlightCreate || state.phase !== 'done') {
+      setPulseCreate(false)
+      return
+    }
+    const result = state.result
+    if (!result.ok || (result.kind !== 'explainError' && result.kind !== 'explainAlert')) {
+      setPulseCreate(false)
+      return
+    }
+    setPulseCreate(true)
+    const timer = window.setTimeout(() => setPulseCreate(false), 2000)
+    return () => window.clearTimeout(timer)
+  }, [highlightCreate, state])
 
   const stop = () => {
     const id = reqIdRef.current
@@ -124,8 +142,9 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
           <div className="w1-create-row">
             <button
               type="button"
-              className="w1-create"
+              className={`w1-create${pulseCreate ? ' is-highlight' : ''}`}
               data-testid="w1-create"
+              data-highlight={pulseCreate ? '1' : undefined}
               disabled={!r.fixes.length}
               title={r.fixes.length ? t('w1.createHint', { n: r.fixes.length }) : t('w1.noFix')}
               onClick={() => r.fixes.length && onCreatePlaybook?.(r.fixes)}

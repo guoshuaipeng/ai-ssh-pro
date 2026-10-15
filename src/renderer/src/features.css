@@ -1177,6 +1177,8 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .alert-dot--warn { background: #eab308; }
 .alert-line-actions { display: flex; gap: 4px; }
 .alert-line-btn { white-space: nowrap; }
+.alert-line-more { opacity: 0; }
+.alert-line:hover .alert-line-more, .alert-line:focus-within .alert-line-more, .alert-line.is-selected .alert-line-more { opacity: 1; }
 .alert-line-age, .alert-line-value { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 .l2-filters { padding: 0 12px 8px; overflow: hidden; }

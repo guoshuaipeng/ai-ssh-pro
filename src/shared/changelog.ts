@@ -34,8 +34,8 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
     {
       icon: '▷',
       text: {
-        zh: '覆盖远端文件前在本机留快照，可以对比并回滚。回滚仍走写保护',
-        en: 'A local snapshot is kept before a remote file is overwritten. You can diff and roll back, still through the write guard'
+        zh: '覆盖远端文件前在本机留快照，可以对比并回滚。回滚走写保护，并写入文件审计',
+        en: 'A local snapshot is kept before a remote file is overwritten. Rollback still uses the write guard and writes a file audit row'
       },
       where: { zh: '设置 → 文件', en: 'Settings → Files' },
       action: 'settings'

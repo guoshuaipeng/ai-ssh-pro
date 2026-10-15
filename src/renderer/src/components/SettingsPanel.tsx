@@ -240,6 +240,7 @@ export default function SettingsPanel({
                   onChange={(e) => {
                     setSnapOn(e.target.checked)
                     setSnapshotsEnabled(e.target.checked)
+                    void window.aiss.snapshots.setPrefs({ auto: e.target.checked, keep: snapKeep })
                   }}
                 />
                 {t('w3.settingAuto')}
@@ -252,6 +253,7 @@ export default function SettingsPanel({
                     const n = Number(e.target.value)
                     setSnapKeep(n)
                     setSnapshotKeep(n)
+                    void window.aiss.snapshots.setPrefs({ auto: snapOn, keep: n })
                   }}
                 >
                   {SNAPSHOT_KEEP_OPTIONS.map((n) => (

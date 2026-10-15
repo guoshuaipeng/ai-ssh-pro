@@ -11,6 +11,8 @@ import {
 } from '../lib/ui-themes'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
+import type { IconName } from '@shared/icon-registry'
+import Icon from './Icon'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -38,10 +40,10 @@ type Props = {
 
 /** Ops group buttons (UX-04): icon, label key, needs a session */
 /** UX-15 minimal default ops: monitor / toolbox / SFTP */
-const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: string; label: MessageKey; title: MessageKey; needsSession: boolean }> = [
-  { id: 'resourceMonitor', icon: '📊', label: 'toolbar.monitor', title: 'toolbar.monitorTitle', needsSession: true },
-  { id: 'serverTools', icon: '🧰', label: 'toolbar.toolbox', title: 'toolbar.toolboxTitle', needsSession: true },
-  { id: 'sftp', icon: '📁', label: 'toolbar.sftp', title: 'toolbar.sftpTitle', needsSession: true }
+const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: IconName; label: MessageKey; title: MessageKey; needsSession: boolean }> = [
+  { id: 'resourceMonitor', icon: 'activity', label: 'toolbar.monitor', title: 'toolbar.monitorTitle', needsSession: true },
+  { id: 'serverTools', icon: 'wrench', label: 'toolbar.toolbox', title: 'toolbar.toolboxTitle', needsSession: true },
+  { id: 'sftp', icon: 'folder', label: 'toolbar.sftp', title: 'toolbar.sftpTitle', needsSession: true }
 ]
 
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
@@ -214,7 +216,7 @@ export default function AppToolbar({
               aria-expanded={hamburgerOpen}
               onClick={() => setHamburgerOpen((v) => !v)}
             >
-              ☰
+              <Icon name="menu" />
             </button>
             {hamburgerOpen ? (
               <div className="titlebar-hamburger-menu" role="menu">
@@ -290,7 +292,7 @@ export default function AppToolbar({
                 aria-label={t(b.title)}
                 onClick={() => onMenuAction(b.id)}
               >
-                <span aria-hidden>{b.icon}</span> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
+                <Icon name={b.icon} /> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
               </button>
             )
           })}
@@ -305,7 +307,7 @@ export default function AppToolbar({
             aria-label={t('toolbar.paletteTitle')}
             onClick={() => onMenuAction('commandPalette')}
           >
-            <span aria-hidden>🔍</span>
+            <Icon name="search" />
             {searchIconOnly ? null : (
               <>
                 <span className="tb-label">{t('toolbar.searchFeatures')}</span>

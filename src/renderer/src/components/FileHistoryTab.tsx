@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { diffCounts, rollbackAllowed, rollbackNeedsHostName, suggestCheckCommand, type SnapSource } from '@shared/snapshots'
+import { diffCounts, recordRollbackAudit, rollbackAllowed, rollbackClock, rollbackNeedsHostName, suggestCheckCommand, type SnapSource } from '@shared/snapshots'
 import { tg, type MessageKey } from '../lib/i18n'
 import { confirmDialog, askText } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
@@ -28,10 +28,7 @@ type Props = {
 }
 
 function clock(at: number): string {
-  const d = new Date(at)
-  const p = (n: number) => String(n).padStart(2, '0')
-  const same = new Date().toDateString() === d.toDateString()
-  return same ? `${p(d.getHours())}:${p(d.getMinutes())}` : `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return rollbackClock(at)
 }
 
 const SRC: Record<SnapSource, MessageKey> = {
@@ -122,13 +119,26 @@ export default function FileHistoryTab({ profileId, hostLabel, path, level, sess
       danger: level === 'production'
     })
     if (!ok) return
-    if (beforeWrite && !(await beforeWrite())) return
+    const audit = (outcome: 'allowed' | 'blocked' | 'cancelled') =>
+      recordRollbackAudit({
+        path,
+        at: selected.at,
+        host: hostLabel,
+        profileId,
+        hostKey: profileId,
+        outcome
+      })
+    if (beforeWrite && !(await beforeWrite())) {
+      audit(level === 'readonly' ? 'blocked' : 'cancelled')
+      return
+    }
     setBusy(true)
     try {
       if (current != null) {
         await window.aiss.snapshots.put({ profileId, path, content: current, source: 'rollback', isText: true })
       }
       await window.aiss.sftp.writeText(sessionId, path, content)
+      audit('allowed')
       showToast(tg('w3.rolledBack', { time: clock(selected.at) }))
       const check = suggestCheckCommand(path)
       if (check) showToast(check)

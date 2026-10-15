@@ -101,6 +101,7 @@
 .m2-preview-line { font-size: 12px; }
 .w1-banner, .w1-create-hint, .w2-vars, .w4-seg { white-space: nowrap; }
 .w1-banner { display: flex; align-items: center; gap: 8px; min-height: 32px; overflow: hidden; text-overflow: ellipsis; }
+.w1-create.is-highlight { outline: 2px solid var(--accent, #3b82f6); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3b82f6) 35%, transparent); }
 .w3-history, .w4-post { min-width: 0; }
 .w4-split, .w3-split { display: grid; grid-template-columns: 280px 1fr; min-height: 0; gap: 8px; }
 .w4-preview { overflow: auto; white-space: pre-wrap; margin: 0; }

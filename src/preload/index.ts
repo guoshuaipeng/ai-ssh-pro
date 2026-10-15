@@ -1,3 +1,4 @@
+import { snapshotKeep, snapshotsEnabled } from '../shared/snapshots'
 import type { ResourceSnapshot } from '../shared/resource-monitor'
 import type { DfRow, ExecOutcome, KillSignal, ListenPort, LogRequest, ProcInfo, ServiceAction, ServiceInfo } from '../shared/server-tools'
 import type { BackupExportResult, BackupImportResult } from '../shared/ipc'
@@ -370,8 +371,9 @@ const api = {
   snapshots: {
     list: (query?: { profileId?: string; path?: string }): Promise<Array<Record<string, unknown>>> => ipcRenderer.invoke('snapshots:list', query),
     stats: (): Promise<{ files: number; bytes: number; count: number }> => ipcRenderer.invoke('snapshots:stats'),
-    put: (input: { profileId: string; path: string; content: string; source: string; stale?: boolean; isText?: boolean }): Promise<{ added: boolean; skipped: string | null; count: number }> =>
-      ipcRenderer.invoke('snapshots:put', input),
+    put: (input: { profileId: string; path: string; content: string; source: string; stale?: boolean; isText?: boolean; keep?: number; auto?: boolean }): Promise<{ added: boolean; skipped: string | null; count: number }> =>
+      ipcRenderer.invoke('snapshots:put', { ...input, keep: input.keep ?? snapshotKeep(), auto: input.auto ?? snapshotsEnabled() }),
+    setPrefs: (prefs: { auto?: boolean; keep?: number }): Promise<{ auto: boolean; keep: number }> => ipcRenderer.invoke('snapshots:setPrefs', prefs),
     read: (id: string): Promise<{ ok: boolean; content?: string; reason?: string }> => ipcRenderer.invoke('snapshots:read', id),
     pin: (id: string, pinned: boolean): Promise<unknown> => ipcRenderer.invoke('snapshots:pin', id, pinned),
     delete: (id: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('snapshots:delete', id),

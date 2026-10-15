@@ -297,7 +297,8 @@ export type AissPreload = {
   snapshots: {
     list: (query?: { profileId?: string; path?: string }) => Promise<Array<Record<string, unknown>>>
     stats: () => Promise<{ files: number; bytes: number; count: number }>
-    put: (input: { profileId: string; path: string; content: string; source: string; stale?: boolean; isText?: boolean }) => Promise<{ added: boolean; skipped: string | null; count: number }>
+    put: (input: { profileId: string; path: string; content: string; source: string; stale?: boolean; isText?: boolean; keep?: number; auto?: boolean }) => Promise<{ added: boolean; skipped: string | null; count: number }>
+    setPrefs: (prefs: { auto?: boolean; keep?: number }) => Promise<{ auto: boolean; keep: number }>
     read: (id: string) => Promise<{ ok: boolean; content?: string; reason?: string }>
     pin: (id: string, pinned: boolean) => Promise<unknown>
     delete: (id: string) => Promise<{ ok: boolean }>

@@ -91,6 +91,7 @@ export default function AlertWorkbenchTab({
   const [pane, setPane] = useState<'detail' | 'timeline'>('detail')
   const [showConcurrent, setShowConcurrent] = useState(true)
   const [note, setNote] = useState('')
+  const [highlightCreate, setHighlightCreate] = useState(false)
 
   useEffect(() => {
     if (initialFilter) setFilter(initialFilter)
@@ -129,15 +130,24 @@ export default function AlertWorkbenchTab({
     setExplain({ id: Date.now(), sessionId: alert.hostKey, text, host: alert.hostTitle, kind: 'explainAlert', alertId: alert.id })
   }
 
+  const requestFix = (alert: FiredAlert) => {
+    setSelectedId(alert.id)
+    setNarrowDetail(true)
+    const fixes = fixesFor(`explainAlert:${alert.id}`)
+    if (fixes && fixes.length > 0) {
+      setHighlightCreate(false)
+      onCreatePlaybook?.(alert, fixes)
+      return
+    }
+    if (fixes) return
+    setHighlightCreate(true)
+    void explainThis(alert)
+  }
+
   useEffect(() => {
     const onFix = () => {
       if (!selected) return
-      const fixes = fixesFor(`explainAlert:${selected.id}`)
-      if (!fixes) {
-        void explainThis(selected)
-        return
-      }
-      onCreatePlaybook?.(selected, fixes)
+      requestFix(selected)
     }
     const onExport = () => {
       if (selected) onExportPostmortem?.(selected)
@@ -321,6 +331,7 @@ export default function AlertWorkbenchTab({
                   setLocateError(null)
                 }}
                 onOpen={() => doLocate(a)}
+                onFixPlaybook={() => requestFix(a)}
               />
             ))
           )}
@@ -463,6 +474,7 @@ export default function AlertWorkbenchTab({
                       onRun(selected, command)
                     }}
                     onCreatePlaybook={(fixes) => onCreatePlaybook?.(selected, fixes)}
+                    highlightCreate={highlightCreate}
                   />
                 ) : null}
                 {explainAlertId === selected.id && aiConfigured ? (

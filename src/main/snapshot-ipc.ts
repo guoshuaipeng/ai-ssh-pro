@@ -4,12 +4,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { decryptSecret, encryptSecret } from './secret-crypto'
 import {
+  SNAPSHOT_DEFAULT_KEEP,
   SNAP_INDEX_KEY,
   loadSnapshots,
+  normalizeSnapPath,
+  normalizeSnapshotKeep,
   recordSnapshot,
   rollbackAllowed,
   saveSnapshots,
-  snapshotKeep,
+  shouldRecordSnapshot,
   snapshotStats,
   type SnapSource,
   type Snapshot
@@ -37,6 +40,28 @@ function fileStore(): Store {
   }
 }
 
+type SnapPrefs = { auto: boolean; keep: number }
+
+function prefsFile(): string {
+  return join(root(), 'prefs.json')
+}
+
+function readPrefs(): SnapPrefs {
+  try {
+    if (!existsSync(prefsFile())) return { auto: true, keep: SNAPSHOT_DEFAULT_KEEP }
+    const parsed = JSON.parse(readFileSync(prefsFile(), 'utf8')) as Partial<SnapPrefs>
+    return { auto: parsed.auto !== false, keep: normalizeSnapshotKeep(parsed.keep) }
+  } catch {
+    return { auto: true, keep: SNAPSHOT_DEFAULT_KEEP }
+  }
+}
+
+function writePrefs(prefs: SnapPrefs): SnapPrefs {
+  const next = { auto: prefs.auto !== false, keep: normalizeSnapshotKeep(prefs.keep) }
+  writeFileSync(prefsFile(), JSON.stringify(next), 'utf8')
+  return next
+}
+
 function publicRow(row: Snapshot) {
   const { ciphertext: _c, ...rest } = row
   return rest
@@ -56,18 +81,34 @@ export function registerSnapshotIpc(): void {
     'snapshots:put',
     (
       _e,
-      input: { profileId: string; path: string; content: string; source: SnapSource; stale?: boolean; isText?: boolean }
+      input: { profileId: string; path: string; content: string; source: SnapSource; stale?: boolean; isText?: boolean; keep?: number; auto?: boolean }
     ) => {
+      const prefs = readPrefs()
+      const auto = typeof input.auto === 'boolean' ? input.auto : prefs.auto
+      const keep = typeof input.keep === 'number' ? normalizeSnapshotKeep(input.keep) : prefs.keep
+      if (typeof input.auto === 'boolean' || typeof input.keep === 'number') writePrefs({ auto, keep })
       const current = loadSnapshots(store())
+      const path = normalizeSnapPath(input.path)
+      const countOf = (list: Snapshot[]) => list.filter((s) => s.profileId === input.profileId && s.path === path).length
+      if (!shouldRecordSnapshot(input.source, auto)) {
+        return { added: false, skipped: 'disabled', count: countOf(current) }
+      }
       const result = recordSnapshot(current, {
         ...input,
         encrypt: encryptSecret,
-        keep: snapshotKeep()
+        keep
       })
       saveSnapshots(result.list, store())
-      return { added: result.added, skipped: result.skipped ?? null, count: result.list.filter((s) => s.profileId === input.profileId && s.path === input.path).length }
+      return { added: result.added, skipped: result.skipped ?? null, count: countOf(result.list) }
     }
   )
+  ipcMain.handle('snapshots:setPrefs', (_e, input?: { auto?: boolean; keep?: number }) => {
+    const prev = readPrefs()
+    return writePrefs({
+      auto: typeof input?.auto === 'boolean' ? input.auto : prev.auto,
+      keep: input?.keep != null ? normalizeSnapshotKeep(input.keep) : prev.keep
+    })
+  })
   ipcMain.handle('snapshots:read', (_e, id: string) => {
     const row = loadSnapshots(store()).find((s) => s.id === id)
     if (!row) return { ok: false, reason: 'missing' }

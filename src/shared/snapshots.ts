@@ -1,4 +1,6 @@
 /** W3: local snapshots of remote text before an overwrite. Content is stored only as ciphertext. */
+import { appendAudit, type AuditOutcome } from './audit-log'
+import { appendTimeline } from './timeline'
 
 export const SNAPSHOT_MAX_BYTES = 2 * 1024 * 1024
 export const SNAPSHOT_DEFAULT_KEEP = 10
@@ -37,10 +39,20 @@ export function setSnapshotsEnabled(on: boolean, store: Store = globalThis.local
   store.setItem(SNAP_AUTO_KEY, on ? '1' : '0')
 }
 
+export function normalizeSnapshotKeep(value: unknown): number {
+  const n = Number(value)
+  return (SNAPSHOT_KEEP_OPTIONS as readonly number[]).includes(n) ? n : SNAPSHOT_DEFAULT_KEEP
+}
+
+/** New overwrites follow the auto setting. An explicit rollback still keeps the pre-image. */
+export function shouldRecordSnapshot(source: SnapSource, auto: boolean): boolean {
+  if (source === 'rollback') return true
+  return auto
+}
+
 export function snapshotKeep(store: Pick<Storage, 'getItem'> = globalThis.localStorage): number {
   try {
-    const n = Number(store.getItem(SNAP_KEEP_KEY))
-    return (SNAPSHOT_KEEP_OPTIONS as readonly number[]).includes(n) ? n : SNAPSHOT_DEFAULT_KEEP
+    return normalizeSnapshotKeep(store.getItem(SNAP_KEEP_KEY))
   } catch {
     return SNAPSHOT_DEFAULT_KEEP
   }
@@ -221,4 +233,60 @@ export function diffCounts(before: string, after: string): { add: number; del: n
 export function snapshotStats(list: Snapshot[]): { files: number; bytes: number; count: number } {
   const files = new Set(list.map((s) => snapshotFileKey(s.profileId, s.path))).size
   return { files, bytes: list.reduce((n, s) => n + (s.bytes || 0), 0), count: list.length }
+}
+
+/** Same clock the history tab shows on a version row. */
+export function rollbackClock(at: number, now = Date.now()): string {
+  const d = new Date(at)
+  const p = (n: number) => String(n).padStart(2, '0')
+  const same = new Date(now).toDateString() === d.toDateString()
+  return same
+    ? `${p(d.getHours())}:${p(d.getMinutes())}`
+    : `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+export function rollbackAuditDetail(path: string, at: number, now = Date.now()): string {
+  return `rollback ${normalizeSnapPath(path)} to ${rollbackClock(at, now)}`
+}
+
+/** S1 file audit for a snapshot rollback. Plain SFTP allows are not audited by the write guard. */
+export function recordRollbackAudit(
+  opts: {
+    path: string
+    at: number
+    host: string
+    profileId?: string
+    hostKey: string
+    alertId?: string
+    outcome: AuditOutcome
+    now?: number
+  },
+  store: Store = globalThis.localStorage
+): void {
+  const now = opts.now ?? Date.now()
+  const detail = rollbackAuditDetail(opts.path, opts.at, now)
+  appendAudit(
+    {
+      type: 'file',
+      host: opts.host,
+      profileId: opts.profileId,
+      source: opts.outcome === 'allowed' ? 'user' : 'sftp',
+      outcome: opts.outcome,
+      detail,
+      alertId: opts.alertId
+    },
+    store,
+    now
+  )
+  appendTimeline(
+    {
+      alertId: opts.alertId || opts.hostKey,
+      kind: 'file.rollback',
+      hostKey: opts.hostKey,
+      summary: detail,
+      at: now
+    },
+    store,
+    now
+  )
 }

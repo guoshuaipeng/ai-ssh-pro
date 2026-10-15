@@ -10,7 +10,7 @@ import { hostSelectable } from '../src/shared/playbook'
 import { discoverVars, findAlertDraft, isStaleDraft, playbookFromFixes, rewritePlaceholders } from '../src/shared/playbook-draft'
 import { dryRunPlaybook, expandStepCommand } from '../src/shared/playbook-dry'
 import { buildPaletteEntries } from '../src/renderer/src/lib/palette'
-import { eligibleSnapshot, recordSnapshot, rollbackAllowed, rollbackNeedsHostName, snapshotStats, trimSnapshots, type Snapshot } from '../src/shared/snapshots'
+import { eligibleSnapshot, normalizeSnapshotKeep, recordRollbackAudit, recordSnapshot, rollbackAllowed, rollbackAuditDetail, rollbackNeedsHostName, shouldRecordSnapshot, snapshotStats, trimSnapshots, type Snapshot } from '../src/shared/snapshots'
 import { migrateSyncRecord, readSyncPassphrase } from '../src/shared/sync-passphrase'
 import { blockStripPx, clampBlockRatio } from '../src/shared/terminal-blocks'
 import { expandTemplate, shellQuote } from '../src/shared/template-vars'
@@ -114,6 +114,33 @@ const mem = () => {
   return { getItem: (k: string) => bag.get(k) ?? null, setItem: (k: string, v: string) => void bag.set(k, v) }
 }
 const store = mem()
+assert.equal(normalizeSnapshotKeep(20), 20)
+assert.equal(normalizeSnapshotKeep(7), 10)
+assert.equal(shouldRecordSnapshot('edit', false), false)
+assert.equal(shouldRecordSnapshot('rollback', false), true)
+const rolledAt = Date.UTC(2026, 9, 15, 2, 4)
+const rolledNow = rolledAt + 60_000
+const auditStore = mem()
+recordRollbackAudit(
+  { path: '/etc/nginx.conf', at: rolledAt, host: 'web01', profileId: 'p1', hostKey: 'p1', outcome: 'allowed', now: rolledNow },
+  auditStore
+)
+const fileAudit = loadAudit(auditStore)
+assert.equal(fileAudit.length, 1)
+assert.equal(fileAudit[0]!.type, 'file')
+assert.equal(fileAudit[0]!.source, 'user')
+assert.equal(fileAudit[0]!.outcome, 'allowed')
+assert.equal(fileAudit[0]!.detail, rollbackAuditDetail('/etc/nginx.conf', rolledAt, rolledNow))
+assert.match(fileAudit[0]!.detail, /^rollback \/etc\/nginx\.conf to /)
+assert.equal(eventsFor('p1', auditStore).some((e) => e.kind === 'file.rollback'), true)
+const blockedStore = mem()
+recordRollbackAudit(
+  { path: '/etc/nginx.conf', at: rolledAt, host: 'web01', profileId: 'p1', hostKey: 'p1', outcome: 'cancelled', now: rolledNow },
+  blockedStore
+)
+assert.equal(loadAudit(blockedStore)[0]!.type, 'file')
+assert.equal(loadAudit(blockedStore)[0]!.source, 'sftp')
+assert.equal(loadAudit(blockedStore)[0]!.outcome, 'cancelled')
 const alert: TimelineAlert = { id: 'al', hostKey: 'hk', hostTitle: 'web01', ruleId: 'cpu', value: 96, threshold: 90, at: 1_000, status: 'active', user: 'root' }
 const secrets = ['password=hunter2', '--password s3cret', "-p'hide'", '-p"hide"', 'Bearer abc.def', 'AKIA1234567890123456']
 const ev = appendTimeline({ alertId: 'al', at: 2_000, kind: 'note', hostKey: 'hk', summary: secrets.join(' ') }, store, 2_000)
@@ -168,6 +195,31 @@ assert.equal(KEYMAP.some((k) => k.id === 'fixPlaybook' && k.scope === 'alertWork
 assert.equal(matchKeymap({ key: 'Enter', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false }, false), undefined)
 assert.equal(matchKeymap({ key: 'Enter', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false }, false, ['alertWorkbench']), 'fixPlaybook')
 
+const history = read('src/renderer/src/components/FileHistoryTab.tsx')
+const rollbackFn = history.slice(history.indexOf('const rollback'), history.indexOf('const groups'))
+assert.ok(rollbackFn.includes('recordRollbackAudit'))
+assert.ok(rollbackFn.indexOf('sftp.writeText') < rollbackFn.indexOf("audit('allowed')"))
+assert.ok(rollbackFn.indexOf('beforeWrite()') < rollbackFn.indexOf("audit('allowed')"))
+assert.ok(rollbackFn.includes("level === 'readonly' ? 'blocked' : 'cancelled'"))
+const alertLine = read('src/renderer/src/components/AlertLine.tsx')
+assert.ok(alertLine.includes('data-testid="w1-row-more"') && alertLine.includes("t('w1.create')") && alertLine.includes('onContextMenu'))
+const workbench = read('src/renderer/src/components/AlertWorkbenchTab.tsx')
+assert.ok(workbench.includes('onFixPlaybook') && workbench.includes('setHighlightCreate(true)') && workbench.includes('highlightCreate={highlightCreate}'))
+assert.ok(workbench.includes('if (fixes) return'))
+assert.ok(workbench.indexOf('if (fixes && fixes.length > 0)') < workbench.indexOf('setHighlightCreate(true)'))
+const card = read('src/renderer/src/components/AiAssistCard.tsx')
+assert.ok(card.includes('highlightCreate') && card.includes('is-highlight'))
+const snapIpc = read('src/main/snapshot-ipc.ts')
+assert.ok(!snapIpc.includes('snapshotKeep('))
+assert.ok(snapIpc.includes('prefs.json') && snapIpc.includes('input.keep') && snapIpc.includes('shouldRecordSnapshot'))
+const preload = read('src/preload/index.ts')
+assert.ok(preload.includes('snapshotKeep()') && preload.includes('snapshotsEnabled()') && preload.includes("'snapshots:setPrefs'"))
+const labels = read('src/shared/tab-label.ts')
+assert.ok(labels.includes("settings: 'settings.title'") && !labels.includes('menu.settings'))
+const toolbar = read('src/renderer/src/components/AppToolbar.tsx')
+assert.ok(!/[📊🧰📁🔍☰]/.test(toolbar))
+assert.ok(toolbar.includes('name="menu"') && toolbar.includes('name="search"') && toolbar.includes("icon: 'activity'"))
+
 function emojiCount(extra = ''): number {
   const re = /\p{Extended_Pictographic}/gu
   let n = extra.match(re)?.length ?? 0
@@ -181,7 +233,7 @@ function emojiCount(extra = ''): number {
   walk('src/renderer/src')
   return n
 }
-assert.equal(emojiCount(), 51)
-assert.ok(emojiCount('▶') > 51)
+assert.equal(emojiCount(), 46)
+assert.ok(emojiCount('▶') > 46)
 
 console.log('test-v042 ok')
