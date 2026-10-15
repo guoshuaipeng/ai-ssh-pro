@@ -150,7 +150,10 @@ import {
   importedConnectIds,
   loadPrefFlag,
   pickValueMoment,
-  savePrefFlag
+  savePrefFlag,
+  shouldShowImportMoment,
+  valueMomentBlockedByProduct,
+  valueMomentDismissWrites
 } from '@shared/value-moment'
 import ValueMomentBar from './components/ValueMomentBar'
 import { recentIdentity } from '@shared/recent-sidebar'
@@ -4170,7 +4173,7 @@ export default function App() {
         policy,
         conflictIds: importPreview.rows.flatMap((row) => (row.conflict && row.existingId ? [row.existingId] : []))
       })
-      if (count > 0 && !loadPrefFlag(IMPORT_HINT_OFF_KEY)) setImportMoment({ count, ids })
+      if (shouldShowImportMoment({ count, off: loadPrefFlag(IMPORT_HINT_OFF_KEY) })) setImportMoment({ count, ids })
       setSideInfo([tg('n2.added', { n: applied.added }), tg('n2.updated', { n: applied.updated }), tg('n2.skipped', { n: applied.skipped })].join(' · '))
       setImportPreview(null)
       setTabs((prev) => prev.filter((t) => t.view !== 'import-preview'))
@@ -5184,7 +5187,7 @@ export default function App() {
     saveWelcomeCompleted(true)
     setWelcomeCompleted(true)
     setWelcomeReplay(false)
-    if (seen && !importMoment) showToast(tg('pf1.ready'), { ms: 1500 })
+    if (seen && !importMoment && !firstConnectPending) showToast(tg('pf1.ready'), { ms: 1500 })
     if (
       shouldOfferTourAfterWelcome({
         welcomeWasVisible: seen,
@@ -5195,7 +5198,7 @@ export default function App() {
     ) {
       setTourQueued(true)
     }
-  }, [sessionsReady, profiles.length, welcomeCompleted, welcomeReplay, importMoment])
+  }, [sessionsReady, profiles.length, welcomeCompleted, welcomeReplay, importMoment, firstConnectPending])
 
   const dismissWelcome = useCallback(() => {
     saveWelcomeDismissed(true)
@@ -5690,7 +5693,7 @@ export default function App() {
   const valueKind = pickValueMoment({
     importCount: importMoment?.count ?? null,
     firstConnect: firstConnectPending,
-    blocked: product === 'welcome' || product === 'releaseNotes' || product === 'quickStart' || product === 'tour' || product === 'systemUpdate'
+    blocked: valueMomentBlockedByProduct(product)
   })
   onFirstConnectRef.current = () => {
     let versionKnown = true
@@ -5810,30 +5813,26 @@ export default function App() {
             if (id) setSelectedProfileId(id)
           }}
           onOpenHome={() => {
-            savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
+            for (const write of valueMomentDismissWrites('firstConnect', 'later')) savePrefFlag(write.key, write.on)
             setFirstConnectPending(false)
             openHome()
           }}
           onOpenSftp={() => {
-            savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
+            for (const write of valueMomentDismissWrites('firstConnect', 'later')) savePrefFlag(write.key, write.on)
             setFirstConnectPending(false)
             handleTitlebarMenuAction('sftp')
           }}
           onNever={() => {
-            if (valueKind === 'import') savePrefFlag(IMPORT_HINT_OFF_KEY, true)
-            else {
-              savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
-              savePrefFlag(FIRST_CONNECT_OFF_KEY, true)
-            }
+            if (!valueKind) return
+            for (const write of valueMomentDismissWrites(valueKind, 'never')) savePrefFlag(write.key, write.on)
             if (valueKind === 'import') setImportMoment(null)
             else setFirstConnectPending(false)
           }}
           onDismiss={() => {
+            if (!valueKind) return
+            for (const write of valueMomentDismissWrites(valueKind, 'later')) savePrefFlag(write.key, write.on)
             if (valueKind === 'import') setImportMoment(null)
-            else {
-              savePrefFlag(FIRST_CONNECT_SEEN_KEY, true)
-              setFirstConnectPending(false)
-            }
+            else setFirstConnectPending(false)
           }}
         />
       ) : null}
