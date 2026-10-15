@@ -1,3 +1,5 @@
+import type { RightPaneId } from '@shared/right-panel'
+
 /** 三栏布局偏好（侧栏 | 终端 | AI），持久化到 localStorage */
 
 export type LayoutPrefs = {
@@ -6,6 +8,8 @@ export type LayoutPrefs = {
   showAi: boolean
   sidebarWidth: number
   aiWidth: number
+  /** PNG-4: which right-panel tab was open. */
+  rightPane: RightPaneId
 }
 
 const KEY = 'aiss-layout-v1'
@@ -19,7 +23,12 @@ export const LAYOUT_DEFAULTS: LayoutPrefs = {
   showMain: true,
   showAi: false,
   sidebarWidth: 240,
-  aiWidth: 320
+  aiWidth: 320,
+  rightPane: 'ai'
+}
+
+function cleanRightPane(value: unknown): RightPaneId {
+  return value === 'snippets' ? 'snippets' : 'ai'
 }
 
 export function clampSidebarWidth(n: number): number {
@@ -30,28 +39,29 @@ export function clampAiWidth(n: number): number {
   return Math.min(AI_MAX, Math.max(AI_MIN, Math.round(n)))
 }
 
-export function loadLayoutPrefs(): LayoutPrefs {
+export function loadLayoutPrefs(store: Pick<Storage, 'getItem'> = globalThis.localStorage): LayoutPrefs {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = store.getItem(KEY)
     if (!raw) return { ...LAYOUT_DEFAULTS }
     const o = JSON.parse(raw) as Partial<LayoutPrefs>
     return {
       showSidebar: o.showSidebar !== false,
       showMain: o.showMain !== false,
-      showAi: o.showAi !== false,
+      showAi: o.showAi === true,
       sidebarWidth: clampSidebarWidth(
         typeof o.sidebarWidth === 'number' ? o.sidebarWidth : LAYOUT_DEFAULTS.sidebarWidth
       ),
-      aiWidth: clampAiWidth(typeof o.aiWidth === 'number' ? o.aiWidth : LAYOUT_DEFAULTS.aiWidth)
+      aiWidth: clampAiWidth(typeof o.aiWidth === 'number' ? o.aiWidth : LAYOUT_DEFAULTS.aiWidth),
+      rightPane: cleanRightPane(o.rightPane)
     }
   } catch {
     return { ...LAYOUT_DEFAULTS }
   }
 }
 
-export function saveLayoutPrefs(prefs: LayoutPrefs): void {
+export function saveLayoutPrefs(prefs: LayoutPrefs, store: Pick<Storage, 'setItem'> = globalThis.localStorage): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(prefs))
+    store.setItem(KEY, JSON.stringify(prefs))
   } catch {
     /* ignore */
   }

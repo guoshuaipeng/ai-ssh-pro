@@ -7,6 +7,7 @@ import { MENUS, type TitlebarMenuAction } from './TitlebarMenus'
 import { loadSyncProfiles } from './SftpPanel'
 import { buildPaletteEntries, type PaletteEntry } from '../lib/palette'
 import { layoutPalette } from '@shared/palette-rank'
+import { paletteKeyStep } from '@shared/palette-nav'
 import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
@@ -117,17 +118,13 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              setSel((s) => Math.min(filtered.length - 1, s + 1))
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              setSel((s) => Math.max(0, s - 1))
-            } else if (e.key === 'Enter') {
-              e.preventDefault()
-              run(filtered[sel])
-            } else if (e.key === 'Escape') {
-              e.preventDefault()
+            const step = paletteKeyStep(e.key, sel, filtered.length)
+            if (step.type === 'noop') return
+            e.preventDefault()
+            if (step.type === 'move') setSel(step.index)
+            else if (step.type === 'run') run(filtered[sel])
+            else if (step.type === 'clear') setQ('')
+            else if (step.type === 'close') {
               e.stopPropagation()
               onClose()
             }

@@ -82,7 +82,7 @@
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-menu);
   max-height: 220px;
   overflow: auto;
 }
@@ -347,7 +347,7 @@
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  box-shadow: var(--shadow-menu);
 }
 
 .titlebar-locale-btn {
@@ -395,7 +395,7 @@
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-menu);
   display: flex;
   flex-direction: column;
 }
@@ -637,7 +637,7 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px 16px 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-modal);
 }
 .tour-skip {
   position: absolute;
@@ -752,7 +752,7 @@
   padding: 3px 12px;
   font-size: 12px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-sm);
   animation: ai-hint-in 0.18s ease-out;
 }
 .ai-explain-hint:hover { background: var(--accent); color: #fff; }
@@ -864,13 +864,7 @@
 .conn-form-footer button { white-space: nowrap; }
 
 
-/* UX-14 tool tab accents */
-.tab.tab-kind-monitor { box-shadow: inset 3px 0 0 var(--ok); }
-.tab.tab-kind-toolbox { box-shadow: inset 3px 0 0 var(--warn); }
-.tab.tab-kind-sftp { box-shadow: inset 3px 0 0 var(--accent); }
-.tab.tab-kind-docker { box-shadow: inset 3px 0 0 #06b6d4; }
-.tab.tab-kind-forward { box-shadow: inset 3px 0 0 #a855f7; }
-.tab.tab-kind-batch { box-shadow: inset 3px 0 0 #eab308; }
+/* UI-N3: tab kinds no longer paint a rainbow left strip. */
 .tool-tab-panel {
   height: 100%;
   min-height: 0;
@@ -988,7 +982,7 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
   position: absolute; right: 16px; bottom: 16px; z-index: 5;
   width: 36px; height: 36px; border-radius: 999px;
   border: 1px solid var(--border); background: var(--surface-1);
-  box-shadow: 0 4px 16px rgba(0,0,0,.35); cursor: pointer; font-size: 16px;
+  box-shadow: var(--shadow-sm); cursor: pointer; font-size: 16px;
 }
 .session-command-collapse { margin-right: 4px; }
 .session-command-more { position: relative; }
@@ -1106,7 +1100,7 @@ button.primary.danger, .primary.danger {
 .titlebar-compact-4 .titlebar-search-btn .tb-label,
 .titlebar-compact-4 .titlebar-search-btn kbd { display: none; }
 .titlebar-hamburger-wrap { position: relative; }
-.titlebar-hamburger-menu { position: absolute; top: 100%; left: 0; z-index: 50; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px; min-width: 220px; max-width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.titlebar-hamburger-menu { position: absolute; top: 100%; left: 0; z-index: 50; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px; min-width: 220px; max-width: 360px; box-shadow: var(--shadow-menu); }
 .titlebar-compact-4 .titlebar-menus { display: none; }
 
 /* D1 dual-pane SFTP */
@@ -1243,7 +1237,7 @@ button.primary.danger, .primary.danger {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-menu);
   padding: 8px 10px;
   pointer-events: auto;
 }
@@ -1295,11 +1289,6 @@ button.primary.danger, .primary.danger {
 .update-source { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
 
 /* M1 L7 / L2 / L4 — center tabs, no wrap at 1366 */
-.tab.tab-kind-home { box-shadow: inset 3px 0 0 var(--accent); }
-.tab.tab-kind-alert-workbench { box-shadow: inset 3px 0 0 var(--danger); }
-.tab.tab-kind-audit { box-shadow: inset 3px 0 0 #64748b; }
-.tab.tab-kind-file-history { box-shadow: inset 3px 0 0 var(--muted); }
-.tab.tab-kind-postmortem { box-shadow: inset 3px 0 0 var(--ok); }
 .tab.tab-guard-prod { border-top-color: #ef4444; }
 .tab.tab-guard-ro { border-top-color: #f97316; }
 
@@ -1315,6 +1304,7 @@ button.primary.danger, .primary.danger {
 .l7-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 280px; gap: 12px; padding: 12px; min-height: 0; flex: 1; overflow: hidden; }
 .l7-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .l7-col-head, .l7-card-top, .l7-filters, .l2-filters, .l2-actions, .l2-status-row, .l4-row, .l4-links { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+.l7-icon-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; white-space: nowrap; }
 .l7-col-head strong, .l7-rail strong { white-space: nowrap; }
 .l7-cards { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
 .l7-card { position: relative; width: 200px; height: 110px; box-sizing: border-box; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); cursor: pointer; overflow: hidden; }
@@ -1489,7 +1479,7 @@ button.primary.danger, .primary.danger {
 .s2b-table { width: 100%; table-layout: fixed; }
 .s2b-table th, .s2b-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ux60-layer { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; padding: 16px; pointer-events: none; }
-.ux60-card { pointer-events: auto; width: min(480px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+.ux60-card { pointer-events: auto; width: min(480px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-modal); }
 .ux60-head { justify-content: space-between; }
 .ux60-actions button { white-space: nowrap; }
 .w5-warn { color: #eab308; }

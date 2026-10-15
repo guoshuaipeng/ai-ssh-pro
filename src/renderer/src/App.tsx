@@ -67,6 +67,7 @@ import {
 import { friendlyError, friendlyErrorMessage, stripIpcPrefix } from './lib/friendly-error'
 import { noticeHost, noticeKind, type NoticeKind } from '@shared/product-error'
 import ErrorNotice from './components/ErrorNotice'
+import ConnectTrouble from './components/ConnectTrouble'
 import { placeMenu } from '@shared/menu-place'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
@@ -150,7 +151,9 @@ import ValueMomentBar from './components/ValueMomentBar'
 import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
-import { statusKind, type SyncPhase } from '@shared/sync-vault'
+import { type SyncPhase } from '@shared/sync-vault'
+import { statusBarSlots } from '@shared/status-bar'
+import { showConnectionTrouble } from '@shared/connect-trouble'
 import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
 import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
 import { connectOptsFromProfile } from './lib/connect-opts'
@@ -164,7 +167,8 @@ import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from 
 import { assessCommandRisk } from '@shared/command-risk'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
-import { isExplicitEmptyWorkspace, planRestore, RESTORE_BIND_MS, snapshotWorkspace, workspaceRestoreRows } from '@shared/session-restore'
+import { RESTORE_BIND_MS, snapshotWorkspace } from '@shared/session-restore'
+import { planColdStart, restoreWatchIds } from '@shared/cold-start'
 import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
 import SettingsPanel from './components/SettingsPanel'
 import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel, profileDisplayLabel } from '@shared/demo-host'
@@ -369,6 +373,8 @@ type Tab = {
   openSeq?: number
   /** L2d preset when the maintenance tab opens */
   maintHostKeys?: string[]
+  /** PNG-5: raw connect failure, used for the troubleshooting checklist. */
+  failRaw?: string
 }
 
 const PLACEHOLDER_CONNECT: SshConnectOptions = {
@@ -557,14 +563,17 @@ export default function App() {
   const toggleAi = useCallback(() => {
     updateLayout((p) => withPaneToggle(p, 'ai', !p.showAi))
   }, [updateLayout])
-  const [rightPane, setRightPane] = useState<RightPaneId>('ai')
+  const [rightPane, setRightPane] = useState<RightPaneId>(() => loadLayoutPrefs().rightPane)
   const [snipLaunch, setSnipLaunch] = useState<{ n: number; focusSearch?: boolean; openForm?: boolean; seed?: string }>({ n: 0 })
   const openRightPanel = useCallback((pane: RightPaneId, opts?: { focusSearch?: boolean; openForm?: boolean; seed?: string }) => {
     setRightPane(pane)
     if (pane === 'snippets') {
       setSnipLaunch((s) => ({ n: s.n + 1, focusSearch: opts?.focusSearch, openForm: opts?.openForm, seed: opts?.seed }))
     }
-    updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+    updateLayout((p) => {
+      const base = p.showAi ? p : withPaneToggle(p, 'ai', true)
+      return { ...base, rightPane: pane }
+    })
   }, [updateLayout])
   const openRightPanelRef = useRef(openRightPanel)
   openRightPanelRef.current = openRightPanel
@@ -579,6 +588,7 @@ export default function App() {
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
+  const [errorRaw, setErrorRaw] = useState<string | null>(null)
   const [errorKind, setErrorKind] = useState<NoticeKind>('generic')
   const failedProfileIdRef = useRef<string | null>(null)
   const [updateChecking, setUpdateChecking] = useState(false)
@@ -589,6 +599,7 @@ export default function App() {
     const kind = forced ?? noticeKind(blob)
     const detail = stripIpcPrefix(fe.detail || (raw instanceof Error ? raw.message : String(raw ?? '')))
     setErrorKind(kind)
+    setErrorRaw(raw instanceof Error ? raw.message : String(raw ?? ''))
     setErrorDetail(detail && detail !== fe.message ? detail : null)
     if (kind === 'unreachable') {
       const host = noticeHost(blob)
@@ -1064,7 +1075,7 @@ export default function App() {
         }
         setTabs((prev) =>
           prev.map((t) =>
-            t.sessionId === st.sessionId ? { ...t, status: 'disconnected' as const } : t
+            t.sessionId === st.sessionId ? { ...t, status: 'disconnected' as const, failRaw: st.message || 'disconnected' } : t
           )
         )
         setRecordingSessionId((cur) => (cur === st.sessionId ? null : cur))
@@ -1182,7 +1193,8 @@ export default function App() {
                   title: nextTitle,
                   connectOpts,
                   status: 'connected',
-                  kind: extra?.kind ?? meta.kind ?? 'ssh'
+                  kind: extra?.kind ?? meta.kind ?? 'ssh',
+                  failRaw: undefined
                 }
               : t
           )
@@ -1224,8 +1236,9 @@ export default function App() {
           setError(shown)
         } else noteFailure(raw)
         lastConnectErrorRef.current = shown
+        setErrorRaw(raw)
         setTabs((prev) =>
-          prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected' } : t))
+          prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected', failRaw: raw } : t))
         )
         return null
       } finally {
@@ -1383,6 +1396,7 @@ export default function App() {
                     title: t.customTitle ?? meta.label ?? t.title,
                     status: 'connected',
                     kind: 'local',
+                    failRaw: undefined,
                     connectOpts: {
                       ...t.connectOpts,
                       termCols: meta.termCols,
@@ -1407,6 +1421,7 @@ export default function App() {
                   sessionId,
                   title: t.customTitle ?? meta.label ?? t.title,
                   status: 'connected',
+                  failRaw: undefined,
                   connectOpts: {
                     ...t.connectOpts,
                     termCols: meta.termCols,
@@ -1429,7 +1444,9 @@ export default function App() {
           : friendlyErrorMessage(raw)
         setHopProgress(null)
         setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: tab.profileId } : null)
+        setErrorRaw(raw)
         setError(shown)
+        setTabs((prev) => prev.map((t) => (t.tabId === tabId ? { ...t, failRaw: raw } : t)))
         return null
       } finally {
         setReconnectingTabId(null)
@@ -3172,7 +3189,8 @@ export default function App() {
                   sessionId,
                   title: meta.label ?? title,
                   status: 'connected' as const,
-                  kind: 'ssh' as const
+                  kind: 'ssh' as const,
+                  failRaw: undefined
                 }
               : t
           )
@@ -3180,8 +3198,9 @@ export default function App() {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         setError(msg)
+        setErrorRaw(msg)
         setTabs((prev) =>
-          prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected' as const } : t))
+          prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected' as const, failRaw: msg } : t))
         )
       }
     },
@@ -3307,28 +3326,25 @@ export default function App() {
   useEffect(() => {
     if (!sessionsReady || bootedRef.current) return
     bootedRef.current = true
-    const mode = loadStartupMode()
-    if (mode === 'blank') return
-    if (mode !== 'last') {
+    // planColdStart applies workspaceRestoreRows, isExplicitEmptyWorkspace, and planRestore (PNG-4).
+    const plan = planColdStart({
+      mode: loadStartupMode(),
+      saved: loadLastWorkspace(),
+      knownProfileIds: new Set(profilesRef.current.map((p) => p.id)),
+      titleFor: (id) => profilesRef.current.find((p) => p.id === id)?.label || id
+    })
+    if (plan.kind === 'blank') return
+    if (plan.skipped) showToast(tg('restore.skipped', { n: plan.skipped }))
+    if (plan.kind === 'home') {
+      if (plan.empty) showToast(tg('restore.emptyWorkspace'))
       openHomeRef.current()
       return
     }
-    const saved = loadLastWorkspace()
-    const known = new Set(profilesRef.current.map((p) => p.id))
-    const source = workspaceRestoreRows(saved, (id) => profilesRef.current.find((p) => p.id === id)?.label || id)
-    const planned = planRestore(source, known)
-    if (planned.skipped) showToast(tg('restore.skipped', { n: planned.skipped }))
-    if (isExplicitEmptyWorkspace(saved)) showToast(tg('restore.emptyWorkspace'))
-    if (!planned.keep.length) {
-      openHomeRef.current()
-      return
-    }
-    const next: Tab[] = []
-    planned.keep.forEach((row, index) => {
+    const next: Tab[] = plan.tabs.map((row) => {
       const tabId = uuid()
       const profile = row.profileId ? profilesRef.current.find((p) => p.id === row.profileId) : undefined
       const needsSession = row.kind === 'terminal' || row.kind === 'monitor' || row.kind === 'toolbox' || row.kind === 'sftp'
-      next.push({
+      return {
         tabId,
         sessionId: '',
         title: row.title,
@@ -3342,11 +3358,10 @@ export default function App() {
         settingsSection: isSettingsSection(row.settingsSection) ? row.settingsSection : undefined,
         playbookId: row.playbookId,
         cold: needsSession
-      })
+      } satisfies Tab
     })
-    const activeIndex = Math.max(0, planned.keep.findIndex((row) => row.active))
     setTabs(next)
-    setActiveTabId(next[activeIndex]!.tabId)
+    setActiveTabId(next[plan.activeIndex]!.tabId)
   }, [sessionsReady])
   const coldActiveId = tabs.find((t) => t.tabId === activeTabId && t.cold)?.tabId ?? null
   useEffect(() => {
@@ -3416,10 +3431,10 @@ export default function App() {
   const workspaceReady = useRef(false)
   useEffect(() => {
     const now = Date.now()
-    const watching = tabs.filter((t) => (t.view === 'monitor' || t.view === 'toolbox') && !t.boundSessionId && !t.restoreFailed)
-    const ids = new Set(watching.map((t) => t.tabId))
+    const watching = restoreWatchIds(tabs, activeTabId)
+    const ids = new Set(watching)
     for (const id of [...restoreArmedAt.current.keys()]) if (!ids.has(id)) restoreArmedAt.current.delete(id)
-    for (const t of watching) if (!restoreArmedAt.current.has(t.tabId)) restoreArmedAt.current.set(t.tabId, now)
+    for (const id of watching) if (!restoreArmedAt.current.has(id)) restoreArmedAt.current.set(id, now)
     const timer = window.setInterval(() => {
       const due = [...restoreArmedAt.current.entries()].filter(([, at]) => Date.now() - at >= RESTORE_BIND_MS).map(([id]) => id)
       if (!due.length) return
@@ -3427,7 +3442,7 @@ export default function App() {
       setTabs((prev) => prev.map((t) => (due.includes(t.tabId) && !t.boundSessionId ? { ...t, cold: false, restoreFailed: true } : t)))
     }, 1000)
     return () => window.clearInterval(timer)
-  }, [tabs])
+  }, [tabs, activeTabId])
   useEffect(() => {
     if (!sessionsReady || !bootedRef.current) return
     if (!workspaceReady.current) {
@@ -5256,6 +5271,7 @@ export default function App() {
                   demoRenamed={profiles.some((p) => p.id === DEMO_PROFILE_ID && p.demoRenamed)}
                 />
                 {error && activeTab?.view !== 'connection' && (
+                  <>
                   <ErrorNotice
                     message={error}
                     detail={errorKind === 'unreachable' ? [tg('pf5.sshWhy'), errorDetail].filter(Boolean).join('\n') : errorDetail}
@@ -5308,6 +5324,8 @@ export default function App() {
                       </>
                     }
                   />
+                  {errorRaw && showConnectionTrouble(errorKind, errorRaw) ? <ConnectTrouble raw={errorRaw} /> : null}
+                  </>
                 )}
 
                 {sideInfo && (
@@ -5856,7 +5874,7 @@ export default function App() {
 
           {activeIsSession && activeTab?.status === 'disconnected' && (
             <div className="session-disconnect-banner" role="status">
-              <span>{tr('banner.disconnected')}</span>
+              <ConnectTrouble raw={activeTab.failRaw || 'disconnected'} />
               {autoRetry?.tabId === activeTab.tabId ? (
                 <>
                   <span className="session-autoretry">
@@ -7047,29 +7065,23 @@ export default function App() {
           </details>
         </div>
       ) : null}
-      {syncMeta.enabled ? (
-        <button type="button" className="sync-status" data-testid="sync-status" onClick={() => openM2(syncMeta.phase === 'conflict' ? 'sync-conflicts' : 'sync-settings', tg('m2.cloudSync'))}>
-          <span className="sync-cloud" aria-hidden>
-            <svg width="16" height="16" viewBox="0 0 16 16">
-              <path fill="currentColor" d="M12.5 13H4.2A3.2 3.2 0 0 1 4 6.6 4 4 0 0 1 11.7 5.2 2.8 2.8 0 0 1 12.5 13z" />
-            </svg>
-          </span>
-          <span>
-            {statusKind(syncMeta.phase) === 'alert' ? (
-              <Icon name="triangle-alert" size={14} />
-            ) : statusKind(syncMeta.phase) === 'spin' ? (
-              <Icon name="refresh-cw" size={14} />
-            ) : statusKind(syncMeta.phase) === 'fail' ? (
-              <span aria-hidden>×</span>
-            ) : (
-              <Icon name="check" size={14} />
-            )}
-          </span>
-          <span>{tg(syncPhaseKey(syncMeta.phase))}</span>
-        </button>
-      ) : null}
-
-      <footer className="app-statusbar" data-testid="app-statusbar" />
+      <footer className="app-statusbar" data-testid="app-statusbar">
+        {statusBarSlots({ syncEnabled: syncMeta.enabled, phase: syncMeta.phase }).slots.map((slot) => (
+          <button
+            key={slot.id}
+            type="button"
+            className="statusbar-slot"
+            data-testid="sync-status"
+            title={tg(syncPhaseKey(slot.phase))}
+            onClick={() => openM2(syncMeta.phase === 'conflict' ? 'sync-conflicts' : 'sync-settings', tg('m2.cloudSync'))}
+          >
+            <span className="statusbar-glyph" aria-hidden>
+              {slot.glyph}
+            </span>
+            <span className="statusbar-label">{tg(syncPhaseKey(slot.phase))}</span>
+          </button>
+        ))}
+      </footer>
 
       <HostPicker
         open={Boolean(hostPicker)}

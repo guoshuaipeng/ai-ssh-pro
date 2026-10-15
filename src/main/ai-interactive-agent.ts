@@ -410,7 +410,11 @@ function scoreToolSnapshot(snapshot: string, lastCommand: string | null): ToolSc
 
 const assistantStepSchema = z
   .object({
-    description: z.string().describe('结论、步骤或原因；当 action 为 tool_call/command 时说明为何需要以及风险等级'),
+    description: z
+      .string()
+      .describe(
+        '结论、步骤或原因。多条列举必须使用真实换行分隔，例如 1) …\\n2) …\\n3) …。当 action 为 tool_call/command 时说明为何需要以及风险等级。不要用 Markdown 围栏。'
+      ),
     action: z.enum(['tool_call', 'command', 'end']).describe('下一步动作：tool_call/command/end'),
     completed: z.boolean().optional().describe('任务是否已完成；若 action=end 通常为 true'),
     toolName: z.string().optional().describe(
@@ -582,6 +586,10 @@ function buildCoreSystemPrompt(
     ...(ctx.memoryBlocks?.trim() ? [ctx.memoryBlocks.trim()] : []),
     '---',
     mt('你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。', "Output a single JSON object; no Markdown, no code fences, no text outside the JSON."),
+    mt(
+      'description 中的列举必须使用真实换行，例如 1) …\\n2) …\\n3) …。仍禁止 Markdown 围栏，禁止 JSON 以外的文字。',
+      'In description, separate list items with a real newline, for example 1) …\\n2) …\\n3) …. Still no Markdown fences and no text outside the JSON.'
+    ),
     mt('action（必填）：tool_call | command | end。', "action (required): tool_call | command | end."),
     mt('command 一律需要用户确认后才执行，包括 riskLevel=low，不会自动写入终端；get_terminal_snapshot 由系统自动执行。', "Every command, including riskLevel=low, runs only after user confirmation and is never written to the terminal automatically; get_terminal_snapshot is executed by the system automatically."),
     mt('可用 toolName：get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note。', "Available toolName: get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note."),

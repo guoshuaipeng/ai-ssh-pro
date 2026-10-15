@@ -11,6 +11,20 @@ function pushMerged(out: HighlightPart[], part: HighlightPart): void {
   else out.push({ kind: part.kind, text: part.text })
 }
 
+/**
+ * When a description is one line of `1) … 2) … 3) …`, insert a real newline before each
+ * numbered item that is not already on its own line. Items that already follow `\\n` stay put.
+ */
+export function softenNumberedBreaks(input: string): string {
+  if (!input) return ''
+  return input.replace(/(^|[^\S\n])(\d+[.)][ \t]+)/g, (_full, lead: string, item: string, offset: number) => {
+    if (offset === 0) return item
+    const prev = input[offset - 1]
+    if (prev === '\n' || prev === '\r') return `${lead}${item}`
+    return `\n${item}`
+  })
+}
+
 /** Split a chunk on key metrics (percent, size, size/size). */
 export function splitMetricTokens(chunk: string): HighlightPart[] {
   const out: HighlightPart[] = []
@@ -30,7 +44,8 @@ export function splitMetricTokens(chunk: string): HighlightPart[] {
  * Highlight key numbers in assistant prose.
  * `**85%**` and bare `371G/466G` become marks. Long bold sentences stay strong, not a yellow wall.
  */
-export function highlightKeyNumbers(input: string): HighlightPart[] {
+export function highlightKeyNumbers(raw: string): HighlightPart[] {
+  const input = softenNumberedBreaks(raw)
   if (!input) return []
   const out: HighlightPart[] = []
   const bold = /\*\*([^*]+)\*\*/g

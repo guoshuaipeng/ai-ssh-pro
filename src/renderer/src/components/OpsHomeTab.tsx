@@ -418,8 +418,15 @@ export default function OpsHomeTab({
           <header className="l7-col-head">
             <strong>{t('l7.health')}</strong>
             <ScopePicker scope={scope} folders={folders} hosts={hosts.map((h) => ({ id: h.profileId, title: h.title }))} onChange={onScope} />
-            <button type="button" data-testid="l7-health-refresh" onClick={() => setRetryNonce((n) => n + 1)}>
-              {t('l7.refresh')}
+            <button
+              type="button"
+              className="l7-icon-btn"
+              data-testid="l7-health-refresh"
+              title={t('l7.refresh')}
+              aria-label={t('l7.refresh')}
+              onClick={() => setRetryNonce((n) => n + 1)}
+            >
+              <Icon name="refresh-cw" size={16} strokeWidth={1.5} />
             </button>
             {failCount > 0 ? (
               <button

@@ -203,6 +203,7 @@
   --radius-xl: 10px;
   --radius-pill: 999px;
   --radius-full: 50%;
+  /* UI-N4: menus use --shadow-menu, dialogs and the palette use --shadow-modal, small floats use --shadow-sm. */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-menu: 0 8px 24px rgba(0, 0, 0, 0.4);
   --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.45);
@@ -642,7 +643,7 @@ body.platform-darwin .app-titlebar {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal-header {
@@ -1427,6 +1428,22 @@ body.layout-resizing {
   overflow: hidden;
   white-space: nowrap;
 }
+.statusbar-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.statusbar-glyph { flex: none; }
+.statusbar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ai-panel-shell {
   flex-shrink: 0;
@@ -1730,6 +1747,8 @@ body.layout-resizing {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+  flex-wrap: nowrap;
   padding: 8px 12px;
   font-size: 12px;
   background: #3d2c00;
@@ -1737,6 +1756,12 @@ body.layout-resizing {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
+.session-disconnect-banner > button { flex: none; white-space: nowrap; }
+.connect-trouble { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.connect-trouble-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.connect-trouble-steps { display: flex; flex-wrap: nowrap; gap: 8px; margin: 0; padding: 0; list-style: none; overflow: hidden; min-width: 0; }
+.connect-trouble-steps li { flex: none; white-space: nowrap; }
+.sidebar .connect-trouble-steps { flex-direction: column; align-items: flex-start; overflow: visible; }
 
 .terminal-disconnected-placeholder {
   height: 100%;
@@ -2628,7 +2653,7 @@ body.layout-resizing {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-menu);
 }
 
 .session-context-menu-item {
@@ -2697,7 +2722,7 @@ body.layout-resizing {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-menu);
   z-index: 10001;
 }
 
@@ -4345,14 +4370,14 @@ body.split-resizing {
 }
 .cmdp {
   width: min(640px, 92vw);
-  max-height: 64vh;
+  max-height: min(64vh, calc(100vh - 96px));
   display: flex;
   flex-direction: column;
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-modal);
   overflow: hidden;
 }
 .cmdp-input {
@@ -4373,6 +4398,7 @@ body.split-resizing {
   width: 100%;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   padding: 7px 10px;
   border: 0;
   border-radius: 6px;
@@ -4386,8 +4412,17 @@ body.split-resizing {
 }
 .cmdp-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cmdp-group {
+  flex: none;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   opacity: 0.6;
 }
@@ -4407,6 +4442,9 @@ body.split-resizing {
 }
 .cmdp-foot {
   border-top: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .wn-panel {
   display: flex;
@@ -4633,7 +4671,7 @@ body.split-resizing {
   border-radius: 6px;
   background: var(--panel);
   border: 1px solid var(--border);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-sm);
 }
 .terminal-find-bar input { width: 220px; font-size: 12px; padding: 3px 6px; }
 .terminal-find-bar input.is-miss { border-color: var(--danger); }
