@@ -17,7 +17,6 @@ import Icon from './Icon'
 import Modal from './Modal'
 
 type Props = {
-  onClose?: () => void
   activeSessionId: string | null
   variant?: 'center' | 'rail'
   launch?: { n: number; focusSearch?: boolean; openForm?: boolean; seed?: string }
@@ -40,7 +39,7 @@ function newId(): string {
   return crypto.randomUUID()
 }
 
-export default function SnippetsPanel({ onClose, activeSessionId, variant = 'center', launch }: Props) {
+export default function SnippetsPanel({ activeSessionId, variant = 'rail', launch }: Props) {
   const { t } = useI18n()
   const fileRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -391,9 +390,6 @@ export default function SnippetsPanel({ onClose, activeSessionId, variant = 'cen
         <div className="snippets-rail-foot">
           <button type="button" className="secondary" data-testid="snip-new" onClick={openNew}>{t('ux08.snipNew')}</button>
         </div>
-      ) : null}
-      {onClose && !rail ? (
-        <button type="button" className="link-btn" onClick={onClose}>{t('snip.close')}</button>
       ) : null}
     </div>
   )
