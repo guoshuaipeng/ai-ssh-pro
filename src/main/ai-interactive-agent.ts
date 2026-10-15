@@ -1007,6 +1007,7 @@ export async function runOpenClawCoreAgentChat(
             detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
           })
           send(wc, { type: 'cancelled', message: mt('已取消：你未同意执行该命令', "Cancelled: you declined to run this command") })
+          send(wc, { type: 'done' })
           return
         }
       }

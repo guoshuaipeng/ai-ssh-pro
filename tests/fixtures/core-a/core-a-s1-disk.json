@@ -1,0 +1,128 @@
+{
+  "id": "S1",
+  "title": "Disk / inode diagnose — multi-step evidence then end",
+  "industryBar": ["mastra-working-memory", "observational-compression", "confirm-before-run"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01",
+    "hostname": "prod-web-01.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s1-disk",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_MAX_POLLS": "10",
+    "AISS_POLL_WAIT_MS": "0"
+  },
+  "turns": [
+    {
+      "turnId": "S1-T1",
+      "userMessage": "帮我看看这台机器磁盘是不是满了，inode 也检查一下。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {
+          "df -h": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        40G   38G  0.5G  99% /\n/dev/sdb1       100G   40G   60G  40% /data\ntmpfs           7.8G     0  7.8G   0% /dev/shm\n",
+          "df -i": "Filesystem     Inodes  IUsed  IFree IUse% Mounted on\n/dev/sda1      2621440 2621440      0  100% /\n/dev/sdb1      6553600  120000 6433600    2% /data\n"
+        }
+      },
+      "userConfirm": {
+        "policy": "approve-all-commands"
+      },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "尚无终端证据，先读取当前终端快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true, "includeCommandLine": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "快照无磁盘数据，建议执行只读 df -h 查看容量。",
+            "action": "command",
+            "command": "df -h",
+            "riskLevel": "low",
+            "notes": "只读，不修改系统",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "读取 df -h 输出。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 1000, "fromCurrentCommand": true, "includeCommandLine": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["99%", "/dev/sda1"]
+        },
+        {
+          "step": 4,
+          "response": {
+            "description": "根分区已接近满，继续检查 inode。",
+            "action": "command",
+            "command": "df -i",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 5,
+          "response": {
+            "description": "读取 df -i 输出。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 1000, "fromCurrentCommand": true, "includeCommandLine": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["100%", "IUse%"]
+        },
+        {
+          "step": 6,
+          "response": {
+            "description": "结论：根分区 /dev/sda1 容量 Use% 约 99%，且 inode IUse% 为 100%（IFree=0），已无法创建新文件；/data 正常（约 40% / 2%）。建议清理 / 上小文件或日志，勿在未确认时 rm -rf。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low",
+            "notes": "可后续 upsert_host_service / append_host_note 记录该风险"
+          }
+        }
+      ],
+      "expected": {
+        "minPlannerSteps": 4,
+        "actionSequenceContains": ["tool_call", "command", "tool_call", "end"],
+        "firstEvidenceAction": "tool_call",
+        "finalAction": "end",
+        "completed": true,
+        "descriptionMustContain": ["99%", "100%", "/dev/sda1", "inode"],
+        "descriptionMustNotContain": ["猜的", "probably empty"],
+        "commandsRequiringConfirm": ["df -h", "df -i"],
+        "maxConsecutiveGetTerminalSnapshot": 2,
+        "workingMemoryAfter": {
+          "shouldRecordFacts": ["root disk ~99%", "root inodes 100%"],
+          "taskGraphStatus": "done_or_in_progress_with_title_mentioning_disk"
+        }
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "≥4 planner steps before end",
+    "snap before first diagnostic command",
+    "confirm on low-risk commands when autoApproveLowRisk=false",
+    "end cites Use% and IUse% from mock terminal",
+    "no invented mount points"
+  ]
+}

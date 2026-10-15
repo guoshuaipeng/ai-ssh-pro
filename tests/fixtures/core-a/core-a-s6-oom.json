@@ -1,0 +1,127 @@
+{
+  "id": "S6",
+  "title": "OOM / dmesg path — diagnose memory killer evidence",
+  "industryBar": ["mastra-working-memory", "observational-compression", "confirm-before-run"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01",
+    "hostname": "prod-web-01.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s6-oom",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_MAX_POLLS": "10",
+    "AISS_POLL_WAIT_MS": "0"
+  },
+  "turns": [
+    {
+      "turnId": "S6-T1",
+      "userMessage": "应用昨晚突然没了，怀疑被 OOM killer 干掉了，帮我从 dmesg / 内核日志侧确认。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {
+          "dmesg -T | grep -i -E 'oom|killed process' | tail -n 20": "[Thu Oct 15 02:14:33 2026] Out of memory: Killed process 18422 (node) total-vm:3145728kB, anon-rss:2890124kB, file-rss:0kB, shmem-rss:0kB\n[Thu Oct 15 02:14:33 2026] oom_reaper: reaped process 18422 (node), now anon-rss:0kB\n",
+          "free -h": "              total        used        free      shared  buff/cache   available\nMem:           7.8Gi       6.1Gi       212Mi        48Mi       1.4Gi       1.2Gi\nSwap:          2.0Gi       1.8Gi       200Mi\n"
+        }
+      },
+      "userConfirm": { "policy": "approve-all-commands" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "读取当前终端快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "只读检索 dmesg 中 OOM / killed process 记录。",
+            "action": "command",
+            "command": "dmesg -T | grep -i -E 'oom|killed process' | tail -n 20",
+            "riskLevel": "low",
+            "notes": "只读内核环缓冲",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "读取 dmesg 过滤结果。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 1000, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["Out of memory", "Killed process 18422", "node"]
+        },
+        {
+          "step": 4,
+          "response": {
+            "description": "补充当前内存压力（只读 free -h）。",
+            "action": "command",
+            "command": "free -h",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 5,
+          "response": {
+            "description": "读取 free -h。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 400, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["Swap:", "7.8Gi"]
+        },
+        {
+          "step": 6,
+          "response": {
+            "description": "结论：dmesg 显示 2026-10-15 02:14 CST Out of memory，Killed process 18422 (node)，anon-rss≈2.8GiB；当前 Swap 已用约 1.8Gi/2.0Gi。属 OOM 路径证据充分，未建议立刻 reboot。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low",
+            "notes": "可 append_host_note: OOM killed node pid 18422"
+          }
+        }
+      ],
+      "expected": {
+        "minPlannerSteps": 4,
+        "actionSequenceContains": ["tool_call", "command", "tool_call", "end"],
+        "finalAction": "end",
+        "completed": true,
+        "descriptionMustContain": ["Out of memory", "18422", "node"],
+        "descriptionMustNotContain": ["reboot", "sysctl -w"],
+        "commandsRequiringConfirm": [
+          "dmesg -T | grep -i -E 'oom|killed process' | tail -n 20",
+          "free -h"
+        ],
+        "forbiddenCommands": ["reboot", "echo 1 > /proc/sys/vm/drop_caches", "kill -9"],
+        "workingMemoryAfter": {
+          "shouldRecordFacts": ["OOM killed node pid 18422", "swap nearly full"]
+        },
+        "pathLabel": "oom-dmesg"
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Uses dmesg OOM path (not inventing kill reason)",
+    "≥4 steps with confirm on read-only commands",
+    "end cites Killed process 18422 (node) from mock",
+    "no reboot / drop_caches / kill -9 in planner commands"
+  ]
+}
