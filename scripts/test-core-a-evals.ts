@@ -70,6 +70,9 @@ type Expectation = {
   sshWriteCount?: number
   noFurtherPlannerStepsAfterDeny?: boolean
   riskLevel?: string
+  observationalMemoryMustContain?: string[]
+  recentWindowMustNotContain?: string[]
+  hitl?: { minInterrupts?: number; resume?: 'approve' | 'deny'; interruptRisks?: string[] }
 }
 
 type Turn = {
@@ -120,6 +123,28 @@ function presentRing(raw: string | undefined): string {
 
 function goalLine(prompt: string): string {
   return prompt.split('\n').find((line) => line.startsWith('goal:')) ?? ''
+}
+
+function blockAfter(prompt: string, heading: string): string {
+  const at = prompt.indexOf(heading)
+  if (at < 0) return ''
+  const rest = prompt.slice(at + heading.length).replace(/^\n/, '')
+  const end = rest.search(/\n\n/)
+  return (end < 0 ? rest : rest.slice(0, end)).trim()
+}
+
+function observationalSection(prompt: string): string {
+  return blockAfter(prompt, '观测记忆（较早对话压缩）：') || blockAfter(prompt, 'Observational memory (compressed older turns):')
+}
+
+function hitlLines(events: AiStreamEvent[]): string[] {
+  const lines: string[] = []
+  for (const event of events) {
+    if (event.type !== 'debug' || event.payload.entry.kind !== 'execution') continue
+    if (!event.payload.entry.label.startsWith('HITL')) continue
+    lines.push(`${event.payload.entry.label}\n${event.payload.entry.detail ?? ''}`)
+  }
+  return lines
 }
 
 function systemText(messages: Array<{ role: string; content: string }>): string {
@@ -176,6 +201,7 @@ function seedInventory(fixture: Fixture): void {
 type DriveResult = {
   events: AiStreamEvent[]
   prompts: string[]
+  requests: Array<Array<{ role: string; content: string }>>
   writes: string[]
   served: string[]
 }
@@ -189,6 +215,7 @@ async function drive(input: {
 }): Promise<DriveResult> {
   const events: AiStreamEvent[] = []
   const prompts: string[] = []
+  const requests: Array<Array<{ role: string; content: string }>> = []
   const writes: string[] = []
   const served: string[] = []
   const replies = (input.turn.mockedPlannerSteps ?? []).map((step) => JSON.stringify(step.response))
@@ -218,7 +245,9 @@ async function drive(input: {
   globalThis.fetch = (async (_url: string, init?: RequestInit) => {
     const raw = typeof init?.body === 'string' ? init.body : '{}'
     const parsed = JSON.parse(raw) as { messages?: Array<{ role: string; content: string }> }
-    prompts.push(systemText(parsed.messages ?? []))
+    const messages = parsed.messages ?? []
+    requests.push(messages)
+    prompts.push(systemText(messages))
     const next = replies.shift()
     if (!next) throw new Error(`${input.turn.turnId}: scripted model ran out of replies`)
     return new Response(JSON.stringify({ choices: [{ message: { content: next } }] }), {
@@ -294,7 +323,7 @@ async function drive(input: {
   if (confirmError) throw confirmError
   const failed = events.find((event) => event.type === 'error')
   if (failed && failed.type === 'error') throw new Error(`${input.turn.turnId}: ${failed.message}`)
-  return { events, prompts, writes, served }
+  return { events, prompts, requests, writes, served }
 }
 
 function assistantLines(events: AiStreamEvent[]): AiChatMessage[] {
@@ -435,6 +464,45 @@ function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: 
     const command = result.events.find((event) => event.type === 'step' && event.structured.action === 'command')
     assert.ok(command && command.type === 'step')
     assert.equal(command.structured.riskLevel, expected.riskLevel)
+  }
+  if (expected.observationalMemoryMustContain?.length || expected.recentWindowMustNotContain?.length) {
+    assert.ok(result.requests.length > 0, `${label}: no planner request`)
+    for (const messages of result.requests) {
+      const prompt = systemText(messages)
+      const observed = observationalSection(prompt)
+      for (const fact of expected.observationalMemoryMustContain ?? []) {
+        assert.ok(observed.includes(fact), `${label}: observational memory dropped ${fact}`)
+      }
+      const recent = messages
+        .filter((message) => message.role !== 'system')
+        .map((message) => message.content)
+        .join('\n')
+      for (const fact of expected.recentWindowMustNotContain ?? []) {
+        assert.equal(recent.includes(fact), false, `${label}: recent window still has ${fact}`)
+      }
+    }
+  }
+  if (expected.hitl) {
+    const lines = hitlLines(result.events)
+    const interrupts = lines.filter((line) => line.includes('phase=interrupted'))
+    if (expected.hitl.minInterrupts != null) {
+      assert.ok(interrupts.length >= expected.hitl.minInterrupts, `${label}: ${interrupts.length} interrupts`)
+    }
+    if (expected.hitl.resume) {
+      assert.ok(
+        lines.some((line) => line.includes(`decision=${expected.hitl?.resume}`)),
+        `${label}: missing HITL resume ${expected.hitl.resume}`
+      )
+    }
+    const risks = interrupts.map((line) => /risk=(\S+)/.exec(line)?.[1] ?? '')
+    for (const risk of expected.hitl.interruptRisks ?? []) {
+      assert.ok(risks.includes(risk), `${label}: interrupt risks ${risks.join(',')} missing ${risk}`)
+    }
+    assert.equal(
+      lines.some((line) => line.includes('get_terminal_snapshot') && line.includes('phase=interrupted')),
+      false,
+      `${label}: snapshot was interrupted`
+    )
   }
   if (!expected.ipc) assert.ok(result.events.some((event) => event.type === 'done'), `${label}: missing done`)
 }

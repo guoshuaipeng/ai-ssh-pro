@@ -588,7 +588,11 @@ export type AiDebugEntry =
       /** Which context slices were placed in the planner request, with approximate sizes. */
       kind: 'context'
       round: number
-      slices: Array<{ name: 'working' | 'runningSummary' | 'recall' | 'recentWindow' | 'system'; chars: number; items?: number }>
+      slices: Array<{
+        name: 'working' | 'observations' | 'runningSummary' | 'recall' | 'recentWindow' | 'system'
+        chars: number
+        items?: number
+      }>
       totalChars: number
     }
 

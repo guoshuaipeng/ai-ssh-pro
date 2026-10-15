@@ -1,0 +1,129 @@
+{
+  "id": "S13",
+  "title": "Older turn compresses into an observational bullet that the planner still sees",
+  "industryBar": ["observational-compression", "mastra-working-memory"],
+  "hostProfile": {
+    "hostId": "host-s13-om",
+    "label": "om-lab"
+  },
+  "session": {
+    "targetSessionId": "sess-s13-om",
+    "historyKey": "host-s13-om"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "turns": [
+    {
+      "turnId": "S13-T1",
+      "userMessage": "查看这台机器的磁盘，不要删除文件。",
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先看磁盘，本步结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T2",
+      "userMessage": "继续：请记下 OM_ONLY_USER_FACT redis 只监听 127.0.0.1:6379。",
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "已记下该监听约束，先到这里。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": { "finalAction": "end", "descriptionMustNotContain": ["OM_ONLY_USER_FACT"] }
+    },
+    {
+      "turnId": "S13-T3",
+      "userMessage": "继续看无关项 3。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T4",
+      "userMessage": "继续看无关项 4。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T5",
+      "userMessage": "继续看无关项 5。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T6",
+      "userMessage": "继续看无关项 6。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T7",
+      "userMessage": "继续看无关项 7。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T8",
+      "userMessage": "继续看无关项 8。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T9",
+      "userMessage": "继续看无关项 9。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S13-T10",
+      "userMessage": "先前记下的 redis 监听事实还在吗？",
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "仍记得该监听事实，无需再查端口。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "observationalMemoryMustContain": ["OM_ONLY_USER_FACT", "127.0.0.1:6379"],
+        "recentWindowMustNotContain": ["OM_ONLY_USER_FACT"]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "A fact from an older user turn leaves the raw window",
+    "The planner system prompt still contains it as an observational bullet",
+    "The bullet is not a Mastra package import"
+  ]
+}

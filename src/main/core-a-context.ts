@@ -2,8 +2,10 @@
  * Core-A context assembly, adapted into the existing planner loop:
  * - Mastra Memory: working memory every turn, a last-N transcript window, and recall
  *   (keyword + overlap stand in for semantic recall until an embedder exists).
- * - LangGraph: fold older turns into a running summary instead of only trimming them;
- *   side-effecting tools pause for a human (interrupt).
+ * - Observational memory: older turns compress into fact bullets and are injected
+ *   into the planner. Extractive and local — no Mastra package and no extra model call.
+ * - LangGraph-style HITL: confirm / interrupt / resume are explicit loop phases.
+ *   SSH and other risky tools stay gated; risk level never auto-runs them.
  * - Graphorin: working tier (current task) vs session transcript vs episodic recall,
  *   fused with Reciprocal Rank Fusion (k=60).
  * - Vercel AI SDK ToolLoopAgent: needsApproval for side-effecting tools.
@@ -27,6 +29,16 @@ export type WorkingMemoryBlock = {
   updatedAt: number
 }
 
+/**
+ * One observational-memory bullet compressed from a turn that left the live window.
+ * In-repo extractive observer (Mastra-style). Not a vendored SDK type.
+ */
+export type ObservationBullet = {
+  id: string
+  text: string
+  createdAt: number
+}
+
 /** Durable summary of turns that left the live window, or of one planner step. */
 export type EpisodicSummary = {
   id: string
@@ -46,6 +58,11 @@ export type ThreadContext = {
   episodes: EpisodicSummary[]
   /** Extractive summary of transcript already outside the live window. */
   runningSummary: string
+  /**
+   * Dense bullets for turns outside the live window. Kept even when
+   * `runningSummary` drops the middle to stay under its character cap.
+   */
+  observationalMemory: ObservationBullet[]
   /** Fingerprint of the last message folded into `runningSummary`. */
   compactedCursor: string | null
 }
@@ -66,7 +83,7 @@ export type RecallHit = {
   createdAt: number
 }
 
-export type ContextSliceName = 'working' | 'runningSummary' | 'recall' | 'recentWindow' | 'system'
+export type ContextSliceName = 'working' | 'observations' | 'runningSummary' | 'recall' | 'recentWindow' | 'system'
 
 export type ContextSlice = {
   name: ContextSliceName
@@ -78,15 +95,21 @@ export const EMPTY_THREAD: ThreadContext = {
   workingMemory: null,
   episodes: [],
   runningSummary: '',
+  observationalMemory: [],
   compactedCursor: null
 }
 
 const MAX_EPISODES = 40
 const MAX_SUMMARY_CHARS = 1500
 const MAX_EPISODE_CHARS = 500
+const MAX_OBSERVATION_BULLETS = 40
+const MAX_OBSERVATION_CHARS = 180
 const RRF_K = 60
 const DEFAULT_TOP_K = 5
 const DEFAULT_MAX_TURNS = 8
+
+/** Tool names that would run a shell even if the model labels them tool_call. */
+const RISKY_TOOL_NAMES = new Set(['ssh_exec', 'shell', 'run_command', 'exec', 'raw_ssh', 'system_command'])
 
 const STOP = new Set([
   'the', 'and', 'for', 'you', 'this', 'that', 'with', 'from', 'what', 'why', 'how',
@@ -110,9 +133,119 @@ export function resolveThreadId(input: {
  * SSH `command` writes are side effects and must pause for confirmation.
  * Read-only tool calls (terminal snapshot, inventory reads/writes to the local
  * knowledge base) do not. Risk level never bypasses this.
+ * Named SSH-like tools stay gated even when the model wraps them as tool_call.
  */
-export function actionNeedsHumanInterrupt(action: string): boolean {
-  return action === 'command'
+export function actionNeedsHumanInterrupt(action: string, toolName?: string | null): boolean {
+  if (action === 'command') return true
+  if (action !== 'tool_call') return false
+  return RISKY_TOOL_NAMES.has((toolName ?? '').trim().toLowerCase())
+}
+
+/** Always false. `autoApproveLowRisk` must not skip the confirm interrupt. */
+export function confirmBypassAllowed(_autoApproveLowRisk?: boolean): false {
+  return false
+}
+
+export type HitlPhase = 'planning' | 'interrupted' | 'resumed' | 'executing' | 'observing' | 'cancelled' | 'done'
+
+/** Explicit confirm / interrupt / resume state for one planner step. */
+export type HitlLoopState = {
+  phase: HitlPhase
+  requestId: string | null
+  action: string | null
+  toolName: string | null
+  command: string | null
+  riskLevel: string | null
+  resume: 'approve' | 'deny' | null
+}
+
+export function createHitlLoop(): HitlLoopState {
+  return {
+    phase: 'planning',
+    requestId: null,
+    action: null,
+    toolName: null,
+    command: null,
+    riskLevel: null,
+    resume: null
+  }
+}
+
+export type HitlProposal = {
+  action: string
+  toolName?: string | null
+  command?: string | null
+  riskLevel?: string | null
+  requestId?: string | null
+  /** Accepted and ignored. Low-risk SSH commands still interrupt. */
+  autoApproveLowRisk?: boolean
+}
+
+/**
+ * LangGraph-style interrupt. A risky proposal enters `interrupted` and must
+ * not execute. Read-only tools enter `executing` with no resume token.
+ * Each planner step starts from `createHitlLoop()`.
+ */
+export function interruptForProposal(_state: HitlLoopState, proposal: HitlProposal): HitlLoopState {
+  void proposal.autoApproveLowRisk
+  if (actionNeedsHumanInterrupt(proposal.action, proposal.toolName)) {
+    return {
+      phase: 'interrupted',
+      requestId: proposal.requestId?.trim() || null,
+      action: proposal.action,
+      toolName: proposal.toolName?.trim() || null,
+      command: proposal.command?.trim() || null,
+      riskLevel: proposal.riskLevel?.trim() || null,
+      resume: null
+    }
+  }
+  if (proposal.action === 'end') {
+    return {
+      phase: 'done',
+      requestId: null,
+      action: 'end',
+      toolName: null,
+      command: null,
+      riskLevel: null,
+      resume: null
+    }
+  }
+  return {
+    phase: 'executing',
+    requestId: null,
+    action: proposal.action,
+    toolName: proposal.toolName?.trim() || null,
+    command: null,
+    riskLevel: null,
+    resume: null
+  }
+}
+
+/** Human decision. Only an `interrupted` step can resume or cancel. */
+export function resumeHitl(state: HitlLoopState, approved: boolean): HitlLoopState {
+  if (state.phase !== 'interrupted') return state
+  if (!approved) return { ...state, phase: 'cancelled', resume: 'deny' }
+  return { ...state, phase: 'resumed', resume: 'approve' }
+}
+
+/** Move `resumed` + approve into `executing`. Any other phase stays put. */
+export function markHitlExecuting(state: HitlLoopState): HitlLoopState {
+  if (state.phase !== 'resumed' || state.resume !== 'approve') return state
+  return { ...state, phase: 'executing' }
+}
+
+export function markHitlObserving(state: HitlLoopState): HitlLoopState {
+  if (state.phase !== 'executing') return state
+  return { ...state, phase: 'observing' }
+}
+
+/**
+ * SSH writes may run only after interrupt → approve → executing, and only for
+ * a `command`. Read-only tools never satisfy this, so they cannot take the write path.
+ * An empty command still has to pass this gate; the caller rejects the empty text.
+ */
+export function sideEffectExecutionPermitted(state: HitlLoopState): boolean {
+  return state.phase === 'executing' && state.resume === 'approve' && state.action === 'command'
 }
 
 export function redactSecrets(raw: string): string {
@@ -397,6 +530,75 @@ function extractAssistantLine(content: string): string {
   return content
 }
 
+function isConcreteObservation(text: string): boolean {
+  return (
+    /\/[\w./-]{2,}/.test(text) ||
+    /\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/.test(text) ||
+    /\d+\s?%/.test(text) ||
+    /\b[A-Z][A-Z0-9_]{4,}\b/.test(text) ||
+    /\b(?:failed|denied|oom|error)\b/i.test(text)
+  )
+}
+
+/** One older turn → one redacted observational bullet. No model call. */
+export function observationBulletFromTurn(turn: TranscriptTurn, now = Date.now()): ObservationBullet | null {
+  const line = formatTurnLine(turn)
+  if (!line) return null
+  return {
+    id: randomUUID(),
+    text: line.length > MAX_OBSERVATION_CHARS ? line.slice(0, MAX_OBSERVATION_CHARS) : line,
+    createdAt: now
+  }
+}
+
+export function appendObservationBullets(existing: ObservationBullet[], fresh: ObservationBullet[]): ObservationBullet[] {
+  const next = [...existing]
+  for (const bullet of fresh) {
+    const text = bullet.text.trim()
+    if (!text) continue
+    if (next.some((item) => item.text === text)) continue
+    next.push({ ...bullet, text })
+  }
+  return capObservationBullets(next)
+}
+
+/** Keep concrete facts when the bullet list overflows. Narrative fillers go first. */
+function capObservationBullets(bullets: ObservationBullet[]): ObservationBullet[] {
+  if (bullets.length <= MAX_OBSERVATION_BULLETS) return bullets
+  const concrete: ObservationBullet[] = []
+  const rest: ObservationBullet[] = []
+  for (const bullet of bullets) {
+    if (isConcreteObservation(bullet.text)) concrete.push(bullet)
+    else rest.push(bullet)
+  }
+  if (concrete.length > MAX_OBSERVATION_BULLETS) {
+    const head = Math.ceil(MAX_OBSERVATION_BULLETS / 2)
+    const tail = MAX_OBSERVATION_BULLETS - head
+    return [...concrete.slice(0, head), ...concrete.slice(concrete.length - tail)]
+  }
+  const room = MAX_OBSERVATION_BULLETS - concrete.length
+  const narrative = rest.slice(-room)
+  const kept = [...concrete, ...narrative]
+  kept.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+  return kept
+}
+
+export function normalizeObservationBullets(value: unknown): ObservationBullet[] {
+  if (!Array.isArray(value)) return []
+  const parsed: ObservationBullet[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Partial<ObservationBullet>
+    if (typeof row.text !== 'string' || !row.text.trim()) continue
+    parsed.push({
+      id: typeof row.id === 'string' && row.id.trim() ? row.id : `om-${parsed.length}`,
+      text: row.text.trim().slice(0, MAX_OBSERVATION_CHARS),
+      createdAt: typeof row.createdAt === 'number' ? row.createdAt : 0
+    })
+  }
+  return appendObservationBullets([], parsed)
+}
+
 /** Keep the start of a folded transcript so the earliest facts are not the first thing dropped. */
 function capRunningSummary(text: string, max: number): string {
   const trimmed = text.trim()
@@ -438,7 +640,15 @@ export function compactTranscript(
   if (!piece) return { recent, ctx: { ...ctx, compactedCursor: cursor } }
 
   const runningSummary = capRunningSummary([ctx.runningSummary, piece].filter(Boolean).join('\n'), MAX_SUMMARY_CHARS)
-  let next: ThreadContext = { ...ctx, runningSummary, compactedCursor: cursor }
+  const bullets = fresh
+    .map((turn, index) => observationBulletFromTurn(turn, Date.now() + index))
+    .filter((bullet): bullet is ObservationBullet => bullet != null)
+  let next: ThreadContext = {
+    ...ctx,
+    runningSummary,
+    compactedCursor: cursor,
+    observationalMemory: appendObservationBullets(ctx.observationalMemory, bullets)
+  }
   const chunks = chunkText(piece, MAX_EPISODE_CHARS)
   for (const chunk of chunks) {
     next = appendEpisode(
@@ -539,22 +749,25 @@ export function recallEpisodes(
 
 export function buildMemoryPromptBlocks(input: {
   working: WorkingMemoryBlock | null
+  observations: ObservationBullet[]
   runningSummary: string
   hits: RecallHit[]
-  headings: { working: string; summary: string; recall: string }
+  headings: { working: string; observations: string; summary: string; recall: string }
 }): {
   text: string
-  sections: { working: string; runningSummary: string; recall: string }
+  sections: { working: string; observations: string; runningSummary: string; recall: string }
 } {
   const workingBody = renderWorking(input.working)
+  const observationBody = input.observations.map((bullet) => `- ${bullet.text}`).join('\n')
   const summaryBody = input.runningSummary.trim()
   const recallBody = input.hits.map((hit) => `- ${hit.text}`).join('\n')
   const sections = {
     working: workingBody ? `${input.headings.working}\n${workingBody}` : '',
+    observations: observationBody ? `${input.headings.observations}\n${observationBody}` : '',
     runningSummary: summaryBody ? `${input.headings.summary}\n${summaryBody}` : '',
     recall: recallBody ? `${input.headings.recall}\n${recallBody}` : ''
   }
-  const text = [sections.working, sections.runningSummary, sections.recall].filter(Boolean).join('\n\n')
+  const text = [sections.working, sections.observations, sections.runningSummary, sections.recall].filter(Boolean).join('\n\n')
   return { text, sections }
 }
 
@@ -570,6 +783,8 @@ function renderWorking(block: WorkingMemoryBlock | null): string {
 export function contextBudget(input: {
   workingChars: number
   workingItems?: number
+  observationChars: number
+  observationItems?: number
   summaryChars: number
   recallChars: number
   recallItems?: number
@@ -579,6 +794,7 @@ export function contextBudget(input: {
 }): { slices: ContextSlice[]; totalChars: number } {
   const slices: ContextSlice[] = [
     { name: 'working', chars: input.workingChars, items: input.workingItems ?? 0 },
+    { name: 'observations', chars: input.observationChars, items: input.observationItems ?? 0 },
     { name: 'runningSummary', chars: input.summaryChars },
     { name: 'recall', chars: input.recallChars, items: input.recallItems ?? 0 },
     { name: 'recentWindow', chars: input.recentChars, items: input.recentItems ?? 0 },
@@ -596,6 +812,7 @@ export type DurableThreadFields = {
   workingMemory: WorkingMemoryBlock | null
   episodes: EpisodicSummary[]
   runningSummary: string
+  observationalMemory: ObservationBullet[]
   compactedCursor: string | null
 }
 
@@ -619,6 +836,7 @@ export function archiveAndClearRecord<T extends DurableThreadFields>(record: T):
     workingMemory: null,
     episodes: [],
     runningSummary: '',
+    observationalMemory: [],
     compactedCursor: null,
     updatedAt: Date.now()
   }
