@@ -40,7 +40,6 @@ import BatchExecuteModal, { type BatchSessionOption } from './components/BatchEx
 import PortForwardModal from './components/PortForwardModal'
 import ResourceMonitorModal from './components/ResourceMonitorModal'
 import MultiHostDashboard from './components/MultiHostDashboard'
-import AlertRulesModal from './components/AlertRulesModal'
 import UpdateChannelPanel from './components/UpdateChannelPanel'
 import ImportPreviewPanel from './components/ImportPreviewPanel'
 import FileDiffView from './components/FileDiffView'
@@ -201,6 +200,7 @@ import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode,
 import { RESTORE_BIND_MS, snapshotWorkspace } from '@shared/session-restore'
 import { planColdStart, restoreWatchIds } from '@shared/cold-start'
 import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
+import { editorOpenPlan, type EditorId } from '@shared/editor-surface'
 import SettingsPanel from './components/SettingsPanel'
 import DisconnectBanner from './components/DisconnectBanner'
 import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel, profileDisplayLabel } from '@shared/demo-host'
@@ -496,8 +496,7 @@ export default function App() {
   const [broadcastPickerOpen, setBroadcastPickerOpen] = useState(false)
   const [alertRules, setAlertRules] = useState<AlertRulesState>(() => loadAlertRules())
   const [alertHistory, setAlertHistory] = useState<FiredAlert[]>(() => loadAlertHistory())
-  const [alertModalOpen, setAlertModalOpen] = useState(false)
-  const [alertModalTab, setAlertModalTab] = useState<'rules' | 'history'>('rules')
+  const [rulesDock, setRulesDock] = useState<{ nonce: number; tab: 'rules' | 'history' } | null>(null)
   const [bellPrefs, setBellPrefs] = useState<BellPrefs>(() => loadBellPrefs())
   const [dashScope, setDashScope] = useState<DashScope>(() => loadDashScope())
   const [startupMode, setStartupMode] = useState<StartupMode>(() => loadStartupMode())
@@ -3084,6 +3083,18 @@ export default function App() {
   }, [ensureMainVisible])
   openSettingsRef.current = openUnifiedSettings
 
+  /** IX-7: long editors dock on the workbench. Short confirms stay on App Modal. */
+  const openClassifiedEditor = useCallback((id: Extract<EditorId, 'alert-rules' | 'alert-history'>) => {
+    const plan = editorOpenPlan(id)
+    if (plan.placement === 'app-modal') return
+    if (plan.placement === 'settings-anchor') {
+      if (isSettingsSection(plan.anchor)) openUnifiedSettings(plan.anchor)
+      return
+    }
+    openWorkbench(id === 'alert-history' ? { filter: 'all' } : undefined)
+    setRulesDock({ nonce: Date.now(), tab: id === 'alert-history' ? 'history' : 'rules' })
+  }, [openUnifiedSettings, openWorkbench])
+
   const openRemoteFileEditor = useCallback(
     (info: { sessionId: string; remotePath: string; name: string; connectOpts?: SshConnectOptions }) => {
       ensureMainVisible()
@@ -4649,15 +4660,12 @@ export default function App() {
         return
       }
       if (action === 'alertRules') {
-        setAlertModalTab('rules')
-        setAlertModalOpen(true)
+        openClassifiedEditor('alert-rules')
         return
       }
       if (action === 'alertHistory') {
-        if (bellPrefs.mode === 'drawer') {
-          setAlertModalTab('history')
-          setAlertModalOpen(true)
-        } else openWorkbench({ filter: 'all' })
+        if (bellPrefs.mode === 'drawer') openClassifiedEditor('alert-history')
+        else openWorkbench({ filter: 'all' })
         return
       }
       if (action === 'toggleRecording') {
@@ -5013,6 +5021,7 @@ export default function App() {
       openSession,
       openHome,
       openWorkbench,
+      openClassifiedEditor,
       openAudit,
       openM2,
       bellPrefs.mode,
@@ -5986,8 +5995,7 @@ export default function App() {
               title={tg('l2.bellOpens')}
               onClick={() => {
                 if (bellPrefs.mode === 'drawer') {
-                  setAlertModalTab('history')
-                  setAlertModalOpen(true)
+                  openClassifiedEditor('alert-history')
                 } else {
                   const first = alertHistory.find((a) => a.status === 'active')
                   openWorkbench(first ? { alertId: first.id } : undefined)
@@ -6931,10 +6939,7 @@ export default function App() {
                       saveBellPrefs(p)
                       setBellPrefs(p)
                     }}
-                    onRules={() => {
-                      setAlertModalTab('rules')
-                      setAlertModalOpen(true)
-                    }}
+                    onRules={() => openClassifiedEditor('alert-rules')}
                     onTemplates={() => openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })}
                     onMute={() => muteAlerts()}
                     onUnmute={unmuteAlerts}
@@ -6978,6 +6983,17 @@ export default function App() {
                     onOpenMaintenance={(hostKeys) => openMaintenance(hostKeys)}
                     onAiPostmortem={(alert) => openPostmortemAi(alert)}
                     onOpenSftp={(alert) => openToolTabRef.current('sftp', alert.hostKey)}
+                    rulesDock={rulesDock}
+                    ruleState={alertRules}
+                    onSaveRules={(next) => {
+                      setAlertRules(next)
+                      saveAlertRules(next)
+                    }}
+                    onClearHistory={() => {
+                      setAlertHistory([])
+                      saveAlertHistory([])
+                      setActiveAlertIds(new Set())
+                    }}
                     catalog={profiles.map((p) => ({
                       id: p.id,
                       title: p.label || p.host,
@@ -7175,10 +7191,7 @@ export default function App() {
                       const tab = tabsRef.current.find((x) => x.sessionId === sid)
                       if (tab) setActiveTabId(tab.tabId)
                     }}
-                    onOpenAlertRules={() => {
-                      setAlertModalTab('rules')
-                      setAlertModalOpen(true)
-                    }}
+                    onOpenAlertRules={() => openClassifiedEditor('alert-rules')}
                     onOpenInspect={() => setInspectOpen(true)}
                     alerts={alertHistory}
                     onLocate={(alert) => locateAlert(alert)}
@@ -7975,32 +7988,6 @@ export default function App() {
         onAction={handleTitlebarMenuAction}
       />
       <BackupModal open={backupOpen} onClose={() => setBackupOpen(false)} />
-      <AlertRulesModal
-        open={alertModalOpen}
-        initial={alertRules}
-        history={alertHistory}
-        initialTab={alertModalTab}
-        onClose={() => setAlertModalOpen(false)}
-        onSave={(next) => {
-          setAlertRules(next)
-          saveAlertRules(next)
-        }}
-        onClearHistory={() => {
-          setAlertHistory([])
-          saveAlertHistory([])
-          setActiveAlertIds(new Set())
-        }}
-        onMute1h={() => muteAlerts()}
-        onLocate={(alert) => {
-          setAlertModalOpen(false)
-          locateAlert(alert)
-        }}
-        onInterpret={(alert) => {
-          setAlertModalOpen(false)
-          void interpretAlert(alert)
-        }}
-        onIgnore={(alert) => dismissAlert(alert)}
-      />
       <UpdateModal
         open={updateModalOpen && Boolean(updateInfo)}
         version={updateInfo?.version ?? ''}

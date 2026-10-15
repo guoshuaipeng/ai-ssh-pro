@@ -196,9 +196,19 @@ assert.match(styles, /\.session-context-menu\s*\{[^}]*max-height:\s*calc\(100vh 
 assert.equal(pkg.version, '0.4.4')
 assert.match(pkg.scripts.test, /scripts\/test-ix5-menus\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
-const ix5 = unreleased.indexOf('IX-5')
-const ix3 = unreleased.indexOf('IX-3')
+/** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */
+function unreleasedBulletAt(section: string, id: string): number {
+  const m = new RegExp(`^- \\*\\*[^\\n*]*（${id}）`, 'm').exec(section)
+  return m ? m.index : -1
+}
+const ix5 = unreleasedBulletAt(unreleased, 'IX-5')
+const ix3 = unreleasedBulletAt(unreleased, 'IX-3')
 assert.ok(ix5 >= 0 && ix3 > ix5, 'IX-5 sits in Unreleased ahead of IX-3')
+const prefix = '- **占位（IX-9）.** 正文里的 IX-5 与 IX-3 不能当成标题。\n'
+const poisoned = prefix + unreleased
+assert.equal(unreleasedBulletAt(poisoned, 'IX-5'), prefix.length + ix5)
+assert.equal(unreleasedBulletAt(poisoned, 'IX-3'), prefix.length + ix3)
+assert.ok(poisoned.indexOf('IX-5') < unreleasedBulletAt(poisoned, 'IX-5'))
 const bullet = unreleased.slice(ix5, ix3)
 assert.match(bullet, /Public HOLD/)
 assert.match(bullet, /0\.4\.4/)

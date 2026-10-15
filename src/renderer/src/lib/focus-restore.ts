@@ -153,6 +153,28 @@ export function focusTerminalSession(sessionId?: string): void {
   w.dispatchEvent(new CustomEvent('aiss-focus-terminal', { detail: sessionId ? { sessionId } : {} }))
 }
 
+export type EditorFocusTicket = {
+  land: FocusLand | null
+}
+
+/**
+ * IX-7: remember the surface under a long in-tab editor.
+ * This stack is separate from modal depth, so opening the editor in the
+ * same turn a palette closes does not swallow the palette restore.
+ * Esc / close uses the IX-3 land rules: a terminal goes through the session
+ * API (`term.focus()`), not the stale xterm textarea. Any other surface is
+ * `element.focus()`. A missing or disconnected node is a safe land.
+ */
+export function captureEditorFocus(): EditorFocusTicket {
+  return { land: captureLand() }
+}
+
+/** IX-7: Esc or the editor close control. Does not move focus when there is nothing to restore. */
+export function restoreEditorFocus(ticket: EditorFocusTicket | null): void {
+  if (!ticket) return
+  restoreLand(ticket.land)
+}
+
 /**
  * Host picker and the command palette: one boolean `open`.
  * Capture runs in the open effect, before the overlay's own focus timeout.

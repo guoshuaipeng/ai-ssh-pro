@@ -1481,7 +1481,7 @@ body.layout-resizing {
     max-height: 24px;
     overflow: hidden;
   }
-  .main { min-width: 0; }
+  .main { min-width: 0; overflow-x: hidden; }
   .tab-context-menu,
   .session-context-menu,
   .ctx-menu {

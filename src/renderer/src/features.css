@@ -1418,8 +1418,45 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l2-filters { padding: 0 12px 8px; overflow: hidden; }
 .l2-filters input, .l2-filters select { min-width: 0; }
 .l2-filters .l2-search { min-width: 120px; }
-.l2-body { display: flex; min-height: 0; flex: 1; overflow: hidden; }
+.l2-body { display: flex; min-height: 0; min-width: 0; flex: 1; overflow: hidden; }
 .l2-list { width: 300px; flex: none; border-right: 1px solid var(--border); overflow: auto; }
+.alert-rules-panel {
+  flex: 0 1 360px;
+  max-width: min(420px, 40%);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+}
+.alert-rules-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-default);
+  min-width: 0;
+  flex: none;
+}
+.alert-rules-panel-head h2 {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.alert-rules-panel .o2-tabs { padding: 8px 12px 0; flex: none; }
+.alert-rules-panel .o2-body { min-width: 0; overflow: auto; padding: 0 12px 12px; }
+.alert-rules-panel .o2-table { table-layout: fixed; }
+.alert-rules-panel .o2-table input,
+.alert-rules-panel .o2-table select { max-width: 100%; box-sizing: border-box; }
+.alert-rules-panel:focus { outline: none; }
+.alert-rules-panel:focus-visible { box-shadow: inset 0 0 0 1px var(--color-accent); }
 .l2-detail { flex: 1; min-width: 0; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .l2-back { display: none; align-self: flex-start; }
 .l2-detail-title { display: flex; gap: 8px; margin: 0; font-size: 16px; }
@@ -1465,9 +1502,21 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
   .alert-line.is-compact .alert-line-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .term-guard-banner .banner-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; }
 }
+@media (max-width: 1366px) {
+  .l2-body { overflow-x: hidden; }
+  .alert-rules-panel { flex-basis: 320px; max-width: min(320px, 36%); }
+}
 @container (max-width: 1099px) {
   .l2-body { flex-direction: column; }
   .l2-list { width: 100%; max-height: 40%; border-right: none; border-bottom: 1px solid var(--border); }
+  .alert-rules-panel {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    max-height: 46%;
+    border-left: none;
+    border-top: 1px solid var(--color-border-default);
+  }
 }
 @container (max-width: 1040px) {
   .l2-filters { flex-wrap: wrap; }
