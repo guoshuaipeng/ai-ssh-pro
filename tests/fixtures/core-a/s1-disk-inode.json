@@ -1,0 +1,54 @@
+{
+  "id": "S1",
+  "title": "Disk and inode fill across four planner steps",
+  "sessionId": "eval-s1-disk",
+  "debugTurnId": "eval-s1",
+  "autoApproveLowRisk": false,
+  "phases": [
+    {
+      "user": "这台机器磁盘和 inode 都快满了，请查清根因，不要删除任何文件",
+      "snapshot": "user@web:~$\nuptime 1 day\nload average: 0.08\ntasks: 90\nmemory ok\nuser@web:~$",
+      "afterWrites": [
+        "df -hP\nFilesystem Size Used Avail Use% Mounted\n/dev/sda2 10G 1G 9G 10% /boot\ntmpfs 2G 0 2G 0% /run\n/dev/sda1 40G 39.6G 0.4G 99% /\nuser@web:~$",
+        "df -iP\nFilesystem Inodes IUsed IFree IUse% Mounted\n/dev/sda2 65536 1200 64336 2% /boot\ntmpfs 500000 400 499600 1% /run\n/dev/sda1 2621440 2621440 0 100% /\nuser@web:~$"
+      ],
+      "replies": [
+        {
+          "description": "先读取终端快照，确认当前提示符后再查磁盘",
+          "action": "tool_call",
+          "toolName": "get_terminal_snapshot",
+          "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+          "riskLevel": "low"
+        },
+        {
+          "description": "需要 df 确认根分区使用率",
+          "action": "command",
+          "command": "df -hP",
+          "riskLevel": "low"
+        },
+        {
+          "description": "根分区已到 99%，继续只读查看 inode",
+          "action": "command",
+          "command": "df -iP",
+          "riskLevel": "low"
+        },
+        {
+          "description": "根因是根分区 /dev/sda1 使用率 99%，inode 使用率 100%。未删除任何文件。",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "minPlannerTurns": 4,
+    "goalMatches": "磁盘",
+    "constraintMatches": "不要删除",
+    "endMatches": ["99%", "100%"],
+    "lastPromptMatches": ["99%", "100%"],
+    "writes": ["df -hP\n", "df -iP\n"],
+    "confirmCount": 2,
+    "requireContextSlices": true
+  }
+}
