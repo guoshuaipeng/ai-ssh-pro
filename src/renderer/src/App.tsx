@@ -594,11 +594,11 @@ export default function App() {
     updateLayout((p) => withPaneToggle(p, 'ai', !p.showAi))
   }, [updateLayout])
   const [rightPane, setRightPane] = useState<RightPaneId>(() => loadLayoutPrefs().rightPane)
-  const [snipLaunch, setSnipLaunch] = useState<{ n: number; focusSearch?: boolean; openForm?: boolean; seed?: string }>({ n: 0 })
-  const openRightPanel = useCallback((pane: RightPaneId, opts?: { focusSearch?: boolean; openForm?: boolean; seed?: string }) => {
+  const [snipLaunch, setSnipLaunch] = useState<{ n: number; focusSearch?: boolean; openForm?: boolean; seed?: string; previewBuiltin?: boolean }>({ n: 0 })
+  const openRightPanel = useCallback((pane: RightPaneId, opts?: { focusSearch?: boolean; openForm?: boolean; seed?: string; previewBuiltin?: boolean }) => {
     setRightPane(pane)
     if (pane === 'snippets') {
-      setSnipLaunch((s) => ({ n: s.n + 1, focusSearch: opts?.focusSearch, openForm: opts?.openForm, seed: opts?.seed }))
+      setSnipLaunch((s) => ({ n: s.n + 1, focusSearch: opts?.focusSearch, openForm: opts?.openForm, seed: opts?.seed, previewBuiltin: opts?.previewBuiltin }))
     }
     updateLayout((p) => {
       const base = p.showAi ? p : withPaneToggle(p, 'ai', true)
@@ -4865,6 +4865,15 @@ export default function App() {
       }
       if (action === 'snippets') {
         openRightPanelRef.current('snippets')
+        return
+      }
+      if (action === 'builtinSnippets') {
+        openRightPanelRef.current('snippets', { previewBuiltin: true })
+        return
+      }
+      if (action === 'builtinPlaybooks') {
+        openM2('playbook-list', tg('m2.playbooks'))
+        window.setTimeout(() => window.dispatchEvent(new Event('aiss-builtin-playbooks')), 60)
         return
       }
       if (action === 'fixPlaybook') {

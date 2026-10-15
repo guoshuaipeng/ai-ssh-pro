@@ -51,6 +51,8 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   broadcastTargets: 'guangbo mubiao',
   commandPalette: 'sousuo palette',
   snippets: 'pianduan snippet',
+  builtinSnippets: '内置片段 builtin snippet w9 pianduan',
+  builtinPlaybooks: '内置示例剧本 builtin playbook w9 juben',
   inventory: 'zhuji dang an profile',
   openProdGuard: '生产防护 production guard prod-guard scfh fanghu',
   portForward: 'duankou zhuanfa forward',
@@ -127,7 +129,9 @@ export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: str
   { id: 'readonlyOff', zh: '关闭只读会话', en: 'Disable read-only session' },
   { id: 'setProtection', zh: '设置保护级别…', en: 'Set protection level…' },
   { id: 'batchConnect', zh: '连接所选主机', en: 'Connect selected hosts' },
-  { id: 'batchConnectGroup', zh: '连接当前分组的主机', en: 'Connect hosts in the current group' }
+  { id: 'batchConnectGroup', zh: '连接当前分组的主机', en: 'Connect hosts in the current group' },
+  { id: 'builtinSnippets', zh: '内置片段示例', en: 'Built-in snippets' },
+  { id: 'builtinPlaybooks', zh: '内置示例剧本', en: 'Built-in sample playbooks' }
 ]
 
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {

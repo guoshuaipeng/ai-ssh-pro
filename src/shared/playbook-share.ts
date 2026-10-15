@@ -1,6 +1,6 @@
 /** W5: encrypted playbook share packs. Host secrets never enter the file. */
 import { redactAuditText } from './audit-log'
-import { normalizePlaybook, type Playbook, type PlaybookStep, type PlaybookVar } from './playbook'
+import { isBuiltinPlaybookId, normalizePlaybook, type Playbook, type PlaybookStep, type PlaybookVar } from './playbook'
 
 export const SHARE_FORMAT = 'aiss-playbooks'
 export const SHARE_VERSION = 1
@@ -301,7 +301,7 @@ export function applyShareImport(
       return
     }
     if (row.status === 'overwrite') {
-      const at = list.findIndex((p) => p.name.trim() === row.name.trim())
+      const at = list.findIndex((p) => p.name.trim() === row.name.trim() && !isBuiltinPlaybookId(p.id))
       if (at >= 0) {
         playbook.id = list[at]!.id
         list = list.slice()

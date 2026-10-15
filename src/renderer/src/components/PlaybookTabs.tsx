@@ -2,19 +2,23 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CommandSnippet, SavedSessionProfile } from '@shared/ipc'
 import { effectiveLevel } from '@shared/protection'
 import { playbookRunDisabled, stricterLevel } from '@shared/readonly-session'
+import { builtinPlaybooks, type LibrarySeg } from '@shared/builtin-pack'
 import {
   AUTOSAVE_MS,
   DEFAULT_PARALLEL,
   blankStep,
   clampParallel,
-  ensureSamples,
   exportPlaybook,
   hostSelectable,
   importPlaybook,
+  isBuiltinPlaybookId,
   loadPlaybooks,
   loadResults,
+  partitionStoredPlaybooks,
+  resolvePlaybook,
   resultToMarkdown,
   runPlaybook,
+  saveAsPlaybook,
   savePlaybooks,
   saveResult,
   upsertPlaybook,
@@ -77,8 +81,10 @@ export function PlaybookList({
   onRun: (id: string) => void
   onClose: () => void
 }) {
-  const [list, setList] = useState<Playbook[]>(() => sortPlaybooks(ensureSamples(loadPlaybooks())))
+  const [list, setList] = useState<Playbook[]>(() => sortPlaybooks(partitionStoredPlaybooks(loadPlaybooks()).user))
   const [more, setMore] = useState(false)
+  const [seg, setSeg] = useState<LibrarySeg>('all')
+  const builtins = useMemo(() => builtinPlaybooks(), [])
   const [picked, setPicked] = useState<string[]>([])
   const [exportOpen, setExportOpen] = useState(false)
   const [exportIds, setExportIds] = useState<string[] | null>(null)
@@ -87,16 +93,40 @@ export function PlaybookList({
   useEffect(() => {
     const onDue = () => setDueOnly(true)
     const onChange = () => setReminders(loadReminders())
+    const onBuiltin = () => setSeg('builtin')
     window.addEventListener('aiss-playbook-filter-due', onDue)
     window.addEventListener('aiss-reminder-change', onChange)
+    window.addEventListener('aiss-builtin-playbooks', onBuiltin)
     return () => {
       window.removeEventListener('aiss-playbook-filter-due', onDue)
       window.removeEventListener('aiss-reminder-change', onChange)
+      window.removeEventListener('aiss-builtin-playbooks', onBuiltin)
     }
   }, [])
   const dueIds = new Set(dueReminders(reminders).map((r) => r.playbookId))
   const shown = dueOnly ? list.filter((p) => dueIds.has(p.id)) : list
+  const showBuiltin = !dueOnly && seg !== 'mine'
+  const showUser = seg !== 'builtin'
+  const saveBuiltinAs = (playbook: Playbook) => {
+    const copy = saveAsPlaybook(playbook)
+    setList((cur) => sortPlaybooks(upsertPlaybook(cur, copy)))
+    showToast(tg('w9.savedAs', { name: copy.name }))
+  }
   useEffect(() => persist(list), [list])
+  useEffect(() => {
+    const refresh = () => {
+      const next = sortPlaybooks(partitionStoredPlaybooks(loadPlaybooks()).user)
+      setList((cur) => {
+        const same = cur.length === next.length && cur.every((row, index) => {
+          const other = next[index]
+          return other && row.id === other.id && row.name === other.name && row.updatedAt === other.updatedAt && row.steps.length === other.steps.length
+        })
+        return same ? cur : next
+      })
+    }
+    window.addEventListener('aiss-playbooks', refresh)
+    return () => window.removeEventListener('aiss-playbooks', refresh)
+  }, [])
   useEffect(() => {
     const open = () => {
       setExportIds(null)
@@ -147,20 +177,46 @@ export function PlaybookList({
         </div>
       </div>
       <div className="workspace-panel-body">
-        {list.length === 0 ? (
+        <div className="w9-seg" data-testid="w9-playbook-seg" role="tablist">
+          {(['all', 'builtin', 'mine'] as const).map((id) => (
+            <button key={id} type="button" aria-pressed={seg === id} onClick={() => setSeg(id)}>
+              {tg(id === 'all' ? 'w9.all' : id === 'builtin' ? 'w9.sectionBuiltin' : 'w9.sectionMine')}
+            </button>
+          ))}
+        </div>
+        {list.length === 0 && seg !== 'builtin' ? (
           <EmptyState
             testId="playbooks-empty"
             icon={<Icon name="book-open" size={48} strokeWidth={1.5} />}
             title={tg('pf4.playbookTitle')}
-            desc={tg('pf4.playbookDesc')}
+            desc={tg('w9.tryHint')}
             primary={{ label: tg('pf4.playbookNew'), onClick: add }}
-            secondary={[{
-              label: tg('pf4.playbookSample'),
-              onClick: () => setList(sortPlaybooks(ensureSamples([])))
-            }]}
+            secondary={builtins[0] ? [{
+              label: tg('w9.try'),
+              testId: 'w9-try-playbook',
+              onClick: () => onEdit(builtins[0].id)
+            }] : []}
           />
         ) : null}
-        {shown.map((p) => (
+        {showBuiltin ? builtins.map((p) => (
+          <div key={p.id} className="m2-row" data-testid="w9-builtin-playbook" data-builtin="true">
+            <div>
+              <strong>{p.name}</strong>
+              <span className="w9-badge" data-testid="w9-builtin-badge">{tg('w9.builtin')}</span>
+              <div className="l7-meta">{tg('w9.sampleNoAuto')}</div>
+              <div className="l7-meta w9-steps">
+                {p.steps.map((step, index) => (
+                  <span key={step.id}>{index + 1}. {step.title || step.command || step.type}</span>
+                ))}
+              </div>
+            </div>
+            <div className="workspace-panel-actions w9-row-actions">
+              <button type="button" data-testid="w9-pb-preview" onClick={() => onEdit(p.id)}>{tg('w9.preview')}</button>
+              <button type="button" data-testid="w9-pb-save-as" onClick={() => saveBuiltinAs(p)}>{tg('w9.saveAs')}</button>
+            </div>
+          </div>
+        )) : null}
+        {showUser ? shown.map((p) => (
           <div key={p.id} className="m2-row">
             <div>
               <label>
@@ -189,7 +245,7 @@ export function PlaybookList({
               <button type="button" onClick={() => { setExportIds([p.id]); setExportOpen(true) }}>{tg('w5.exportOne')}</button>
             </div>
           </div>
-        ))}
+        )) : null}
       </div>
       <ShareExportModal
         open={exportOpen}
@@ -221,10 +277,11 @@ export function PlaybookEditor({
     }
     void window.aiss.snippets.list().then(setSnippets).catch(() => undefined)
   }, [snippetsProp])
-  const [pb, setPb] = useState<Playbook | null>(() => loadPlaybooks().find((p) => p.id === playbookId) ?? null)
+  const [pb, setPb] = useState<Playbook | null>(() => resolvePlaybook(playbookId))
   const edited = useRef(0)
+  const locked = Boolean(pb && isBuiltinPlaybookId(pb.id))
   useEffect(() => {
-    if (!pb) return
+    if (!pb || isBuiltinPlaybookId(pb.id)) return
     edited.current = Date.now()
     const timer = window.setTimeout(() => {
       if (Date.now() - edited.current >= AUTOSAVE_MS - 20) {
@@ -252,11 +309,24 @@ export function PlaybookEditor({
     setPb({ ...pb, steps: pb.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) })
   }
   return (
-    <div className="workspace-panel" data-testid="playbook-edit">
+    <div className="workspace-panel" data-testid="playbook-edit" data-builtin={locked ? 'true' : 'false'}>
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{tg('m2.edit')}</h2>
         <div className="workspace-panel-actions">
-          {pb.draft ? (
+          {locked ? (
+            <button
+              type="button"
+              className="primary"
+              data-testid="w9-pb-save-as"
+              onClick={() => {
+                const copy = saveAsPlaybook(pb)
+                persist(upsertPlaybook(loadPlaybooks(), copy))
+                showToast(tg('w9.savedAs', { name: copy.name }))
+              }}
+            >
+              {tg('w9.saveAs')}
+            </button>
+          ) : pb.draft ? (
             <button
               type="button"
               className="primary"
@@ -273,6 +343,9 @@ export function PlaybookEditor({
           ) : (
             <button type="button" className="primary" onClick={() => onRun(pb.id)}>{tg('m2.run')}</button>
           )}
+          {locked ? (
+            <button type="button" onClick={() => onRun(pb.id)}>{tg('m2.run')}</button>
+          ) : null}
           <button type="button" onClick={() => void navigator.clipboard.writeText(exportPlaybook(pb))}>{tg('m2.export')}</button>
           {pb.draft ? (
             <button
@@ -290,6 +363,12 @@ export function PlaybookEditor({
         </div>
       </div>
       <div className="workspace-panel-body m2-form">
+        {locked ? (
+          <div className="w1-banner" data-testid="w9-playbook-locked">
+            <span className="w9-badge">{tg('w9.builtin')}</span>
+            <span>{tg('w9.sampleNoAuto')}</span>
+          </div>
+        ) : null}
         {pb.origin ? (
           <div className="w1-banner" data-testid="w1-banner" title={pb.origin.hostTitle}>
             {pb.origin.kind === 'error'
@@ -297,8 +376,8 @@ export function PlaybookEditor({
               : tg('w1.banner', { host: pb.origin.hostTitle, rule: pb.origin.ruleId || '', time: new Date(pb.origin.at).toLocaleTimeString() })}
           </div>
         ) : null}
-        <input value={pb.name} onChange={(e) => setPb({ ...pb, name: e.target.value })} aria-label={tg('m2.name')} />
-        <input value={pb.description} onChange={(e) => setPb({ ...pb, description: e.target.value })} aria-label={tg('m2.desc')} />
+        <input value={pb.name} readOnly={locked} onChange={(e) => setPb({ ...pb, name: e.target.value })} aria-label={tg('m2.name')} />
+        <input value={pb.description} readOnly={locked} onChange={(e) => setPb({ ...pb, description: e.target.value })} aria-label={tg('m2.desc')} />
         <div className="w2-vars" data-testid="w2-vars">
           <div className="w2-vars-head">{tg('w2.varsN', { n: (pb.vars ?? []).length })}</div>
           {(pb.vars ?? []).length === 0 ? <p className="l7-muted">{tg('w2.varsEmptyHint')}</p> : null}
@@ -308,6 +387,7 @@ export function PlaybookEditor({
               <span>{v.label || ''}</span>
               <input
                 aria-label={tg('w2.col.default')}
+                readOnly={locked}
                 value={v.sensitive ? '' : v.defaultValue ?? ''}
                 placeholder={v.sensitive ? '••••' : ''}
                 onChange={(e) => {
@@ -323,37 +403,37 @@ export function PlaybookEditor({
           <div key={step.id} className="m2-step">
             <div className="jump-hop-title">
               <span>{i + 1}</span>
-              <select value={step.type} onChange={(e) => patchStep(step.id, { type: e.target.value as PlaybookStep['type'] })}>
+              <select disabled={locked} value={step.type} onChange={(e) => patchStep(step.id, { type: e.target.value as PlaybookStep['type'] })}>
                 <option value="command">{tg('m2.stepCommand')}</option>
                 <option value="snippet">{tg('m2.stepSnippet')}</option>
                 <option value="toolbox">{tg('m2.stepToolbox')}</option>
               </select>
-              <button type="button" onClick={() => setPb({ ...pb, steps: pb.steps.filter((s) => s.id !== step.id) })}>{tg('app.delete')}</button>
+              {locked ? null : <button type="button" onClick={() => setPb({ ...pb, steps: pb.steps.filter((s) => s.id !== step.id) })}>{tg('app.delete')}</button>}
             </div>
             {step.type === 'toolbox' ? (
               <p className="l4-soon">{tg('m2.toolboxSoon')}</p>
             ) : step.type === 'snippet' ? (
-              <select value={step.snippetId ?? ''} onChange={(e) => patchStep(step.id, { snippetId: e.target.value })}>
+              <select disabled={locked} value={step.snippetId ?? ''} onChange={(e) => patchStep(step.id, { snippetId: e.target.value })}>
                 <option value="">{tg('m2.pickSnippet')}</option>
                 {snippets.map((s) => (
                   <option key={s.id} value={s.id}>{s.title}</option>
                 ))}
               </select>
             ) : (
-              <textarea value={step.command ?? ''} onChange={(e) => patchStep(step.id, { command: e.target.value })} rows={2} />
+              <textarea readOnly={locked} value={step.command ?? ''} onChange={(e) => patchStep(step.id, { command: e.target.value })} rows={2} />
             )}
             <label className="l4-check" title={step.lockedConfirm ? tg('w1.lockedConfirm') : undefined}>
-              <input type="checkbox" checked={step.confirm || Boolean(step.lockedConfirm)} disabled={Boolean(step.lockedConfirm)} onChange={(e) => patchStep(step.id, { confirm: e.target.checked })} />
+              <input type="checkbox" checked={step.confirm || Boolean(step.lockedConfirm)} disabled={locked || Boolean(step.lockedConfirm)} onChange={(e) => patchStep(step.id, { confirm: e.target.checked })} />
               {tg('m2.confirmStep')}
               {step.lockedConfirm ? <Icon name="lock" size={14} /> : null}
             </label>
             {step.checkPlaceholder ? <span className="l4-soon">{tg('w1.checkPlaceholder')}</span> : null}
-            <label className="l4-check"><input type="checkbox" checked={step.stopOnError} onChange={(e) => patchStep(step.id, { stopOnError: e.target.checked })} />{tg('m2.stopOnError')}</label>
-            <label className="l4-check">{tg('m2.timeout')}<input type="number" min={1} max={600} value={step.timeoutSec} onChange={(e) => patchStep(step.id, { timeoutSec: Number(e.target.value) || 60 })} /></label>
+            <label className="l4-check"><input type="checkbox" checked={step.stopOnError} disabled={locked} onChange={(e) => patchStep(step.id, { stopOnError: e.target.checked })} />{tg('m2.stopOnError')}</label>
+            <label className="l4-check">{tg('m2.timeout')}<input type="number" min={1} max={600} value={step.timeoutSec} readOnly={locked} onChange={(e) => patchStep(step.id, { timeoutSec: Number(e.target.value) || 60 })} /></label>
           </div>
         ))}
-        <button type="button" onClick={() => setPb({ ...pb, steps: [...pb.steps, blankStep()] })}>{tg('m2.addStep')}</button>
-        <section className="w6-section" data-testid="w6-reminder">
+        {locked ? null : <button type="button" onClick={() => setPb({ ...pb, steps: [...pb.steps, blankStep()] })}>{tg('m2.addStep')}</button>}
+        {locked ? null : <section className="w6-section" data-testid="w6-reminder">
           <h3>{tg('w6.section')}</h3>
           <label>
             {tg('w6.period')}
@@ -376,7 +456,7 @@ export function PlaybookEditor({
             <button type="button" data-testid="w6-snooze" onClick={snooze}>{tg('w6.snooze')}</button>
           ) : null}
           {typeof Notification !== 'undefined' && Notification.permission === 'denied' ? <p className="l7-muted">{tg('w6.needNotif')}</p> : null}
-        </section>
+        </section>}
       </div>
     </div>
   )
@@ -407,7 +487,7 @@ export function PlaybookRun({
     }
     void window.aiss.snippets.list().then(setSnippets).catch(() => undefined)
   }, [snippetsProp])
-  const playbook = useMemo(() => loadPlaybooks().find((p) => p.id === playbookId) ?? null, [playbookId])
+  const playbook = useMemo(() => resolvePlaybook(playbookId), [playbookId])
   const hosts = useMemo(() => hostsFrom(profiles, live, sessionReadonly), [profiles, live, sessionReadonly])
   const [picked, setPicked] = useState<string[]>(() => initialHostIds({ targetHint: playbook?.targetHint }))
   const [mode, setMode] = useState<'parallel' | 'serial'>('parallel')
@@ -561,17 +641,19 @@ export function PlaybookRun({
         summary: `${playbook.name} ${result.cells.filter((c) => c.state === 'ok').length}/${result.cells.length}`
       })
     }
-    const promoted = promoteDraft(playbook)
-    const vars = remember
-      ? (promoted.vars ?? []).map((v) => (v.sensitive ? v : { ...v, defaultValue: values[v.name] ?? v.defaultValue }))
-      : promoted.vars
-    const saved = loadPlaybooks().map((p) => (p.id === playbook.id ? { ...promoted, vars, lastRunAt: Date.now(), draft: undefined } : p))
-    persist(saved)
+    if (!isBuiltinPlaybookId(playbook.id)) {
+      const promoted = promoteDraft(playbook)
+      const vars = remember
+        ? (promoted.vars ?? []).map((v) => (v.sensitive ? v : { ...v, defaultValue: values[v.name] ?? v.defaultValue }))
+        : promoted.vars
+      const saved = loadPlaybooks().map((p) => (p.id === playbook.id ? { ...promoted, vars, lastRunAt: Date.now(), draft: undefined } : p))
+      persist(saved)
+    }
     setRunning(false)
     onResult(result)
   }
   return (
-    <div className="workspace-panel" data-testid="playbook-run" ref={rootRef}>
+    <div className="workspace-panel" data-testid="playbook-run" data-auto-run="false" data-builtin={isBuiltinPlaybookId(playbook.id) ? 'true' : 'false'} ref={rootRef}>
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{playbook.name}</h2>
         <div className="workspace-panel-actions">
@@ -596,6 +678,12 @@ export function PlaybookRun({
         </div>
       </div>
       <div className="workspace-panel-body m2-form">
+        {isBuiltinPlaybookId(playbook.id) ? (
+          <div className="w1-banner" data-testid="w9-run-note">
+            <span className="w9-badge">{tg('w9.builtin')}</span>
+            <span>{tg('w9.sampleNoAuto')}</span>
+          </div>
+        ) : null}
         <div className="l2-filters" data-testid="w2-hosts">
           <span>{tg('w2.hostsN', { n: selected.length })}</span>
           {!selected.length ? <span className="l7-muted">{tg('w2.noHosts')}</span> : null}
