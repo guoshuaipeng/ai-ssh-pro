@@ -1527,7 +1527,7 @@ body.layout-resizing {
   /* Hairline sits in the 36px box so the content row stays 30px (6px pad + 30px tabs). */
   box-shadow: inset 0 -1px 0 var(--border);
   flex-shrink: 0;
-  /* UX-55: one 36px row. Extra tabs scroll inside .tab-bar-scroll; ⌄ lists the rest. */
+  /* Polish-3 TB-1/TB-3: one 36px row. Tabs scroll inside .tab-bar-scroll; ⋯ lists the rest. */
   min-width: 0;
   height: 36px;
   max-height: 36px;
@@ -1541,16 +1541,27 @@ body.layout-resizing {
   gap: 2px;
   flex: 1;
   min-width: 0;
-  height: 30px;
+  /* 30px of tabs. The extra 16px holds a classic scrollbar so .tab-bar can clip it (TB-1). */
+  height: 46px;
+  margin-bottom: -16px;
+  padding-bottom: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
+  scrollbar-width: none !important;
+  scrollbar-color: transparent transparent;
   -ms-overflow-style: none;
 }
 .tab-bar-scroll::-webkit-scrollbar {
-  display: none;
+  display: none !important;
   width: 0 !important;
   height: 0 !important;
+  background: transparent;
+}
+.tab-bar-scroll::-webkit-scrollbar-thumb,
+.tab-bar-scroll::-webkit-scrollbar-track,
+.tab-bar-scroll::-webkit-scrollbar-corner {
+  display: none !important;
+  background: transparent;
 }
 .tab-bar-scroll.fade-left {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
@@ -1583,23 +1594,29 @@ body.layout-resizing {
 }
 .tab-scroll-btn {
   flex: none;
+  flex-shrink: 0;
   align-self: center;
   width: 22px;
   height: 24px;
   padding: 0;
   line-height: 22px;
+  white-space: nowrap;
 }
 .tab-scroll-btn:disabled {
   opacity: 0.35;
 }
 .tab-overflow-btn {
   flex: none;
+  flex-shrink: 0;
   align-self: center;
   white-space: nowrap;
   height: 24px;
+  width: 28px;
   min-width: 28px;
-  padding: 0 6px;
+  max-width: 28px;
+  padding: 0;
   line-height: 24px;
+  text-align: center;
 }
 .tab-overflow-menu {
   position: fixed;

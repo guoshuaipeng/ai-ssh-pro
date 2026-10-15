@@ -121,7 +121,7 @@ import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
 import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTab'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
-import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabStripWheelDelta } from '@shared/tab-overflow'
+import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabStripChrome, tabStripWheelDelta } from '@shared/tab-overflow'
 import { loadProbePrefs, probeExtrasOf, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
 import { bellShouldFlash, endingSoon, expireDue, formatRemaining, loadMaintenance, shouldNotify } from '@shared/maintenance'
 import { planPostmortem } from '@shared/postmortem-ai'
@@ -514,6 +514,7 @@ export default function App() {
   const [tabStripOverflowing, setTabStripOverflowing] = useState(false)
   const [tabHiddenCount, setTabHiddenCount] = useState(0)
   const [tabFade, setTabFade] = useState({ left: false, right: false })
+  const tabChrome = tabStripChrome(tabStripOverflowing)
   const tabBarRef = useRef<HTMLDivElement>(null)
   const tabOverflowBtnRef = useRef<HTMLButtonElement>(null)
   const tabOverflowMenuRef = useRef<HTMLDivElement>(null)
@@ -1299,7 +1300,7 @@ export default function App() {
     scroll.addEventListener('scroll', measure, { passive: true })
     const onWheel = (e: WheelEvent) => {
       if (scroll.scrollWidth <= scroll.clientWidth + 1) return
-      const delta = tabStripWheelDelta(e.deltaX, e.deltaY)
+      const delta = tabStripWheelDelta(e.deltaX, e.deltaY, e.deltaMode, scroll.clientWidth)
       if (!delta) return
       e.preventDefault()
       scroll.scrollLeft += delta
@@ -5719,7 +5720,7 @@ export default function App() {
                 {tr('ux10.broadcasting', { n: broadcastSessions.length })}
               </button>
             ) : null}
-            {tabStripOverflowing ? (
+            {tabChrome.arrows ? (
               <button
                 type="button"
                 className="tab-scroll-btn"
@@ -5851,7 +5852,7 @@ export default function App() {
               )
             })}
             </div>
-            {tabStripOverflowing ? (
+            {tabChrome.arrows ? (
               <button
                 type="button"
                 className="tab-scroll-btn"
@@ -5867,13 +5868,15 @@ export default function App() {
                 →
               </button>
             ) : null}
-            {tabStripOverflowing ? (
+            {tabChrome.menu ? (
               <button
                 ref={tabOverflowBtnRef}
                 type="button"
                 className="tab-overflow-btn"
                 data-testid="tab-overflow"
+                data-hidden={tabHiddenCount}
                 aria-expanded={tabOverflowOpen}
+                aria-haspopup="menu"
                 aria-label={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
                 title={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
                 onClick={() => {
@@ -5890,7 +5893,7 @@ export default function App() {
                   setTabOverflowOpen((v) => !v)
                 }}
               >
-                <span aria-hidden>{`⌄ ${tabHiddenCount}`}</span>
+                <span aria-hidden>⋯</span>
               </button>
             ) : null}
             {tabOverflowOpen && tabOverflowPos

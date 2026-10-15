@@ -1,4 +1,4 @@
-/** UX-55: the center tab strip stays one row. Extra tabs scroll or sit in the ⌄ list. UX-55b adds search. */
+/** UX-55 / Polish-3: the center tab strip stays one row. Extra tabs scroll; ⋯ lists them. UX-55b adds search. */
 
 /** Initials for titles the product itself uses. Unknown characters stay searchable as themselves. */
 const PINYIN_INITIAL: Record<string, string> = {
@@ -95,12 +95,24 @@ export function tabStripOverflow(opts: {
 /** Pixels a ← / → click moves the strip. */
 export const TAB_STRIP_NUDGE = 160
 
+/** Pixels for one DOM_DELTA_LINE notch. Pixel wheels (deltaMode 0) are unchanged. */
+export const TAB_WHEEL_LINE_PX = 48
+
+/** TB-3: left/right arrows and the ⋯ menu show together, and only while tabs overflow. */
+export function tabStripChrome(overflowing: boolean): { arrows: boolean; menu: boolean } {
+  return { arrows: overflowing, menu: overflowing }
+}
+
 /**
  * Map a wheel gesture onto the tab strip.
  * A vertical wheel (the common mouse wheel) scrolls sideways.
  * A mostly-horizontal trackpad gesture keeps deltaX.
+ * Line and page modes are scaled so a notch moves more than a pixel.
  */
-export function tabStripWheelDelta(deltaX: number, deltaY: number): number {
-  if (Math.abs(deltaY) >= Math.abs(deltaX)) return deltaY
-  return deltaX
+export function tabStripWheelDelta(deltaX: number, deltaY: number, deltaMode = 0, pagePx = 320): number {
+  const raw = Math.abs(deltaY) >= Math.abs(deltaX) ? deltaY : deltaX
+  if (!raw) return 0
+  if (deltaMode === 1) return raw * TAB_WHEEL_LINE_PX
+  if (deltaMode === 2) return raw * (pagePx > 0 ? pagePx : 320)
+  return raw
 }
