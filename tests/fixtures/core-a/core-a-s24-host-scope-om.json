@@ -1,0 +1,318 @@
+{
+  "id": "S24",
+  "title": "Host A observational memory is not evidence on host B",
+  "industryBar": ["host-scope", "observational-compression", "evidence-grounding"],
+  "hostProfile": {
+    "hostId": "host-s24-b",
+    "label": "host-b-s24",
+    "hostname": "host-b-s24.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s24-b",
+    "historyKey": "hist-s24-host-b"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "seedInventory": {
+    "hostId": "host-s24-b",
+    "services": [
+      {
+        "name": "hostb-s24-web",
+        "kind": "systemd",
+        "ports": [80],
+        "notes": "HOST_B_S24_ONLY ordinary web"
+      }
+    ],
+    "notes": ["HOST_B_S24_ONLY"]
+  },
+  "isolationPrelude": {
+    "hostProfile": {
+      "hostId": "host-s24-a",
+      "label": "host-a-s24",
+      "hostname": "host-a-s24.internal"
+    },
+    "session": {
+      "targetSessionId": "sess-s24-a",
+      "historyKey": "hist-s24-host-a"
+    },
+    "seedInventory": {
+      "hostId": "host-s24-a",
+      "services": [
+        {
+          "name": "hosta-s24-plain",
+          "kind": "systemd",
+          "ports": [22],
+          "notes": "HOST_A_S24_PLAIN"
+        }
+      ],
+      "notes": ["HOST_A_S24_PLAIN"]
+    },
+    "turns": [
+      {
+        "turnId": "S24-A1",
+        "userMessage": "先记录这台机器，不要删除文件。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "先到这里。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A2",
+        "userMessage": "请记下稀有事实 OM_S24_RARE_FACT 只监听 127.0.0.1:18451，配置 /etc/s24/edge.conf。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "已记下该监听约束，先到这里。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0,
+          "descriptionMustNotContain": ["OM_S24_RARE_FACT", "18451", "/etc/s24/edge.conf"]
+        }
+      },
+      {
+        "turnId": "S24-A3",
+        "userMessage": "请执行只读命令 echo S24_HOSTA_CMD，确认后再发。",
+        "mockTerminal": {
+          "initialRing": "",
+          "afterWrite": {
+            "echo S24_HOSTA_CMD": "S24_HOSTA_CMD\n"
+          }
+        },
+        "userConfirm": {
+          "policy": "approve-all-commands",
+          "assert": {
+            "stepHasRequestId": true,
+            "autoApproved": false,
+            "sshWriteBeforeApprove": false
+          }
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "建议执行 echo S24_HOSTA_CMD。",
+              "action": "command",
+              "command": "echo S24_HOSTA_CMD",
+              "riskLevel": "low",
+              "completed": false
+            }
+          },
+          {
+            "response": {
+              "description": "命令已确认后执行。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 1,
+          "commandsRequiringConfirm": ["echo S24_HOSTA_CMD"],
+          "recentCommandsMustContain": ["echo S24_HOSTA_CMD"],
+          "confirmGate": {
+            "required": true,
+            "riskLevel": "low",
+            "settingsAutoApproveLowRisk": false
+          }
+        }
+      },
+      {
+        "turnId": "S24-A4",
+        "userMessage": "继续无关项 4。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 4 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A5",
+        "userMessage": "继续无关项 5。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 5 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A6",
+        "userMessage": "继续无关项 6。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 6 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A7",
+        "userMessage": "继续无关项 7。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 7 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A8",
+        "userMessage": "继续无关项 8。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 8 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A9",
+        "userMessage": "继续无关项 9。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 9 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A10",
+        "userMessage": "继续无关项 10。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 10 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": { "finalAction": "end", "sshWriteCount": 0 }
+      },
+      {
+        "turnId": "S24-A11",
+        "userMessage": "继续无关项 11。",
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          { "response": { "description": "无关项 11 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0,
+          "observationalMemoryMustContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf", "S24_HOSTA_CMD"],
+          "recentWindowMustNotContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf", "S24_HOSTA_CMD"],
+          "recentCommandsMustContain": ["echo S24_HOSTA_CMD"]
+        }
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "S24-B1",
+      "userMessage": "先前的监听事实还在吗？不够就说明。不要执行命令。",
+      "mockTerminal": { "initialRing": "", "afterWrite": {} },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "当前主机没有这条记录，证据不足。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "mustNotEmitCommands": ["echo", "S24_HOSTA_CMD", "OM_S24_RARE_FACT"],
+        "descriptionMustContain": ["证据不足"],
+        "descriptionMustNotContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf", "S24_HOSTA_CMD", "HOST_A_S24_PLAIN"],
+        "plannerPromptMustNotContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf", "S24_HOSTA_CMD", "HOST_A_S24_PLAIN"],
+        "observationalMemoryMustNotContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf", "S24_HOSTA_CMD"],
+        "recentCommandEvidenceMustNotContain": ["S24_HOSTA_CMD", "OM_S24_RARE_FACT"],
+        "recentCommandsMustNotContain": ["S24_HOSTA_CMD", "OM_S24_RARE_FACT"],
+        "recentWindowMustNotContain": ["OM_S24_RARE_FACT", "S24_HOSTA_CMD", "18451"]
+      }
+    }
+  ],
+  "hostScopeReturn": {
+    "hostProfile": {
+      "hostId": "host-s24-a",
+      "label": "host-a-s24",
+      "hostname": "host-a-s24.internal"
+    },
+    "session": {
+      "targetSessionId": "sess-s24-a",
+      "historyKey": "hist-s24-host-a"
+    },
+    "seedInventory": {
+      "hostId": "host-s24-a",
+      "services": [
+        {
+          "name": "hosta-s24-plain",
+          "kind": "systemd",
+          "ports": [22],
+          "notes": "HOST_A_S24_PLAIN"
+        }
+      ],
+      "notes": ["HOST_A_S24_PLAIN"]
+    },
+    "turns": [
+      {
+        "turnId": "S24-A12",
+        "userMessage": "先前的监听和配置路径还在吗？只回答当前主机。",
+        "mockTerminal": { "initialRing": "", "afterWrite": {} },
+        "userConfirm": { "policy": "none" },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "先读终端缓冲。",
+              "action": "tool_call",
+              "toolName": "get_terminal_snapshot",
+              "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+              "riskLevel": "low",
+              "completed": false
+            },
+            "expectToolResultContains": ["暂无缓冲"]
+          },
+          {
+            "response": {
+              "description": "仍记得 OM_S24_RARE_FACT 只监听 127.0.0.1:18451，配置 /etc/s24/edge.conf。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "completed": true,
+          "sshWriteCount": 0,
+          "mustNotEmitCommands": ["echo", "S24_HOSTA_CMD"],
+          "descriptionMustContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf"],
+          "descriptionMustNotContain": ["证据不足", "HOST_B_S24_ONLY"],
+          "observationalMemoryMustContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf", "S24_HOSTA_CMD"],
+          "recentWindowMustNotContain": ["OM_S24_RARE_FACT", "127.0.0.1:18451", "/etc/s24/edge.conf", "S24_HOSTA_CMD"],
+          "recentCommandsMustContain": ["echo S24_HOSTA_CMD"],
+          "recentCommandEvidenceMustContain": ["S24_HOSTA_CMD"],
+          "plannerPromptMustNotContain": ["HOST_B_S24_ONLY", "hostb-s24-web"]
+        }
+      }
+    ]
+  },
+  "passCriteriaSummary": [
+    "Host A records OM_S24_RARE_FACT and a confirmed echo S24_HOSTA_CMD, then fillers push both into observational memory",
+    "Host B recall says 证据不足 and does not use host A's bullets or recent commands as evidence",
+    "The same host A thread still recalls the rare fact, and the confirmed command stays on host A"
+  ]
+}
