@@ -86,6 +86,7 @@ import ServerToolsModal from './components/ServerToolsModal'
 import RecentConnections from './components/RecentConnections'
 import SessionCommandBar from './components/SessionCommandBar'
 import EmptyState from './components/EmptyState'
+import Icon, { Twist } from './components/Icon'
 import HostPicker from './components/HostPicker'
 import WelcomeTour, { TOUR_DONE_KEY } from './components/WelcomeTour'
 import AiAssistCard from './components/AiAssistCard'
@@ -120,7 +121,7 @@ import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-we
 import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
-import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
+import { statusKind, type SyncPhase } from '@shared/sync-vault'
 import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
 import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
 import { connectOptsFromProfile } from './lib/connect-opts'
@@ -133,10 +134,10 @@ import { hostInScope, loadDashScope, saveDashScope, type DashScope } from '@shar
 import { assessCommandRisk } from '@shared/command-risk'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
-import { planRestore, snapshotWorkspace } from '@shared/session-restore'
+import { isExplicitEmptyWorkspace, planRestore, RESTORE_BIND_MS, snapshotWorkspace, workspaceRestoreRows } from '@shared/session-restore'
 import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
 import SettingsPanel from './components/SettingsPanel'
-import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
+import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel, profileDisplayLabel } from '@shared/demo-host'
 import { findAlertDraft, playbookFromFixes, ruleShortName } from '@shared/playbook-draft'
 import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
@@ -174,8 +175,7 @@ function profileSidebarTitle(p: SavedSessionProfile): string {
 }
 
 function profileSidebarLabel(p: SavedSessionProfile, locale: string): string {
-  if (p.id === DEMO_PROFILE_ID) return demoProfileLabel(locale === 'en' ? 'en' : 'zh-CN')
-  return p.label?.trim() || p.host || `${p.username}@${p.host}` || '—'
+  return profileDisplayLabel(p, locale === 'en' ? 'en' : 'zh-CN')
 }
 
 type TabView =
@@ -304,6 +304,8 @@ type Tab = {
   settingsSection?: SettingsSection
   /** Restored tab that connects when it becomes active. */
   cold?: boolean
+  /** UX-50b: auto-bind gave up; show the click-to-connect placeholder. */
+  restoreFailed?: boolean
   /** D5 compare payload */
   fileCompare?: {
     leftName: string
@@ -751,7 +753,7 @@ export default function App() {
       .map((p) => {
         const live = connectedSshSessions.find((s) => s.profileId === p.id)
         const probe = hostStatus[p.id]
-        const title = p.label?.trim() || `${p.username}@${p.host}`
+        const title = profileSidebarLabel(p, locale)
         const alerting = live
           ? activeAlertIds.has(live.sessionId)
           : alertHistory.some((a) => a.status === 'active' && (a.hostTitle === title || a.hostTitle === p.host))
@@ -771,7 +773,7 @@ export default function App() {
           pinned: pinnedIdSet.has(p.id)
         }
       })
-  }, [profiles, dashScope, connectedSshSessions, hostStatus, activeAlertIds, alertHistory, recentIdSet, pinnedIdSet])
+  }, [profiles, dashScope, connectedSshSessions, hostStatus, activeAlertIds, alertHistory, recentIdSet, pinnedIdSet, locale])
   useEffect(() => {
     let stop = false
     const pull = () => {
@@ -2246,7 +2248,7 @@ export default function App() {
           try {
             if (Notification.permission === 'granted') {
               const f = audible[0]!
-              const note = new Notification(`⚠ ${f.hostTitle}`, {
+              const note = new Notification(f.hostTitle, {
                 body: `${f.ruleId} ${Math.round(f.value)}${f.ruleId === 'offline' ? '' : '%'} · ${new Date(f.at).toLocaleTimeString()}`
               })
               note.onclick = () => {
@@ -2844,8 +2846,23 @@ export default function App() {
     setTabs((prev) => {
       let changed = false
       const next = prev.map((t) => {
+        const demoTitle =
+          (!t.view || t.view === 'session') && t.profileId === DEMO_PROFILE_ID && !t.customTitle
+            ? profileSidebarLabel(
+                profilesRef.current.find((p) => p.id === DEMO_PROFILE_ID) ?? {
+                  id: DEMO_PROFILE_ID,
+                  label: '',
+                  host: DEMO_HOST,
+                  port: 22,
+                  username: DEMO_USER
+                },
+                locale
+              )
+            : null
         const title =
-          t.view === 'home'
+          demoTitle && !profilesRef.current.find((p) => p.id === DEMO_PROFILE_ID)?.demoRenamed
+            ? demoTitle
+            : t.view === 'home'
             ? tr('l7.title')
             : t.view === 'alert-workbench'
               ? tr('l2.title')
@@ -2874,17 +2891,10 @@ export default function App() {
     }
     const saved = loadLastWorkspace()
     const known = new Set(profilesRef.current.map((p) => p.id))
-    const source = saved.tabs?.length
-      ? saved.tabs
-      : saved.profileIds.map((id, order) => ({
-          kind: 'terminal',
-          profileId: id,
-          title: profilesRef.current.find((p) => p.id === id)?.label || id,
-          order,
-          active: order === 0
-        }))
+    const source = workspaceRestoreRows(saved, (id) => profilesRef.current.find((p) => p.id === id)?.label || id)
     const planned = planRestore(source, known)
     if (planned.skipped) showToast(tg('restore.skipped', { n: planned.skipped }))
+    if (isExplicitEmptyWorkspace(saved)) showToast(tg('restore.emptyWorkspace'))
     if (!planned.keep.length) {
       openHomeRef.current()
       return
@@ -2941,17 +2951,17 @@ export default function App() {
       )
       if (term) {
         void reconnectTabRef.current(term.tabId).then((sid) => {
-          clearCold(sid ? { boundSessionId: sid } : undefined)
+          clearCold(sid ? { boundSessionId: sid, restoreFailed: false } : { restoreFailed: true })
         })
         return
       }
       const profile = tab.profileId ? profilesRef.current.find((p) => p.id === tab.profileId) : undefined
       if (!profile) {
-        clearCold()
+        clearCold({ restoreFailed: true })
         return
       }
       void connectProfile(profile).then((sid) => {
-        clearCold(sid ? { boundSessionId: sid } : undefined)
+        clearCold(sid ? { boundSessionId: sid, restoreFailed: false } : { restoreFailed: true })
         if (!sid) showToast(tg('restore.fail', { host: profile.host, reason: lastConnectErrorRef.current || '' }))
       })
       return
@@ -2973,24 +2983,52 @@ export default function App() {
         )
         if (!live?.sessionId) return t
         changed = true
-        return { ...t, boundSessionId: live.sessionId, cold: false }
+        return { ...t, boundSessionId: live.sessionId, cold: false, restoreFailed: false }
       })
       return changed ? next : prev
     })
   }, [tabs])
+  const restoreArmedAt = useRef(new Map<string, number>())
+  const workspaceReady = useRef(false)
+  useEffect(() => {
+    const now = Date.now()
+    const watching = tabs.filter((t) => (t.view === 'monitor' || t.view === 'toolbox') && !t.boundSessionId && !t.restoreFailed)
+    const ids = new Set(watching.map((t) => t.tabId))
+    for (const id of [...restoreArmedAt.current.keys()]) if (!ids.has(id)) restoreArmedAt.current.delete(id)
+    for (const t of watching) if (!restoreArmedAt.current.has(t.tabId)) restoreArmedAt.current.set(t.tabId, now)
+    const timer = window.setInterval(() => {
+      const due = [...restoreArmedAt.current.entries()].filter(([, at]) => Date.now() - at >= RESTORE_BIND_MS).map(([id]) => id)
+      if (!due.length) return
+      for (const id of due) restoreArmedAt.current.delete(id)
+      setTabs((prev) => prev.map((t) => (due.includes(t.tabId) && !t.boundSessionId ? { ...t, cold: false, restoreFailed: true } : t)))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [tabs])
   useEffect(() => {
     if (!sessionsReady || !bootedRef.current) return
+    if (!workspaceReady.current) {
+      workspaceReady.current = true
+      return
+    }
     const snapshot = snapshotWorkspace(tabs, activeTabId)
     const ids = [...new Set(snapshot.filter((row) => row.kind === 'terminal' && row.profileId).map((row) => row.profileId!))]
-    if (!ids.length && !snapshot.length) return
-    saveLastWorkspace({ profileIds: ids, tabs: snapshot })
+    saveLastWorkspace({ profileIds: snapshot.length ? ids : [], tabs: snapshot })
   }, [tabs, sessionsReady, activeTabId])
   const renameProfile = useCallback(
     async (p: SavedSessionProfile) => {
       setSessionMenu(null)
       const next = await askText(tg('ctx.renameTitle'), p.label?.trim() || `${p.username}@${p.host}`)
       if (next == null || !next.trim()) return
-      void persistSessionState({ folders, profiles: profiles.map((x) => (x.id === p.id ? { ...x, label: next.trim() } : x)) })
+      const renamed = next.trim()
+      void persistSessionState({
+        folders,
+        profiles: profiles.map((x) =>
+          x.id === p.id ? { ...x, label: renamed, ...(p.id === DEMO_PROFILE_ID ? { demoRenamed: true } : {}) } : x
+        )
+      })
+      if (p.id === DEMO_PROFILE_ID) {
+        setTabs((prev) => prev.map((t) => (t.profileId === DEMO_PROFILE_ID && !t.customTitle && (!t.view || t.view === 'session') ? { ...t, title: renamed } : t)))
+      }
     },
     [folders, persistSessionState, profiles]
   )
@@ -3018,7 +3056,7 @@ export default function App() {
   const renderProfileBranch = (p: SavedSessionProfile, inFolder?: boolean) => (
     <SessionDockerBranch
       key={p.id}
-      profile={p.id === DEMO_PROFILE_ID ? { ...p, label: demoProfileLabel(locale === 'en' ? 'en' : 'zh-CN') } : p}
+      profile={{ ...p, label: profileSidebarLabel(p, locale) }}
       selected={highlightedProfileId === p.id || multiSelected.includes(p.id)}
       inFolder={inFolder}
       hostStatus={showHostStatus ? (hostStatus[p.id] ?? null) : undefined}
@@ -3804,7 +3842,7 @@ export default function App() {
           return
         }
         if (!aiConfigured) {
-          showToast(tg('w1.needAi'))
+          showToast(tg('w1.needAi'), { action: { label: tg('w1.configure'), run: () => openUnifiedSettings('ai') } })
           return
         }
         const tab = tabsRef.current.find((t) => t.view === 'alert-workbench')
@@ -4376,6 +4414,7 @@ export default function App() {
                   hideWhenEmpty={profiles.length === 0}
                   onQuickConnect={quickConnectRecent}
                   savedKeys={profiles.map((p) => `${p.username}@${p.host}:${p.port || 22}`)}
+                  demoRenamed={profiles.some((p) => p.id === DEMO_PROFILE_ID && p.demoRenamed)}
                 />
                 {error && activeTab?.view !== 'connection' && (
                   <div
@@ -4404,7 +4443,7 @@ export default function App() {
                   <EmptyState
                     testId="sidebar-empty"
                     compact
-                    icon="🖥"
+                    icon={<Icon name="monitor" size={32} />}
                     title={tr('ux08.sidebarTitle')}
                     desc={tr('ux08.sidebarDesc')}
                     primary={{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor(), testId: 'empty-new-connection', tour: 'new-connection' }}
@@ -4443,7 +4482,7 @@ export default function App() {
                         }}
                       >
                         <span className="session-folder-chevron" aria-hidden>
-                          {expanded ? '▼' : '▶'}
+                          <Twist open={expanded} />
                         </span>
                         <span className="session-folder-name">{f.name}</span>
                         <span className="session-folder-count">{inFolder.length}</span>
@@ -4496,7 +4535,7 @@ export default function App() {
                 }
               }}
             >
-              {alertRules.mutedUntil && alertRules.mutedUntil > Date.now() ? '⊘' : '🔔'}
+              <Icon name="bell" size={16} />
               {activeCount(alertHistory) > 0 ? <span className="alert-bell-count">{activeCount(alertHistory)}</span> : null}
             </button>
             {broadcastSessions.length ? (
@@ -4755,7 +4794,7 @@ export default function App() {
                             </span>
                             {current ? (
                               <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
-                                ✓
+                                <Icon name="check" size={14} />
                               </span>
                             ) : null}
                           </button>
@@ -4983,13 +5022,13 @@ export default function App() {
             {tabs.length === 0 ? (
               <EmptyState
                 testId="terminal-empty"
-                icon="⌨"
+                icon={<Icon name="keyboard" size={32} />}
                 title={startupMode === 'blank' ? tr('l7.blankTitle') : tr('ux08.termTitle')}
                 desc={startupMode === 'blank' ? tr('l7.blankDesc') : tr('ux08.termDesc')}
                 primary={{ label: tr('l7.title'), onClick: () => openHome(), avoid: true }}
                 secondary={[{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor() }, { label: tr('ux08.palette'), onClick: () => setPaletteOpen(true) }]}
               >
-                <RecentConnections variant="welcome" limit={5} hideWhenEmpty onQuickConnect={quickConnectRecent} />
+                <RecentConnections variant="welcome" limit={5} hideWhenEmpty onQuickConnect={quickConnectRecent} demoRenamed={profiles.some((p) => p.id === DEMO_PROFILE_ID && p.demoRenamed)} />
                 <div className="empty-state-keys">
                   <span>
                     <kbd>Ctrl+Shift+N</kbd> {tr('ux08.keyNew')}
@@ -5141,20 +5180,20 @@ export default function App() {
                     }}
                   />
                 ) : (t.view === 'monitor' || t.view === 'toolbox') && !t.boundSessionId ? (
-                  <div className="workspace-panel restore-connecting" data-testid="restore-connecting">
-                    <p>{t.cold ? tg('restore.connecting') : tg('restore.click')}</p>
-                    {t.cold ? null : (
-                      <button
-                        type="button"
-                        className="primary"
-                        data-testid="restore-click"
-                        onClick={() => {
-                          setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, cold: true } : x)))
-                        }}
-                      >
-                        {tg('restore.click')}
-                      </button>
-                    )}
+                  <div className="workspace-panel restore-connecting" data-testid="restore-connecting" data-restore={t.restoreFailed ? 'failed' : t.cold ? 'pending' : 'idle'}>
+                    <EmptyState
+                      icon={<Icon name="refresh-cw" size={32} />}
+                      title={t.restoreFailed ? tg('restore.failed') : t.cold ? tg('restore.reconnecting') : tg('restore.click')}
+                      primary={{
+                        label: tg('restore.click'),
+                        testId: 'restore-click',
+                        onClick: () => {
+                          restoreArmedAt.current.delete(t.tabId)
+                          wakingRef.current = null
+                          setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, cold: true, restoreFailed: false } : x)))
+                        }
+                      }}
+                    />
                   </div>
                 ) : t.view === 'monitor' && t.boundSessionId ? (
                   <ResourceMonitorModal
@@ -5317,6 +5356,7 @@ export default function App() {
                     buildContext={buildAlertExplain}
                     onOpenSettings={() => openUnifiedSettings('ai')}
                     onCreatePlaybook={(alert, fixes) => createFixPlaybook(alert, fixes)}
+                    onNeedAi={() => showToast(tg('w1.needAi'), { action: { label: tg('w1.configure'), run: () => openUnifiedSettings('ai') } })}
                     onExportPostmortem={(alert) => openPostmortem(alert)}
                   />
                 ) : t.view === 'file-history' ? (
@@ -5367,7 +5407,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.2'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.3'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -5894,7 +5934,17 @@ export default function App() {
               <path fill="currentColor" d="M12.5 13H4.2A3.2 3.2 0 0 1 4 6.6 4 4 0 0 1 11.7 5.2 2.8 2.8 0 0 1 12.5 13z" />
             </svg>
           </span>
-          <span>{statusGlyph(syncMeta.phase) || '✓'}</span>
+          <span>
+            {statusKind(syncMeta.phase) === 'alert' ? (
+              <Icon name="triangle-alert" size={14} />
+            ) : statusKind(syncMeta.phase) === 'spin' ? (
+              <Icon name="refresh-cw" size={14} />
+            ) : statusKind(syncMeta.phase) === 'fail' ? (
+              <span aria-hidden>×</span>
+            ) : (
+              <Icon name="check" size={14} />
+            )}
+          </span>
           <span>{tg(syncPhaseKey(syncMeta.phase))}</span>
         </button>
       ) : null}
@@ -6128,7 +6178,7 @@ export default function App() {
                   openToolTabRef.current('batch', null, sids)
                 })()
               })}
-              {item('monitorBoard', tg('ctx.monitorBoard') + ` (${multi.length})`, () => {
+              {item('monitorBoard', tg('host.menu.boardN', { n: multi.length }), () => {
                 setSessionMenu(null)
                 openDashboard()
               })}
@@ -6189,7 +6239,7 @@ export default function App() {
               openConnectionEditor(p)
               setSessionMenu(null)
             }, p.demo ? { disabled: true, hint: tg('g1.readOnly') } : undefined)}
-            {item('profile', tg('ctx.profileNotes'), () => {
+            {item('profile', tg('host.menu.inventory'), () => {
               openInventoryEditor({
                 profileId: p.id,
                 host: p.host,
@@ -6199,7 +6249,7 @@ export default function App() {
                 hostInventoryId: p.hostInventoryId
               })
               setSessionMenu(null)
-            }, { tip: tg('ctx.profileTip') })}
+            }, { tip: tg('host.menu.inventoryTip') })}
             {item('rename', tg('ctx.rename'), () => void renameProfile(p), { hint: 'F2' })}
             {moveTo([p.id], p.folderId)}
             {item('copyAddr', tg('ctx.copyAddr'), () => {

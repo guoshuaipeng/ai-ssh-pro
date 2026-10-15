@@ -9,6 +9,7 @@ import type {
 import NotesMarkdownPreview from './NotesMarkdownPreview'
 import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
+import Icon, { Twist } from './Icon'
 import { confirmDialog } from '../lib/dialogs'
 export type HostInventoryLink = {
   profileId?: string
@@ -653,7 +654,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     )
                   }}
                 >
-                  ▶ {tg('ux20.connect')}
+                  <Icon name="play" size={14} /> {tg('ux20.connect')}
                 </button>
                 <button type="button" onClick={() => onOpenTool?.('sftp', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.sftp')}</button>
                 <button type="button" onClick={() => onOpenTool?.('monitor', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.monitor')}</button>
@@ -712,7 +713,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                 ) : null}
                 <section className="inv20-card">
                   <div className="inv20-card-head">
-                    <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}>{svcCollapsed ? '▸' : '▾'} {tg('ux20.services')} ({form.services.length})</button>
+                    <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}><Twist open={!svcCollapsed} size={12} /> {tg('ux20.services')} ({form.services.length})</button>
                     <span className="inv20-card-actions">
                       <input className="inv20-svc-filter" placeholder={tg('ux20.filter')} value={svcFilter} onChange={(e) => setSvcFilter(e.target.value)} aria-label={tg('ux20.filter')} />
                       <button type="button" onClick={() => { setEditingSvcIdx(-1); setSvcDraft({ name: '', kind: 'unknown', notes: '' }) }}>+ {tg('ux20.add')}</button>

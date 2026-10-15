@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Twist } from './Icon'
 
 export type ContextMenuItem =
   | {
@@ -62,7 +63,7 @@ function MenuList({
               <button type="button" role="menuitem" disabled={it.disabled} className={it.danger ? 'danger' : undefined}>
                 {it.icon ? <span className="ctx-icon">{it.icon}</span> : null}
                 <span className="ctx-label">{it.label}</span>
-                <span className="ctx-sub-arrow">▸</span>
+                <span className="ctx-sub-arrow"><Twist open={false} size={12} /></span>
               </button>
               <div className="ctx-submenu">
                 <MenuList items={it.submenu} onClose={onClose} submenu />

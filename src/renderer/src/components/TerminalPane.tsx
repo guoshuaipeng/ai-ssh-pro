@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { tg } from '../lib/i18n'
+import Icon from './Icon'
 import { openContextMenu, type ContextMenuItem } from './ContextMenu'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -335,7 +336,7 @@ export default function TerminalPane({
         'sep',
         {
           id: 'aiExplain',
-          label: '✨ ' + tg('a1.explainSelection'),
+          label: tg('a1.explainSelection'),
           onSelect: () => explainWithAi('selection')
         },
         'sep',
@@ -484,7 +485,7 @@ export default function TerminalPane({
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
         {aiHint && !mirrorOnly ? (
           <button type="button" className="ai-explain-hint" data-testid="ai-explain-hint" onClick={() => explainWithAi('auto')}>
-            ✨ {tg('a1.button')}
+            <Icon name="sparkles" size={14} /> {tg('a1.button')}
           </button>
         ) : null}
         {findOpen ? (

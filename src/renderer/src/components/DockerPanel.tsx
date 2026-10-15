@@ -12,6 +12,7 @@ import type {
 } from '@shared/ipc'
 import { loadDockerPrefs, saveDockerPrefs } from '../lib/docker-prefs'
 import { tg } from '../lib/i18n'
+import { Twist } from './Icon'
 import { confirmDialog, promptDialog } from '../lib/dialogs'
 
 type Props = {
@@ -533,7 +534,7 @@ export default function DockerPanel({
       onClick={() => toggleShowConfig(!showConfig)}
     >
       <span className="docker-config-bar-chevron" aria-hidden>
-        {showConfig ? '▼' : '▶'}
+        <Twist open={showConfig} />
       </span>
       <span className="docker-config-bar-title">{tg('ui.93')}</span>
       <span className="docker-config-bar-hint">{showConfig ? tg('ui.94') : tg('ui.95')}</span>

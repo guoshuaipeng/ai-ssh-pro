@@ -390,6 +390,8 @@ export type SavedSessionProfile = {
   tags?: string[]
   /** G1: the built-in simulated demo host (read-only, cannot be edited) */
   demo?: boolean
+  /** UX-39b: user renamed the demo host, so the stored label wins over the locale name. */
+  demoRenamed?: boolean
   /** S2: client-side protection. Demo hosts default to production when unset. */
   protection?: 'normal' | 'production' | 'readonly'
   /** Multi-hop ProxyJump. jumpHost stays as the first hop for older readers. */

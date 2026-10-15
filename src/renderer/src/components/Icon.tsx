@@ -27,3 +27,8 @@ export default function Icon({ name, size = 16, title }: Props) {
     </svg>
   )
 }
+
+/** Disclosure triangle. Same glyph for folders, trees, and overflow rows. */
+export function Twist({ open, size = 12 }: { open: boolean; size?: number }) {
+  return <Icon name={open ? 'chevron-down' : 'chevron-right'} size={size} />
+}

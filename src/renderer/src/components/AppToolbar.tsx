@@ -12,7 +12,7 @@ import {
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
 import type { IconName } from '@shared/icon-registry'
-import Icon from './Icon'
+import Icon, { Twist } from './Icon'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -23,7 +23,7 @@ type Props = {
   showMain?: boolean
   showAi?: boolean
   onQuickConnect?: (row: RecentConnection) => void
-  /** ☑ state for toggle menu items */
+  /** checked state for toggle menu items */
   toggles?: Partial<Record<TitlebarMenuAction, boolean>>
   /** greyed menu items (still show a tooltip) */
   disabled?: Partial<Record<TitlebarMenuAction, boolean>>
@@ -260,7 +260,7 @@ export default function AppToolbar({
                 aria-expanded={recentOpen}
                 onClick={() => setRecentOpen((v) => !v)}
               >
-                <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden>▾</span>
+                <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={12} /></span>
               </button>
               {recentOpen ? (
                 <div className="titlebar-popover">
@@ -325,7 +325,7 @@ export default function AppToolbar({
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((v) => !v)} /* UX-15 no more button */ style={{ display: "none" }}
             >
-              <span aria-hidden>⋯</span> <span className="tb-label">{t('toolbar.more')}</span> <span aria-hidden>▾</span>
+              <span aria-hidden>⋯</span> <span className="tb-label">{t('toolbar.more')}</span> <span aria-hidden><Twist open size={12} /></span>
             </button>
             {moreOpen ? (
               <div className="titlebar-popover titlebar-more-menu" role="menu" data-testid="toolbar-more">

@@ -3,6 +3,7 @@ import type { SavedSessionProfile } from '@shared/ipc'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 type Props = {
   open: boolean
@@ -85,7 +86,7 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
         {profiles.length === 0 ? (
           <EmptyState
             compact
-            icon="🖥"
+            icon={<Icon name="monitor" size={32} />}
             title={t('ux08.sidebarTitle')}
             primary={{
               label: t('ux08.newConnection'),

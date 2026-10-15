@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { diffLines } from '../lib/simple-highlight'
 import { pairSideBySide, toUnified } from '@shared/file-diff'
 import { useI18n } from '../lib/i18n'
+import Icon from './Icon'
 
 type Props = {
   leftName: string
@@ -25,7 +26,7 @@ export default function FileDiffView({ leftName, rightName, leftText, rightText,
     <div className="workspace-panel d5-diff" data-testid="file-diff">
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">
-          {t('d5.title')} · {leftName} ↔ {rightName}
+          {t('d5.title')} · {leftName} <Icon name="arrow-left-right" size={12} /> {rightName}
         </h2>
         <div className="workspace-panel-actions">
           <button type="button" className={mode === 'side' ? 'is-on' : ''} onClick={() => setMode('side')} disabled={tooLarge}>
