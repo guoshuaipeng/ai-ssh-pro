@@ -36,7 +36,7 @@ export default function HostKeyConfirmModal({ prompt, onRespond }: Props) {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13, lineHeight: 1.5 }}>
         {isChanged ? (
-          <p style={{ margin: 0, color: 'var(--danger, #f85149)' }}>
+          <p style={{ margin: 0, color: 'var(--color-danger)' }}>
             {tg('hk.warn')}
           </p>
         ) : (

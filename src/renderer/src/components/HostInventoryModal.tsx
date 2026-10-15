@@ -622,7 +622,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
         className={`workspace-panel-body workspace-panel-body--inventory${focused ? ' workspace-panel-body--focused' : ''}`}
       >
         {error ? (
-          <p style={{ margin: '0 0 10px', color: 'var(--danger, #f85149)', fontSize: 12 }}>{error}</p>
+          <p style={{ margin: '0 0 10px', color: 'var(--color-danger)', fontSize: 12 }}>{error}</p>
         ) : null}
         {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.186')}</p> : null}
 
