@@ -26,6 +26,10 @@
  * with that evidence. The same command is not written again unless a new
  * confirm is approved. Deny and cancel of that retry write nothing. Cancel
  * stays plannable and is not a deny (S23).
+ * S28: the same failed command has a retry budget. Two confirmed failures
+ * reach the cap. A further write of that path does not run; the end cites
+ * the failure evidence and says the budget is exhausted. Each retry that is
+ * still inside the budget needs a new confirm. Deny and cancel do not write.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -48,6 +52,9 @@ import {
 import {
   classifyCommandFailure,
   explainFailedCommand,
+  explainRetryBudgetStop,
+  observeRetryBudget,
+  RETRY_BUDGET_CAP,
   retryWritePermitted
 } from '../src/main/core-a-command-failure.ts'
 import {
@@ -196,6 +203,23 @@ type Expectation = {
     minDistinctRequestIds: number
     endCitesEvidence?: boolean
   }
+  /**
+   * S28: consecutive confirmed failures of one command. The last context
+   * debug event carries `count` and `cap`. Over budget, a later proposal of
+   * that command is not a confirm card and is not a write.
+   */
+  retryBudget?: {
+    count: number
+    cap: number
+    exhausted: boolean
+    nearBudget: boolean
+    /** An earlier context event still had room for one confirmed retry. */
+    sawApproach?: boolean
+    /** Confirm cards opened for `commandFailure.command`. */
+    confirmCards?: number
+    /** The planner proposed the same path again after the cap. That write did not happen. */
+    blockedWrite?: boolean
+  }
   hitl?: {
     minInterrupts?: number
     resume?: 'approve' | 'deny' | 'cancel'
@@ -274,6 +298,11 @@ type Fixture = {
    * plannable again and the retry is not written.
    */
   cancelCase?: BranchTurn
+  /**
+   * S28: the same path is proposed again after the retry budget is spent.
+   * That proposal is not written.
+   */
+  overBudgetCase?: BranchTurn
   /**
    * S18: seed a fact on another historyKey / hostInventoryId before the main turns.
    * Main-turn prompts must not contain that host's rare service or port.
@@ -647,6 +676,12 @@ function assertExpectation(
     assert.equal(Number.isFinite(budget.bulletCap) && budget.bulletCap >= 2, true, `${label}: om budget cap`)
     assert.equal(Number.isFinite(budget.droppedBullets) && budget.droppedBullets >= 0, true, `${label}: om budget drops`)
     assert.equal(Number.isFinite(budget.truncatedBullets) && budget.truncatedBullets >= 0, true, `${label}: om budget cuts`)
+    const retry = event.payload.entry.retryBudget
+    assert.equal(Number.isFinite(retry.count) && retry.count >= 0, true, `${label}: retry budget count`)
+    assert.equal(Number.isFinite(retry.cap) && retry.cap >= 1, true, `${label}: retry budget cap`)
+    assert.equal(typeof retry.exhausted, 'boolean', true, `${label}: retry budget exhausted`)
+    assert.equal(typeof retry.nearBudget, 'boolean', true, `${label}: retry budget nearBudget`)
+    assert.equal(retry.exhausted, retry.count >= retry.cap, `${label}: retry budget exhausted does not match the count`)
   }
   assertOmBudget(label, context, expected.omBudget)
   if (expected.minPlannerSteps != null) {
@@ -887,6 +922,7 @@ function assertExpectation(
   assertMidChainDeny(turn, result, scope)
   assertMidChainCancel(turn, result, scope)
   assertCommandFailure(turn, result)
+  assertRetryBudget(turn, result)
 }
 
 function hostBlob(hostId: string): string {
@@ -1161,6 +1197,53 @@ function assertFailureModes(): void {
     retryWritePermitted({ command, failedCommand: null, requestId: 'a', priorRequestId: null, approved: true }),
     true
   )
+  assert.equal(RETRY_BUDGET_CAP, 2)
+  assert.equal(observeRetryBudget(0).cap, 2)
+  assert.equal(observeRetryBudget(0).exhausted, false)
+  assert.equal(observeRetryBudget(0).nearBudget, false)
+  const approaching = observeRetryBudget(1, command)
+  assert.equal(approaching.nearBudget, true)
+  assert.equal(approaching.exhausted, false)
+  assert.equal(approaching.count, 1)
+  const spent = observeRetryBudget(2, command)
+  assert.equal(spent.exhausted, true)
+  assert.equal(spent.nearBudget, true)
+  assert.equal(spent.cap, 2)
+  assert.equal(
+    retryWritePermitted({ command, failedCommand: command, requestId: 'c', priorRequestId: 'b', approved: true, failureCount: 1 }),
+    true
+  )
+  assert.equal(
+    retryWritePermitted({ command, failedCommand: command, requestId: 'c', priorRequestId: 'b', approved: true, failureCount: 2 }),
+    false
+  )
+  assert.equal(
+    retryWritePermitted({ command, failedCommand: command, requestId: 'c', priorRequestId: 'b', approved: false, failureCount: 1 }),
+    false
+  )
+  assert.equal(
+    retryWritePermitted({
+      command: 'echo OTHER',
+      failedCommand: command,
+      requestId: 'c',
+      priorRequestId: 'b',
+      approved: true,
+      failureCount: 2
+    }),
+    true
+  )
+  const stopped = explainRetryBudgetStop(combined!, spent)
+  assert.match(stopped, /重试预算已用尽/)
+  assert.match(stopped, /证据不足/)
+  assert.match(stopped, /需要人工/)
+  assert.match(stopped, /不会自动重跑/)
+  assert.match(stopped, /不再等待新的确认/)
+  assert.match(stopped, /S27_STDERR_EVIDENCE/)
+  assert.match(stopped, /exit=1/)
+  assert.match(stopped, /S27_TIMEOUT_STUB/)
+  assert.match(stopped, /count=2/)
+  assert.match(stopped, /cap=2/)
+  assert.equal(explainRetryBudgetStop(combined!, spent), stopped)
   const denied = resumeHitl(
     interruptForProposal(createHitlLoop(), { action: 'command', command, riskLevel: 'low', requestId: 's27-deny' }),
     false
@@ -1227,6 +1310,58 @@ function assertCommandFailure(turn: Turn, result: DriveResult): void {
   assert.match(ended.structured.description, /新的确认/)
 }
 
+function assertRetryBudget(turn: Turn, result: DriveResult): void {
+  const spec = turn.expected?.retryBudget
+  if (!spec) return
+  const label = turn.turnId
+  const rows = result.events.filter((event) => event.type === 'debug' && event.payload.entry.kind === 'context')
+  assert.ok(rows.length > 0, `${label}: retry budget has no context event`)
+  const last = rows[rows.length - 1]
+  assert.ok(last && last.type === 'debug' && last.payload.entry.kind === 'context', `${label}: retry budget context event`)
+  if (!last || last.type !== 'debug' || last.payload.entry.kind !== 'context') return
+  const budget = last.payload.entry.retryBudget
+  const detail = JSON.stringify(budget)
+  assert.equal(budget.count, spec.count, `${label}: retry count ${detail}`)
+  assert.equal(budget.cap, spec.cap, `${label}: retry cap ${detail}`)
+  assert.equal(budget.exhausted, spec.exhausted, `${label}: retry exhausted ${detail}`)
+  assert.equal(budget.nearBudget, spec.nearBudget, `${label}: retry nearBudget ${detail}`)
+  if (spec.sawApproach) {
+    const approached = rows.some((event) => {
+      if (event.type !== 'debug' || event.payload.entry.kind !== 'context') return false
+      const prior = event.payload.entry.retryBudget
+      return prior.count === spec.count - 1 && prior.exhausted === false && prior.nearBudget === true
+    })
+    assert.equal(approached, true, `${label}: no in-budget retry signal before the cap`)
+  }
+  const command = turn.expected?.commandFailure?.command
+  if (spec.confirmCards != null) {
+    assert.ok(command, `${label}: confirmCards without a command`)
+    const cards = result.events.filter((event) => event.type === 'step' && event.structured.command === command)
+    assert.equal(cards.length, spec.confirmCards, `${label}: confirm cards ${cards.length}`)
+    const ids = cards.map((event) => (event.type === 'step' ? event.requestId ?? '' : ''))
+    assert.equal(new Set(ids).size, ids.length, `${label}: retry requestId reused`)
+    for (const id of ids) assert.ok(id, `${label}: retry card missing requestId`)
+  }
+  const blocked = result.events.some(
+    (event) => event.type === 'debug' && event.payload.entry.kind === 'execution' && (event.payload.entry.detail ?? '').includes('blockedWrite=true')
+  )
+  assert.equal(blocked, spec.blockedWrite === true, `${label}: blockedWrite ${blocked}`)
+  if (spec.blockedWrite !== true) return
+  const ended = [...result.events].reverse().find((event) => event.type === 'step' && event.structured.action === 'end')
+  assert.ok(ended && ended.type === 'step', `${label}: over-budget turn did not end`)
+  if (!ended || ended.type !== 'step') return
+  assert.match(ended.structured.description, /重试预算已用尽/)
+  assert.match(ended.structured.description, /证据不足/)
+  assert.match(ended.structured.description, /需要人工/)
+  assert.match(ended.structured.description, /不会自动重跑/)
+  assert.match(ended.structured.description, /count=2/)
+  assert.match(ended.structured.description, /cap=2/)
+  if (command) {
+    const writes = result.writes.map((write) => write.replace(/\s+$/g, '')).filter((write) => write === command)
+    assert.equal(writes.length, turn.expected?.commandFailure?.writeCount ?? writes.length, `${label}: over-budget write`)
+  }
+}
+
 function branchTurn(fixture: Fixture, branch: BranchTurn): Turn {
   const sample = (fixture.turns ?? [])[0]
   return {
@@ -1250,7 +1385,8 @@ function branchFixture(fixture: Fixture, branch: BranchTurn, fallback: string): 
     seedInventory: branch.seedInventory ?? fixture.seedInventory,
     negativeCase: undefined,
     regressionCase: undefined,
-    cancelCase: undefined
+    cancelCase: undefined,
+    overBudgetCase: undefined
   }
 }
 
@@ -1541,6 +1677,11 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         const cancelFixture = branchFixture(fixture, fixture.cancelCase, 'cancel')
         seedInventory(cancelFixture)
         await runTurns(cancelFixture, [branchTurn(fixture, fixture.cancelCase)])
+      }
+      if (fixture.overBudgetCase) {
+        const overFixture = branchFixture(fixture, fixture.overBudgetCase, 'budget')
+        seedInventory(overFixture)
+        await runTurns(overFixture, [branchTurn(fixture, fixture.overBudgetCase)])
       }
     })
   }
