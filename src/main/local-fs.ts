@@ -1,9 +1,11 @@
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { closeSync, createReadStream, existsSync, mkdirSync, openSync, readSync, readdirSync, renameSync, statSync } from 'node:fs'
+import { closeSync, createReadStream, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { app, shell } from 'electron'
 import type { SftpListEntry, SftpListResult } from '../shared/ipc'
+import { drivesFromMounts, drivesFromWinDisks, parseProcMounts, type LocalDrive, type LocalDriveListing } from '../shared/local-drives'
 
 export function localHome(): string {
   return homedir()
@@ -41,6 +43,81 @@ export function listLocal(dir: string): SftpListResult {
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   })
   return { path, entries }
+}
+
+function probeWindowsDriveLetters(): LocalDrive[] {
+  const out: LocalDrive[] = []
+  for (let code = 65; code <= 90; code++) {
+    const letter = String.fromCharCode(code)
+    const root = `${letter}:\\`
+    try {
+      if (!existsSync(root)) continue
+      statSync(root)
+      out.push({ id: `${letter}:`, root, label: `${letter}:`, ready: true })
+    } catch {
+      out.push({ id: `${letter}:`, root, label: `${letter}:`, ready: false })
+    }
+  }
+  return out
+}
+
+function readWindowsDisks(): LocalDrive[] {
+  try {
+    const out = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Get-CimInstance -ClassName Win32_LogicalDisk | Select-Object DeviceID,VolumeName,Size,FreeSpace | ConvertTo-Json -Compress'
+      ],
+      { timeout: 2500, encoding: 'utf8', windowsHide: true }
+    )
+    const parsed = drivesFromWinDisks(JSON.parse(out))
+    return parsed
+  } catch {
+    return []
+  }
+}
+
+function listPosixDrives(): LocalDrive[] {
+  const home = homedir()
+  let text = ''
+  try {
+    text = readFileSync('/proc/mounts', 'utf8')
+  } catch {
+    text = ''
+  }
+  const mounts = parseProcMounts(text)
+  if (process.platform === 'darwin') {
+    try {
+      for (const name of readdirSync('/Volumes')) {
+        if (!name || name.startsWith('.')) continue
+        mounts.push(`/Volumes/${name}`)
+      }
+    } catch {
+      /* no /Volumes */
+    }
+  }
+  return drivesFromMounts(mounts, home).map((d) => {
+    if (d.id === '/' || d.id === '~') return d
+    try {
+      if (!existsSync(d.root)) return { ...d, ready: false }
+      statSync(d.root)
+      return d
+    } catch {
+      return { ...d, ready: false }
+    }
+  })
+}
+
+/** Windows letters (including not-ready volumes) or `/`, `~`, and external mounts. */
+export function listDrives(): LocalDriveListing {
+  if (process.platform === 'win32') {
+    const fromPs = readWindowsDisks()
+    return { platform: 'win32', drives: fromPs.length ? fromPs : probeWindowsDriveLetters() }
+  }
+  return { platform: 'posix', drives: listPosixDrives() }
 }
 
 export function statLocal(target: string): { size: number; mtime: number; isDirectory: boolean } | null {

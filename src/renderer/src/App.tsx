@@ -33,6 +33,7 @@ import TerminalPrefsModal from './components/TerminalPrefsModal'
 import UiThemeModal from './components/UiThemeModal'
 import SftpPanel from './components/SftpPanel'
 import { askSftpClose, clearArmedFolderSync, requestFolderSync, takeArmedFolderSync } from './lib/sftp-activity'
+import { formatSftpTabTitle, planSftpOpen } from '@shared/sftp-host'
 import { clearHostHistory, countHostHistory, loadSmartPrefs, saveSmartPrefs, SMART_PREFS_EVENT } from './lib/smart-history'
 import RemoteTextEditor from './components/RemoteTextEditor'
 import DockerPanel from './components/DockerPanel'
@@ -321,6 +322,8 @@ type Tab = {
   cold?: boolean
   /** UX-50b: auto-bind gave up; show the click-to-connect placeholder. */
   restoreFailed?: boolean
+  /** D7: first open lists this session's cwd. Focusing an existing tab leaves the path alone. */
+  sftpAlignCwd?: boolean
   /** D5 compare payload */
   fileCompare?: {
     leftName: string
@@ -377,8 +380,17 @@ function syncPhaseKey(phase: SyncPhase): MessageKey {
 
 export default function App() {
   const { t: tr, locale, setLocale } = useI18n()
-  const labelFor = (tab: Pick<Tab, 'title' | 'status' | 'view' | 'auditHost'>) =>
-    tabLabel(tab, (key, vars) => tr(key as MessageKey, vars))
+  const labelFor = (tab: Pick<Tab, 'title' | 'status' | 'view' | 'auditHost' | 'connectOpts'>) =>
+    tabLabel(
+      {
+        title: tab.title,
+        status: tab.status,
+        view: tab.view,
+        auditHost: tab.auditHost,
+        hostLabel: tab.view === 'sftp' ? tab.connectOpts?.label?.trim() || tab.connectOpts?.host || '' : undefined
+      },
+      (key, vars) => tr(key as MessageKey, vars)
+    )
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
@@ -1355,7 +1367,7 @@ export default function App() {
   const sftpBypassRef = useRef(false)
   const closeTab = useCallback((tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => {
     if (view === 'sftp' && !sftpBypassRef.current) {
-      void askSftpClose().then((answer) => {
+      void askSftpClose(tabId).then((answer) => {
         if (answer === 'stay') return
         sftpBypassRef.current = true
         closeTabRef.current(tabId, sessionId, status, view)
@@ -1660,59 +1672,107 @@ export default function App() {
     [ensureMainVisible, tabs]
   )
 
-  const openSftpTransfer = useCallback((forSessionId?: string) => {
+  const openSftpTransfer = useCallback((forSessionId?: string, opts?: { alignCwd?: boolean; profile?: SavedSessionProfile }): string | null => {
     ensureMainVisible()
-    const tabs = tabsRef.current
-    const sshTab = tabs.find(
-      (t) =>
-        (forSessionId ? t.sessionId === forSessionId : t.tabId === activeTabId) &&
-        (!t.view || t.view === 'session') &&
-        t.kind !== 'local' &&
-        t.status === 'connected' &&
-        t.sessionId
+    const tabsNow = tabsRef.current
+    const alignCwd = opts?.alignCwd === true
+    const profile = opts?.profile
+    const isSsh = (t: Tab) => (!t.view || t.view === 'session') && t.kind !== 'local' && Boolean(t.sessionId)
+    let bound: Tab | undefined
+    if (forSessionId) {
+      bound = tabsNow.find((t) => t.sessionId === forSessionId && isSsh(t))
+      if (!bound) {
+        setError(tg('app.needSshSftp'))
+        return null
+      }
+    } else if (profile) {
+      bound = tabsNow.find((t) => t.profileId === profile.id && isSsh(t) && t.status === 'connected')
+    } else {
+      const active = tabsNow.find((t) => t.tabId === activeTabId)
+      if (active?.view === 'sftp') {
+        setActiveTabId(active.tabId)
+        showToast(tg('d8.focus'))
+        return null
+      }
+      bound =
+        tabsNow.find((t) => t.tabId === activeTabId && isSsh(t) && t.status === 'connected') ||
+        tabsNow.find((t) => isSsh(t) && t.status === 'connected')
+      if (!bound) {
+        setError(tg('app.needSshSftp'))
+        return null
+      }
+    }
+    const hostRef = {
+      profileId: bound?.profileId || profile?.id,
+      host: bound?.connectOpts.host || profile?.host,
+      port: bound?.connectOpts.port || profile?.port,
+      username: bound?.connectOpts.username || profile?.username
+    }
+    const plan = planSftpOpen(
+      tabsNow.map((t) => ({
+        tabId: t.tabId,
+        view: t.view,
+        profileId: t.profileId,
+        host: t.connectOpts.host,
+        port: t.connectOpts.port,
+        username: t.connectOpts.username
+      })),
+      hostRef
     )
-    const fallback = tabs.find(
-      (t) =>
-        (!t.view || t.view === 'session') &&
-        t.kind !== 'local' &&
-        t.status === 'connected' &&
-        t.sessionId
-    )
-    const bound = sshTab ?? fallback
-    if (!bound) {
-      setError(tg('app.needSshSftp'))
-      return
+    if (plan.action === 'focus') {
+      const existing = tabsNow.find((t) => t.tabId === plan.tabId)
+      if (existing && !existing.boundSessionId && bound?.sessionId && bound.status === 'connected') {
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.tabId === existing.tabId
+              ? {
+                  ...t,
+                  boundSessionId: bound!.sessionId,
+                  status: 'connected',
+                  profileId: hostRef.profileId ?? t.profileId,
+                  connectOpts: bound!.connectOpts
+                }
+              : t
+          )
+        )
+      }
+      setActiveTabId(plan.tabId)
+      showToast(tg('d8.focus'))
+      return null
     }
     setError(null)
-    const title = `${tg('sftp.title')} · ${bound.title}`
-    const existing = tabs.find((t) => t.view === 'sftp')
-    if (existing) {
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.tabId === existing.tabId
-            ? { ...t, title, boundSessionId: bound.sessionId, connectOpts: bound.connectOpts, profileId: bound.profileId }
-            : t
-        )
-      )
-      setActiveTabId(existing.tabId)
-      return
-    }
+    const hostName =
+      bound?.connectOpts.label?.trim() ||
+      bound?.customTitle?.trim() ||
+      profile?.label?.trim() ||
+      bound?.connectOpts.host ||
+      profile?.host ||
+      bound?.title ||
+      ''
+    const title = formatSftpTabTitle(hostName)
+    const connectOpts = bound?.connectOpts || (profile ? connectOptsFromProfile(profile) : PLACEHOLDER_CONNECT)
+    const ready = Boolean(bound?.sessionId && bound.status === 'connected')
     const tabId = uuid()
-    setTabs((prev) => [
-      ...prev,
-      {
-        tabId,
-        sessionId: '',
-        title,
-        connectOpts: bound.connectOpts,
-        status: 'connected',
-        view: 'sftp',
-        boundSessionId: bound.sessionId,
-        profileId: bound.profileId
-      }
-    ])
+    const created: Tab = {
+      tabId,
+      sessionId: '',
+      title,
+      connectOpts,
+      status: ready ? 'connected' : 'connecting',
+      view: 'sftp',
+      boundSessionId: ready ? bound!.sessionId : undefined,
+      profileId: hostRef.profileId,
+      sftpAlignCwd: alignCwd && ready
+    }
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.tabId === activeTabId)
+      const next = [...prev]
+      next.splice(idx >= 0 ? idx + 1 : next.length, 0, created)
+      return next
+    })
     setActiveTabId(tabId)
-  }, [activeTabId, ensureMainVisible, tabs])
+    return tabId
+  }, [activeTabId, ensureMainVisible])
 
 
   const openToolTab = useCallback(
@@ -3627,13 +3687,13 @@ export default function App() {
         return
       }
       if (action === 'sftp') {
-        openSftpTransfer()
+        openSftpTransfer(undefined, { alignCwd: true })
         return
       }
       if (action === 'folderSync') {
         const armed = takeArmedFolderSync()
         requestFolderSync(armed.set ? armed.profileId : undefined)
-        openSftpTransfer()
+        openSftpTransfer(undefined, { alignCwd: true })
         return
       }
       if (action === 'smartComplete') {
@@ -4051,6 +4111,36 @@ export default function App() {
     },
     [connectProfile]
   )
+  const openSftpFromHost = useCallback((p: SavedSessionProfile) => {
+    setSessionMenu(null)
+    const live = tabsRef.current.find(
+      (x) => x.profileId === p.id && x.status === 'connected' && x.sessionId && (!x.view || x.view === 'session') && x.kind !== 'local'
+    )
+    if (live?.sessionId) {
+      openSftpTransfer(live.sessionId, { alignCwd: false })
+      return
+    }
+    const tabId = openSftpTransfer(undefined, { alignCwd: false, profile: p })
+    if (!tabId) return
+    void ensureProfileSession(p).then((sid) => {
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.tabId === tabId
+            ? {
+                ...t,
+                status: sid ? 'connected' : 'disconnected',
+                boundSessionId: sid || undefined,
+                restoreFailed: !sid
+              }
+            : t
+        )
+      )
+      setActiveTabId(tabId)
+      if (!sid) showToast(tg('ctx.connectFailed', { reason: tg('ctx.seeError') }), { kind: 'error' })
+    })
+    setActiveTabId(tabId)
+  }, [ensureProfileSession, openSftpTransfer])
+
   const runForProfile = useCallback(
     (p: SavedSessionProfile, open: (sid: string) => void) => {
       setSessionMenu(null)
@@ -4733,12 +4823,16 @@ export default function App() {
               const isSession = !t.view || t.view === 'session'
               const guardLevel = isSession ? effectiveLevel(profiles.find((p) => p.id === t.profileId)) : 'normal'
               const guardClass = guardLevel === 'production' ? 'tab-guard-prod' : guardLevel === 'readonly' ? 'tab-guard-ro' : ''
+              const sftpAddr = t.view === 'sftp' && t.connectOpts.host
+                ? `${t.connectOpts.username}@${t.connectOpts.host}:${t.connectOpts.port || 22}`
+                : ''
+              const guardTip = guardLevel === 'normal' ? '' : tg(guardLevel === 'production' ? 'l4.bannerProd' : 'l4.bannerRo')
               return (
               <button
                 key={t.tabId}
                 type="button"
-                title={guardLevel === 'normal' ? undefined : tg(guardLevel === 'production' ? 'l4.bannerProd' : 'l4.bannerRo')}
-                className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${isSession && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
+                title={[sftpAddr, guardTip].filter(Boolean).join(' · ') || undefined}
+                className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${(isSession || t.view === 'sftp') && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
                 onDoubleClick={() => startRename(t.tabId)}
                 onContextMenu={(e) => {
@@ -5020,6 +5114,17 @@ export default function App() {
                       {tr('tab.duplicate')}
                     </button>
                     <hr />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={!(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local' && (!tab.view || tab.view === 'session'))}
+                      onClick={() => {
+                        setTabMenu(null)
+                        openSftpTransfer(tab.sessionId, { alignCwd: true })
+                      }}
+                    >
+                      {tr('ctx.sftp')}
+                    </button>
                     <button
                       type="button"
                       role="menuitem"
@@ -5738,11 +5843,14 @@ export default function App() {
                   </div>
                 ) : t.view === 'sftp' ? (
                   <SftpPanel
-                    key={t.boundSessionId || t.tabId}
+                    key={t.tabId}
+                    tabId={t.tabId}
                     sessionId={t.boundSessionId || null}
+                    alignSessionCwd={t.sftpAlignCwd === true}
+                    pendingConnect={!t.boundSessionId && !t.restoreFailed}
                     sessionTitle={t.title.replace(/^[^·]+ · /, '')}
                     hostKey={sessionHostKey(t)}
-                    hostLabel={t.connectOpts.label?.trim() || t.title}
+                    hostLabel={t.connectOpts.label?.trim() || t.connectOpts.host || t.title}
                     hostName={t.connectOpts.host}
                     tags={profiles.find((p) => p.id === t.profileId)?.tags}
                     connected={tabs.some((x) => x.sessionId === t.boundSessionId && x.status === 'connected')}
@@ -5964,6 +6072,7 @@ export default function App() {
                         return g.level === 'readonly' && !g.elevated
                       })()}
                       onInputBlocked={() => showToast(tg('l4.readonlyBlocked'))}
+                      onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
                       onSecondaryChange={setSplitSecondary}
                       peers={connectedSshSessions
                         .filter((x) => x.sessionId !== t.sessionId)
@@ -5981,6 +6090,7 @@ export default function App() {
                         return g.level === 'readonly' && !g.elevated
                       })()}
                       onInputBlocked={() => showToast(tg('l4.readonlyBlocked'))}
+                      onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
                       onUserData={
                         broadcastEnabled && broadcastSessions.length > 1
                           ? (data) => {
@@ -6449,7 +6559,7 @@ export default function App() {
               void connectProfile(p)
             })}
             <div className="session-context-menu-sep" />
-            {item('sftp', tg('ctx.sftp'), () => runForProfile(p, (sid) => openSftpTransfer(sid)))}
+            {item('sftp', tg('ctx.sftp'), () => openSftpFromHost(p))}
             {item('monitor', tg('ctx.monitor'), () => void monitorProfile(p))}
             {item('toolbox', tg('ctx.toolbox'), () =>
               runForProfile(p, (sid) => {

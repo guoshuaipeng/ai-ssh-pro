@@ -2650,9 +2650,39 @@ body:has(.debug-window-root) #root {
 
 .sftp-pathbar {
   display: flex;
+  flex-wrap: nowrap;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
+.sftp-pathbar > button { flex: none; }
+.sftp-drive {
+  flex: 0 0 68px;
+  width: 68px;
+  min-width: 56px;
+  max-width: 72px;
+}
+.sftp-drive select {
+  width: 100%;
+  max-width: 72px;
+  height: 26px;
+  font-size: 12px;
+}
+.sftp-pane-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sftp-opening { font-size: 12px; color: var(--muted); padding: 2px 8px 4px; }
+.sftp-cwd-fallback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: rgba(210, 153, 34, 0.15);
+  border: 1px solid rgba(210, 153, 34, 0.45);
+  border-radius: 6px;
+}
+.sftp-cwd-fallback span { flex: 1; min-width: 0; }
+.sftp-error button { margin-left: 8px; }
 
 .sftp-pathbar input {
   flex: 1;

@@ -35,6 +35,8 @@ type Props = {
   /** S2 read-only: swallow keystrokes and tell the caller. */
   inputBlocked?: boolean
   onInputBlocked?: () => void
+  /** D7: open SFTP for this terminal at its cwd. */
+  onOpenSftp?: (sessionId: string) => void
 }
 
 /** Electron 中 xterm 会把 Ctrl+C / Ctrl+V 当控制字符发给 SSH；此处对接系统剪贴板。 */
@@ -89,7 +91,8 @@ export default function TerminalPane({
   broadcastRef,
   hostKey = '',
   inputBlocked = false,
-  onInputBlocked
+  onInputBlocked,
+  onOpenSftp
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<{ term: Terminal; fit: FitAddon } | null>(null)
@@ -101,6 +104,8 @@ export default function TerminalPane({
   onUserDataRef.current = onUserData
   const inputBlockedRef = useRef(inputBlocked)
   inputBlockedRef.current = inputBlocked
+  const onOpenSftpRef = useRef(onOpenSftp)
+  onOpenSftpRef.current = onOpenSftp
   const onInputBlockedRef = useRef(onInputBlocked)
   onInputBlockedRef.current = onInputBlocked
   const prefsRef = useRef(resolvePrefs(prefs))
@@ -340,6 +345,13 @@ export default function TerminalPane({
           onSelect: () => explainWithAi('selection')
         },
         'sep',
+        {
+          id: 'sftp',
+          label: tg('ctx.sftp'),
+          shortcut: 'Ctrl+Alt+F',
+          disabled: mirrorOnlyRef.current,
+          onSelect: () => onOpenSftpRef.current?.(sessionId)
+        },
         {
           id: 'find',
           label: tg('term.find'),

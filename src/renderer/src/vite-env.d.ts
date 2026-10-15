@@ -124,6 +124,7 @@ export type AissPreload = {
   }
   localFs: {
     home: () => Promise<string>
+    drives: () => Promise<import('@shared/local-drives').LocalDriveListing>
     list: (dir: string) => Promise<SftpListResult>
     stat: (target: string) => Promise<{ size: number; mtime: number; isDirectory: boolean } | null>
     mkdir: (target: string) => Promise<boolean>

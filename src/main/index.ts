@@ -725,6 +725,7 @@ function registerIpc(): void {
   ipcMain.handle('sftp:queueSave', (_e, tasks: unknown) => saveSftpQueue(tasks))
 
   ipcMain.handle('localFs:home', () => localFs.localHome())
+  ipcMain.handle('localFs:drives', () => localFs.listDrives())
   ipcMain.handle('localFs:list', (_e, dir: string) => localFs.listLocal(String(dir ?? '')))
   ipcMain.handle('localFs:stat', (_e, target: string) => localFs.statLocal(String(target ?? '')))
   ipcMain.handle('localFs:mkdir', (_e, target: string) => {

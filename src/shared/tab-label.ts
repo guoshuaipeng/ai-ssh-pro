@@ -5,6 +5,8 @@ export type TabLabelSource = {
   status?: string
   view?: string
   auditHost?: string
+  /** D8: host shown in `SFTP · {host}`. */
+  hostLabel?: string
 }
 
 const VIEW_TITLE: Record<string, string> = {
@@ -37,6 +39,12 @@ export function tabLabel(
   if (session && t.status === 'connecting') return tr('tab.connecting', { title: t.title })
   if (session && t.status === 'disconnected') return tr('tab.disconnected', { title: t.title })
   if (t.view === 'audit') return t.auditHost ? `${tr('l4.auditTitle')} · ${t.auditHost}` : tr('l4.auditTitle')
+  if (t.view === 'sftp') {
+    const host = t.hostLabel?.trim()
+    if (!host) return t.status === 'connecting' ? tr('d8.connecting') : tr('tab.sftp')
+    const full = tr('d8.title', { host })
+    return full.length > 24 ? full.slice(0, 24) : full
+  }
   const key = t.view ? VIEW_TITLE[t.view] : undefined
   if (key) return tr(key)
   return t.title
