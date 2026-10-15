@@ -92,13 +92,46 @@ export function tabStripOverflow(opts: {
   return { visibleCount: visible, overflow: hidden > 0, hidden, wraps: false }
 }
 
-/** Pixels a ← / → click moves the strip. */
+/** Minimum pixels a ← / → click moves the strip. A wide strip steps about one viewport. */
 export const TAB_STRIP_NUDGE = 160
 
 /** Pixels for one DOM_DELTA_LINE notch. Pixel wheels (deltaMode 0) are unchanged. */
 export const TAB_WHEEL_LINE_PX = 48
 
-/** TB-3: left/right arrows and the ⋯ menu show together, and only while tabs overflow. */
+/** About one screen of tabs, and never less than the named nudge (or 120px). */
+export function tabStripNudgePx(clientWidth: number, floor = TAB_STRIP_NUDGE): number {
+  const page = clientWidth > 48 ? Math.round(clientWidth * 0.85) : 0
+  return Math.max(120, floor, page)
+}
+
+/**
+ * Visible overflow control. ⌄ plus the hidden count — not the toolbar ⋯ (“更多”).
+ * The button’s accessible name stays “所有标签”.
+ */
+export function tabOverflowMark(hidden: number): string {
+  const n = Number.isFinite(hidden) ? Math.max(0, Math.floor(hidden)) : 0
+  return n > 0 ? `⌄ ${n}` : '⌄'
+}
+
+/** How far to add to scrollLeft so a tab rect (relative to the visible box) sits in view. */
+export function tabStripRevealDelta(opts: {
+  tabLeft: number
+  tabRight: number
+  clientWidth: number
+  pad?: number
+}): number {
+  const pad = opts.pad ?? 8
+  const width = opts.clientWidth
+  if (!(width > 0)) return 0
+  const left = opts.tabLeft
+  const right = opts.tabRight
+  if (right - left >= width) return left - pad
+  if (left < pad) return left - pad
+  if (right > width - pad) return right - (width - pad)
+  return 0
+}
+
+/** Arrows and the ⌄ list show together, and only while tabs overflow. */
 export function tabStripChrome(overflowing: boolean): { arrows: boolean; menu: boolean } {
   return { arrows: overflowing, menu: overflowing }
 }

@@ -128,7 +128,7 @@ import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
 import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTab'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
-import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabStripChrome, tabStripWheelDelta } from '@shared/tab-overflow'
+import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabOverflowMark, tabStripChrome, tabStripNudgePx, tabStripRevealDelta, tabStripWheelDelta } from '@shared/tab-overflow'
 import { loadProbePrefs, probeExtrasOf, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
 import { bellShouldFlash, endingSoon, expireDue, formatRemaining, loadMaintenance, shouldNotify } from '@shared/maintenance'
 import { planPostmortem } from '@shared/postmortem-ai'
@@ -1328,12 +1328,24 @@ export default function App() {
 
   const tabsRef = useRef(tabs)
   const activeTabIdRef = useRef(activeTabId)
-  // keep the active tab visible when the tab bar scrolls
+  const revealTab = (tabId: string) => {
+    const scroll = tabBarRef.current?.querySelector('.tab-bar-scroll')
+    if (!(scroll instanceof HTMLElement) || !tabId) return
+    const el = scroll.querySelector(`[data-tab-id="${CSS.escape(tabId)}"]`)
+    if (!(el instanceof HTMLElement)) return
+    const box = scroll.getBoundingClientRect()
+    const rect = el.getBoundingClientRect()
+    const delta = tabStripRevealDelta({
+      tabLeft: rect.left - box.left,
+      tabRight: rect.right - box.left,
+      clientWidth: box.width
+    })
+    if (delta) scroll.scrollLeft += delta
+  }
+  // TO-5: activating or opening a tab scrolls that tab into the strip, not the page.
   useEffect(() => {
-    if (!activeTabId) return
-    const el = document.querySelector('.tab-bar-scroll .tab.active')
-    if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activeTabId, tabs.length])
+    if (activeTabId && layout.showMain) revealTab(activeTabId)
+  }, [activeTabId, tabs.length, layout.showMain])
   useEffect(() => {
     const bar = tabBarRef.current
     if (!bar) return
@@ -5965,7 +5977,7 @@ export default function App() {
                 disabled={!tabFade.left}
                 onClick={() => {
                   const el = tabBarRef.current?.querySelector('.tab-bar-scroll')
-                  if (el instanceof HTMLElement) el.scrollLeft -= TAB_STRIP_NUDGE
+                  if (el instanceof HTMLElement) el.scrollLeft -= tabStripNudgePx(el.clientWidth, TAB_STRIP_NUDGE)
                 }}
               >
                 ←
@@ -5997,6 +6009,7 @@ export default function App() {
                 key={t.tabId}
                 type="button"
                 title={[sftpAddr, guardTip].filter(Boolean).join(' · ') || undefined}
+                data-tab-id={t.tabId}
                 className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.pinned ? 'is-pinned' : ''} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${(isSession || t.view === 'sftp') && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
                 onDoubleClick={() => startRename(t.tabId)}
@@ -6097,7 +6110,7 @@ export default function App() {
                 disabled={!tabFade.right}
                 onClick={() => {
                   const el = tabBarRef.current?.querySelector('.tab-bar-scroll')
-                  if (el instanceof HTMLElement) el.scrollLeft += TAB_STRIP_NUDGE
+                  if (el instanceof HTMLElement) el.scrollLeft += tabStripNudgePx(el.clientWidth, TAB_STRIP_NUDGE)
                 }}
               >
                 →
@@ -6128,7 +6141,7 @@ export default function App() {
                   setTabOverflowOpen((v) => !v)
                 }}
               >
-                <span aria-hidden>⋯</span>
+                <span className="tab-overflow-mark" aria-hidden>{tabOverflowMark(tabHiddenCount)}</span>
               </button>
             ) : null}
             {tabOverflowOpen && tabOverflowPos
@@ -6156,6 +6169,7 @@ export default function App() {
                         if (!hit) return
                         e.preventDefault()
                         setActiveTabId(hit.tabId)
+                        revealTab(hit.tabId)
                         setTabOverflowOpen(false)
                       } else if (e.key === 'Delete' || e.key === 'Backspace') {
                         const hit = rows[tabListIndex]
@@ -6203,6 +6217,7 @@ export default function App() {
                             }}
                             onClick={() => {
                               setActiveTabId(t.tabId)
+                              revealTab(t.tabId)
                               setTabOverflowOpen(false)
                             }}
                           >
