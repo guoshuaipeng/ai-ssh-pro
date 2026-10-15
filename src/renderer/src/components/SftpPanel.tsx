@@ -974,7 +974,7 @@ export default function SftpPanel({
             <button
               type="button"
               data-testid={isLocal ? undefined : 'sftp-remote-mkdir'}
-              title={isLocal ? undefined : readOnly ? roTitle : remoteWritesBlocked ? tg('s4.sftpDisabled') : undefined}
+              title={isLocal ? undefined : readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
               disabled={!isLocal && (readOnly || remoteWritesBlocked || !sessionId)}
               onClick={() => void mkdir(side)}
             >
