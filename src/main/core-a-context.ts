@@ -223,11 +223,32 @@ export function interruptForProposal(_state: HitlLoopState, proposal: HitlPropos
   }
 }
 
-/** Human decision. Only an `interrupted` step can resume or cancel. */
+/** Human decision. Only an `interrupted` step can resume or deny. Deny stays `cancelled`. */
 export function resumeHitl(state: HitlLoopState, approved: boolean): HitlLoopState {
   if (state.phase !== 'interrupted') return state
   if (!approved) return { ...state, phase: 'cancelled', resume: 'deny' }
   return { ...state, phase: 'resumed', resume: 'approve' }
+}
+
+/**
+ * User cancelled the interrupt. This is not a deny: the proposal is dropped
+ * and the loop returns to `planning` so the next turn can replan. A denied
+ * step stays `cancelled` and is not rewritten.
+ */
+export function cancelHitl(state: HitlLoopState): HitlLoopState {
+  if (state.phase !== 'interrupted') return state
+  return createHitlLoop()
+}
+
+/** True when no interrupt is held: planning, with no request, command, or resume token. */
+export function hitlIsPlannable(state: HitlLoopState): boolean {
+  return (
+    state.phase === 'planning' &&
+    state.resume == null &&
+    state.requestId == null &&
+    state.command == null &&
+    state.action == null
+  )
 }
 
 /** Move `resumed` + approve into `executing`. Any other phase stays put. */

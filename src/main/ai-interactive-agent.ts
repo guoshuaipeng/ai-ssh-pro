@@ -29,9 +29,11 @@ import {
   compactTranscript,
   confirmBypassAllowed,
   contextBudget,
+  cancelHitl,
   createHitlLoop,
   formatArchivedGoal,
   appendEpisode,
+  hitlIsPlannable,
   interruptForProposal,
   markHitlExecuting,
   markHitlObserving,
@@ -92,10 +94,21 @@ function truncate(s: string, max: number): string {
   return `${t.slice(0, max)}...`
 }
 
-const confirmWaiters = new Map<string, { resolve: (ok: boolean) => void; timer: NodeJS.Timeout }>()
+type ConfirmOutcome = 'approve' | 'deny' | 'cancel'
+
+const confirmWaiters = new Map<string, { resolve: (outcome: ConfirmOutcome) => void; timer: NodeJS.Timeout }>()
 
 type ActiveAiChat = { ac: AbortController; ctx: { userAborted: boolean } }
 let activeAiChat: ActiveAiChat | null = null
+
+function settleConfirm(requestId: string, outcome: ConfirmOutcome): boolean {
+  const rec = confirmWaiters.get(requestId)
+  if (!rec) return false
+  confirmWaiters.delete(requestId)
+  clearTimeout(rec.timer)
+  rec.resolve(outcome)
+  return true
+}
 
 /** 停止当前一轮 AI 助手（中断模型请求、解除等待中的命令确认） */
 export function abortAiChat(): void {
@@ -103,11 +116,12 @@ export function abortAiChat(): void {
   if (!cur) return
   cur.ctx.userAborted = true
   cur.ac.abort()
-  for (const [, rec] of [...confirmWaiters.entries()]) {
-    clearTimeout(rec.timer)
-    rec.resolve(false)
-  }
-  confirmWaiters.clear()
+  for (const [requestId] of [...confirmWaiters.entries()]) settleConfirm(requestId, 'cancel')
+}
+
+/** Waiting confirms. A cancel or abort must leave this at 0 so the next turn is not stuck. */
+export function pendingAiConfirmCount(): number {
+  return confirmWaiters.size
 }
 
 function isAbortError(e: unknown): boolean {
@@ -123,20 +137,20 @@ function confirmTimeoutMs(): number {
 }
 
 export function resolveAiConfirmStep(requestId: string, ok: boolean): boolean {
-  const rec = confirmWaiters.get(requestId)
-  if (!rec) return false
-  confirmWaiters.delete(requestId)
-  clearTimeout(rec.timer)
-  rec.resolve(ok)
-  return true
+  return settleConfirm(requestId, ok ? 'approve' : 'deny')
 }
 
-async function waitForAiConfirm(requestId: string): Promise<boolean> {
+/** Drop a waiting interrupt without recording a deny. The step must not run. */
+export function cancelAiConfirmStep(requestId: string): boolean {
+  return settleConfirm(requestId, 'cancel')
+}
+
+async function waitForAiConfirm(requestId: string): Promise<ConfirmOutcome> {
   const timeout = confirmTimeoutMs()
-  return await new Promise<boolean>((resolve) => {
+  return await new Promise<ConfirmOutcome>((resolve) => {
     const timer = setTimeout(() => {
       confirmWaiters.delete(requestId)
-      resolve(false)
+      resolve('deny')
     }, timeout)
     confirmWaiters.set(requestId, { resolve, timer })
   })
@@ -337,6 +351,34 @@ function rememberCommand(state: CoreSessionState, command: string): void {
   if (!cmd) return
   state.recentCommands.push(cmd)
   if (state.recentCommands.length > 6) state.recentCommands = state.recentCommands.slice(-6)
+}
+
+/**
+ * The cancelled proposal was recorded before the human answered. Drop that
+ * bookkeeping so it is not an executed command, a note, or an open task.
+ * Earlier approved steps stay.
+ */
+function releaseCancelledProposal(
+  state: CoreSessionState,
+  parsed: AiAssistantReply,
+  mark: { tasks: TaskNode[] }
+): void {
+  const note = truncate(parsed.description.replace(/\s+/g, ' '), 280)
+  if (note && state.notes[state.notes.length - 1] === note) state.notes.pop()
+  if (state.recentActions[state.recentActions.length - 1] === parsed.action) state.recentActions.pop()
+  const title = truncate(parsed.description, 90)
+  const last = state.taskGraph[state.taskGraph.length - 1]
+  if (title && last && last.title === title && last.status === 'open') state.taskGraph.pop()
+  for (const saved of mark.tasks) {
+    const live = state.taskGraph.find((task) => task.id === saved.id)
+    if (!live) continue
+    live.status = saved.status
+    live.confidence = saved.confidence
+    live.updatedAt = saved.updatedAt
+  }
+  const cmd = (parsed.command ?? '').replace(/[\r\n]+/g, ' ').trim()
+  if (!cmd) return
+  state.recentCommands = state.recentCommands.filter((item) => item !== cmd)
 }
 
 function summarizeTaskGraph(state: CoreSessionState): string {
@@ -974,6 +1016,7 @@ export async function runOpenClawCoreAgentChat(
       })
 
       // Explicit HITL phases: planning → interrupted → resumed|cancelled → executing → observing.
+      // Cancel (not deny) drops the proposal and returns to planning.
       // Read-only tools skip the interrupt. riskLevel and autoApproveLowRisk never skip it.
       // confirmBypassAllowed is always false; a future true would still fail closed below.
       void confirmBypassAllowed(settings.autoApproveLowRisk)
@@ -1007,6 +1050,8 @@ export async function runOpenClawCoreAgentChat(
       })
 
       // 让下一轮请求带上本步助手 JSON，避免模型「失忆」而在每步重复同一段 description。
+      const proposalTasks = sessionState.taskGraph.map((task) => ({ ...task }))
+      const proposalEpisodes = thread.episodes.length
       conversation.push({ role: 'assistant' as const, content: content.trim() })
       thread = appendEpisode(
         thread,
@@ -1036,13 +1081,38 @@ export async function runOpenClawCoreAgentChat(
           return
         }
 
-        const ok = await waitForAiConfirm(requestId)
-        if (runCtx.userAborted) {
-          send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
+        const decision = await waitForAiConfirm(requestId)
+        if (decision === 'cancel' || runCtx.userAborted) {
+          // Cancel drops the proposal and returns to planning. Deny stays cancelled.
+          hitl = cancelHitl(hitl)
+          releaseCancelledProposal(sessionState, parsed, { tasks: proposalTasks })
+          if (thread.episodes.length > proposalEpisodes) {
+            thread = { ...thread, episodes: thread.episodes.slice(0, proposalEpisodes) }
+          }
+          const plannable = hitlIsPlannable(hitl) && !sideEffectExecutionPermitted(hitl)
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: 'HITL cancel',
+            detail: `phase=${hitl.phase} decision=cancel plannable=${String(plannable)}`
+          })
+          if (!plannable) {
+            send(wc, {
+              type: 'error',
+              message: mt('内部错误：取消后中断仍未释放', 'Internal error: the interrupt was still held after cancel')
+            })
+            return
+          }
+          send(wc, {
+            type: 'cancelled',
+            message: runCtx.userAborted
+              ? mt('已停止生成', 'Generation stopped')
+              : mt('已取消：这一步未执行，可以重新规划', 'Cancelled: this step did not run, and a new plan can start')
+          })
           send(wc, { type: 'done' })
           return
         }
-        hitl = resumeHitl(hitl, ok)
+        hitl = resumeHitl(hitl, decision === 'approve')
         emitDebug({
           kind: 'execution',
           round: step,
