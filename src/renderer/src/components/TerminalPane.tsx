@@ -346,6 +346,26 @@ export default function TerminalPane({
         },
         'sep',
         {
+          id: 'insertSnippet',
+          label: tg('ctx.insertSnippet'),
+          onSelect: () => window.dispatchEvent(new CustomEvent('aiss-open-right-panel', { detail: { pane: 'snippets', focusSearch: true } }))
+        },
+        {
+          id: 'allSnippets',
+          label: tg('ctx.allSnippets'),
+          onSelect: () => window.dispatchEvent(new CustomEvent('aiss-open-right-panel', { detail: { pane: 'snippets' } }))
+        },
+        {
+          id: 'saveAsSnippet',
+          label: tg('ctx.saveAsSnippet'),
+          disabled: !hasSel,
+          onSelect: () => {
+            const body = term?.getSelection() ?? ''
+            window.dispatchEvent(new CustomEvent('aiss-open-right-panel', { detail: { pane: 'snippets', openForm: true, seed: body } }))
+          }
+        },
+        'sep',
+        {
           id: 'sftp',
           label: tg('ctx.sftp'),
           shortcut: 'Ctrl+Alt+F',
@@ -433,6 +453,16 @@ export default function TerminalPane({
       apiRef.current = null
     }
   }, [sessionId, broadcastRef])
+
+  useEffect(() => {
+    const onFocus = (ev: Event) => {
+      const sid = (ev as CustomEvent<{ sessionId?: string }>).detail?.sessionId
+      if (sid && sid !== sessionId) return
+      apiRef.current?.term.focus()
+    }
+    window.addEventListener('aiss-focus-terminal', onFocus)
+    return () => window.removeEventListener('aiss-focus-terminal', onFocus)
+  }, [sessionId])
 
   useEffect(() => {
     const api = apiRef.current

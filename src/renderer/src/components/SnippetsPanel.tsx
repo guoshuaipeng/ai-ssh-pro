@@ -10,12 +10,17 @@ import {
   mergeSnippetsImport
 } from '@shared/workspace-features'
 import { tg } from '../lib/i18n'
+import { showToast } from '../lib/toast'
+import { toastUndo } from '../lib/dialogs'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
+import Modal from './Modal'
 
 type Props = {
-  onClose: () => void
+  onClose?: () => void
   activeSessionId: string | null
+  variant?: 'center' | 'rail'
+  launch?: { n: number; focusSearch?: boolean; openForm?: boolean; seed?: string }
 }
 
 type SnippetsApi = {
@@ -35,9 +40,10 @@ function newId(): string {
   return crypto.randomUUID()
 }
 
-export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
+export default function SnippetsPanel({ onClose, activeSessionId, variant = 'center', launch }: Props) {
   const { t } = useI18n()
   const fileRef = useRef<HTMLInputElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [items, setItems] = useState<CommandSnippet[]>([])
   const [title, setTitle] = useState('')
@@ -72,6 +78,19 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
     setTitle('')
     setBody('')
   }, [load])
+
+  useEffect(() => {
+    if (!launch?.n) return
+    if (launch.openForm) {
+      setFormOpen(true)
+      setEditingId(null)
+      setTitle('')
+      if (launch.seed) setBody(launch.seed)
+    }
+    if (launch.focusSearch) {
+      window.setTimeout(() => searchRef.current?.focus(), 0)
+    }
+  }, [launch])
 
   const persist = async (next: CommandSnippet[]) => {
     setSaving(true)
@@ -128,13 +147,32 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   }
 
   const onDelete = async (id: string) => {
+    const idx = items.findIndex((s) => s.id === id)
+    const removed = items[idx]
+    if (!removed) return
     const next = items.filter((s) => s.id !== id)
     try {
       await persist(next)
       if (editingId === id) resetForm()
+      toastUndo({
+        message: t('snip.deleted', { name: removed.title }),
+        undo: async () => {
+          const list = await getSnippetsApi().list()
+          const restored = Array.isArray(list) ? [...list] : []
+          restored.splice(Math.min(idx, restored.length), 0, removed)
+          await getSnippetsApi().save(restored)
+          await load()
+        }
+      })
     } catch {
       /* error already set */
     }
+  }
+
+  const finishInject = (sessionId: string, text: string, execute: boolean) => {
+    dispatchInjectTerminal(sessionId, text, execute)
+    showToast(t('snip.inserted'))
+    window.dispatchEvent(new CustomEvent('aiss-focus-terminal', { detail: { sessionId } }))
   }
 
   const onInject = (s: CommandSnippet, execute: boolean) => {
@@ -149,7 +187,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
       setVarValues(Object.fromEntries(vars.map((v) => [v, ''])))
       return
     }
-    dispatchInjectTerminal(activeSessionId, s.body, execute)
+    finishInject(activeSessionId, s.body, execute)
   }
 
   const confirmVars = () => {
@@ -158,7 +196,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
       setError(t('snip.needVars'))
       return
     }
-    dispatchInjectTerminal(activeSessionId, fillSnippetVars(pending.snippet.body, varValues), pending.execute)
+    finishInject(activeSessionId, fillSnippetVars(pending.snippet.body, varValues), pending.execute)
     setPending(null)
     setError(null)
   }
@@ -211,12 +249,13 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
     </div>
   ) : null
 
+  const rail = variant === 'rail'
   return (
-    <div className="workspace-panel workspace-panel--settings" data-testid="snippets-panel">
+    <div className={`workspace-panel workspace-panel--settings${rail ? ' snippets-rail' : ''}`} data-testid="snippets-panel" data-variant={variant}>
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{t('snip.titleN', { n: items.length })}</h2>
         <div className="workspace-panel-actions">
-          <button type="button" className="primary" data-testid="snip-new" onClick={openNew}>{t('snip.newBtn')}</button>
+          {rail ? null : <button type="button" className="primary" data-testid="snip-new" onClick={openNew}>{t('snip.newBtn')}</button>}
           <button type="button" aria-label={t('w2.more')} onClick={() => setMore((v) => !v)}>⋯</button>
           {more ? (
             <span className="snip-more">
@@ -239,39 +278,43 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings workspace-panel-inner--snippets">
           {notice ? <p className="l7-meta">{notice}</p> : null}
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('snip.searchPh')} aria-label={t('snip.search')} />
+          <input ref={searchRef} data-testid="snip-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('snip.searchPh')} aria-label={t('snip.search')} />
           {!editingId && formOpen ? form : null}
 
-          {pending ? (
-            <div className="snippet-vars" style={{ border: '1px solid var(--accent, #388bfd)', borderRadius: 6, padding: 10, marginBottom: 16 }}>
-              <h3 className="modal-section-title">{t('snip.fillVars', { title: pending.snippet.title })}</h3>
-              {pending.vars.map((v, idx) => (
-                <div className="field" key={v}>
-                  <label htmlFor={`snippet-var-${v}`}>{v}</label>
-                  <input
-                    id={`snippet-var-${v}`}
-                    autoFocus={idx === 0}
-                    value={varValues[v] ?? ''}
-                    onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') confirmVars()
-                    }}
-                  />
-                </div>
-              ))}
-              <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', color: 'var(--muted)', margin: '0 0 8px' }}>
-                {fillSnippetVars(pending.snippet.body, Object.fromEntries(Object.entries(varValues).filter(([, x]) => x)))}
-              </pre>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className="primary" onClick={confirmVars}>
-                  {pending.execute ? t('snip.injectRun') : t('snip.inject')}
-                </button>
-                <button type="button" onClick={() => setPending(null)}>
-                  {t('snip.cancel')}
-                </button>
-              </div>
-            </div>
-          ) : null}
+          <Modal
+            open={Boolean(pending)}
+            title={pending ? t('snip.fillVars', { title: pending.snippet.title }) : ''}
+            onClose={() => setPending(null)}
+            width={420}
+            testId="snip-vars"
+            footer={
+              pending ? (
+                <>
+                  <button type="button" onClick={() => setPending(null)}>{t('snip.cancel')}</button>
+                  <button type="button" className="primary" onClick={confirmVars}>
+                    {pending.execute ? t('snip.injectRun') : t('snip.inject')}
+                  </button>
+                </>
+              ) : null
+            }
+          >
+            {pending
+              ? pending.vars.map((v, idx) => (
+                  <div className="field" key={v}>
+                    <label htmlFor={`snippet-var-${v}`}>{v}</label>
+                    <input
+                      id={`snippet-var-${v}`}
+                      autoFocus={idx === 0}
+                      value={varValues[v] ?? ''}
+                      onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmVars()
+                      }}
+                    />
+                  </div>
+                ))
+              : null}
+          </Modal>
 
           {items.length > 0 && visible.length === 0 ? (
             <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.noMatch')}</p>
@@ -284,7 +327,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
               icon={<Icon name="clipboard-list" size={32} strokeWidth={1.5} />}
               title={t('pf4.snipTitle')}
               desc={t('pf4.snipDesc')}
-              primary={{ label: t('ux08.snipNew'), onClick: openNew }}
+              primary={{ label: t('ux08.snipNew'), onClick: openNew, testId: 'snip-new' }}
             />
           ) : null}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -292,6 +335,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
               editingId === s.id ? <li key={s.id}>{form}</li> :
               <li
                 key={s.id}
+                onDoubleClick={() => onInject(s, false)}
                 style={{
                   border: '1px solid var(--border)',
                   borderRadius: 6,
@@ -343,6 +387,14 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
           </ul>
         </div>
       </div>
+      {rail && items.length > 0 ? (
+        <div className="snippets-rail-foot">
+          <button type="button" className="secondary" data-testid="snip-new" onClick={openNew}>{t('ux08.snipNew')}</button>
+        </div>
+      ) : null}
+      {onClose && !rail ? (
+        <button type="button" className="link-btn" onClick={onClose}>{t('snip.close')}</button>
+      ) : null}
     </div>
   )
 }

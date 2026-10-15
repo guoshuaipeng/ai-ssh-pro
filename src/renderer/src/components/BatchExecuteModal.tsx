@@ -83,7 +83,7 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
     }
     const risk = assessCommandRisk(line)
     if (risk) {
-      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${line}`, { danger: true, okLabel: t('risk.run') })
+      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${line}`, { id: 'confirm.dangerCommand', danger: true, okLabel: t('risk.run') })
       if (!ok) {
         setFormError(t('risk.blocked'))
         return

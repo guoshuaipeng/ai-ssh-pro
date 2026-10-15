@@ -512,7 +512,11 @@ export function PlaybookRun({
             return 'skip'
           }
         }
-        const ok = await askConfirm(tg('m2.confirmTitle'), req.command, { danger: req.dangerous, okLabel: tg('w2.start') })
+        const ok = await askConfirm(tg('m2.confirmTitle'), req.command, {
+          id: 'confirm.playbookDestructive',
+          danger: true,
+          okLabel: req.requireHostName ? tg('confirm.runProd') : req.dangerous ? tg('risk.run') : tg('confirm.runStep')
+        })
         const ran = ok ? 'run' : 'skip'
         appendGate({
           host: req.host.name,

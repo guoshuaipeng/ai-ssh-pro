@@ -330,6 +330,14 @@ export default function SettingsPanel({
                   ))}
                 </tbody>
               </table>
+              <button
+                type="button"
+                className="link-btn"
+                data-testid="help-open-palette"
+                onClick={() => window.dispatchEvent(new CustomEvent('aiss-open-palette'))}
+              >
+                {t('help.searchPalette')}
+              </button>
             </section>
           ) : null}
           {active === 'security' ? (

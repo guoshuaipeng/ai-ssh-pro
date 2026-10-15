@@ -303,17 +303,13 @@ export default function AppToolbar({
             type="button"
             className="titlebar-icon-btn titlebar-tool-btn titlebar-search-btn"
             data-tool="commandPalette"
+            data-testid="toolbar-palette-field"
             title={t('toolbar.paletteTitle')}
-            aria-label={t('toolbar.paletteTitle')}
+            aria-label={t('toolbar.searchField')}
             onClick={() => onMenuAction('commandPalette')}
           >
-            <Icon name="search" size={20} strokeWidth={1.5} />
-            {searchIconOnly ? null : (
-              <>
-                <span className="tb-label">{t('toolbar.searchFeatures')}</span>
-                <kbd className="tb-label">Ctrl+K</kbd>
-              </>
-            )}
+            <Icon name="search" size={16} strokeWidth={1.5} />
+            <span className="tb-label tb-search-ph">{searchIconOnly ? t('toolbar.searchFieldShort') : t('toolbar.searchField')}</span>
           </button>
           <div className="titlebar-popover-wrap" ref={moreRef}>
             <button

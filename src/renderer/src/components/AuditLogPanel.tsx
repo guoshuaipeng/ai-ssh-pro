@@ -9,13 +9,15 @@ export default function AuditLogPanel({
   host,
   enabled,
   onToggle,
-  onClose
+  onClose,
+  onClear
 }: {
   events: AuditEvent[]
   host?: string
   enabled: boolean
   onToggle: (on: boolean) => void
   onClose: () => void
+  onClear?: () => void
 }) {
   const { t } = useI18n()
   const [text, setText] = useState('')
@@ -66,6 +68,9 @@ export default function AuditLogPanel({
         <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} aria-label={t('m2.until')} />
         <button type="button" onClick={() => void window.aiss.files.saveText('audit.csv', auditToCsv(rows))}>{t('m2.exportCsv')}</button>
         <button type="button" onClick={() => void window.aiss.files.saveText('audit.jsonl', auditToJsonl(rows))}>{t('m2.exportJsonl')}</button>
+        {onClear ? (
+          <button type="button" data-testid="audit-clear" onClick={onClear}>{t('audit.clear')}</button>
+        ) : null}
         <label className="l4-check">
           <input id="audit-enable" type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
           {t('l4.audit')}

@@ -235,7 +235,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
     const ok = await askConfirm(
       t('st.killTitle', { signal }),
       t('st.killMsg', { pid: p.pid, cmd: p.command.slice(0, 120) }),
-      { danger: signal === 'KILL', okLabel: t('st.send') }
+      { id: 'confirm.killProcess', danger: true, okLabel: t('st.kill') }
     )
     if (!ok) return
     const r = await guard(() => window.aiss.tools.kill(sessionId, p.pid, signal, sudo))
@@ -341,7 +341,8 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
       return
     }
     const ok = await askConfirm(t('st.svcConfirmTitle'), t('st.svcConfirmMsg', { action: t(`st.svc.${action}` as 'st.svc.start'), unit: s.unit }), {
-      danger: action === 'stop',
+      id: 'confirm.stopService',
+      danger: action !== 'start',
       okLabel: t(`st.svc.${action}` as 'st.svc.start')
     })
     if (!ok) return

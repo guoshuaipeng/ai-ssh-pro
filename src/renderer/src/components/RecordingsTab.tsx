@@ -66,8 +66,9 @@ export function RecordingsList({
                 type="button"
                 onClick={() => {
                   void askConfirm(tg('m2.deleteRecording'), tg('m2.deleteRecordingBody', { host: row.host }), {
+                    id: 'confirm.deleteRecordings',
                     danger: true,
-                    okLabel: tg('app.delete')
+                    okLabel: tg('confirm.deleteOneRecording')
                   }).then((ok) => {
                     if (!ok) return
                     void window.aiss.recordings.delete(row.file).then(reload)
