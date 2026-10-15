@@ -1,7 +1,9 @@
 /** Per-hop connectivity check for the jump-host editor. Stops at the first failed hop. */
 import { Client, type ConnectConfig } from 'ssh2'
 import { applyConnectAuth } from './ssh-auth'
-import type { HopProbeRow, JumpHop } from '../shared/jump-chain'
+import { checkHostKey } from './known-hosts'
+import { mt } from './main-i18n'
+import { probeHostKeyError, type HopProbeRow, type JumpHop } from '../shared/jump-chain'
 import type { SshConnectOptions } from '../shared/ipc'
 
 function connectClient(client: Client, config: ConnectConfig, timeoutMs: number): Promise<void> {
@@ -65,12 +67,21 @@ export async function probeJumpChain(
       const started = Date.now()
       const client = new Client()
       clients.push(client)
+      let hostKeyError: string | null = null
       const cfg: ConnectConfig = {
         host: step.host,
         port: step.port,
         username: step.username,
         readyTimeout: opts.timeoutMs ?? 8000,
-        hostVerifier: () => true,
+        hostVerifier: (key: Buffer, verify: (ok: boolean) => void) => {
+          const denied = probeHostKeyError(checkHostKey(step.host, step.port, key).status)
+          if (denied) {
+            hostKeyError = mt(denied.zh, denied.en)
+            verify(false)
+            return
+          }
+          verify(true)
+        },
         ...(sock ? { sock: sock as unknown as ConnectConfig['sock'] } : {})
       }
       try {
@@ -84,7 +95,7 @@ export async function probeJumpChain(
         const next = steps[i + 1]
         if (next) sock = await forwardOut(client, next.host, next.port)
       } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err)
+        const reason = hostKeyError || (err instanceof Error ? err.message : String(err))
         rows.push({ hop: i + 1, total, name: step.name, addr: `${step.host}:${step.port}`, ok: false, ms: Date.now() - started, reason })
         break
       }

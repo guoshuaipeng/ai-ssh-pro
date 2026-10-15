@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { certCardState, detectKeyMaterial, parseCertificate, siblingCertPath, skNeedsAgent } from '@shared/ssh-cert'
+import { certCardState, parseCertificate, siblingCertPath, skNeedsAgent, type KeyKind } from '@shared/ssh-cert'
 import { tg } from '../lib/i18n'
 
 type Props = {
@@ -13,7 +13,7 @@ type Props = {
 /** S3: certificate card and the sk-ed25519 → agent gate. */
 export default function CertCard({ keyPath, certificatePath, username, authMode, onSwitchAgent }: Props) {
   const [text, setText] = useState('')
-  const [keyText, setKeyText] = useState('')
+  const [kind, setKind] = useState<KeyKind>('unknown')
 
   useEffect(() => {
     const path = certificatePath.trim() || (keyPath.trim() ? siblingCertPath(keyPath.trim()) : '')
@@ -37,25 +37,24 @@ export default function CertCard({ keyPath, certificatePath, username, authMode,
 
   useEffect(() => {
     const path = keyPath.trim()
-    if (!path || !window.aiss?.localFs?.readText) {
-      setKeyText('')
+    if (!path || !window.aiss?.localFs?.detectKeyKind) {
+      setKind('unknown')
       return
     }
     let stop = false
     void window.aiss.localFs
-      .readText(path, 64_000)
-      .then((r) => {
-        if (!stop) setKeyText(r?.content || '')
+      .detectKeyKind(path)
+      .then((k) => {
+        if (!stop) setKind(k)
       })
       .catch(() => {
-        if (!stop) setKeyText('')
+        if (!stop) setKind('unknown')
       })
     return () => {
       stop = true
     }
   }, [keyPath])
 
-  const kind = keyText ? detectKeyMaterial(keyText) : 'unknown'
   const sk = skNeedsAgent(kind, authMode)
   const info = text ? parseCertificate(text, username) : null
   const card = info ? certCardState(info, username) : null

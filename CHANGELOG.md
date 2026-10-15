@@ -12,6 +12,7 @@ Jump hosts and the 1366 layout pass. Package version is `0.4.1`. Do not tag unti
 - **最近连接（UX-18）/ Recent.** 侧栏「最近连接」默认折叠。同一 user@host:port 只留一行，已保存的主机带「已保存」，不再复制整棵主机树。 / Recent connections start collapsed. One row per user@host:port, with a Saved badge when the host is already in the list.
 - **主机菜单（UX-19）/ Host menu.** 单选：连接、新标签、SFTP、监控、工具箱、编辑、档案与备注、重命名、移动、复制地址、删除（底部红色）。Docker 进工具箱，不再单独占一行。 / Single selection ends with a red Delete. Docker opens inside the toolbox instead of its own row. Profile & notes opens the host profile.
 - **恢复上次会话（UX-50）/ Restore.** 启动「上次会话」现恢复运维首页、告警工作台、SFTP、监控、工具箱等中间标签及分屏布局；终端仅恢复标签并重连，不恢复 scrollback。失效档案会跳过并提示。启动「运维首页」不会把这些标签一起打开。 / Startup “Last session” restores Ops home, the alert workbench, SFTP, monitor, toolbox, and other center tabs. Terminals restore as a tab and reconnect; scrollback is not restored. A missing profile is skipped with a toast. Startup “Ops home” does not reopen those tabs.
+- **冷启动 / Cold start.** 修复冷启动首次双击窗口不显示 / Fix main window not showing on first cold-start launch.
 
 ## v0.4.0
 

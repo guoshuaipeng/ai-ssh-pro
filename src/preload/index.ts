@@ -183,7 +183,9 @@ const api = {
     reveal: (target: string): Promise<boolean> => ipcRenderer.invoke('localFs:reveal', target),
     hash: (target: string): Promise<string> => ipcRenderer.invoke('localFs:hash', target),
     readText: (target: string, maxBytes?: number): Promise<import('../shared/ipc').SftpReadTextResult> =>
-      ipcRenderer.invoke('localFs:readText', target, maxBytes)
+      ipcRenderer.invoke('localFs:readText', target, maxBytes),
+    detectKeyKind: (target: string): Promise<import('../shared/ssh-cert').KeyKind> =>
+      ipcRenderer.invoke('localFs:detectKeyKind', target)
   },
   docker: {
     listTree: (sessionId: string): Promise<DockerTreeResult> =>

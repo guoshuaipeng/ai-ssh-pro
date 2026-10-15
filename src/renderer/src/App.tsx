@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   AUTO_RECONNECT_DELAYS_MS,
   autoReconnectDelay,
@@ -60,7 +61,8 @@ import {
   type AlertRulesState,
   type FiredAlert
 } from '@shared/alert-rules'
-import { friendlyErrorMessage } from './lib/friendly-error'
+import { friendlyErrorMessage, stripIpcPrefix } from './lib/friendly-error'
+import { placeMenu } from '@shared/menu-place'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
@@ -416,6 +418,7 @@ export default function App() {
   const [hopProgress, setHopProgress] = useState<{ hop: number; total: number; name: string } | null>(null)
   const [connFocus, setConnFocus] = useState<'jump' | 'cert' | null>(null)
   const [tabOverflowOpen, setTabOverflowOpen] = useState(false)
+  const [tabOverflowPos, setTabOverflowPos] = useState<{ top: number; left: number } | null>(null)
   const [tabStripOverflowing, setTabStripOverflowing] = useState(false)
   const [tabHiddenCount, setTabHiddenCount] = useState(0)
   const [tabFade, setTabFade] = useState({ left: false, right: false })
@@ -501,6 +504,16 @@ export default function App() {
     folderName: string
   } | null>(null)
   const folderMenuRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = sessionMenu ? sessionMenuRef.current : folderMenu ? folderMenuRef.current : null
+    const origin = sessionMenu ?? folderMenu
+    if (!el || !origin) return
+    const rect = el.getBoundingClientRect()
+    const next = placeMenu(origin.x, origin.y, rect.width, rect.height, window.innerWidth, window.innerHeight)
+    if (Math.abs(next.x - origin.x) <= 1 && Math.abs(next.y - origin.y) <= 1) return
+    if (sessionMenu) setSessionMenu({ ...sessionMenu, x: next.x, y: next.y })
+    else if (folderMenu) setFolderMenu({ ...folderMenu, x: next.x, y: next.y })
+  }, [sessionMenu, folderMenu])
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
     return loadSidebarExpandPrefs().folders
   })
@@ -950,12 +963,16 @@ export default function App() {
         setHopProgress(null)
         return sessionId
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = stripIpcPrefix(raw)
         const hop = parseHopFailure(msg)
+        const shown = hop
+          ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
+          : friendlyErrorMessage(raw)
         setHopProgress(null)
         setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: extra?.profileId } : null)
-        setError(msg)
-        lastConnectErrorRef.current = msg
+        setError(shown)
+        lastConnectErrorRef.current = shown
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected' } : t))
         )
@@ -1041,7 +1058,7 @@ export default function App() {
   tabsRef.current = tabs
   const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
   const [autoRetry, setAutoRetry] = useState<{ tabId: string; attempt: number; delayMs: number } | null>(null)
-  const reconnectTabRef = useRef<(tabId: string) => Promise<boolean>>(async () => false)
+  const reconnectTabRef = useRef<(tabId: string) => Promise<string | null>>(async () => null)
   const scheduleAutoReconnectRef = useRef<(tabId: string) => void>(() => {})
 
   const cancelAutoReconnect = useCallback((tabId: string) => {
@@ -1085,9 +1102,9 @@ export default function App() {
   }, [])
 
   const reconnectTab = useCallback(
-    async (tabId: string): Promise<boolean> => {
+    async (tabId: string): Promise<string | null> => {
       const tab = tabsRef.current.find((t) => t.tabId === tabId)
-      if (!tab || tab.status !== 'disconnected') return false
+      if (!tab || tab.status !== 'disconnected') return null
       setError(null)
       setReconnectingTabId(tabId)
       try {
@@ -1111,7 +1128,7 @@ export default function App() {
                 : t
             )
           )
-          return true
+          return sessionId
         }
         const { sessionId, meta } = await window.aiss.ssh.connect({
           ...tab.connectOpts,
@@ -1138,14 +1155,18 @@ export default function App() {
         notifyRecentChanged()
         setJumpFail(null)
         setHopProgress(null)
-        return true
+        return sessionId
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = stripIpcPrefix(raw)
         const hop = parseHopFailure(msg)
+        const shown = hop
+          ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
+          : friendlyErrorMessage(raw)
         setHopProgress(null)
         setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: tab.profileId } : null)
-        setError(msg)
-        return false
+        setError(shown)
+        return null
       } finally {
         setReconnectingTabId(null)
       }
@@ -2721,12 +2742,14 @@ export default function App() {
     setTabs(next)
     setActiveTabId(next[activeIndex]!.tabId)
   }, [sessionsReady])
+  const coldActiveId = tabs.find((t) => t.tabId === activeTabId && t.cold)?.tabId ?? null
   useEffect(() => {
     if (!sessionsReady || !activeTabId) return
     const tab = tabsRef.current.find((t) => t.tabId === activeTabId && t.cold)
     if (!tab || wakingRef.current === tab.tabId) return
     wakingRef.current = tab.tabId
     const clearCold = (patch?: Partial<Tab>) => {
+      if (wakingRef.current === tab.tabId) wakingRef.current = null
       setTabs((prev) => prev.map((t) => (t.tabId === tab.tabId ? { ...t, cold: false, ...patch } : t)))
     }
     if (!tab.view || tab.view === 'session') {
@@ -2745,8 +2768,7 @@ export default function App() {
         (t) => t.tabId !== tab.tabId && t.profileId === tab.profileId && (!t.view || t.view === 'session')
       )
       if (term) {
-        void reconnectTabRef.current(term.tabId).then(() => {
-          const sid = tabsRef.current.find((t) => t.tabId === term.tabId)?.sessionId
+        void reconnectTabRef.current(term.tabId).then((sid) => {
           clearCold(sid ? { boundSessionId: sid } : undefined)
         })
         return
@@ -2763,7 +2785,27 @@ export default function App() {
       return
     }
     clearCold()
-  }, [activeTabId, sessionsReady, connectProfile])
+  }, [activeTabId, coldActiveId, sessionsReady, connectProfile])
+  useEffect(() => {
+    setTabs((prev) => {
+      let changed = false
+      const next = prev.map((t) => {
+        if (t.view !== 'monitor' && t.view !== 'toolbox' && t.view !== 'sftp') return t
+        if (t.boundSessionId || !t.profileId) return t
+        const live = prev.find(
+          (s) =>
+            s.profileId === t.profileId &&
+            s.sessionId &&
+            s.status === 'connected' &&
+            (!s.view || s.view === 'session')
+        )
+        if (!live?.sessionId) return t
+        changed = true
+        return { ...t, boundSessionId: live.sessionId, cold: false }
+      })
+      return changed ? next : prev
+    })
+  }, [tabs])
   useEffect(() => {
     if (!sessionsReady || !bootedRef.current) return
     const snapshot = snapshotWorkspace(tabs, activeTabId)
@@ -4214,6 +4256,12 @@ export default function App() {
             <div
               className={`tab-bar-scroll${tabFade.left ? ' fade-left' : ''}${tabFade.right ? ' fade-right' : ''}`}
               data-testid="tab-bar-scroll"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+                e.preventDefault()
+                e.currentTarget.scrollLeft += e.key === 'ArrowRight' ? 80 : -80
+              }}
             >
             {tabs.map((t) => {
               const isSession = !t.view || t.view === 'session'
@@ -4317,45 +4365,58 @@ export default function App() {
                 aria-expanded={tabOverflowOpen}
                 aria-label={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
                 title={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
-                onClick={() => setTabOverflowOpen((v) => !v)}
+                onClick={() => {
+                  const btn = tabOverflowBtnRef.current
+                  if (btn) {
+                    const r = btn.getBoundingClientRect()
+                    const width = 280
+                    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8))
+                    setTabOverflowPos({ top: Math.round(r.bottom + 4), left: Math.round(left) })
+                  }
+                  setTabOverflowOpen((v) => !v)
+                }}
               >
                 <span aria-hidden>{`⌄ ${tabHiddenCount}`}</span>
               </button>
             ) : null}
-            {tabOverflowOpen ? (
-              <div
-                ref={tabOverflowMenuRef}
-                className="tab-overflow-menu"
-                data-testid="tab-overflow-menu"
-                role="menu"
-                aria-label={tr('tab.list.title', { n: tabs.length })}
-              >
-                <div className="tab-overflow-title">{tr('tab.list.title', { n: tabs.length })}</div>
-                {tabs.map((t) => {
-                  const current = t.tabId === activeTabId
-                  return (
-                    <button
-                      key={t.tabId}
-                      type="button"
-                      role="menuitem"
-                      className={current ? 'is-current' : undefined}
-                      aria-current={current ? 'true' : undefined}
-                      onClick={() => {
-                        setActiveTabId(t.tabId)
-                        setTabOverflowOpen(false)
-                      }}
-                    >
-                      <span className="tab-overflow-label">{labelFor(t)}</span>
-                      {current ? (
-                        <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
-                          ✓
-                        </span>
-                      ) : null}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : null}
+            {tabOverflowOpen && tabOverflowPos
+              ? createPortal(
+                  <div
+                    ref={tabOverflowMenuRef}
+                    className="tab-overflow-menu"
+                    data-testid="tab-overflow-menu"
+                    role="menu"
+                    aria-label={tr('tab.list.title', { n: tabs.length })}
+                    style={{ top: tabOverflowPos.top, left: tabOverflowPos.left }}
+                  >
+                    <div className="tab-overflow-title">{tr('tab.list.title', { n: tabs.length })}</div>
+                    {tabs.map((t) => {
+                      const current = t.tabId === activeTabId
+                      return (
+                        <button
+                          key={t.tabId}
+                          type="button"
+                          role="menuitem"
+                          className={current ? 'is-current' : undefined}
+                          aria-current={current ? 'true' : undefined}
+                          onClick={() => {
+                            setActiveTabId(t.tabId)
+                            setTabOverflowOpen(false)
+                          }}
+                        >
+                          <span className="tab-overflow-label">{labelFor(t)}</span>
+                          {current ? (
+                            <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
+                              ✓
+                            </span>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>,
+                  document.body
+                )
+              : null}
           </div>
           {broadcastSessions.length ? <div className="broadcast-bar" data-testid="broadcast-bar" aria-hidden /> : null}
           {tabMenu
@@ -4539,7 +4600,7 @@ export default function App() {
                   )
                 })()
               : null}
-            {tasksOpen ? (
+            {tasksOpen && (!activeTab?.view || activeTab.view === 'session') ? (
               <RetentionTasks
                 state={taskState}
                 onGo={(id) => {
@@ -4716,7 +4777,21 @@ export default function App() {
                     }}
                   />
                 ) : (t.view === 'monitor' || t.view === 'toolbox') && !t.boundSessionId ? (
-                  <div className="workspace-panel" data-testid="restore-connecting">{tg('restore.connecting')}</div>
+                  <div className="workspace-panel restore-connecting" data-testid="restore-connecting">
+                    <p>{t.cold ? tg('restore.connecting') : tg('restore.click')}</p>
+                    {t.cold ? null : (
+                      <button
+                        type="button"
+                        className="primary"
+                        data-testid="restore-click"
+                        onClick={() => {
+                          setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, cold: true } : x)))
+                        }}
+                      >
+                        {tg('restore.click')}
+                      </button>
+                    )}
+                  </div>
                 ) : t.view === 'monitor' && t.boundSessionId ? (
                   <ResourceMonitorModal
                     open
@@ -5299,7 +5374,7 @@ export default function App() {
       </div>
       {hopProgress && !jumpFail ? (
         <div className="jump-fail-banner" data-testid="jump-hop">
-          <span>{tg('m2.connectingHop', { i: hopProgress.hop, total: hopProgress.total, name: hopProgress.name })}</span>
+          <span>{tg('m2.connectingHop', { i: hopProgress.hop, n: hopProgress.total, name: hopProgress.name })}</span>
         </div>
       ) : null}
       {jumpFail ? (
@@ -5482,7 +5557,7 @@ export default function App() {
         const p = sessionMenu.profile
         const multi = sessionMenu.multi
         const multiProfiles = multi ? profiles.filter((x) => multi.includes(x.id)) : []
-        const item = (key: string, label: string, onClick: () => void, opts?: { hint?: string; danger?: boolean; disabled?: boolean }) => (
+        const item = (key: string, label: string, onClick: () => void, opts?: { hint?: string; tip?: string; danger?: boolean; disabled?: boolean }) => (
           <button
             key={key}
             type="button"
@@ -5490,6 +5565,7 @@ export default function App() {
             data-ctx={key}
             className={`session-context-menu-item${opts?.danger ? ' danger' : ''}`}
             disabled={opts?.disabled}
+            title={opts?.tip}
             onClick={onClick}
           >
             <span>{label}</span>
@@ -5553,7 +5629,7 @@ export default function App() {
                   openToolTabRef.current('batch', null, sids)
                 })()
               })}
-              {item('monitorBoard', tg('ctx.monitorBoard'), () => {
+              {item('monitorBoard', tg('ctx.monitorBoard') + ` (${multi.length})`, () => {
                 setSessionMenu(null)
                 openDashboard()
               })}
@@ -5624,7 +5700,7 @@ export default function App() {
                 hostInventoryId: p.hostInventoryId
               })
               setSessionMenu(null)
-            }, { hint: tg('ctx.profileTip') })}
+            }, { tip: tg('ctx.profileTip') })}
             {item('rename', tg('ctx.rename'), () => void renameProfile(p), { hint: 'F2' })}
             {moveTo([p.id], p.folderId)}
             {item('copyAddr', tg('ctx.copyAddr'), () => {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { tg } from '../lib/i18n'
 import { ProtectionLevelField } from './ProtectionSection'
 import JumpChainEditor from './JumpChainEditor'
@@ -143,6 +143,15 @@ export default function ConnectionConfigModal({
       forwardRemotePort.trim()
   )
   const [advancedOpen, setAdvancedOpen] = useState(advancedOpenDefault)
+  const certRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focusSection !== 'cert') return
+    if (authMode === 'password') {
+      setAuthMode('key')
+      return
+    }
+    certRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [focusSection, authMode])
 
   return (
     <div className="workspace-panel workspace-panel--editor conn-form-ux25">
@@ -260,13 +269,15 @@ export default function ConnectionConfigModal({
                     />
                   </div>
                   {authMode === 'key' || authMode === 'agent' ? (
-                    <CertCard
-                      keyPath={privateKeyPath}
-                      certificatePath={certificatePath}
-                      username={username}
-                      authMode={authMode}
-                      onSwitchAgent={() => setAuthMode('agent')}
-                    />
+                    <div ref={certRef} data-testid="cert-focus">
+                      <CertCard
+                        keyPath={privateKeyPath}
+                        certificatePath={certificatePath}
+                        username={username}
+                        authMode={authMode}
+                        onSwitchAgent={() => setAuthMode('agent')}
+                      />
+                    </div>
                   ) : null}
                 </>
               )}

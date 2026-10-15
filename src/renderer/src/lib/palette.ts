@@ -76,7 +76,10 @@ export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: str
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {
   const out: PaletteEntry[] = []
   let order = 0
+  const seen = new Set<MenuAction>()
   const push = (id: MenuAction, label: string, other: string, group: string, shortcut?: string) => {
+    if (seen.has(id)) return
+    seen.add(id)
     const alias = PINYIN_ALIASES[id] ?? ''
     out.push({
       id,

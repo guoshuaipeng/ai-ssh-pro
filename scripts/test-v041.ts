@@ -1,7 +1,7 @@
 /** v0.4.1: jump/certs, 1366 density, settings, palette, sidebar, session restore. */
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ssh2 from 'ssh2'
@@ -14,8 +14,13 @@ import { dedupeRecent, loadRecentExpanded } from '../src/shared/recent-sidebar'
 import { CHANGELOG_RESTORE_SCOPE, planRestore, snapshotWorkspace } from '../src/shared/session-restore'
 import { sectionForAction } from '../src/shared/settings-nav'
 import { certCardState, detectKeyMaterial, skNeedsAgent } from '../src/shared/ssh-cert'
+import { parseHopFailure, probeHostKeyError } from '../src/shared/jump-chain'
+import { placeMenu } from '../src/shared/menu-place'
+import { buildPaletteEntries } from '../src/renderer/src/lib/palette'
+import { SHARED_MENUS } from '../src/shared/menus'
 import { tabLabel } from '../src/shared/tab-label'
 import { tabStripOverflow } from '../src/shared/tab-overflow'
+import { detectKeyFileKind } from '../src/main/key-kind'
 import { changelogFor } from '../src/shared/changelog'
 import { applyConnectAuth, SshAuthError } from '../src/main/ssh-auth'
 
@@ -74,7 +79,8 @@ const trStub = (key: string, vars?: Record<string, string | number>) => {
     'tab.disconnected': '{title} (已断开)',
     'l7.title': '运维首页',
     'l2.title': '告警工作台',
-    'l4.auditTitle': '审计日志'
+    'l4.auditTitle': '审计日志',
+    'menu.settings': '设置'
   }
   return (map[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? ''))
 }
@@ -192,7 +198,51 @@ assert.deepEqual(shot.map((row) => row.kind), ['terminal', 'home'])
 assert.equal(shot[1]?.active, true)
 assert.ok(!JSON.stringify(shot).includes('scrollback'))
 assert.ok(changelog.includes(CHANGELOG_RESTORE_SCOPE.zh) && changelog.includes(CHANGELOG_RESTORE_SCOPE.en))
-assert.ok(changelog.includes('## v0.4.1') && !changelog.includes('## v0.4.0\n'))
+assert.ok(changelog.includes('## v0.4.1\n') && changelog.includes('## v0.4.0\n'))
+assert.ok(changelog.includes('修复冷启动首次双击窗口不显示'))
+assert.ok(changelog.includes('Fix main window not showing on first cold-start launch'))
+
+const wrapped = "Error invoking remote method 'ssh:connect': Error: [hop 1/1] x (h:22): connect ECONNREFUSED h:22"
+const parsedHop = parseHopFailure(wrapped)
+assert.ok(parsedHop)
+assert.equal(parsedHop.hop, 1)
+assert.equal(parsedHop.total, 1)
+assert.equal(parsedHop.name, 'x')
+assert.equal(parsedHop.addr, 'h:22')
+assert.match(parsedHop.reason, /ECONNREFUSED/)
+assert.ok(app.includes('stripIpcPrefix(raw)') && app.includes("tg('m2.hopReason'"))
+assert.equal(probeHostKeyError('trusted'), null)
+assert.ok(probeHostKeyError('unknown')?.zh.includes('主机密钥未信任'))
+assert.ok(probeHostKeyError('changed')?.en.includes('untrusted or changed'))
+const probeSrc = readFileSync('src/main/jump-probe.ts', 'utf8')
+assert.ok(!probeSrc.includes('hostVerifier: () => true'))
+assert.ok(probeSrc.includes('checkHostKey') && probeSrc.includes('verify(false)'))
+assert.ok(app.includes('createPortal(') && app.includes("document.body"))
+assert.ok(app.includes("e.key === 'ArrowRight'") && app.includes('scrollLeft += e.deltaY'))
+const menuBlock = app.slice(app.indexOf('createPortal('), app.indexOf('broadcast-bar'))
+assert.ok(menuBlock.includes('labelFor(t)') && menuBlock.includes('aria-current') && !menuBlock.includes('{t.title}'))
+const placed = placeMenu(10, 398, 220, 400, 1366, 768)
+assert.ok(placed.y + 400 <= 768 - 8)
+assert.equal(placed.x, 10)
+const paletteRows = buildPaletteEntries(SHARED_MENUS, 'zh-CN')
+assert.equal(paletteRows.filter((row) => row.id === 'opsHome').length, 1)
+assert.equal(paletteRows.find((row) => row.id === 'folderSync')?.label, '同步文件夹…')
+assert.ok(readFileSync('src/renderer/src/components/CommandPalette.tsx', 'utf8').includes('CAT_KEY[e.category]'))
+assert.equal(tabLabel({ title: 'Settings', view: 'settings' }, trStub), '设置')
+const snap = snapshotWorkspace(
+  [{ tabId: 's', view: 'settings', title: 'Settings' }, { tabId: 't', title: 'web-01', profileId: 'p' }],
+  's'
+)
+assert.equal(snap.find((row) => row.kind === 'settings')?.title, '')
+assert.equal(snap.find((row) => row.kind === 'terminal')?.title, 'web-01')
+assert.ok(app.includes('n: hopProgress.total'))
+assert.ok(!readFileSync('src/renderer/src/components/CertCard.tsx', 'utf8').includes('64_000'))
+assert.ok(readFileSync('src/renderer/src/components/CertCard.tsx', 'utf8').includes('detectKeyKind'))
+const keyFile = join(mkdtempSync(join(tmpdir(), 'aiss-key-')), 'id_ed25519')
+writeFileSync(keyFile, '-----BEGIN OPENSSH PRIVATE KEY-----\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItest\n')
+assert.equal(detectKeyFileKind(keyFile), 'ed25519')
+assert.equal(detectKeyFileKind(keyFile + '.missing'), 'unknown')
+rmSync(keyFile, { force: true })
 assert.ok(changelogFor('0.4.1').length >= 4)
 assert.ok(app.includes('snapshotWorkspace') && app.includes('planRestore'))
 

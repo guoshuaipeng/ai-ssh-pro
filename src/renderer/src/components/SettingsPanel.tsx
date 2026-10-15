@@ -118,14 +118,6 @@ export default function SettingsPanel({
               <label className="settings-row">
                 <input
                   type="checkbox"
-                  checked={startupMode === 'last'}
-                  onChange={(e) => onStartupMode(e.target.checked ? 'last' : 'home')}
-                />
-                {t('settings.restoreTabs')}
-              </label>
-              <label className="settings-row">
-                <input
-                  type="checkbox"
                   checked={autoUpdate}
                   onChange={(e) => {
                     setAutoUpdate(e.target.checked)

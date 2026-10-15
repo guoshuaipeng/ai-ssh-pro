@@ -164,12 +164,37 @@ export function canAddHop(hops: JumpHop[]): boolean {
   return hops.length < MAX_HOPS
 }
 
+export const PROBE_HOST_KEY_DENIED = {
+  zh: '主机密钥未信任/已变化，请先正常连接一次确认',
+  en: 'Host key is untrusted or changed. Connect normally once to confirm it.'
+}
+
+/** Read-only known_hosts gate for 测试连接. Unknown or changed keys must not be authenticated. */
+export function probeHostKeyError(status: 'trusted' | 'unknown' | 'changed'): { zh: string; en: string } | null {
+  if (status === 'trusted') return null
+  return PROBE_HOST_KEY_DENIED
+}
+
 export function formatHopFailure(hop: number, total: number, name: string, addr: string, reason: string): string {
   return `[hop ${hop}/${total}] ${name} (${addr}): ${reason}`
 }
 
+const IPC_PREFIX = /^Error invoking remote method '[^']+':\s*/i
+const ERR_PREFIX = /^Error:\s*/i
+
+/** Drop Electron's `Error invoking remote method 'ssh:connect': Error:` wrapper. */
+export function stripHopIpcPrefix(message: string): string {
+  let s = String(message ?? '').trim()
+  for (let i = 0; i < 6; i++) {
+    const next = s.replace(IPC_PREFIX, '').replace(ERR_PREFIX, '').trim()
+    if (next === s) break
+    s = next
+  }
+  return s
+}
+
 export function parseHopFailure(message: string): { hop: number; total: number; name: string; addr: string; reason: string } | null {
-  const m = /^\[hop (\d+)\/(\d+)\] (.+) \(([^)]+)\): ([\s\S]+)$/.exec(message.trim())
+  const m = /^\[hop (\d+)\/(\d+)\] (.+) \(([^)]+)\): ([\s\S]+)$/.exec(stripHopIpcPrefix(message))
   if (!m) return null
   return { hop: Number(m[1]), total: Number(m[2]), name: m[3]!, addr: m[4]!, reason: m[5]! }
 }

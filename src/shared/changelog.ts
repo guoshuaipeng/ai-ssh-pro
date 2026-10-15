@@ -57,6 +57,14 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
       },
       where: { zh: '设置 → 常规', en: 'Settings → General' },
       action: 'startupSettings'
+    },
+    {
+      icon: '▢',
+      text: {
+        zh: '修复冷启动首次双击窗口不显示',
+        en: 'Fix main window not showing on first cold-start launch'
+      },
+      where: { zh: '启动应用', en: 'Launch the app' }
     }
   ],
   '0.4.0': [

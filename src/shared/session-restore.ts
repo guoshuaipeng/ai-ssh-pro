@@ -83,7 +83,7 @@ export function snapshotWorkspace(
     rows.push({
       kind,
       profileId: t.profileId,
-      title: t.title,
+      title: kind === 'terminal' ? t.title : '',
       order,
       toolboxTab: t.toolboxTab,
       focusAlertId: t.focusAlertId,

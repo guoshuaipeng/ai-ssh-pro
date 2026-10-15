@@ -37,7 +37,7 @@ export default function JumpChainEditor({
           <span key={chip.id} className="jump-chip-wrap">
             {i > 0 ? <span className="jump-arrow" aria-hidden>→</span> : null}
             <span
-              className={`jump-chip${chip.role === 'target' ? ' is-target' : ''}${chip.deleted || chip.cycle ? ' is-bad' : ''}`}
+              className={`jump-chip${chip.role === 'target' ? ' is-target' : ''}${chip.deleted || chip.cycle || probe?.some((row) => !row.ok && row.hop === i) ? ' is-bad' : ''}`}
               title={chip.role === 'local' ? tg('m2.thisComputer') : chip.label || tg('m2.hopEmpty')}
             >
               {chip.role === 'local' ? tg('m2.thisComputer') : chip.role === 'target' ? chip.label || tg('m2.target') : chip.label || '…'}

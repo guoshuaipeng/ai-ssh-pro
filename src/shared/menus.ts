@@ -174,7 +174,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('duplicateSession', '复制会话', 'Duplicate session', { needsSession: true }),
       sep,
       it('sftp', 'SFTP 文件', 'SFTP files', { needsSession: true }),
-      it('folderSync', '文件夹同步…', 'Folder sync…', { needsSession: true }),
+      it('folderSync', '同步文件夹…', 'Sync folder…', { needsSession: true }),
       it('portForward', '端口转发…', 'Port forwarding…', { needsSession: true }),
       sep,
       it('toggleBroadcast', '广播输入', 'Broadcast input', { toggle: true }),

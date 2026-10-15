@@ -161,7 +161,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
                 onClick={() => run(e)}
               >
                 <span className="cmdp-label">{e.label}</span>
-                <span className="cmdp-group">{e.note ? e.note : e.category}</span>
+                <span className="cmdp-group">{e.note ? e.note : t(CAT_KEY[e.category] ?? 'palette.cat.help')}</span>
                 {e.shortcut ? <kbd className="cmdp-kbd">{e.shortcut}</kbd> : null}
               </button>
             )

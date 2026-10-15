@@ -133,6 +133,7 @@ export type AissPreload = {
     reveal: (target: string) => Promise<boolean>
     hash: (target: string) => Promise<string>
     readText: (target: string, maxBytes?: number) => Promise<import('@shared/ipc').SftpReadTextResult>
+    detectKeyKind: (target: string) => Promise<import('@shared/ssh-cert').KeyKind>
   }
   docker: {
     listTree: (sessionId: string) => Promise<DockerTreeResult>

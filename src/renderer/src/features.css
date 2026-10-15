@@ -1090,8 +1090,17 @@ button.primary.danger, .primary.danger { background: #e11d48; border-color: #e11
 .d5-unified { margin: 0; padding: 8px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 .d5-large { padding: 16px; }
 .g3-stack {
-  position: absolute; left: 12px; bottom: 12px; z-index: 4; width: min(280px, calc(100% - 24px));
-  display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-height: 46%; overflow: auto;
+  position: absolute; right: 12px; bottom: 12px; left: auto; z-index: 4; width: min(280px, calc(100% - 24px));
+  display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-height: 32%; overflow: auto;
+}
+.restore-connecting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 180px;
+  color: var(--muted);
 }
 .g3-head, .g3-card { pointer-events: auto; background: var(--bg-panel, #161b22); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .g3-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }

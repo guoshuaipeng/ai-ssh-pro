@@ -1263,11 +1263,12 @@ body.layout-resizing {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .tab-bar-scroll::-webkit-scrollbar {
   display: none;
-  width: 0;
-  height: 0;
+  width: 0 !important;
+  height: 0 !important;
 }
 .tab-bar-scroll.fade-left {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
@@ -1308,10 +1309,8 @@ body.layout-resizing {
   line-height: 24px;
 }
 .tab-overflow-menu {
-  position: absolute;
-  right: 8px;
-  top: 36px;
-  z-index: 40;
+  position: fixed;
+  z-index: 80;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
