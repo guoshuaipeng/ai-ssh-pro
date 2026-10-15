@@ -86,7 +86,7 @@ const trStub = (key: string, vars?: Record<string, string | number>) => {
     'l7.title': '运维首页',
     'l2.title': '告警工作台',
     'l4.auditTitle': '审计日志',
-    'menu.settings': '设置'
+    'settings.title': '设置'
   }
   return (map[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? ''))
 }
@@ -234,6 +234,12 @@ const paletteRows = buildPaletteEntries(SHARED_MENUS, 'zh-CN')
 assert.equal(paletteRows.filter((row) => row.id === 'opsHome').length, 1)
 assert.equal(paletteRows.find((row) => row.id === 'folderSync')?.label, '同步文件夹…')
 assert.ok(readFileSync('src/renderer/src/components/CommandPalette.tsx', 'utf8').includes('CAT_KEY[e.category]'))
+const settingsCopies = [...i18n.matchAll(/'settings\.title': '([^']*)'/g)].map((m) => m[1])
+assert.deepEqual(settingsCopies, ['设置', 'Settings'])
+const trCatalog = (copy: string) => (key: string) => (key === 'settings.title' ? copy : key)
+assert.equal(tabLabel({ title: 'Settings', view: 'settings' }, trCatalog('设置')), '设置')
+assert.equal(tabLabel({ title: 'Settings', view: 'settings' }, trCatalog('Settings')), 'Settings')
+assert.notEqual(tabLabel({ title: 'menu.settings', view: 'settings' }, trCatalog('设置')), 'menu.settings')
 assert.equal(tabLabel({ title: 'Settings', view: 'settings' }, trStub), '设置')
 const snap = snapshotWorkspace(
   [{ tabId: 's', view: 'settings', title: 'Settings' }, { tabId: 't', title: 'web-01', profileId: 'p' }],

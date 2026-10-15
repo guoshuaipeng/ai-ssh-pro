@@ -10,7 +10,7 @@ export type TabLabelSource = {
 const VIEW_TITLE: Record<string, string> = {
   home: 'l7.title',
   'alert-workbench': 'l2.title',
-  settings: 'menu.settings',
+  settings: 'settings.title',
   monitor: 'menu.resourceMonitor',
   toolbox: 'menu.serverTools',
   sftp: 'menu.sftp',
