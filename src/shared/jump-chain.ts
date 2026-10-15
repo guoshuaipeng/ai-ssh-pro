@@ -118,6 +118,36 @@ export function chainTooltip(hops: JumpHop[]): string {
   return hops.map((h) => h.label || h.host).join(' → ')
 }
 
+export type ChainChip = { id: string; label: string; role: 'local' | 'hop' | 'target'; deleted?: boolean; cycle?: boolean }
+
+/** Single-line diagram: this computer → hops → target. */
+export function chainDiagram(hops: JumpHop[], targetHost: string, knownProfileIds?: Set<string>): ChainChip[] {
+  const chips: ChainChip[] = [{ id: 'local', label: '', role: 'local' }]
+  const target = targetHost.trim().toLowerCase()
+  hops.slice(0, MAX_HOPS).forEach((hop, i) => {
+    const name = hop.label || hop.host || ''
+    chips.push({
+      id: hop.id || `hop-${i + 1}`,
+      label: name,
+      role: 'hop',
+      deleted: Boolean(hop.profileId && knownProfileIds && !knownProfileIds.has(hop.profileId)),
+      cycle: Boolean(target && hop.host.trim().toLowerCase() === target)
+    })
+  })
+  chips.push({ id: 'target', label: targetHost.trim(), role: 'target' })
+  return chips
+}
+
+export type HopProbeRow = {
+  hop: number
+  total: number
+  name: string
+  addr: string
+  ok: boolean
+  ms: number
+  reason?: string
+}
+
 export function validateChain(hops: JumpHop[], targetHost: string, knownProfileIds: Set<string>): ChainIssue[] {
   const issues: ChainIssue[] = []
   if (hops.length > MAX_HOPS) issues.push({ code: 'too-many' })

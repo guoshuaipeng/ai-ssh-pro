@@ -19,6 +19,7 @@ export type HomeHost = {
   demo?: boolean
   alerting: boolean
   folderId?: string
+  via?: string
 }
 
 type Snap = { cpu: number | null; mem: number | null; disk: number | null; error: string | null; loading: boolean }
@@ -57,7 +58,9 @@ export default function OpsHomeTab({
   onPlaybook,
   onRestoreSync,
   recentPlaybooks,
-  onOpenRecent
+  onOpenRecent,
+  onOpenSftp,
+  onSyncFolder
 }: {
   hosts: HomeHost[]
   alerts: FiredAlert[]
@@ -91,6 +94,8 @@ export default function OpsHomeTab({
   onRestoreSync?: () => void
   recentPlaybooks?: Array<{ id: string; name: string }>
   onOpenRecent?: (id: string) => void
+  onOpenSftp?: () => void
+  onSyncFolder?: () => void
 }) {
   const { t } = useI18n()
   const [snaps, setSnaps] = useState<Record<string, Snap>>({})
@@ -286,6 +291,18 @@ export default function OpsHomeTab({
                 <button type="button" onClick={() => { setMore(false); onNewConnection() }}>
                   {t('l7.newConnection')}
                 </button>
+                <button type="button" onClick={() => { setMore(false); onOpenDashboard() }}>
+                  {t('l7.openDashboard')}
+                </button>
+                <button type="button" data-testid="l7-open-sftp" onClick={() => { setMore(false); onOpenSftp?.() }}>
+                  {t('l7.shortcut.sftp')}
+                </button>
+                <button type="button" data-testid="l7-sync-folder" onClick={() => { setMore(false); onSyncFolder?.() }}>
+                  {t('l7.shortcut.syncFolder')}
+                </button>
+                <button type="button" onClick={() => { setMore(false); onPlaybook() }}>
+                  {t('l7.runPlaybook')}
+                </button>
                 <button type="button" onClick={() => { setMore(false); onImport() }}>
                   {t('l7.import')}
                 </button>
@@ -311,7 +328,7 @@ export default function OpsHomeTab({
                 const snap = h.sessionId ? snaps[h.sessionId] : undefined
                 const protBadge = h.protection === 'production' || h.protection === 'readonly' ? h.protection : null
                 const showDemoBadge = Boolean(h.demo) && protBadge == null
-                const cardTitle = h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title
+                const cardTitle = h.via ? `${h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title} · ${t('m2.via', { chain: h.via })}` : h.demo && protBadge ? `${h.title} · ${t('l7.demoHost')}` : h.title
                 return (
                   <article
                     key={h.profileId}
@@ -450,6 +467,12 @@ export default function OpsHomeTab({
           </button>
           <button type="button" onClick={onPlaybook}>
             {t('l7.runPlaybook')}
+          </button>
+          <button type="button" data-testid="l7-open-sftp" onClick={() => onOpenSftp?.()}>
+            {t('l7.shortcut.sftp')}
+          </button>
+          <button type="button" data-testid="l7-sync-folder" onClick={() => onSyncFolder?.()}>
+            {t('l7.shortcut.syncFolder')}
           </button>
           <button type="button" onClick={onImport}>
             {t('l7.import')}

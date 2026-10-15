@@ -11,7 +11,8 @@ export default function HostKeyConfirmModal({ prompt, onRespond }: Props) {
   if (!prompt) return null
 
   const isChanged = prompt.reason === 'changed'
-  const title = isChanged ? tg('hk.changed') : tg('hk.confirm')
+  const hopTitle = prompt.hopIndex ? `${tg('m2.hopN', { n: prompt.hopIndex })} · ` : ''
+  const title = `${hopTitle}${isChanged ? tg('hk.changed') : tg('hk.confirm')}`
 
   return (
     <Modal

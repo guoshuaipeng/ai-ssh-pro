@@ -243,7 +243,7 @@ export default function AlertWorkbenchTab({
             </option>
           ))}
         </select>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('l2.search')} aria-label={t('l2.search')} />
+        <input className="l2-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('l2.search')} aria-label={t('l2.search')} />
       </div>
       <div className={`l2-body${narrowDetail ? ' is-detail' : ''}`}>
         <div className="l2-list" role="listbox" aria-label={t('l2.title')} tabIndex={0}
@@ -350,12 +350,15 @@ export default function AlertWorkbenchTab({
                   {locating ? t('l2.connecting', { host: selected.hostTitle }) : t('l2.locate')}
                 </button>
                 <button type="button" title={t('l2.openTerminal')} onClick={() => onOpenTerminal(selected)}>
+                  <span className="l2-ico" aria-hidden>⌨</span>
                   <span className="l2-lbl">{t('l2.openTerminal')}</span>
                 </button>
                 <button type="button" title={t('menu.resourceMonitor')} onClick={() => onOpenMonitor(selected)}>
+                  <span className="l2-ico" aria-hidden>▤</span>
                   <span className="l2-lbl">{t('menu.resourceMonitor')}</span>
                 </button>
                 <button type="button" title={t('tab.toolbox')} onClick={() => onOpenToolbox(selected)}>
+                  <span className="l2-ico" aria-hidden>⚙</span>
                   <span className="l2-lbl">{t('tab.toolbox')}</span>
                 </button>
                 <button type="button" data-testid="l2-explain" onClick={() => void explainThis(selected)}>

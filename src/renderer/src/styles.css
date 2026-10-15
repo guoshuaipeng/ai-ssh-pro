@@ -1238,18 +1238,48 @@ body.layout-resizing {
 .tab-bar {
   display: flex;
   align-items: stretch;
+  flex-wrap: nowrap;
   gap: 2px;
   padding: 6px 8px 0;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  /* many tabs: scroll the bar, never widen the window */
+  /* UX-55: one row. Extra tabs scroll; the overflow menu lists the rest. */
+  min-width: 0;
+  height: 36px;
+  max-height: 36px;
+  overflow: hidden;
+  position: relative;
+}
+.tab-bar-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
 }
-.tab-bar > .tab { flex-shrink: 0; }
+.tab-bar-scroll > .tab { flex-shrink: 0; }
+.tab-overflow-btn { flex: none; align-self: center; white-space: nowrap; }
+.tab-overflow-menu {
+  position: absolute;
+  right: 8px;
+  top: 36px;
+  z-index: 40;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  max-height: 280px;
+  overflow: auto;
+}
+.tab-overflow-menu button { white-space: nowrap; text-align: left; }
 .main { min-width: 0; }
 
 

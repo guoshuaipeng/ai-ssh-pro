@@ -8,6 +8,7 @@ import { join, dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
+import { probeJumpChain } from './jump-probe'
 import {
   getAiSettings,
   setAiSettings,
@@ -356,6 +357,7 @@ function openDebugWindow(): void {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('ssh:probeJump', async (_event, opts: SshConnectOptions) => probeJumpChain(opts))
   ipcMain.handle('ssh:connect', async (event, opts: SshConnectOptions) => {
     // G1: simulated demo host, never touches the network or the recent list
     if (opts?.demo) return demoHostManager.open(event.sender, { label: opts.label, termCols: opts.termCols, termRows: opts.termRows })

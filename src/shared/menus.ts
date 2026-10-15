@@ -76,6 +76,12 @@ export type MenuAction =
   | 'sftpComfort'
   | 'github'
   | 'about'
+  | 'setJumpHosts'
+  | 'checkCerts'
+  | 'testJump'
+  | 'openDocker'
+  | 'syncConflicts'
+  | 'syncPreview'
 
 export type Bilingual = { zh: string; en: string }
 

@@ -108,6 +108,13 @@ const api = {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as SshHostKeyPromptEvent)
       ipcRenderer.on('ssh:hostKeyPrompt', fn)
       return () => unsub('ssh:hostKeyPrompt', fn)
+    },
+    probeJump: (opts: SshConnectOptions): Promise<import('../shared/jump-chain').HopProbeRow[]> =>
+      ipcRenderer.invoke('ssh:probeJump', opts),
+    onHop: (cb: (payload: { hop: number; total: number; name: string }) => void): (() => void) => {
+      const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as { hop: number; total: number; name: string })
+      ipcRenderer.on('ssh:hop', fn)
+      return () => unsub('ssh:hop', fn)
     }
   },
   sftp: {

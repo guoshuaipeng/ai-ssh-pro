@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import type { SavedSessionProfile } from '@shared/ipc'
-import { canAddHop, chainTooltip, formatProxyJump, parseProxyJump, validateChain, type JumpHop } from '@shared/jump-chain'
+import { canAddHop, chainDiagram, formatProxyJump, parseProxyJump, validateChain, type HopProbeRow, type JumpHop } from '@shared/jump-chain'
 import { tg } from '../lib/i18n'
 import { askText } from '../lib/dialogs'
 
@@ -7,36 +8,43 @@ export default function JumpChainEditor({
   hops,
   targetHost,
   profiles,
-  onChange
+  onChange,
+  onTest
 }: {
   hops: JumpHop[]
   targetHost: string
   profiles: SavedSessionProfile[]
   onChange: (hops: JumpHop[]) => void
+  onTest?: () => Promise<HopProbeRow[]>
 }) {
   const known = new Set(profiles.map((p) => p.id))
   const issues = validateChain(hops, targetHost, known)
+  const diagram = chainDiagram(hops, targetHost, known)
+  const [probe, setProbe] = useState<HopProbeRow[] | null>(null)
+  const [probing, setProbing] = useState(false)
   const setHop = (index: number, patch: Partial<JumpHop>) => {
     onChange(hops.map((h, i) => (i === index ? { ...h, ...patch } : h)))
   }
   return (
     <div className="jump-chain" data-testid="jump-chain">
       <div className="jump-chain-head">
-        <strong>{tg('m2.jumpTitle')}</strong>
+        <strong>{hops.length ? tg('m2.jumpTitleN', { n: hops.length }) : tg('m2.jumpTitle')}</strong>
         <span className="l7-meta">{hops.length}/5</span>
       </div>
-      {hops.length ? <p className="l4-hint">{chainTooltip(hops)} → {targetHost || '…'}</p> : <p className="l4-hint">{tg('m2.jumpEmpty')}</p>}
-      {hops.length ? (
-        <div className="jump-chips" data-testid="jump-chips">
-          {hops.map((hop, i) => (
-            <span key={hop.id} className="jump-chip" title={hop.host || tg('m2.hopEmpty')}>
-              {i + 1} {hop.username ? `${hop.username}@` : ''}
-              {hop.host || '…'}:{hop.port || 22}
+      {hops.length ? null : <p className="l4-hint">{tg('m2.direct')}</p>}
+      <div className="jump-chips" data-testid="jump-chips">
+        {diagram.map((chip, i) => (
+          <span key={chip.id} className="jump-chip-wrap">
+            {i > 0 ? <span className="jump-arrow" aria-hidden>→</span> : null}
+            <span
+              className={`jump-chip${chip.role === 'target' ? ' is-target' : ''}${chip.deleted || chip.cycle ? ' is-bad' : ''}`}
+              title={chip.role === 'local' ? tg('m2.thisComputer') : chip.label || tg('m2.hopEmpty')}
+            >
+              {chip.role === 'local' ? tg('m2.thisComputer') : chip.role === 'target' ? chip.label || tg('m2.target') : chip.label || '…'}
             </span>
-          ))}
-          {targetHost ? <span className="jump-chip is-target">{targetHost}</span> : null}
-        </div>
-      ) : null}
+          </span>
+        ))}
+      </div>
       {hops.map((hop, i) => (
         <div key={hop.id} className="jump-hop">
           <div className="jump-hop-title">
@@ -91,7 +99,30 @@ export default function JumpChainEditor({
         >
           {tg('m2.pasteProxy')}
         </button>
+        <button
+          type="button"
+          data-testid="jump-test"
+          disabled={probing || !hops.length || !onTest}
+          onClick={() => {
+            if (!onTest) return
+            setProbing(true)
+            void onTest()
+              .then((rows) => setProbe(rows))
+              .finally(() => setProbing(false))
+          }}
+        >
+          {probing ? tg('m2.testing') : tg('m2.testConn')}
+        </button>
       </div>
+      {probe ? (
+        <div className="jump-probe" data-testid="jump-probe">
+          {probe.map((row) => (
+            <p key={row.hop} className={row.ok ? 'l4-hint' : 'jump-issue'}>
+              {row.ok ? tg('m2.hopOk', { n: row.hop, ms: row.ms }) : tg('m2.hopReason', { i: row.hop, name: row.name, addr: row.addr, reason: row.reason || '' })}
+            </p>
+          ))}
+        </div>
+      ) : null}
       {issues.some((x) => x.code === 'too-many') ? <p className="jump-issue">{tg('m2.tooMany')}</p> : null}
     </div>
   )
