@@ -16,6 +16,15 @@ export type PaletteKeyStep =
   | { type: 'clear' }
   | { type: 'noop' }
 
+/**
+ * Selection index for each palette row. Headers are -1.
+ * A command pinned at the top and repeated in its group stays two stops, in list order.
+ */
+export function paletteItemIndexes(rows: ReadonlyArray<{ kind: string }>): number[] {
+  let next = 0
+  return rows.map((row) => (row.kind === 'item' ? next++ : -1))
+}
+
 /** ↑↓ move, Enter runs, Enter on an empty result clears (PF-4), Esc closes. */
 export function paletteKeyStep(key: string, index: number, count: number): PaletteKeyStep {
   if (key === 'ArrowDown') {

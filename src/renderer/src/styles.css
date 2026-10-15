@@ -4644,6 +4644,7 @@ body.split-resizing {
   overflow: hidden;
 }
 .cmdp-input {
+  flex: none;
   border: 0;
   border-bottom: 1px solid var(--border);
   padding: 12px 14px;
@@ -4653,11 +4654,14 @@ body.split-resizing {
   outline: none;
 }
 .cmdp-list {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding: 4px;
 }
 .cmdp-item {
   display: flex;
+  flex-wrap: nowrap;
   width: 100%;
   align-items: center;
   gap: 10px;
@@ -4704,6 +4708,7 @@ body.split-resizing {
   opacity: 0.65;
 }
 .cmdp-foot {
+  flex: none;
   border-top: 1px solid var(--border);
   white-space: nowrap;
   overflow: hidden;
