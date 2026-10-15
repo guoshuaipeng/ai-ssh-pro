@@ -1,71 +1,50 @@
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
+import AboutBlock from './AboutBlock'
 import { useI18n } from '../lib/i18n'
-import { loadLastUpdateSource, loadUpdateChannelPrefs, sourceLabel } from '@shared/update-channel'
 
 type Props = {
   open: boolean
   onClose: () => void
+  onCheckUpdate: () => void
+  onWhatsNew: () => void
+  checking?: boolean
+  version: string
+  isDev?: boolean
 }
 
-export default function AboutModal({ open, onClose }: Props) {
-  const { t, locale } = useI18n()
-  const last = open ? loadLastUpdateSource() : null
-  const prefs = open ? loadUpdateChannelPrefs() : null
-  const shown = last?.source ? sourceLabel(last.source, locale) : prefs ? sourceLabel(prefs.channel, locale) : ''
-  const [version, setVersion] = useState('')
+/** Same about block as Settings → About. Esc / × closes; no OK footer. */
+export default function AboutModal({ open, onClose, onCheckUpdate, onWhatsNew, checking, version, isDev }: Props) {
+  const { t } = useI18n()
+  const [liveVersion, setLiveVersion] = useState(version)
 
   useEffect(() => {
-    if (!open) return
+    if (version) setLiveVersion(version)
+  }, [version])
+
+  useEffect(() => {
+    if (!open || version) return
     let cancelled = false
-    void window.aiss.app
-      .getVersion()
-      .then((v) => {
-        if (!cancelled) setVersion(v)
-      })
-      .catch(() => {
-        if (!cancelled) setVersion('')
-      })
+    void window.aiss.app.getVersion().then((v) => {
+      if (!cancelled) setLiveVersion(v)
+    }).catch(() => undefined)
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, version])
 
   return (
-    <Modal
-      open={open}
-      title={t('about.title')}
-      onClose={onClose}
-      width={420}
-      footer={
-        <button type="button" className="primary" onClick={onClose}>
-          {t('about.ok')}
-        </button>
-      }
-    >
-      <div className="about-modal">
-        <div className="about-modal-brand">AI-SSH-Pro</div>
-        <p className="about-modal-desc">{t('brand.tagline')}</p>
-        <p className="about-modal-version">
-          {t('about.version')} <strong>{version ? `v${version}` : '…'}</strong>
-        </p>
-        {shown ? (
-          <p className="about-modal-version" data-testid="about-update-source">
-            {t('about.source', { source: shown })}
-          </p>
-        ) : null}
-        <button
-          type="button"
-          className="about-modal-link"
-          onClick={() => {
-            void window.aiss.app.openGithub().catch(() => {
-              /* ignore */
-            })
-          }}
-        >
-          {t('about.github')}
-        </button>
-      </div>
+    <Modal open={open} title={t('about.title')} onClose={onClose} width={460}>
+      <AboutBlock
+        version={liveVersion}
+        isDev={isDev}
+        checking={checking}
+        onCheckUpdate={onCheckUpdate}
+        onWhatsNew={onWhatsNew}
+        onGithub={() => {
+          void window.aiss.app.openGithub().catch(() => undefined)
+        }}
+      />
     </Modal>
   )
 }

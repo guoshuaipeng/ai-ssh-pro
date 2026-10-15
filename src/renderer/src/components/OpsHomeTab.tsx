@@ -793,6 +793,16 @@ function CardMetrics({
   onEnable: (e: MouseEvent) => void
   onRetry: (e: MouseEvent) => void
 }) {
+  const waiting = Boolean(enabled && probeSnap && probeSnap.phase !== 'ok' && probeSnap.phase !== 'fail' && probeSnap.phase !== 'queued')
+  const [skelOn, setSkelOn] = useState(false)
+  useEffect(() => {
+    if (!waiting) {
+      setSkelOn(false)
+      return
+    }
+    const id = window.setTimeout(() => setSkelOn(true), 300)
+    return () => window.clearTimeout(id)
+  }, [waiting, probeSnap?.phase])
   if (!enabled) {
     if (!hasSession) {
       return (
@@ -861,11 +871,13 @@ function CardMetrics({
   }
   return (
     <div className="l7b-status" data-testid="l7b-probing">
-      <span className="l7b-skel" aria-hidden>
-        <i />
-        <i />
-        <i />
-      </span>
+      {skelOn ? (
+        <span className="l7b-skel" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+      ) : null}
       <span className="l7b-long">{probing}</span>
       <span className="l7b-short">{probingShort}</span>
     </div>

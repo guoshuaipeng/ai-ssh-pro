@@ -256,7 +256,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('taskCards', '入门任务', 'Getting started tasks'),
       it('demoHost', '试用演示主机', 'Try demo host'),
       it('whatsNew', '更新内容', "What's new"),
-      it('checkUpdate', '检查更新…', 'Check for updates…'),
+      it('checkUpdate', '检查更新', 'Check for updates'),
       sep,
       it('github', 'GitHub', 'GitHub'),
       it('about', '关于 AI-SSH-Pro', 'About AI-SSH-Pro')

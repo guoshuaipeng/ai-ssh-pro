@@ -281,7 +281,7 @@ export default function AppToolbar({
           {OPS_BUTTONS.map((b) => {
             const dim = b.needsSession && !hasSession
             const keys = keysFor(b.id)
-            const title = dim ? `${t(b.title)} · ${t('ux09.dimHint')}` : `${t(b.title)}${keys ? ` (${keys})` : ''}`
+            const title = dim ? t('pf7.connectFirst') : `${t(b.title)}${keys ? ` (${keys})` : ''}`
             return (
               <button
                 key={b.id}

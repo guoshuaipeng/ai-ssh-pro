@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { StartupMode } from '@shared/startup-pref'
 import { KEYMAP } from '@shared/keymap'
-import { SETTINGS_SECTIONS, type SettingsSection } from '@shared/settings-nav'
+import {
+  SETTINGS_ADVANCED,
+  SETTINGS_PRIMARY,
+  settingsSectionsForQuery,
+  type SettingsSection
+} from '@shared/settings-nav'
+import {
+  isHttpUrl,
+  loadUpdateChannelPrefs,
+  saveUpdateChannelPrefs,
+  sourceLabel,
+  type UpdateChannel
+} from '@shared/update-channel'
 import { setSnapshotKeep, setSnapshotsEnabled, snapshotKeep, snapshotsEnabled, SNAPSHOT_KEEP_OPTIONS } from '@shared/snapshots'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { applyUiTheme, loadUiThemeId, UI_THEME_OPTIONS, type UiThemeId } from '../lib/ui-themes'
@@ -14,6 +26,10 @@ import HealthProbeFields from './HealthProbeFields'
 import { loadLoopPrefs, saveLoopPrefs } from '@shared/alert-loop'
 import TerminalPrefsModal from './TerminalPrefsModal'
 import { confirmDialog } from '../lib/dialogs'
+import { showToast } from '../lib/toast'
+import AboutBlock from './AboutBlock'
+import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 const SECTION_KEY: Record<SettingsSection, MessageKey> = {
   general: 'settings.general',
@@ -42,6 +58,9 @@ type Props = {
   onBackup: () => void
   onCloudSync: () => void
   onCheckUpdate: () => void
+  onWhatsNew: () => void
+  checkingUpdate?: boolean
+  isDev?: boolean
   onGithub: () => void
   onOpenMcp: () => void
   onOpenUpdates: () => void
@@ -66,9 +85,11 @@ export default function SettingsPanel({
   onBackup,
   onCloudSync,
   onCheckUpdate,
+  onWhatsNew,
+  checkingUpdate = false,
+  isDev = false,
   onGithub,
   onOpenMcp,
-  onOpenUpdates,
   onTerminalSaved,
   probePrefs,
   onProbePrefs,
@@ -86,18 +107,42 @@ export default function SettingsPanel({
   const [snapKeep, setSnapKeep] = useState(() => snapshotKeep())
   const [loopOn, setLoopOn] = useState(() => loadLoopPrefs().show)
   const [snapStats, setSnapStats] = useState({ files: 0, bytes: 0, count: 0 })
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [channelEpoch, setChannelEpoch] = useState(0)
+  const [channel, setChannel] = useState<UpdateChannel>(() => loadUpdateChannelPrefs().channel)
+  const [mirror, setMirror] = useState(() => loadUpdateChannelPrefs().mirror)
+  const [channelError, setChannelError] = useState<string | null>(null)
+  useEffect(() => {
+    if (section === 'ops' || section === 'files') setAdvancedOpen(true)
+  }, [section])
   useEffect(() => {
     if (section !== 'files') return
     void window.aiss?.snapshots?.stats?.().then((s) => setSnapStats(s)).catch(() => undefined)
   }, [section, snapOn, snapKeep])
 
-  const needle = q.trim().toLowerCase()
-  const visible = useMemo(() => {
-    if (!needle) return SETTINGS_SECTIONS
-    return SETTINGS_SECTIONS.filter((id) => t(SECTION_KEY[id]).toLowerCase().includes(needle) || id.includes(needle))
-  }, [needle, t])
-
+  const labels = useMemo(() => {
+    const out = {} as Record<SettingsSection, string>
+    for (const id of [...SETTINGS_PRIMARY, ...SETTINGS_ADVANCED]) out[id] = t(SECTION_KEY[id])
+    return out
+  }, [t])
+  const visible = useMemo(() => settingsSectionsForQuery(q, labels), [q, labels])
   const active = visible.includes(section) ? section : visible[0]
+  const showAdvanced = q.trim() ? visible.some((id) => SETTINGS_ADVANCED.includes(id)) : advancedOpen
+
+  const saved = () => showToast(t('settings.saved'), { ms: 1500 })
+
+  const applyChannel = (next: UpdateChannel, nextMirror = mirror) => {
+    if (next === 'custom' && nextMirror.trim() && !isHttpUrl(nextMirror)) {
+      setChannelError(t('n1.invalidUrl'))
+      return
+    }
+    setChannelError(null)
+    setChannel(next)
+    saveUpdateChannelPrefs({ channel: next, mirror: nextMirror })
+    setChannelEpoch((n) => n + 1)
+    window.dispatchEvent(new Event('aiss-update-channel'))
+    saved()
+  }
 
   return (
     <div className="workspace-panel settings-root" data-testid="settings-panel">
@@ -113,20 +158,46 @@ export default function SettingsPanel({
             aria-label={t('settings.search')}
             onChange={(e) => setQ(e.target.value)}
           />
-          {visible.length === 0 ? <p className="l7-muted">{t('settings.none', { q })}</p> : null}
-          {visible.map((id) => (
+          {SETTINGS_PRIMARY.filter((id) => visible.includes(id)).map((id) => (
             <button key={id} type="button" className={active === id ? 'is-on' : ''} data-section={id} onClick={() => onSection(id)}>
               {t(SECTION_KEY[id])}
             </button>
           ))}
+          {visible.some((id) => SETTINGS_ADVANCED.includes(id)) ? (
+            <button type="button" className="settings-advanced" data-testid="settings-advanced" aria-expanded={showAdvanced} onClick={() => setAdvancedOpen((v) => !v)}>
+              {t('settings.advanced')}
+            </button>
+          ) : null}
+          {showAdvanced
+            ? SETTINGS_ADVANCED.filter((id) => visible.includes(id)).map((id) => (
+                <button key={id} type="button" className={active === id ? 'is-on' : ''} data-section={id} onClick={() => onSection(id)}>
+                  {t(SECTION_KEY[id])}
+                </button>
+              ))
+            : null}
         </nav>
-        <div className="settings-body" data-section={active || 'none'}>
+        <div className="settings-body" data-section={active || 'none'} data-hit={q.trim() ? '1' : '0'}>
+          {visible.length === 0 ? (
+            <EmptyState
+              testId="settings-search-empty"
+              icon={<Icon name="search" size={32} strokeWidth={1.5} />}
+              title={t('settings.none', { q })}
+              desc={t('settings.searchEmptyDesc')}
+              primary={{ label: t('pf4.paletteClear'), onClick: () => setQ(''), testId: 'settings-search-clear' }}
+            />
+          ) : null}
           {active === 'general' ? (
             <section>
               <h3>{t('settings.general')}</h3>
               <label className="settings-row">
                 <span>{t('settings.language')}</span>
-                <select value={locale} onChange={(e) => setLocale(e.target.value === 'en' ? 'en' : 'zh-CN')}>
+                <select
+                  value={locale}
+                  onChange={(e) => {
+                    setLocale(e.target.value === 'en' ? 'en' : 'zh-CN')
+                    saved()
+                  }}
+                >
                   <option value="zh-CN">中文</option>
                   <option value="en">English</option>
                 </select>
@@ -177,6 +248,7 @@ export default function SettingsPanel({
                     onClick={() => {
                       setTheme(opt.id)
                       applyUiTheme(opt.id)
+                      saved()
                     }}
                   >
                     {opt.label}
@@ -343,22 +415,58 @@ export default function SettingsPanel({
             </section>
           ) : null}
           {active === 'about' ? (
-            <section>
+            <section data-testid="settings-about" className={q.trim() ? 'settings-hit' : undefined}>
               <h3>{t('settings.about')}</h3>
-              <p>
-                {t('about.version')} <strong>{version ? `v${version}` : '…'}</strong>
-              </p>
-              <div className="settings-actions">
-                <button type="button" onClick={onCheckUpdate}>
-                  {t('menu.checkUpdate')}
-                </button>
-                <button type="button" onClick={onGithub}>
-                  GitHub
-                </button>
-                <button type="button" onClick={onOpenUpdates}>
-                  {t('app.tab.updates')}
-                </button>
-              </div>
+              <AboutBlock
+                version={version}
+                isDev={isDev}
+                checking={checkingUpdate}
+                channelEpoch={channelEpoch}
+                onCheckUpdate={onCheckUpdate}
+                onWhatsNew={onWhatsNew}
+                onGithub={onGithub}
+              />
+              <fieldset className="settings-channel" data-testid="settings-update-channel">
+                <legend>{t('n1.title')}</legend>
+                <p className="l7-muted">{t('n1.hint')}</p>
+                <div className="n1-sources" role="radiogroup" aria-label={t('n1.title')}>
+                  {(
+                    [
+                      ['auto', 'n1.auto'],
+                      ['gitee', 'n1.gitee'],
+                      ['github', 'n1.github'],
+                      ['custom', 'n1.custom']
+                    ] as const
+                  ).map(([id, key]) => (
+                    <label key={id} className="n1-choice">
+                      <input
+                        type="radio"
+                        name="settings-update-channel"
+                        checked={channel === id}
+                        onChange={() => applyChannel(id)}
+                      />
+                      {t(key)}
+                    </label>
+                  ))}
+                </div>
+                {channel === 'custom' ? (
+                  <label className="n1-mirror">
+                    {t('n1.mirror')}
+                    <input
+                      value={mirror}
+                      placeholder={t('n1.mirrorPh')}
+                      spellCheck={false}
+                      aria-label={t('n1.mirror')}
+                      onChange={(e) => setMirror(e.target.value)}
+                      onBlur={() => applyChannel('custom', mirror)}
+                    />
+                  </label>
+                ) : null}
+                <p className="n1-current" data-testid="settings-update-source">
+                  {t('n1.current', { source: sourceLabel(channel, locale) })}
+                </p>
+                {channelError ? <p className="st-error">{channelError}</p> : null}
+              </fieldset>
             </section>
           ) : null}
         </div>

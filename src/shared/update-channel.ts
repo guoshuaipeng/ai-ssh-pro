@@ -74,6 +74,21 @@ export function sourceLabel(id: UpdateSourceId | UpdateChannel, locale: string):
   return zh ? '自动（Gitee → GitHub）' : 'Auto (Gitee → GitHub)'
 }
 
+/**
+ * N1★ presentation only. Shows the source that last answered when Auto has one,
+ * otherwise the channel the user selected. Does not choose a new protocol.
+ */
+export function effectiveChannelLabel(
+  locale: string,
+  store: Pick<Storage, 'getItem'> = globalThis.localStorage
+): string {
+  const prefs = loadUpdateChannelPrefs(store)
+  const last = loadLastUpdateSource(store)
+  if (prefs.channel === 'auto' && last) return sourceLabel(last.source, locale)
+  if (last && last.source === prefs.channel) return sourceLabel(last.source, locale)
+  return sourceLabel(prefs.channel, locale)
+}
+
 /** Compare dotted versions; returns >0 if a>b, <0 if a<b, 0 if equal. */
 export function compareSemver(a: string, b: string): number {
   const pa = a

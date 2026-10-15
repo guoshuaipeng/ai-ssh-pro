@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
+import { friendlyErrorMessage } from '../lib/friendly-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { parseAiAssistantReply } from '@shared/ipc'
 import { highlightKeyNumbers } from '@shared/ai-reply-cards'
@@ -32,6 +33,7 @@ type AssistantLine = {
   /** 非结构化回复：仍用卡片壳，并提示未能识别步骤 */
   parseMiss?: boolean
   variant?: 'error'
+  detail?: string
 }
 
 type Line = UserLine | AssistantLine
@@ -310,9 +312,11 @@ export default function AIPanel({
         setLines((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
+          const raw = String(ev.message ?? '')
           const row: AssistantLine = {
             role: 'assistant',
-            content: tg('ai.errorMsg', { message: String(ev.message ?? '') }),
+            content: tg('pf5.aiFail'),
+            detail: friendlyErrorMessage(raw),
             variant: 'error'
           }
           if (last?.role === 'assistant' && last.streaming) {
@@ -607,6 +611,12 @@ export default function AIPanel({
             return (
               <div key={i} className="msg assistant ai-structured ai-card-error" data-testid="ai-reply-card" data-card="error">
                 <div className="ai-reply-desc">{l.content}</div>
+                {l.detail && l.detail !== l.content ? (
+                  <details className="pf5-details">
+                    <summary>{tg('pf5.details')}</summary>
+                    <pre>{l.detail}</pre>
+                  </details>
+                ) : null}
                 <div className="ai-reply-actions">
                   <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={busy} onClick={retryLastUser}>
                     {tg('ux64.retry')}
