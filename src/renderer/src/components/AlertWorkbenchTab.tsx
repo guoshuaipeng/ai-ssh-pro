@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FiredAlert } from '@shared/alert-rules'
+import type { AlertRulesState, FiredAlert } from '@shared/alert-rules'
 import { filterAlerts, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
 import { locateTargetFor } from '@shared/alert-locate'
 import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
@@ -14,6 +14,7 @@ import { fixesFor } from '../lib/ai-fix-memory'
 import AiAssistCard, { type AiExplainRequest } from './AiAssistCard'
 import AiConfigCard from './AiConfigCard'
 import { AlertLine } from './AlertLine'
+import AlertRulesModal from './AlertRulesModal'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
 
@@ -57,7 +58,11 @@ export default function AlertWorkbenchTab({
   onOpenMaintenance,
   onAiPostmortem,
   onOpenSftp,
-  catalog = []
+  catalog = [],
+  rulesDock = null,
+  ruleState,
+  onSaveRules,
+  onClearHistory
 }: {
   alerts: FiredAlert[]
   focusId?: string
@@ -93,6 +98,11 @@ export default function AlertWorkbenchTab({
   onAiPostmortem?: (alert: FiredAlert) => void
   onOpenSftp?: (alert: FiredAlert) => void
   catalog?: Array<{ id: string; title: string; tags?: string[]; sessionId?: string }>
+  /** IX-7: bump nonce to dock the rules editor beside the list. */
+  rulesDock?: { nonce: number; tab: 'rules' | 'history' } | null
+  ruleState: AlertRulesState
+  onSaveRules: (next: AlertRulesState) => void
+  onClearHistory: () => void
 }) {
   const { t } = useI18n()
   const [filter, setFilter] = useState<AlertFilter>(initialFilter ?? 'active')
@@ -132,6 +142,13 @@ export default function AlertWorkbenchTab({
   const untilFor = (alert: FiredAlert) => silenceUntil(loadMaintenance(), subjectFor(alert), now)
   void maintTick
   const [highlightCreate, setHighlightCreate] = useState(false)
+  const [rulesOpen, setRulesOpen] = useState(false)
+  const [rulesTab, setRulesTab] = useState<'rules' | 'history'>(rulesDock?.tab ?? 'rules')
+  useEffect(() => {
+    if (!rulesDock?.nonce) return
+    setRulesTab(rulesDock.tab)
+    setRulesOpen(true)
+  }, [rulesDock?.nonce, rulesDock?.tab])
 
   useEffect(() => {
     if (initialFilter) setFilter(initialFilter)
@@ -254,7 +271,7 @@ export default function AlertWorkbenchTab({
   }
 
   return (
-    <div className="workspace-panel l2-root" data-testid="alert-workbench">
+    <div className="workspace-panel l2-root" data-testid="alert-workbench" data-rules-open={rulesOpen ? 'true' : 'false'}>
       <div className="workspace-panel-toolbar l2-head">
         <h2 className="workspace-panel-title">
           {t('l2.title')}
@@ -347,7 +364,7 @@ export default function AlertWorkbenchTab({
         </button>
       </div>
       <div className={`l2-body${narrowDetail ? ' is-detail' : ''}`}>
-        <div className="l2-list" role="listbox" aria-label={t('l2.title')} tabIndex={0}
+        <div className="l2-list" data-testid="l2-list" role="listbox" aria-label={t('l2.title')} tabIndex={0}
           onKeyDown={(e) => {
             if (!rows.length) return
             const idx = Math.max(0, rows.findIndex((r) => r.id === (selected?.id ?? '')))
@@ -590,6 +607,21 @@ export default function AlertWorkbenchTab({
             </>
           )}
         </div>
+        {rulesOpen ? (
+          <AlertRulesModal
+            open
+            initial={ruleState}
+            history={alerts}
+            initialTab={rulesTab}
+            onClose={() => setRulesOpen(false)}
+            onSave={onSaveRules}
+            onClearHistory={onClearHistory}
+            onMute1h={onMute}
+            onLocate={onLocate}
+            onInterpret={(alert) => void explainThis(alert)}
+            onIgnore={onDismiss}
+          />
+        ) : null}
       </div>
     </div>
   )

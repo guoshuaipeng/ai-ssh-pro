@@ -45,7 +45,7 @@ export default function Modal({ open, title, onClose, children, width = 520, foo
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" ref={backdropRef} onClick={onClose}>
+    <div className="modal modal-backdrop" role="presentation" ref={backdropRef} onClick={onClose}>
       <div
         className="modal-panel"
         style={{ width: `min(92vw, ${width}px)` }}
