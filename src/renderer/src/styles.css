@@ -1482,6 +1482,11 @@ body.layout-resizing {
     overflow: hidden;
   }
   .main { min-width: 0; }
+  .tab-context-menu,
+  .session-context-menu,
+  .ctx-menu {
+    max-width: calc(100vw - 16px);
+  }
 }
 
 .ai-panel-shell {
@@ -1788,6 +1793,7 @@ body.layout-resizing {
   color: var(--color-info);
 }
 
+.tab-more,
 .tab-close {
   flex-shrink: 0;
   display: inline-flex;
@@ -1801,6 +1807,28 @@ body.layout-resizing {
   line-height: 1;
   opacity: 0.75;
   color: var(--muted);
+}
+
+.tab-more {
+  opacity: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  border-radius: var(--radius-md);
+}
+
+.tab:hover .tab-more,
+.tab:focus-within .tab-more,
+.tab-more:focus-visible {
+  opacity: 1;
+}
+
+.tab-more:hover {
+  color: var(--text);
+  background: var(--color-row-hover-bg);
 }
 
 .tab-close:hover {
@@ -3412,6 +3440,32 @@ body:has(.debug-window-root) #root {
 .session-host-refresh:disabled {
   opacity: 1;
   cursor: default;
+}
+
+.host-row-more {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+}
+
+.profile-row--host:hover .host-row-more,
+.profile-row--host:focus-within .host-row-more,
+.host-row-more:focus-visible {
+  opacity: 1;
+}
+
+.host-row-more:hover {
+  background: var(--color-row-hover-bg);
+  color: var(--color-text-primary);
 }
 
 .session-host-spinner {

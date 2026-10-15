@@ -239,7 +239,7 @@ const many = app.slice(app.indexOf('// L10-CONNECT-MANY-START'), app.indexOf('//
 assert.ok(many.includes('runBatchConnect') && many.includes('quiet: true'))
 assert.doesNotMatch(many, /ssh\.exec|sendInput|window\.confirm|window\.alert|window\.prompt/)
 assert.doesNotMatch(batch, /window\.confirm|child_process|ssh\.exec/)
-assert.ok(app.includes('data-ctx="connectAll"') || app.includes("item('connectAll'"))
+assert.ok(app.includes('data-ctx="connectAll"') || app.includes("item('connectAll'") || readFileSync('src/shared/inline-menus.ts', 'utf8').includes("id: 'connectAll'"))
 assert.ok(app.includes('data-ctx="connectGroup"'))
 assert.ok(app.includes('data-testid="l10-errors"'))
 assert.ok(app.includes('data-testid="l10-cancel-queue"'))

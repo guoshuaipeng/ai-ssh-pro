@@ -5,11 +5,13 @@ import { pickHealthHosts } from '@shared/dashboard-scope'
 import { probeFiltersActive, selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
 import { loadMaintenance, silenceUntil } from '@shared/maintenance'
 import type { ProtectionLevel } from '@shared/protection'
-import { useI18n } from '../lib/i18n'
+import { useI18n, type MessageKey } from '../lib/i18n'
 import { useHealthSampling, type SampleHost } from '../lib/health-sampling'
+import { healthMenuItems, type MenuEntry } from '@shared/inline-menus'
 import { planAlertFix } from '../lib/alert-fix'
 import { showToast } from '../lib/toast'
 import { AlertLine } from './AlertLine'
+import { BuiltMenu } from './BuiltMenu'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
 import HealthProbeFields from './HealthProbeFields'
@@ -34,7 +36,7 @@ export type HomeHost = {
 
 type Snap = { cpu: number | null; mem: number | null; disk: number | null; error: string | null; loading: boolean }
 
-type MenuState = { x: number; y: number; profileId: string } | null
+type MenuState = { x: number; y: number; profileId: string; entry: MenuEntry } | null
 
 export default function OpsHomeTab({
   hosts,
@@ -477,9 +479,10 @@ export default function OpsHomeTab({
                       e.preventDefault()
                       onConnect(h)
                     }}
+                    data-overflow="none"
                     onContextMenu={(e) => {
                       e.preventDefault()
-                      setMenu({ x: e.clientX, y: e.clientY, profileId: h.profileId })
+                      setMenu({ x: e.clientX, y: e.clientY, profileId: h.profileId, entry: 'context' })
                     }}
                   >
                     <div className="l7-card-top">
@@ -671,53 +674,27 @@ export default function OpsHomeTab({
         </aside>
       </div>
       {menu ? (
-        <div className="session-context-menu" style={{ left: menu.x, top: menu.y }} role="menu" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const host = hosts.find((h) => h.profileId === menu.profileId)
-              setMenu(null)
+        <BuiltMenu
+          variant="host"
+          testId="health-card-menu"
+          nodes={healthMenuItems(menu.entry)}
+          anchorX={menu.x}
+          anchorY={menu.y}
+          t={(key, vars) => t(key as MessageKey, vars)}
+          onPick={(id) => {
+            const host = hosts.find((h) => h.profileId === menu.profileId)
+            const profileId = menu.profileId
+            setMenu(null)
+            if (id === 'monitor') {
               if (host) onOpenMonitor(host)
-            }}
-          >
-            {t('menu.resourceMonitor')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const host = hosts.find((h) => h.profileId === menu.profileId)
-              setMenu(null)
+            } else if (id === 'connect') {
               if (host) onConnect(host)
-            }}
-          >
-            {t('l7.connect')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const host = hosts.find((h) => h.profileId === menu.profileId)
-              setMenu(null)
+            } else if (id === 'workbench') {
               const hit = alerts.find((a) => a.status === 'active' && host?.sessionId && a.hostKey === host.sessionId)
               onOpenWorkbench(hit?.id)
-            }}
-          >
-            {t('l7.viewInWorkbench')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const id = menu.profileId
-              setMenu(null)
-              onGuard(id)
-            }}
-          >
-            {t('l4.menu')}
-          </button>
-        </div>
+            } else if (id === 'guard') onGuard(profileId)
+          }}
+        />
       ) : null}
     </div>
   )

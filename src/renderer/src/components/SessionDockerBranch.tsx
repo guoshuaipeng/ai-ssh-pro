@@ -36,7 +36,8 @@ type Props = {
   /** H2: undefined = status hidden; null = not checked yet */
   hostStatus?: HostProbeResult | null
   onConnect: () => void
-  onContextMenu: (e: MouseEvent) => void
+  /** IX-5: ⋯ and right-click share one opener. The menu list lives in buildHostMenu. */
+  onOpenMenu: (e: MouseEvent, entry: 'overflow' | 'context') => void
   onToggleHost: () => void
   onToggleCompose: () => void
   onToggleSwarm: () => void
@@ -96,7 +97,7 @@ export default function SessionDockerBranch({
   onSelect,
   hostStatus,
   onConnect,
-  onContextMenu,
+  onOpenMenu,
   onToggleHost,
   onToggleCompose,
   onToggleSwarm,
@@ -240,7 +241,7 @@ export default function SessionDockerBranch({
         title={`${tg('db.rowTitle', { target: `${profile.username}@${profile.host}:${profile.port}` })}${profile.tags?.length ? `\n${tg('tags.title', { tags: profile.tags.join(', ') })}` : ''}`}
         onClick={onSelect}
         onDoubleClick={onConnect}
-        onContextMenu={onContextMenu}
+        onContextMenu={(e) => onOpenMenu(e, 'context')}
       >
         <button
           type="button"
@@ -312,6 +313,19 @@ export default function SessionDockerBranch({
           ) : null}
         </div>
         {hostStatus?.latencyMs != null ? <span className="host-status-ms">{hostStatus.latencyMs} ms</span> : null}
+        <button
+          type="button"
+          className="host-row-more"
+          data-testid="host-row-more"
+          aria-label={tg('toolbar.more')}
+          title={tg('toolbar.more')}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenMenu(e, 'overflow')
+          }}
+        >
+          ⋯
+        </button>
         {hostExpanded ? (
           <button
             type="button"

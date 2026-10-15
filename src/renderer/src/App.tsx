@@ -64,6 +64,8 @@ import { noticeHost, noticeKind, type NoticeKind } from '@shared/product-error'
 import ErrorNotice from './components/ErrorNotice'
 import ConnectTrouble from './components/ConnectTrouble'
 import { placeMenu } from '@shared/menu-place'
+import { hostMenuItems, tabMenuItems, type HostMenuCtx, type MenuEntry, type TabMenuCtx } from '@shared/inline-menus'
+import { BuiltMenu } from './components/BuiltMenu'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
@@ -661,6 +663,7 @@ export default function App() {
     profile: SavedSessionProfile
     /** profile ids when the menu was opened on a multi-selection (H1) */
     multi?: string[]
+    entry: MenuEntry
   } | null>(null)
   const [inventoryLink, setInventoryLink] = useState<HostInventoryLink | undefined>(undefined)
   const sessionMenuRef = useRef<HTMLDivElement>(null)
@@ -672,15 +675,13 @@ export default function App() {
   } | null>(null)
   const folderMenuRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    const el = sessionMenu ? sessionMenuRef.current : folderMenu ? folderMenuRef.current : null
-    const origin = sessionMenu ?? folderMenu
-    if (!el || !origin) return
+    const el = folderMenuRef.current
+    if (!el || !folderMenu) return
     const rect = el.getBoundingClientRect()
-    const next = placeMenu(origin.x, origin.y, rect.width, rect.height, window.innerWidth, window.innerHeight)
-    if (Math.abs(next.x - origin.x) <= 1 && Math.abs(next.y - origin.y) <= 1) return
-    if (sessionMenu) setSessionMenu({ ...sessionMenu, x: next.x, y: next.y })
-    else if (folderMenu) setFolderMenu({ ...folderMenu, x: next.x, y: next.y })
-  }, [sessionMenu, folderMenu])
+    const next = placeMenu(folderMenu.x, folderMenu.y, rect.width, rect.height, window.innerWidth, window.innerHeight)
+    if (Math.abs(next.x - folderMenu.x) <= 1 && Math.abs(next.y - folderMenu.y) <= 1) return
+    setFolderMenu({ ...folderMenu, x: next.x, y: next.y })
+  }, [folderMenu])
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
     return loadSidebarExpandPrefs().folders
   })
@@ -710,7 +711,7 @@ export default function App() {
   const hostKeyQueueRef = useRef<SshHostKeyPromptEvent[]>([])
   const [aboutOpen, setAboutOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
-  const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
+  const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number; entry: MenuEntry } | null>(null)
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const dragTabIdRef = useRef<string | null>(null)
@@ -3843,14 +3844,22 @@ export default function App() {
         setSelectedProfileId(p.id)
       }}
       onConnect={() => openOrFocusProfile(p)}
-      onContextMenu={(e) => {
+      onOpenMenu={(e, entry) => {
         e.preventDefault()
         const multi = multiSelected.length >= 2 && multiSelected.includes(p.id) ? multiSelected : undefined
         if (!multi) {
           setMultiSelected([])
           setSelectedProfileId(p.id)
         }
-        setSessionMenu({ x: e.clientX, y: e.clientY, profile: p, multi })
+        const el = e.currentTarget instanceof HTMLElement ? e.currentTarget : null
+        const rect = entry === 'overflow' && el ? el.getBoundingClientRect() : null
+        setSessionMenu({
+          x: rect ? rect.left : e.clientX,
+          y: rect ? rect.bottom : e.clientY,
+          profile: p,
+          multi,
+          entry
+        })
       }}
       onToggleHost={() => toggleHostExpanded(p)}
       onToggleCompose={() =>
@@ -6020,7 +6029,7 @@ export default function App() {
                 onContextMenu={(e) => {
                   e.preventDefault()
                   setActiveTabId(t.tabId)
-                  setTabMenu({ tabId: t.tabId, x: e.clientX, y: e.clientY })
+                  setTabMenu({ tabId: t.tabId, x: e.clientX, y: e.clientY, entry: 'context' })
                 }}
                 draggable={renamingTabId !== t.tabId}
                 onDragStart={(e) => {
@@ -6080,6 +6089,31 @@ export default function App() {
                 {showRo ? <span className="prot-badge prot-badge--readonly" data-testid="s4-tab-badge">{tg('s4.badge')}</span> : null}
                 </>
                 )}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="tab-more"
+                  data-testid="tab-row-more"
+                  title={tr('toolbar.more')}
+                  aria-label={tr('toolbar.more')}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setActiveTabId(t.tabId)
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setTabMenu({ tabId: t.tabId, x: rect.left, y: rect.bottom, entry: 'overflow' })
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setActiveTabId(t.tabId)
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setTabMenu({ tabId: t.tabId, x: rect.left, y: rect.bottom, entry: 'overflow' })
+                  }}
+                >
+                  ⋯
+                </span>
                 <span
                   role="button"
                   tabIndex={0}
@@ -6217,7 +6251,7 @@ export default function App() {
                             onContextMenu={(e) => {
                               e.preventDefault()
                               setTabOverflowOpen(false)
-                              setTabMenu({ tabId: t.tabId, x: e.clientX, y: e.clientY })
+                              setTabMenu({ tabId: t.tabId, x: e.clientX, y: e.clientY, entry: 'context' })
                             }}
                             onClick={() => {
                               setActiveTabId(t.tabId)
@@ -6289,40 +6323,38 @@ export default function App() {
                 const tab = orderedTabs.find((x) => x.tabId === tabMenu.tabId)
                 if (!tab) return null
                 const canDuplicate = (!tab.view || tab.view === 'session') && tab.kind !== 'local' && Boolean(tab.connectOpts?.host)
+                const sessionTools = Boolean(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local' && (!tab.view || tab.view === 'session'))
+                const canForward = Boolean(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local')
                 const others = closeOthers(orderedTabs, tab.tabId)
                 const right = closeRight(orderedTabs, tab.tabId)
-                const menuPos = placeMenu(tabMenu.x, tabMenu.y, 220, 280, window.innerWidth, window.innerHeight)
+                const readOnlyOn =
+                  Boolean(tab.profileId && sessionRo[tab.profileId]) ||
+                  effectiveLevel(profiles.find((p) => p.id === tab.profileId)) === 'readonly'
+                const ctx: TabMenuCtx = {
+                  pinned: Boolean(tab.pinned),
+                  readOnlyOn,
+                  canDuplicate,
+                  canSessionTools: sessionTools,
+                  canForward,
+                  closeOthersDisabled: others.length === 0,
+                  closeRightDisabled: right.disabled
+                }
                 const closeIds = (ids: string[]) => {
                   const want = new Set(ids)
                   closeTabsWhere((row) => !want.has(row.tabId))
                 }
                 return (
-                  <div
-                    className="tab-context-menu"
-                    role="menu"
-                    data-testid="ux59-menu"
-                    style={{ left: menuPos.x, top: menuPos.y }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      data-testid="s4-session-toggle"
-                      onClick={() => {
-                        setTabMenu(null)
-                        toggleSessionReadonly(tab)
-                      }}
-                    >
-                      {Boolean(tab.profileId && sessionRo[tab.profileId]) || effectiveLevel(profiles.find((p) => p.id === tab.profileId)) === 'readonly'
-                        ? tr('s4.offSession')
-                        : tr('s4.onSession')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      data-testid="tab-pin"
-                      onClick={() => {
-                        setTabMenu(null)
+                  <BuiltMenu
+                    variant="tab"
+                    testId="ux59-menu"
+                    nodes={tabMenuItems(ctx, tabMenu.entry)}
+                    anchorX={tabMenu.x}
+                    anchorY={tabMenu.y}
+                    t={(key, vars) => tr(key as MessageKey, vars)}
+                    onPick={(id) => {
+                      setTabMenu(null)
+                      if (id === 'readonly') toggleSessionReadonly(tab)
+                      else if (id === 'pin') {
                         const wasPinned = Boolean(tab.pinned)
                         setTabs((prev) => prev.map((row, i) => (row.tabId === tab.tabId ? { ...row, pinned: !row.pinned, openSeq: row.openSeq ?? i + 1 } : row)))
                         if (wasPinned) {
@@ -6331,82 +6363,17 @@ export default function App() {
                             undo: () => setTabs((prev) => prev.map((row) => (row.tabId === tab.tabId ? { ...row, pinned: true } : row)))
                           })
                         }
-                      }}
-                    >
-                      {tab.pinned ? tr('tab.unpin') : tr('tab.pin')}
-                    </button>
-                    <button type="button" role="menuitem" onClick={() => { setTabMenu(null); startRename(tab.tabId) }}>
-                      {tr('tab.rename')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!canDuplicate}
-                      onClick={() => {
-                        setTabMenu(null)
+                      } else if (id === 'rename') startRename(tab.tabId)
+                      else if (id === 'duplicate') {
                         void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
-                      }}
-                    >
-                      {tr('tab.duplicate')}
-                    </button>
-                    <hr />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local' && (!tab.view || tab.view === 'session'))}
-                      onClick={() => {
-                        setTabMenu(null)
-                        openSftpTransfer(tab.sessionId, { alignCwd: true })
-                      }}
-                    >
-                      {tr('ctx.sftp')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local' && (!tab.view || tab.view === 'session'))}
-                      onClick={() => {
-                        setTabMenu(null)
-                        openMonitorForSession(tab.sessionId)
-                      }}
-                    >
-                      {tr('menu.resourceMonitor')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local')}
-                      onClick={() => {
-                        setTabMenu(null)
-                        openToolTabRef.current('forward', tab.sessionId)
-                      }}
-                    >
-                      {tr('menu.portForward')}
-                    </button>
-                    <hr />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      data-testid="tab-close-others"
-                      disabled={others.length === 0}
-                      onClick={() => { setTabMenu(null); closeIds(others) }}
-                    >
-                      {tr('tab.closeOthers')}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      data-testid="tab-close-right"
-                      disabled={right.disabled}
-                      title={right.disabled ? tr('tab.closeRightDisabled') : undefined}
-                      onClick={() => { setTabMenu(null); closeIds(right.close) }}
-                    >
-                      {tr('tab.closeRight')}
-                    </button>
-                    <button type="button" role="menuitem" onClick={() => { setTabMenu(null); closeTab(tab.tabId, tab.sessionId, tab.status, tab.view) }}>
-                      {tr('tab.close')}
-                    </button>
-                  </div>
+                      } else if (id === 'sftp' && tab.sessionId) openSftpTransfer(tab.sessionId, { alignCwd: true })
+                      else if (id === 'monitor') openMonitorForSession(tab.sessionId ?? null)
+                      else if (id === 'forward' && tab.sessionId) openToolTabRef.current('forward', tab.sessionId)
+                      else if (id === 'closeOthers') closeIds(others)
+                      else if (id === 'closeRight') closeIds(right.close)
+                      else if (id === 'close') closeTab(tab.tabId, tab.sessionId, tab.status, tab.view)
+                    }}
+                  />
                 )
               })()
             : null}
@@ -8029,172 +7996,118 @@ export default function App() {
         const p = sessionMenu.profile
         const multi = sessionMenu.multi
         const multiProfiles = multi ? profiles.filter((x) => multi.includes(x.id)) : []
-        const item = (key: string, label: string, onClick: () => void, opts?: { hint?: string; tip?: string; danger?: boolean; disabled?: boolean }) => (
-          <button
-            key={key}
-            type="button"
-            role="menuitem"
-            data-ctx={key}
-            className={`session-context-menu-item${opts?.danger ? ' danger' : ''}`}
-            disabled={opts?.disabled}
-            title={opts?.tip}
-            onClick={onClick}
-          >
-            <span>{label}</span>
-            {opts?.hint ? <span className="session-context-menu-hint">{opts.hint}</span> : null}
-          </button>
-        )
-        const moveTo = (ids: string[], currentFolder?: string) => (
-          <div className={`session-context-submenu-wrap${sessionMenu.x > window.innerWidth - 320 ? ' open-left' : ''}`}>
-            <button type="button" role="menuitem" data-ctx="move" className="session-context-menu-item session-context-menu-item--submenu">
-              <span>{tg('app.moveTo')}</span>
-              <span className="session-context-menu-caret" aria-hidden>
-                ›
-              </span>
-            </button>
-            <div className="session-context-submenu" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                className="session-context-menu-item"
-                disabled={ids.length === 1 && !currentFolder}
-                onClick={() => moveProfileToFolder(ids, undefined)}
-              >
-                {tg('app.ungrouped')}
-              </button>
-              {folders.length === 0 ? (
-                <div className="session-context-submenu-empty">{tg('app.noFolders')}</div>
-              ) : (
-                folders.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    role="menuitem"
-                    className="session-context-menu-item"
-                    disabled={ids.length === 1 && currentFolder === f.id}
-                    onClick={() => moveProfileToFolder(ids, f.id)}
-                  >
-                    {f.name}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )
-        if (multi) {
-          return (
-            <div
-              ref={sessionMenuRef}
-              className="session-context-menu"
-              style={{ left: sessionMenu.x, top: sessionMenu.y }}
-              role="menu"
-              data-testid="host-menu-multi"
-            >
-              {item('connectAll', tg('ctx.connectAll', { n: multi.length }), () => {
-                setSessionMenu(null)
-                void connectManyRef.current(hostsByIds(profilesRef.current, multi))
-              })}
-              {item('maint', tg('l2d.openForSelected'), () => {
-                setSessionMenu(null)
-                openMaintenance(multi)
-              })}
-              {item('batch', tg('ctx.batch'), () => {
-                setSessionMenu(null)
-                void (async () => {
-                  const sids: string[] = []
-                  for (const x of multiProfiles) {
-                    const sid = await ensureProfileSession(x)
-                    if (sid) sids.push(sid)
-                  }
-                  openToolTabRef.current('batch', null, sids)
-                })()
-              })}
-              {item('monitorBoard', tg('host.menu.boardN', { n: multi.length }), () => {
-                setSessionMenu(null)
-                openDashboard()
-              })}
-              <div className={`session-context-submenu-wrap${sessionMenu.x > window.innerWidth - 320 ? ' open-left' : ''}`}>
-                <button type="button" role="menuitem" data-ctx="setLevel" className="session-context-menu-item session-context-menu-item--submenu">
-                  <span>{tg('l4.setLevel')}</span>
-                  <span className="session-context-menu-caret" aria-hidden>›</span>
-                </button>
-                <div className="session-context-submenu" role="menu">
-                  {(['normal', 'production', 'readonly'] as const).map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      role="menuitem"
-                      className="session-context-menu-item"
-                      onClick={() => {
-                        setSessionMenu(null)
-                        setProfileProtection(multi, level)
-                      }}
-                    >
-                      {tg(level === 'normal' ? 'l4.normal' : level === 'production' ? 'l4.production' : 'l4.readonly')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {moveTo(multi)}
-              <div className="session-context-menu-sep" />
-              {item('delete', tg('ctx.deleteMany', { n: multi.length }), () => void deleteProfilesFn(multi), { danger: true, hint: 'Del' })}
-            </div>
-          )
+        const ctx: HostMenuCtx = multi
+          ? { selection: 'multi', count: multi.length, folders: folders.map((f) => ({ id: f.id, name: f.name })) }
+          : {
+              selection: 'single',
+              count: 1,
+              demo: Boolean(p.demo),
+              currentFolderId: p.folderId,
+              folders: folders.map((f) => ({ id: f.id, name: f.name }))
+            }
+        const pick = (id: string) => {
+          if (id.startsWith('move-to:')) {
+            const target = id.slice('move-to:'.length)
+            moveProfileToFolder(multi ?? [p.id], target === 'ungrouped' ? undefined : target)
+            return
+          }
+          if (id.startsWith('set-level:')) {
+            const level = id.slice('set-level:'.length) as 'normal' | 'production' | 'readonly'
+            setSessionMenu(null)
+            setProfileProtection(multi ?? [p.id], level)
+            return
+          }
+          if (id === 'connect') {
+            setSessionMenu(null)
+            openOrFocusProfile(p)
+            return
+          }
+          if (id === 'connectNew') {
+            setSessionMenu(null)
+            void connectProfile(p)
+            return
+          }
+          if (id === 'connectAll') {
+            setSessionMenu(null)
+            void connectManyRef.current(hostsByIds(profilesRef.current, multi ?? []))
+            return
+          }
+          if (id === 'maint') {
+            setSessionMenu(null)
+            openMaintenance(multi ?? [p.id])
+            return
+          }
+          if (id === 'batch') {
+            setSessionMenu(null)
+            void (async () => {
+              const sids: string[] = []
+              for (const x of multiProfiles) {
+                const sid = await ensureProfileSession(x)
+                if (sid) sids.push(sid)
+              }
+              openToolTabRef.current('batch', null, sids)
+            })()
+            return
+          }
+          if (id === 'monitorBoard') {
+            setSessionMenu(null)
+            openDashboard()
+            return
+          }
+          if (id === 'sftp') {
+            openSftpFromHost(p)
+            return
+          }
+          if (id === 'monitor') {
+            void monitorProfile(p)
+            return
+          }
+          if (id === 'toolbox') {
+            runForProfile(p, (sid) => {
+              openToolTabRef.current('toolbox', sid)
+            })
+            return
+          }
+          if (id === 'edit') {
+            openConnectionEditor(p)
+            setSessionMenu(null)
+            return
+          }
+          if (id === 'profile') {
+            openInventoryEditor({
+              profileId: p.id,
+              host: p.host,
+              port: p.port,
+              username: p.username,
+              label: p.label,
+              hostInventoryId: p.hostInventoryId
+            })
+            setSessionMenu(null)
+            return
+          }
+          if (id === 'rename') {
+            void renameProfile(p)
+            return
+          }
+          if (id === 'copyAddr') {
+            setSessionMenu(null)
+            const addr = `${p.username}@${p.host}${p.port && p.port !== 22 ? ` -p ${p.port}` : ''}`
+            void navigator.clipboard.writeText(addr).then(() => showToast(tg('ctx.copied')))
+            return
+          }
+          if (id === 'delete') void deleteProfilesFn(multi ?? [p.id])
         }
         return (
-          <div
+          <BuiltMenu
             ref={sessionMenuRef}
-            className="session-context-menu"
-            style={{ left: sessionMenu.x, top: sessionMenu.y }}
-            role="menu"
-            data-testid="host-menu"
-          >
-            {item('connect', tg('app.connect'), () => {
-              setSessionMenu(null)
-              openOrFocusProfile(p)
-            }, { hint: 'Enter' })}
-            {item('connectNew', tg('ctx.connectNewTab'), () => {
-              setSessionMenu(null)
-              void connectProfile(p)
-            })}
-            <div className="session-context-menu-sep" />
-            {item('sftp', tg('ctx.sftp'), () => openSftpFromHost(p))}
-            {item('monitor', tg('ctx.monitor'), () => void monitorProfile(p))}
-            {item('toolbox', tg('ctx.toolbox'), () =>
-              runForProfile(p, (sid) => {
-                openToolTabRef.current('toolbox', sid)
-              })
-            )}
-            <div className="session-context-menu-sep" />
-            {item('edit', tg('ctx.edit'), () => {
-              openConnectionEditor(p)
-              setSessionMenu(null)
-            }, p.demo ? { disabled: true, hint: tg('g1.readOnly') } : undefined)}
-              {item('maint', tg('l2d.openForHost'), () => {
-                setSessionMenu(null)
-                openMaintenance([p.id])
-              })}
-              {item('profile', tg('host.menu.inventory'), () => {
-              openInventoryEditor({
-                profileId: p.id,
-                host: p.host,
-                port: p.port,
-                username: p.username,
-                label: p.label,
-                hostInventoryId: p.hostInventoryId
-              })
-              setSessionMenu(null)
-            }, { tip: tg('host.menu.inventoryTip') })}
-            {item('rename', tg('ctx.rename'), () => void renameProfile(p), { hint: 'F2' })}
-            {moveTo([p.id], p.folderId)}
-            {item('copyAddr', tg('ctx.copyAddr'), () => {
-              setSessionMenu(null)
-              const addr = `${p.username}@${p.host}${p.port && p.port !== 22 ? ` -p ${p.port}` : ''}`
-              void navigator.clipboard.writeText(addr).then(() => showToast(tg('ctx.copied')))
-            })}
-            <div className="session-context-menu-sep" />
-            {item('delete', tg('app.delete'), () => void deleteProfilesFn([p.id]), { danger: true, hint: 'Del' })}
-          </div>
+            variant="host"
+            testId={multi ? 'host-menu-multi' : 'host-menu'}
+            nodes={hostMenuItems(ctx, sessionMenu.entry)}
+            anchorX={sessionMenu.x}
+            anchorY={sessionMenu.y}
+            t={(key, vars) => tg(key as MessageKey, vars)}
+            onPick={pick}
+          />
         )
       })()}
 
