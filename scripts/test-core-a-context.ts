@@ -136,6 +136,20 @@ ok(
 const again = compactTranscript(turns, folded.ctx, 8)
 ok(again.ctx.episodes.length === folded.ctx.episodes.length, 'the same prefix is not summarized twice')
 
+const longTurns: TranscriptTurn[] = [
+  { role: 'user', content: 'EARLY_FACT /var/log 48G on /dev/sda1' },
+  { role: 'assistant', content: 'noted EARLY_FACT /var/log' }
+]
+for (let i = 0; i < 20; i++) {
+  longTurns.push({ role: 'user', content: `filler nginx ${i} ${'x'.repeat(180)}` })
+  longTurns.push({ role: 'assistant', content: `filler answer ${i}` })
+}
+longTurns.push({ role: 'user', content: 'LATE_FACT omega' }, { role: 'assistant', content: 'late answer' })
+const foldedLong = compactTranscript(longTurns, EMPTY_THREAD, 8)
+ok(foldedLong.ctx.runningSummary.includes('EARLY_FACT'), 'compaction keeps the earliest fact in the summary')
+ok(foldedLong.recent.some((turn) => turn.content.includes('LATE_FACT')), 'the latest turn stays in the window')
+ok(!foldedLong.recent.some((turn) => turn.content.includes('EARLY_FACT')), 'the early fact left the raw window')
+
 let packed = appendEpisode(EMPTY_THREAD, createEpisode({ text: 'ALPHA_OLD_QUESTION kept', tags: ['compaction'], now: 1 }))
 for (let i = 0; i < 45; i++) {
   packed = appendEpisode(packed, createEpisode({ text: `step note ${i}`, tags: ['step'], now: i + 2 }))

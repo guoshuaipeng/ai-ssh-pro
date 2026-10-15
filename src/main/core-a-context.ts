@@ -397,10 +397,13 @@ function extractAssistantLine(content: string): string {
   return content
 }
 
-function capTail(text: string, max: number): string {
+/** Keep the start of a folded transcript so the earliest facts are not the first thing dropped. */
+function capRunningSummary(text: string, max: number): string {
   const trimmed = text.trim()
   if (trimmed.length <= max) return trimmed
-  return trimmed.slice(trimmed.length - max)
+  const headBudget = Math.min(400, Math.floor(max / 3))
+  const tailBudget = max - headBudget - 1
+  return `${trimmed.slice(0, headBudget)}\n${trimmed.slice(trimmed.length - tailBudget)}`
 }
 
 /**
@@ -434,7 +437,7 @@ export function compactTranscript(
   const piece = fresh.map(formatTurnLine).filter(Boolean).join('\n')
   if (!piece) return { recent, ctx: { ...ctx, compactedCursor: cursor } }
 
-  const runningSummary = capTail([ctx.runningSummary, piece].filter(Boolean).join('\n'), MAX_SUMMARY_CHARS)
+  const runningSummary = capRunningSummary([ctx.runningSummary, piece].filter(Boolean).join('\n'), MAX_SUMMARY_CHARS)
   let next: ThreadContext = { ...ctx, runningSummary, compactedCursor: cursor }
   const chunks = chunkText(piece, MAX_EPISODE_CHARS)
   for (const chunk of chunks) {

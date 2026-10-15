@@ -810,6 +810,7 @@ export async function runOpenClawCoreAgentChat(
     const bootSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
     if (bootSnap) {
       lastToolResult = bootSnap
+      prevSnapFingerprint = bootSnap
       sessionState.lastToolScore = scoreToolSnapshot(bootSnap, null)
       appendObservation(sessionState, bootSnap, null)
       rememberNote(sessionState, mt('会话启动时已自动读取终端上下文', "Terminal context was read automatically at session start"))

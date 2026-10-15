@@ -1,3 +1,6 @@
+import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import Store from 'electron-store'
 import {
   archiveAndClearRecord,
@@ -15,10 +18,19 @@ type CoreMemorySchema = {
   sessions: Record<string, PersistedCoreSession>
 }
 
-const memoryStore = new Store<CoreMemorySchema>({
-  name: 'core-a-sessions',
-  defaults: { sessions: {} }
-})
+function memoryStoreOptions(): ConstructorParameters<typeof Store<CoreMemorySchema>>[0] {
+  const options = {
+    name: 'core-a-sessions',
+    defaults: { sessions: {} as Record<string, PersistedCoreSession> }
+  }
+  if (process.versions.electron) return options
+  // Node tests have no Electron userData path. Production Electron keeps the default location.
+  const cwd = process.env.AISS_CORE_MEMORY_CWD?.trim() || join(tmpdir(), 'ai-ssh-pro-core-memory')
+  mkdirSync(cwd, { recursive: true })
+  return { ...options, projectName: 'ai-ssh-pro', cwd } as ConstructorParameters<typeof Store<CoreMemorySchema>>[0]
+}
+
+const memoryStore = new Store<CoreMemorySchema>(memoryStoreOptions())
 
 const MAX_SESSIONS = 80
 
