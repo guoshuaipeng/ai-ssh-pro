@@ -7,19 +7,20 @@
  * Under observational compression the same window stays stable: a scarce
  * marker outside the naive head cut remains in the bullet, and filler that
  * the cite window dropped does not come back as a cite. A later compression
- * in the same thread keeps that hold.
+ * in the same thread keeps that hold. A later test-fail-fix patch draft on
+ * that thread still cites the held marker and does not cite the dropped filler.
  *
- * Soft-batch pin: tipSuggest `0.4.8-s31`. Rollback is the S30 cite hold.
+ * Soft-batch pin: tipSuggest `0.4.8-s32`. Rollback is the S31 cite hold.
  */
 
 /** Planner-visible cap for one command's stdout, stderr, or ring. */
 export const OUTPUT_VIEW_CAP = 6000
 
 /** Citeable truncate path. */
-export const tipSuggest = '0.4.8-s31'
+export const tipSuggest = '0.4.8-s32'
 
 /** Previous batch this path rolls back to. */
-export const rollback = '0.4.8-s30'
+export const rollback = '0.4.8-s31'
 
 /** At least 8 characters, so ordinary words are not evidence tokens. */
 const RARE_TOKEN = /[A-Z][A-Z0-9_]{7,}/g
@@ -261,6 +262,25 @@ export function explainCiteableOutput(description: string, view: OutputView, hol
     for (const marker of view.markers) {
       if (!text.includes(marker)) text = `${text.trim()}\n${marker}`
     }
+  }
+  return text
+}
+
+const PATCH_DRAFT = /补丁草案|patch draft/i
+
+/**
+ * A confirm-style patch draft on a thread that already holds a cite window.
+ * Held scarce markers are cited even when the failure text omitted them.
+ * Filler that window already dropped is not cited. A description that is not
+ * a patch draft is unchanged, so ordinary ends do not grow a marker.
+ */
+export function citeHeldPatchDraft(description: string, hold?: CiteWindow | null): string {
+  if (!hold) return description
+  if (hold.outsideHeadTail.length === 0 && hold.droppedFiller.length === 0) return description
+  if (!PATCH_DRAFT.test(description)) return description
+  let text = explainCiteableOutput(description, emptyOutputView(), hold)
+  for (const marker of hold.outsideHeadTail) {
+    if (marker && !text.includes(marker)) text = `${text.trim()}\n${marker}`
   }
   return text
 }
