@@ -1,4 +1,4 @@
-/** v0.4.3 soft-start: L7b sampling, UX-55b tab list, UX-57 first-week chip. Version stays 0.4.2. */
+/** v0.4.3 soft-start: L7b sampling, UX-55b tab list, UX-57 first-week chip. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
@@ -22,7 +22,7 @@ import { buildPaletteEntries } from '../src/renderer/src/lib/palette'
 import { SHARED_MENUS } from '../src/shared/menus'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.2')
+assert.equal(pkg.version, '0.4.3')
 
 const mem = () => {
   const bag = new Map<string, string>()

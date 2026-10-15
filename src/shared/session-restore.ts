@@ -95,6 +95,35 @@ export function snapshotWorkspace(
   return rows
 }
 
+/** UX-50b: give up auto-binding a monitor/toolbox tab after this long. */
+export const RESTORE_BIND_MS = 20_000
+
+/**
+ * An explicit empty snapshot is both lists empty. A missing `tabs` array is the
+ * pre-0.4.2 shape and must not be treated as "the user closed everything".
+ */
+export function isExplicitEmptyWorkspace(saved: { profileIds?: string[]; tabs?: unknown }): boolean {
+  return Array.isArray(saved.tabs) && saved.tabs.length === 0 && Array.isArray(saved.profileIds) && saved.profileIds.length === 0
+}
+
+/**
+ * Prefer saved center tabs. When that list is missing or empty, fall back to
+ * the legacy profile-id list so a 0.4.1 snapshot still reconnects.
+ */
+export function workspaceRestoreRows(
+  saved: { profileIds: string[]; tabs?: SavedWorkspaceTab[] },
+  titleFor: (profileId: string) => string
+): SavedWorkspaceTab[] {
+  if (saved.tabs && saved.tabs.length > 0) return saved.tabs
+  return saved.profileIds.map((id, order) => ({
+    kind: 'terminal',
+    profileId: id,
+    title: titleFor(id),
+    order,
+    active: order === 0
+  }))
+}
+
 export const CHANGELOG_RESTORE_SCOPE = {
   zh: '启动「上次会话」现恢复运维首页、告警工作台、SFTP、监控、工具箱等中间标签及分屏布局；终端仅恢复标签并重连，不恢复 scrollback。',
   en: 'Startup “Last session” restores Ops home, the alert workbench, SFTP, monitor, toolbox, and other center tabs. Terminals restore as a tab and reconnect; scrollback is not restored.'

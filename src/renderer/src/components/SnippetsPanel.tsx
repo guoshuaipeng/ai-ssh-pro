@@ -11,6 +11,7 @@ import {
 } from '@shared/workspace-features'
 import { tg } from '../lib/i18n'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 type Props = {
   onClose: () => void
@@ -280,7 +281,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
             <EmptyState
               compact
               testId="snippets-empty"
-              icon="📋"
+              icon={<Icon name="clipboard-list" size={32} />}
               title={t('ux08.snipTitle')}
               desc={t('snip.empty')}
               primary={{ label: t('ux08.snipNew'), onClick: openNew }}

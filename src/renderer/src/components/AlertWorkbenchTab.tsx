@@ -10,6 +10,7 @@ import AiAssistCard, { type AiExplainRequest } from './AiAssistCard'
 import AiConfigCard from './AiConfigCard'
 import { AlertLine } from './AlertLine'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 const TARGET_KEY = {
   df: 'st.tab.df',
@@ -44,7 +45,8 @@ export default function AlertWorkbenchTab({
   onOpenSettings,
   autoExplain,
   onCreatePlaybook,
-  onExportPostmortem
+  onExportPostmortem,
+  onNeedAi
 }: {
   alerts: FiredAlert[]
   focusId?: string
@@ -72,6 +74,8 @@ export default function AlertWorkbenchTab({
   autoExplain?: boolean
   onCreatePlaybook?: (alert: FiredAlert, fixes: Array<{ command: string; note?: string }>) => void
   onExportPostmortem?: (alert: FiredAlert) => void
+  /** W1b: AI is not configured. Toast only — do not start an interpret. */
+  onNeedAi?: () => void
 }) {
   const { t } = useI18n()
   const [filter, setFilter] = useState<AlertFilter>(initialFilter ?? 'active')
@@ -133,6 +137,10 @@ export default function AlertWorkbenchTab({
   const requestFix = (alert: FiredAlert) => {
     setSelectedId(alert.id)
     setNarrowDetail(true)
+    if (!aiConfigured) {
+      onNeedAi?.()
+      return
+    }
     const fixes = fixesFor(`explainAlert:${alert.id}`)
     if (fixes && fixes.length > 0) {
       setHighlightCreate(false)
@@ -158,7 +166,7 @@ export default function AlertWorkbenchTab({
       window.removeEventListener('aiss-fix-playbook', onFix)
       window.removeEventListener('aiss-export-postmortem', onExport)
     }
-  }, [selected, onCreatePlaybook, onExportPostmortem])
+  }, [selected, onCreatePlaybook, onExportPostmortem, aiConfigured, onNeedAi])
 
   useEffect(() => {
     if (!autoExplain || !focusId) return
@@ -310,7 +318,7 @@ export default function AlertWorkbenchTab({
             <EmptyState
               compact
               testId="l2-empty"
-              icon="🔔"
+              icon={<Icon name="bell" size={32} />}
               title={t('l2.empty')}
               primary={{ label: t('l2.viewHistory'), onClick: () => setFilter('all') }}
               secondary={[
@@ -331,7 +339,14 @@ export default function AlertWorkbenchTab({
                   setLocateError(null)
                 }}
                 onOpen={() => doLocate(a)}
+                onLocate={() => doLocate(a)}
+                onExplain={() => void explainThis(a)}
+                explainDisabled={!aiConfigured}
+                explainTitle={aiConfigured ? t('a4.interpret') : t('w1.needAi')}
                 onFixPlaybook={() => requestFix(a)}
+                onMarkDone={() => onHandled(a)}
+                onIgnore={() => onDismiss(a)}
+                onBoard={onOpenDashboard}
               />
             ))
           )}
@@ -430,19 +445,19 @@ export default function AlertWorkbenchTab({
                   {locating ? t('l2.connecting', { host: selected.hostTitle }) : t('l2.locate')}
                 </button>
                 <button type="button" title={t('l2.openTerminal')} onClick={() => onOpenTerminal(selected)}>
-                  <span className="l2-ico" aria-hidden>⌨</span>
+                  <Icon name="keyboard" size={14} />
                   <span className="l2-lbl">{t('l2.openTerminal')}</span>
                 </button>
                 <button type="button" title={t('menu.resourceMonitor')} onClick={() => onOpenMonitor(selected)}>
-                  <span className="l2-ico" aria-hidden>▤</span>
+                  <Icon name="activity" size={14} />
                   <span className="l2-lbl">{t('menu.resourceMonitor')}</span>
                 </button>
                 <button type="button" title={t('tab.toolbox')} onClick={() => onOpenToolbox(selected)}>
-                  <span className="l2-ico" aria-hidden>⚙</span>
+                  <Icon name="wrench" size={14} />
                   <span className="l2-lbl">{t('tab.toolbox')}</span>
                 </button>
-                <button type="button" data-testid="l2-explain" onClick={() => void explainThis(selected)}>
-                  ✨ {t('a4.interpret')}
+                <button type="button" data-testid="l2-explain" title={aiConfigured ? t('a4.interpret') : t('w1.needAi')} disabled={!aiConfigured} onClick={() => void explainThis(selected)}>
+                  <Icon name="sparkles" size={14} /> {t('a4.interpret')}
                 </button>
               </div>
               {located[selected.id] ? (

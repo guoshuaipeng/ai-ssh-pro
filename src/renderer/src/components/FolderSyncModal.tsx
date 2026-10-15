@@ -21,6 +21,7 @@ import { tg } from '../lib/i18n'
 import { askText } from '../lib/dialogs'
 import Modal from './Modal'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 type Props = {
   open: boolean
@@ -340,7 +341,7 @@ export default function FolderSyncModal({
               </button>
             </div>
           ) : rows.length === 0 || (counts.new === 0 && counts.changed === 0 && counts.deleted === 0) ? (
-            <EmptyState compact icon="✓" title={tg('d2.inSync')} testId="sync-empty" primary={{ label: tg('common.close'), onClick: onClose }} />
+            <EmptyState compact icon={<Icon name="check" size={32} />} title={tg('d2.inSync')} testId="sync-empty" primary={{ label: tg('common.close'), onClick: onClose }} />
           ) : (
             <>
               <div className="sync-summary">

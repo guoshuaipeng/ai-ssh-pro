@@ -18,6 +18,27 @@ export function demoProfileLabel(locale: string): string {
   return locale === 'zh-CN' ? '演示主机 (demo)' : 'Demo host (demo)'
 }
 
+/** Unrenamed demo hosts follow the UI language. A user rename sets demoRenamed and wins. */
+export function isUnrenamedDemo(profile: { id?: string; demoRenamed?: boolean }): boolean {
+  return profile.id === DEMO_PROFILE_ID && !profile.demoRenamed
+}
+
+export function profileDisplayLabel(
+  profile: { id: string; label?: string; host?: string; username?: string; demoRenamed?: boolean },
+  locale: string
+): string {
+  if (isUnrenamedDemo(profile)) return demoProfileLabel(locale)
+  const label = profile.label?.trim()
+  if (label) return label
+  if (profile.username && profile.host) return `${profile.username}@${profile.host}`
+  return profile.host || '—'
+}
+
+/** Session export uses the current UI language for an unrenamed demo host. */
+export function labelForSessionExport(profile: { id: string; label: string; demoRenamed?: boolean }, locale: string): string {
+  return isUnrenamedDemo(profile) ? demoProfileLabel(locale) : profile.label
+}
+
 export function demoWelcome(locale: string): string {
   return locale === 'zh-CN'
     ? '欢迎使用演示主机：这里的命令输出都是模拟的，不会连接任何真实服务器。\r\n可以试试：ls · df -h · top · systemctl status nginx · cat /var/log/app.log · help\r\n'

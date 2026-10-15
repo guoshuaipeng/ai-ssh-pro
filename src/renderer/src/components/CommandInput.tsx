@@ -16,7 +16,7 @@ type Props = {
   onValueChange?: (value: string) => void
   /** return true to consume the key before the built-in history / submit handling (A2 AI mode) */
   interceptKey?: (e: ReactKeyboardEvent<HTMLInputElement>) => boolean
-  /** marker shown inside the field on the left (A2: ✨) */
+  /** marker shown inside the field on the left (A2 sparkles) */
   prefix?: ReactNode
   inputRef?: Ref<HTMLInputElement>
   /** history suggestions (off in AI mode) */

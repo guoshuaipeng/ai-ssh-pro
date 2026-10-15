@@ -5,6 +5,7 @@ import type { ResourceSnapshot } from '../../../shared/resource-monitor'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 
@@ -200,7 +201,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
         {targets.length === 0 ? (
           <EmptyState
             testId="o1-empty"
-            icon="📊"
+            icon={<Icon name="activity" size={32} />}
             title={t('o1.emptyTitle')}
             desc={t('o1.emptyDesc')}
           />

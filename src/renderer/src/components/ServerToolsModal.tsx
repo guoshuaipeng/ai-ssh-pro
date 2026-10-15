@@ -12,6 +12,7 @@ import {
 } from '../../../shared/server-tools'
 import { formatBytes } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
+import Icon from './Icon'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askConfirm, askText } from '../lib/dialogs'
 import Modal from './Modal'
@@ -297,7 +298,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
                   </td>
                   <td className="st-actions st-actions--hover">
                     <button type="button" className="st-icon-btn" onClick={() => void kill(p, 'TERM')} disabled={busy} title={t('st.termHint')} aria-label={t('st.term')}>
-                      ⏹
+                      <Icon name="square" size={12} />
                     </button>
                     <details className="st-more">
                       <summary className="st-icon-btn" title="…" aria-label="…">⋯</summary>

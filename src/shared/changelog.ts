@@ -12,6 +12,44 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.3': [
+    {
+      icon: '▷',
+      text: {
+        zh: '运维首页可以在后台看 CPU、内存和磁盘，不必先开终端',
+        en: 'Ops home can sample CPU, memory, and disk in the background, without opening a terminal first'
+      },
+      where: { zh: '设置 → 运维首页', en: 'Settings → Ops home' },
+      action: 'opsHome'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '告警列表的 ⋯ 和右键可以生成修复剧本。未配置 AI 时会提示去配置',
+        en: 'An alert row’s ⋯ menu and right-click can create a fix playbook. Without AI it asks you to configure it'
+      },
+      where: { zh: '告警工作台 → 行菜单', en: 'Alert workbench → row menu' },
+      action: 'alertWorkbench'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '关掉全部标签后再开，不会把上次的旧标签找回来',
+        en: 'Closing every tab and reopening no longer brings the previous tabs back'
+      },
+      where: { zh: '设置 → 启动', en: 'Settings → Startup' },
+      action: 'settings'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '演示主机的名字跟着界面语言变。空标签条不再写「未打开会话」',
+        en: 'The demo host name follows the UI language. An empty tab strip no longer says that no session is open'
+      },
+      where: { zh: '侧栏 → 演示主机', en: 'Sidebar → Demo host' },
+      action: 'opsHome'
+    }
+  ],
   '0.4.2': [
     {
       icon: '▷',

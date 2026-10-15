@@ -96,4 +96,39 @@ for (const f of files) {
 }
 assert.deepEqual(ipHits, [], `UX-25 real IP in placeholder:\n${ipHits.join('\n')}`)
 
+// UX-12b: no emoji / icon-pictograph leftovers in renderer tsx. Typography arrows and the more-actions ellipsis stay.
+const PICTO = /\p{Extended_Pictographic}/gu
+const SOLO_GLYPH = /['"`][▶▼◀►▸▾▴▹▻▲△▽◆◇■□▣▤▦⌖⌨⊘★☆⚠⏹☑]['"`]/
+const iconHits: string[] = []
+for (const f of files) {
+  if (!f.includes(`${join('renderer', 'src')}`) || !f.endsWith('.tsx')) continue
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      const pictos = [...line.matchAll(PICTO)].filter((m) => m[0] !== '⋯')
+      if (pictos.length || /[★☆]/.test(line) || SOLO_GLYPH.test(line)) {
+        iconHits.push(`${relative(root, f)}:${i + 1}: ${line.trim()}`)
+      }
+    })
+}
+assert.deepEqual(iconHits, [], `UX-12b emoji or icon glyph:\n${iconHits.join('\n')}`)
+
+const bareButtons: string[] = []
+const buttonRe = /<button\b([^>]*)>([\s\S]*?)<\/button>/g
+for (const f of files) {
+  if (!f.includes(`${join('renderer', 'src')}`) || !f.endsWith('.tsx')) continue
+  const text = readFileSync(f, 'utf8')
+  for (const m of text.matchAll(buttonRe)) {
+    const open = m[1] ?? ''
+    const inner = m[2] ?? ''
+    if (!/<Icon\b|<Twist\b|<svg\b/.test(inner)) continue
+    const textOnly = inner.replace(/<[^>]+>/g, '').replace(/\{[^}]*\}/g, '').replace(/\s+/g, '').replace(/⋯/g, '')
+    if (textOnly.length) continue
+    if (/\btitle=/.test(open) || /\baria-label=/.test(open)) continue
+    const line = text.slice(0, m.index ?? 0).split('\n').length
+    bareButtons.push(`${relative(root, f)}:${line}: icon-only button needs title or aria-label`)
+  }
+}
+assert.deepEqual(bareButtons, [], `UX-12b icon-only without tooltip:\n${bareButtons.join('\n')}`)
+
 console.log(`check-ux ok: ${files.length} files without native dialogs, ${Object.keys(zh).filter((x) => x.startsWith('menu.')).length} menu.* entries consistent`)

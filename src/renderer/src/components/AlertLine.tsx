@@ -1,7 +1,9 @@
 import type { FiredAlert } from '@shared/alert-rules'
 import { ageBucket } from '@shared/alert-workbench'
 import { useI18n, type MessageKey } from '../lib/i18n'
-import { openContextMenu } from './ContextMenu'
+import { showToast } from '../lib/toast'
+import { openContextMenu, type ContextMenuItem } from './ContextMenu'
+import Icon from './Icon'
 
 const AGE_KEY: Record<'just' | 'min' | 'hour' | 'day', MessageKey> = {
   just: 'l2.justNow',
@@ -25,7 +27,12 @@ export function AlertLine({
   onOpen,
   onLocate,
   onExplain,
-  onFixPlaybook
+  explainDisabled,
+  explainTitle,
+  onFixPlaybook,
+  onMarkDone,
+  onIgnore,
+  onBoard
 }: {
   alert: FiredAlert
   selected?: boolean
@@ -35,16 +42,37 @@ export function AlertLine({
   onOpen?: () => void
   onLocate?: () => void
   onExplain?: () => void
-  /** W1 entry #2: row overflow / context menu. Does not draft by itself. */
+  /** Sparkles stays visible but grey when AI is not configured. */
+  explainDisabled?: boolean
+  explainTitle?: string
+  /** W1b: row overflow / context menu. Does not draft by itself. */
   onFixPlaybook?: () => void
+  onMarkDone?: () => void
+  onIgnore?: () => void
+  onBoard?: () => void
 }) {
   const { t } = useI18n()
   const age = ageBucket(alert.at, now)
   const value = alert.ruleId === 'offline' ? t('l2.offline') : `${Math.round(alert.value)}%`
-  const openFixMenu = (e: { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }) => {
-    if (!onFixPlaybook) return
-    openContextMenu(e, [{ id: 'w1-row-fix', label: t('w1.create'), onSelect: onFixPlaybook }])
+  const canResolve = alert.status === 'active'
+  const openRowMenu = (e: { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }) => {
+    const items: ContextMenuItem[] = []
+    if (onFixPlaybook) items.push({ id: 'w1-row-fix', label: t('w1.create'), onSelect: onFixPlaybook })
+    if (onMarkDone) items.push({ id: 'w1-row-done', label: t('w1.rowMenu.markDone'), disabled: !canResolve, onSelect: onMarkDone })
+    if (onIgnore) items.push({ id: 'w1-row-ignore', label: t('w1.rowMenu.ignore'), disabled: !canResolve, onSelect: onIgnore })
+    items.push('sep')
+    if (onBoard) items.push({ id: 'w1-row-board', label: t('w1.rowMenu.board'), onSelect: onBoard })
+    items.push({
+      id: 'w1-row-copy',
+      label: t('w1.rowMenu.copy'),
+      onSelect: () => {
+        const text = `${alert.hostTitle} · ${alert.ruleId} · ${value}`
+        void navigator.clipboard.writeText(text).then(() => showToast(t('ctx.copied')))
+      }
+    })
+    openContextMenu(e, items)
   }
+  const showMenu = Boolean(onFixPlaybook || onMarkDone || onIgnore || onBoard)
   return (
     <div
       className={`alert-line${selected ? ' is-selected' : ''}${alert.status === 'active' ? ' is-active' : ''}${compact ? ' is-compact' : ''}`}
@@ -54,7 +82,7 @@ export function AlertLine({
       data-alert-id={alert.id}
       onClick={onSelect}
       onDoubleClick={onOpen}
-      onContextMenu={onFixPlaybook ? openFixMenu : undefined}
+      onContextMenu={showMenu ? openRowMenu : undefined}
     >
       <span className={`alert-dot alert-dot--${alertTone(alert.ruleId)}`} aria-hidden />
       <span className="alert-line-host" title={alert.hostTitle}>
@@ -70,15 +98,15 @@ export function AlertLine({
           <button
             type="button"
             className="alert-line-btn"
+            data-testid="w1-row-locate"
             title={t('o4.locate')}
+            aria-label={t('o4.locate')}
             onClick={(e) => {
               e.stopPropagation()
               onLocate()
             }}
           >
-            <span className="alert-line-ico" aria-hidden>
-              ⌖
-            </span>
+            <Icon name="crosshair" size={14} />
             <span className="alert-line-lbl">{t('o4.locate')}</span>
           </button>
         ) : null}
@@ -86,28 +114,29 @@ export function AlertLine({
           <button
             type="button"
             className="alert-line-btn"
-            title={t('a4.interpret')}
+            data-testid="w1-row-explain"
+            title={explainTitle || t('a4.interpret')}
+            aria-label={t('a4.interpret')}
+            disabled={explainDisabled}
             onClick={(e) => {
               e.stopPropagation()
-              onExplain()
+              if (!explainDisabled) onExplain()
             }}
           >
-            <span className="alert-line-ico" aria-hidden>
-              ✨
-            </span>
+            <Icon name="sparkles" size={14} />
             <span className="alert-line-lbl">{t('a4.interpret')}</span>
           </button>
         ) : null}
-        {onFixPlaybook ? (
+        {showMenu ? (
           <button
             type="button"
             className="alert-line-btn alert-line-more"
             data-testid="w1-row-more"
-            title={t('w1.create')}
-            aria-label={t('w1.create')}
+            title={t('toolbar.more')}
+            aria-label={t('toolbar.more')}
             onClick={(e) => {
               e.stopPropagation()
-              openFixMenu(e)
+              openRowMenu(e)
             }}
           >
             <span aria-hidden>⋯</span>

@@ -16,6 +16,7 @@ import {
   type TermBlock
 } from '@shared/terminal-blocks'
 import { tg } from '../lib/i18n'
+import Icon, { Twist } from './Icon'
 import { showToast } from '../lib/toast'
 
 export function blocksAreOn(): boolean {
@@ -129,9 +130,9 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
           }}
         >
           <div className="term-block-bar">
-            <button type="button" onClick={() => setBlocks((cur) => toggleBlock(cur, b.id))}>{b.collapsed ? '▸' : '▾'}</button>
+            <button type="button" title={tg(b.collapsed ? 'db.expand' : 'db.collapse')} aria-label={tg(b.collapsed ? 'db.expand' : 'db.collapse')} onClick={() => setBlocks((cur) => toggleBlock(cur, b.id))}><Twist open={!b.collapsed} size={12} /></button>
             <code>{b.command}</code>
-            <button type="button" title={tg('m2.explain')} onClick={() => explain(b)}>✨</button>
+            <button type="button" title={tg('m2.explain')} aria-label={tg('m2.explain')} onClick={() => explain(b)}><Icon name="sparkles" size={14} /></button>
             <button type="button" onClick={() => void navigator.clipboard.writeText(snippetFromBlock(b).body)}>{tg('m2.copy')}</button>
             <button type="button" onClick={() => saveSnippet(b)}>{tg('m2.saveSnippet')}</button>
           </div>

@@ -34,7 +34,12 @@ export const ICON_NAMES = [
   'list-tree',
   'file-check',
   'wand-sparkles',
-  'plus'
+  'plus',
+  'monitor',
+  'keyboard',
+  'crosshair',
+  'pin',
+  'square'
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]
@@ -74,7 +79,12 @@ export const ICON_PATHS: Record<IconName, string> = {
   'list-tree': 'M4 6h6M4 12h6M4 18h6M14 6h6M14 12h6M14 18h6M10 6v12',
   'file-check': 'M6 3h8l4 4v14H6V3zM14 3v4h4M9 15l2 2 4-4',
   'wand-sparkles': 'M4 20L14 10M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2zM18 14l.6 1.4L20 16l-1.4.6L18 18l-.6-1.4L16 16l1.4-.6L18 14z',
-  plus: 'M12 5v14M5 12h14'
+  plus: 'M12 5v14M5 12h14',
+  monitor: 'M3 5h18v11H3V5zM8 20h8M12 16v4',
+  keyboard: 'M4 7h16v10H4V7zM7 10h2M11 10h2M15 10h2M7 14h10',
+  crosshair: 'M12 3v4M12 17v4M3 12h4M17 12h4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  pin: 'M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10zM12 11.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  square: 'M7 7h10v10H7V7z'
 }
 
 export function iconForAction(id: string): IconName | null {

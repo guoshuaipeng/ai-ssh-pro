@@ -12,6 +12,7 @@ import { confirmAndRunAiCommand } from '../lib/ai-run'
 import { loadSmartPrefs, recordSmartCommand, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
 import type { CommandSnippet } from '@shared/ipc'
+import Icon, { Twist } from './Icon'
 
 type Props = {
   sessionId: string
@@ -253,15 +254,15 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
         aria-label={t('ux44.expand')}
         onClick={() => toggleOpen(true)}
       >
-        ✨
+        <Icon name="sparkles" size={16} />
       </button>
     )
   }
 
   return (
     <div className={`session-command-bar${inAi ? ' is-ai' : ''}`} data-testid="session-command-bar">
-      <button type="button" className="session-command-collapse" title={t('ux44.collapse')} onClick={() => toggleOpen(false)}>
-        ▾
+      <button type="button" className="session-command-collapse" title={t('ux44.collapse')} aria-label={t('ux44.collapse')} onClick={() => toggleOpen(false)}>
+        <Twist open size={12} />
       </button>
       <CommandInput
         submitOnEnter
@@ -290,7 +291,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
               setAiMode((v) => !v)
             }}
           >
-            {aiCard?.phase === 'loading' ? <span className="ai-spinner" aria-hidden /> : inAi ? '✨' : '>_'}
+            {aiCard?.phase === 'loading' ? <span className="ai-spinner" aria-hidden /> : inAi ? <Icon name="sparkles" size={14} /> : '>_'}
           </button>
         }
         interceptKey={(e) => {
@@ -389,7 +390,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
               ))}
             </span>
           ))}
-          {explain.risk ? <span className="cmd-explain-risk">⚠ {t(explain.risk)}</span> : null}
+          {explain.risk ? <span className="cmd-explain-risk"><Icon name="triangle-alert" size={14} /> {t(explain.risk)}</span> : null}
         </div>
       ) : null}
     </div>

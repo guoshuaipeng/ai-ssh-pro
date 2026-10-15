@@ -5,6 +5,7 @@ import { friendlyErrorMessage } from '../lib/friendly-error'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 type Props = {
   open: boolean
@@ -132,7 +133,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
           <EmptyState
             compact
             testId="pf-empty"
-            icon="🔀"
+            icon={<Icon name="arrow-left-right" size={32} />}
             title={t('ux08.fwdTitle')}
             desc={t('pf.none')}
             primary={{

@@ -1,14 +1,17 @@
 # Changelog
 
-## Unreleased
+## v0.4.3
 
-Soft-start toward v0.4.3. Package version stays `0.4.2`. Not tagged or released.
+Daily ops polish. Package version is `0.4.3`. Do not tag until QA signs off.
 
 - **运维首页后台采样（L7b）/ Ops home sampling.** 设置里的自动采样默认开启。范围是当前分组；没有分组时用最近连接和置顶，否则只采前 N 台（默认 8，上限 30）。不必先开终端标签。已连接的主机会复用会话。失败只灰那一张卡，不刷密码框。关掉之后又只给已连接的主机画指标。 / Auto sampling is on by default. Scope is the current group; with no group it uses recent and pinned hosts, otherwise only the first N (default 8, cap 30). A terminal tab is not required. A live session is reused. A failure grays that card and does not ask for a password. Turning it off restores metrics for connected hosts only.
 - **标签列表（UX-55b）/ Tab list.** 10 个以上标签时，⌄ 列表可以搜索。行上的 × 关闭该标签。有断开的终端时，页脚可以一次关掉它们并撤销。Ctrl+K「切换标签…」打开同一列表。标签条仍是 36px。 / At 10 tabs the ⌄ list can search. × closes that row. The footer closes disconnected terminals and can undo. Ctrl+K “Switch tab…” opens the same list. The strip stays 36px.
 - **首周浮层（UX-57）/ First-week chip.** 「接下来可以」改到右下角，不盖健康卡和告警列表。知道了只在本次会话里收起；不再显示会记住。Esc 和点外面同样收起。1024 宽时变成底部一条。 / “Next up” sits at the bottom-right and leaves the health cards and alert list usable. Got it hides it for this session; Don’t show again is remembered. Esc and an outside click do the same. At 1024px it becomes a bottom bar.
-
-Deferred for this branch: W1b, UX-12b, UX-50b, UX-39b, UX-19b.
+- **告警行剧本（W1b）/ Alert row playbook.** 列表行悬停是定位、解读、⋯。右键和 ⋯ 都有「生成修复剧本」。已有修复建议就打开草稿；没有就先解读，不自动建草稿，按钮高亮约 2 秒。未配置 AI 时提示去配置。 / A row hover shows locate, interpret, and ⋯. The context menu and ⋯ both include Create fix playbook. Cached fixes open a draft; otherwise the row interprets and does not draft, and the button highlights for about 2 seconds. Without AI it asks you to configure it.
+- **线性图标（UX-12b）/ Linear icons.** 工具栏、空状态、菜单勾选、行内图标不再用 emoji。`check-ux` 对界面文件做静态检查。 / Toolbar, empty states, menu checks, and row icons no longer use emoji. `check-ux` rejects them in the UI sources.
+- **会话恢复（UX-50b）/ Session restore.** 关掉全部标签会记下空工作区，下次「上次会话」不会把旧标签找回来。恢复中的监控是居中的「正在恢复连接…」；超过约 20 秒或失败则是「无法自动连接」和「点击连接」。重连返回的会话号会绑到同主机的监控。 / Closing every tab stores an empty workspace, so Last session does not bring the old tabs back. A restoring monitor is centered “Restoring connection…”; after about 20 seconds, or on failure, it says it could not reconnect and offers Click to connect. The session id returned by reconnect is what the monitor binds.
+- **演示主机名（UX-39b）/ Demo host name.** 侧栏、健康卡和终端标题跟着界面语言变。自己改过名字之后不再覆盖。没有标签时，标签条不再写「未打开会话」。 / The sidebar, health card, and terminal title follow the UI language. A rename sticks. With no tabs, the strip no longer says that no session is open.
+- **主机菜单（UX-19b）/ Host menu.** 「档案与备注」是短标签，完整说法在提示里。多选「在看板中监控」带上数量。菜单靠近窗口底部时向上翻，删除仍可见。 / Profile & notes stays short; the full phrase is a tooltip. Monitor on board shows the count. Near the bottom of the window the menu flips up so Delete stays visible.
 
 ## v0.4.2
 

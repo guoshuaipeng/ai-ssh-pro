@@ -13,7 +13,7 @@ export default function EmptyState({
   compact,
   children
 }: {
-  icon?: string
+  icon?: ReactNode
   title: string
   desc?: string
   primary?: Action

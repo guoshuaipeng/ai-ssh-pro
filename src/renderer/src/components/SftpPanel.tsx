@@ -30,6 +30,7 @@ import { registerSftpCloseGuard, takeFolderSync } from '../lib/sftp-activity'
 import { loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
+import Icon, { Twist } from './Icon'
 import FolderSyncModal from './FolderSyncModal'
 import { isLikelyTextFile } from './RemoteTextEditor'
 import { captureRemoteSnapshot } from '../lib/remote-snapshot'
@@ -838,7 +839,7 @@ export default function SftpPanel({
             <EmptyState
               compact
               testId={isLocal ? 'sftp-local-empty' : 'sftp-empty'}
-              icon={readOnly && !isLocal ? '🔒' : '📂'}
+              icon={readOnly && !isLocal ? <Icon name="lock" size={32} /> : <Icon name="folder-open" size={32} />}
               title={readOnly && !isLocal ? tg('ux34.emptyTitle') : tg('ux08.sftpTitle')}
               desc={readOnly && !isLocal ? tg('ux34.emptyDesc') : tg('ux08.sftpDesc')}
             />
@@ -938,7 +939,7 @@ export default function SftpPanel({
                           }
                         }}
                       >
-                        {e.isDirectory ? '📁 ' : '📄 '}
+                        {e.isDirectory ? <Icon name="folder" size={14} /> : <Icon name="file-text" size={14} />}{' '}
                         {e.name}
                       </button>
                     </td>
@@ -1088,7 +1089,7 @@ export default function SftpPanel({
       </div>
       <div className="sftp-transfers" data-testid="sftp-queue">
         <button type="button" className="sftp-transfers-title" onClick={() => setQueueOpen((v) => !v)}>
-          {queueOpen ? '▾' : '▸'} {tg('d1.queue')}
+          <Twist open={queueOpen} size={12} /> {tg('d1.queue')}
           {summary.active > 0 ? ` · ${tg('d1.summary', { n: summary.active, speed: formatSpeed(summary.speed) })}` : ''}
         </button>
         {queueOpen && tasks.length > 0 ? (

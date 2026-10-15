@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { SHARED_MENUS, menuLabel, visibleMenuItems, type MenuAction } from '@shared/menus'
 import { useI18n } from '../lib/i18n'
+import Icon from './Icon'
 
 export type TitlebarMenuAction = MenuAction
 
@@ -9,7 +10,7 @@ export const MENUS = SHARED_MENUS
 
 type Props = {
   onAction: (action: TitlebarMenuAction) => void
-  /** current on/off state of toggle items, shown as ☑ (UX-10) */
+  /** current on/off state of toggle items, shown with a check icon (UX-10) */
   toggles?: Partial<Record<MenuAction, boolean>>
   /** greyed items stay visible; the tooltip explains why they do not run */
   disabled?: Partial<Record<MenuAction, boolean>>
@@ -78,7 +79,7 @@ export default function TitlebarMenus({ onAction, toggles, disabled, hints }: Pr
                       }}
                     >
                       <span className="titlebar-menu-check" aria-hidden>
-                        {item.toggle && toggles?.[item.id] ? '✓' : ''}
+                        {item.toggle && toggles?.[item.id] ? <Icon name="check" size={14} /> : null}
                       </span>
                       <span className="titlebar-menu-label">{menuLabel(item.label, locale)}</span>
                       {item.shortcut ? <span className="titlebar-menu-shortcut">{item.shortcut}</span> : <span />}

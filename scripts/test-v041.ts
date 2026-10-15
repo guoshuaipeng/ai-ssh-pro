@@ -77,7 +77,7 @@ const overflowBtn = app.slice(app.indexOf('data-testid="tab-overflow"'), app.ind
 assert.ok(overflowBtn.includes('⌄') && !overflowBtn.includes('⋯'))
 const overflowMenu = app.slice(app.indexOf('data-testid="tab-overflow-menu"'), app.indexOf('data-testid="broadcast-bar"'))
 assert.ok(overflowMenu.includes('labelFor(t)') && overflowMenu.includes('aria-current'))
-assert.ok(overflowMenu.includes('✓') && !overflowMenu.includes('{t.title}'))
+assert.ok(overflowMenu.includes('name="check"') && !overflowMenu.includes('✓') && !overflowMenu.includes('{t.title}'))
 assert.ok(app.includes('className="tab-title">{labelFor(t)}'))
 const trStub = (key: string, vars?: Record<string, string | number>) => {
   const map: Record<string, string> = {

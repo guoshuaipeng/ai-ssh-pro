@@ -8,6 +8,7 @@ import { useI18n } from '../lib/i18n'
 import { useHealthSampling, type SampleHost } from '../lib/health-sampling'
 import { AlertLine } from './AlertLine'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 import HealthProbeFields from './HealthProbeFields'
 import ScopePicker from './ScopePicker'
 
@@ -266,7 +267,7 @@ export default function OpsHomeTab({
         <div className="workspace-panel-body">
           <EmptyState
             testId="l7-empty"
-            icon="▣"
+            icon={<Icon name="monitor" size={32} />}
             title={t('l7.emptyTitle')}
             desc={t('l7.emptyDesc')}
             primary={{ label: t('l7.newConnection'), onClick: onNewConnection, testId: 'l7-new-connection' }}
@@ -526,7 +527,7 @@ export default function OpsHomeTab({
             <EmptyState
               compact
               testId="l7-inbox-empty"
-              icon="✓"
+              icon={<Icon name="check" size={32} />}
               title={t('l7.noAlerts')}
               primary={{ label: t('l2.viewHistory'), onClick: () => onOpenWorkbench() }}
               secondary={[{ label: t('menu.alertRules'), onClick: onRules }]}

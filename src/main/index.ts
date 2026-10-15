@@ -43,6 +43,7 @@ import * as localFs from './local-fs'
 import { loadSftpQueue, saveSftpQueue } from './sftp-queue-store'
 import * as dockerManager from './docker-manager'
 import { exportSessionsToJson, exportSessionsToOpenSsh } from './session-export'
+import { labelForSessionExport } from '../shared/demo-host'
 import { startRecording, stopRecording, stopAllRecordings } from './session-recorder'
 import { LocalShellManager, isLocalShellAvailable } from './local-shell'
 import { demoHostManager } from './demo-host'
@@ -901,7 +902,12 @@ function registerIpc(): void {
   })
   ipcMain.handle('sessions:export', (_e, format: SessionExportFormat) => {
     const state = getSavedSessionsState()
-    return format === 'openssh' ? exportSessionsToOpenSsh(state) : exportSessionsToJson(state)
+    const locale = getMainLocale()
+    const named = {
+      ...state,
+      profiles: state.profiles.map((p) => ({ ...p, label: labelForSessionExport(p, locale) }))
+    }
+    return format === 'openssh' ? exportSessionsToOpenSsh(named) : exportSessionsToJson(named)
   })
 
   ipcMain.handle('snippets:list', () => getSnippets())
