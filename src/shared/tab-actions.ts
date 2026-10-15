@@ -18,7 +18,7 @@ export function isHome(tab: TabRef): boolean {
   return tab.view === 'home'
 }
 
-/** Keep the current tab, every pinned tab, and the ops home tab. */
+/** IX-6 / UX-59: keep the current tab, every pinned tab, and the ops home tab. */
 export function closeOthers<T extends TabRef>(tabs: T[], currentId: string): string[] {
   const ordered = arrangeTabs(tabs)
   const keep = new Set<string>()

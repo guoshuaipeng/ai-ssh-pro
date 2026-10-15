@@ -4248,6 +4248,47 @@ button.danger {
 .split-divider:hover {
   background: var(--accent);
 }
+/* IX-6: each split side has a tab strip. The focused side paints a 2px accent on top. */
+.split-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.split-pane-tab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-top: 2px solid transparent;
+  background: var(--bg-panel);
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 0;
+}
+.split-pane.is-focused .split-pane-tab {
+  border-top: 2px solid var(--color-accent);
+  color: var(--text);
+}
+.split-pane-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.split-pane-body {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.split-pane-body > .terminal-pane-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
 body.split-resizing {
   user-select: none;
 }
