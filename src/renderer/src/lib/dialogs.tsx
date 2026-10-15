@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { assertConfirmAllowed, isBannedConfirmLabel, undoDurationMs, type ConfirmId } from '@shared/confirm-whitelist'
 import Modal from '../components/Modal'
+import { confirmInitialFocus, noteOverlayClose, noteOverlayOpen, shouldCaptureOnEnqueue, shouldRestoreOnQueueLength } from './focus-restore'
 import { tg } from './i18n'
 import { showToast, type ToastAction } from './toast'
 
@@ -10,6 +11,9 @@ import { showToast, type ToastAction } from './toast'
  *   promptDialog({ title, label, defaultValue, validate }) → Promise<string | null>
  *   toast({ text, action, kind })
  * Modal 420px, primary button on the right; Esc cancels, Enter confirms; danger dialogs focus Cancel first.
+ * IX-3: the first enqueue remembers document.activeElement. Esc, cancel, and confirm
+ * restore it when the queue is empty. A terminal is restored via the session API
+ * (term.focus()), not the stale xterm textarea. Nested dialogs restore once, at the end.
  * Mount <DialogHost /> once (App does).
  */
 export type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean; detail?: string }
@@ -147,13 +151,28 @@ export function DialogHost() {
   const inputRef = useRef<HTMLInputElement>(null)
   const okRef = useRef<HTMLButtonElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const lenRef = useRef(0)
+  const heldRef = useRef(false)
   const current = queue[0]
 
   useEffect(() => {
-    const fn = (r: Request) => setQueue((q) => [...q, r])
+    const fn = (r: Request) => {
+      const prev = lenRef.current
+      if (shouldCaptureOnEnqueue(prev)) {
+        noteOverlayOpen()
+        heldRef.current = true
+      }
+      lenRef.current = prev + 1
+      setQueue((q) => [...q, r])
+    }
     listeners.add(fn)
     return () => {
       listeners.delete(fn)
+      if (heldRef.current) {
+        heldRef.current = false
+        lenRef.current = 0
+        noteOverlayClose()
+      }
     }
   }, [])
 
@@ -162,14 +181,24 @@ export function DialogHost() {
   }, [queue.length])
 
   useEffect(() => {
+    if (queue.length > 0) return
+    if (!heldRef.current) return
+    if (!shouldRestoreOnQueueLength(lenRef.current)) return
+    heldRef.current = false
+    noteOverlayClose()
+  }, [queue.length])
+
+  useEffect(() => {
     if (!current) return
     setInvalid(null)
     if (current.kind === 'text') {
       setValue(current.defaultValue ?? '')
-      setTimeout(() => inputRef.current?.select(), 0)
-    } else {
-      setTimeout(() => (current.danger ? cancelRef.current : okRef.current)?.focus(), 0)
+      const id = window.setTimeout(() => inputRef.current?.select(), 0)
+      return () => window.clearTimeout(id)
     }
+    const focusCancel = confirmInitialFocus(Boolean(current.danger)) === 'cancel'
+    const id = window.setTimeout(() => (focusCancel ? cancelRef.current : okRef.current)?.focus(), 0)
+    return () => window.clearTimeout(id)
   }, [current])
 
   if (!current) return null
@@ -184,6 +213,7 @@ export function DialogHost() {
       }
       current.resolve(ok ? value : null)
     } else current.resolve(ok)
+    lenRef.current = Math.max(0, lenRef.current - 1)
     setQueue((q) => q.slice(1))
   }
   const danger = current.kind === 'confirm' && current.danger
