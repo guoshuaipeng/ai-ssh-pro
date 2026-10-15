@@ -42,6 +42,9 @@
  * S31: the same hold stays stable when a later turn in that host session forces
  * observational memory to compress again. The scarce marker stays in the
  * bullet and the end. Filler the cite window already dropped is not cited again.
+ * S32: after that hold is stable, a later turn drafts a confirm-style patch.
+ * The draft still cites the held marker. Dropped filler is not cited again.
+ * Confirm-before-run stays on. Another host does not inherit the marker.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -70,13 +73,15 @@ import {
   retryWritePermitted
 } from '../src/main/core-a-command-failure.ts'
 import {
+  citeHeldPatchDraft,
   citeObservationLine,
   explainCiteableOutput,
   OUTPUT_VIEW_CAP,
   outputViewCap,
   rollback,
   tipSuggest,
-  truncateCiteableOutput
+  truncateCiteableOutput,
+  type CiteWindow
 } from '../src/main/core-a-output-truncate.ts'
 import {
   cancelHitl,
@@ -1492,8 +1497,8 @@ function assertCiteHold(
  * The cap cannot be raised from the env.
  */
 function assertCiteableTruncateModes(): void {
-  assert.equal(tipSuggest, '0.4.8-s31')
-  assert.equal(rollback, '0.4.8-s30')
+  assert.equal(tipSuggest, '0.4.8-s32')
+  assert.equal(rollback, '0.4.8-s31')
   assert.equal(OUTPUT_VIEW_CAP, 6000)
   const short = truncateCiteableOutput('short ring')
   assert.equal(short.truncated, false)
@@ -1512,8 +1517,8 @@ function assertCiteableTruncateModes(): void {
   const view = truncateCiteableOutput(raw)
   assert.equal(view.truncated, true)
   assert.equal(view.cap, OUTPUT_VIEW_CAP)
-  assert.equal(view.tipSuggest, '0.4.8-s31')
-  assert.equal(view.rollback, '0.4.8-s30')
+  assert.equal(view.tipSuggest, '0.4.8-s32')
+  assert.equal(view.rollback, '0.4.8-s31')
   assert.ok(view.originalChars > view.cap)
   assert.ok(view.shownChars <= view.cap)
   assert.ok(view.shownChars < view.originalChars)
@@ -1603,6 +1608,46 @@ function assertCiteableTruncateModes(): void {
       recompressed.ctx.episodes.every((episode) => !episode.text.includes('s29-dropped-filler-token')),
       're-compression episode cited dropped filler'
     )
+    const held = recompressed.ctx.citeHold
+    const draft = citeHeldPatchDraft(
+      '这是补丁草案，同意前不会写入。我还看到 s29-dropped-filler-token，还有 S29_ABSENT_LINE。',
+      held
+    )
+    assert.match(draft, /S29_RARE_MARKER/)
+    assert.match(draft, /补丁草案/)
+    assert.equal(draft.includes('s29-dropped-filler-token'), false)
+    assert.equal(draft.includes('S29_ABSENT_LINE'), false)
+    assert.equal(citeHeldPatchDraft(draft, held), draft)
+    assert.equal(citeHeldPatchDraft('噪声结束。', held), '噪声结束。')
+    const patchTree = createMockTree({
+      'tests/fixtures/core-a/mock-s29-unit.ts': 'export function answer() {\n  return 1\n}\n'
+    })
+    const patchNpm = [
+      'not ok 1 - cite hold patch',
+      '  ---',
+      "  error: 'Expected values to be strictly equal: s29-dropped-filler-token S29_ABSENT_LINE'",
+      "  expected: 'return 3'",
+      "  actual: 'return 1'",
+      "  file: 'tests/fixtures/core-a/mock-s29-unit.ts'",
+      '  ...',
+      '# fail 1'
+    ].join('\n')
+    const reviewed = reviewNpmTestFailure(patchNpm, patchTree, held)
+    assert.ok(reviewed, 'patch draft under cite hold')
+    assert.equal(patchTree.writeCount(), 0)
+    assert.match(reviewed?.draft.explanation ?? '', /S29_RARE_MARKER/)
+    assert.equal((reviewed?.draft.explanation ?? '').includes('s29-dropped-filler-token'), false)
+    assert.equal((reviewed?.draft.explanation ?? '').includes('S29_ABSENT_LINE'), false)
+    const patchCard = patchDraftConfirmCard(reviewed!)
+    assert.equal(patchCard.autoApproved, false)
+    assert.ok(patchCard.requestId)
+    assert.equal(patchCard.riskLevel, 'high')
+    assert.match(patchCard.description, /S29_RARE_MARKER/)
+    assert.equal(sideEffectExecutionPermitted(reviewed!.hitl), false)
+    assert.equal(patchWritePermitted(reviewed!.hitl), false)
+    const patchDenied = decidePatch(reviewed!, false, patchTree)
+    assert.equal(patchDenied.applied, false)
+    assert.equal(patchTree.writeCount(), 0)
   } finally {
     if (previousOm == null) delete process.env.AISS_OM_BULLET_CAP
     else process.env.AISS_OM_BULLET_CAP = previousOm
@@ -1776,7 +1821,7 @@ function readMaterialized(disk: { root: string; files: Record<string, string> })
  * stack wall. The factory does not auto-apply. Deny leaves no patch on disk.
  * A half-written hunk is not success.
  */
-function assertTfl(fixture: Fixture): void {
+function assertTfl(fixture: Fixture, hold?: CiteWindow | null): void {
   const spec = fixture.tfl
   assert.ok(spec, `${fixture.id}: missing tfl spec`)
   const label = fixture.id
@@ -1790,7 +1835,7 @@ function assertTfl(fixture: Fixture): void {
     }
   }
   const reviewedOn = createMockTree(spec.mockTree)
-  const review = reviewNpmTestFailure(spec.npmOutput, reviewedOn)
+  const review = reviewNpmTestFailure(spec.npmOutput, reviewedOn, hold)
   assert.ok(review, `${label}: npm test failure was not recognized`)
   assert.equal(reviewedOn.writeCount(), 0, `${label}: explaining the failure wrote the mock`)
   assert.equal(review.hitl.phase, 'interrupted', `${label}: draft did not interrupt`)
@@ -1890,6 +1935,34 @@ function assertTfl(fixture: Fixture): void {
   assert.deepEqual(snapshotCoreADocs(repo), docsBefore, `${label}: deny rewrote a fixture file`)
 }
 
+/**
+ * Host B has no held markers. A patch draft there must not cite host A's
+ * scarce marker, and it must not open an SSH write.
+ */
+function assertPatchDraftStaysOnHost(fixture: Fixture, historyKey: string): void {
+  const spec = fixture.tfl
+  assert.ok(spec, `${fixture.id}: host isolation without a patch draft`)
+  const foreign = loadPersistedCoreSession(historyKey)?.citeHold
+  assert.ok(!foreign || foreign.outsideHeadTail.length === 0, `${fixture.id}: host B inherited cite markers`)
+  assert.ok(!foreign || foreign.droppedFiller.length === 0, `${fixture.id}: host B inherited dropped filler`)
+  const home = loadPersistedCoreSession(fixture.session.historyKey)?.citeHold
+  const tree = createMockTree(spec.mockTree)
+  const review = reviewNpmTestFailure(spec.npmOutput, tree, foreign)
+  assert.ok(review, `${fixture.id}: host B patch draft was not recognized`)
+  assert.equal(tree.writeCount(), 0, `${fixture.id}: host B patch draft wrote`)
+  assert.equal(sideEffectExecutionPermitted(review.hitl), false, `${fixture.id}: host B patch opened SSH`)
+  assert.equal(patchWritePermitted(review.hitl), false, `${fixture.id}: host B interrupted draft is writable`)
+  for (const marker of home?.outsideHeadTail ?? []) {
+    assert.equal(review.draft.explanation.includes(marker), false, `${fixture.id}: host B patch cited ${marker}`)
+  }
+  const card = patchDraftConfirmCard(review)
+  assert.equal(card.autoApproved, false, `${fixture.id}: host B patch card was auto-approved`)
+  assert.ok(card.requestId, `${fixture.id}: host B patch card has no confirm id`)
+  const declined = decidePatch(review, false, tree)
+  assert.equal(declined.applied, false, `${fixture.id}: host B deny applied the draft`)
+  assert.equal(tree.writeCount(), 0, `${fixture.id}: host B deny wrote`)
+}
+
 describe('Core-A eval fixtures', { concurrency: 1 }, () => {
   before(async () => {
     agent = await import('../src/main/ai-interactive-agent.ts')
@@ -1901,7 +1974,7 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
   for (const fixture of fixtures) {
     it(`${fixture.id} ${fixture.title}`, async () => {
       assert.equal(fixture.settings?.autoApproveLowRisk, false, `${fixture.id} autoApproveLowRisk`)
-      if (fixture.tfl) {
+      if (fixture.tfl && !(fixture.turns && fixture.turns.length > 0)) {
         assertTfl(fixture)
         return
       }
@@ -1920,6 +1993,16 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
       }
       seedInventory(fixture)
       await runTurns(fixture, turns)
+      if (fixture.tfl) {
+        const hold = loadPersistedCoreSession(fixture.session.historyKey)?.citeHold
+        assert.equal(hold?.stable, true, `${fixture.id}: citeHold not stable before the patch draft`)
+        assert.ok((hold?.outsideHeadTail.length ?? 0) > 0, `${fixture.id}: citeHold has no marker before the patch draft`)
+        assertTfl(fixture, hold)
+        const after = loadPersistedCoreSession(fixture.session.historyKey)?.citeHold
+        assert.equal(after?.stable, true, `${fixture.id}: patch draft destabilized citeHold`)
+        assert.deepEqual(after?.outsideHeadTail, hold?.outsideHeadTail, `${fixture.id}: patch draft dropped a held marker`)
+        assert.deepEqual(after?.droppedFiller, hold?.droppedFiller, `${fixture.id}: patch draft dropped a filler hold`)
+      }
       if (fixture.hostScopeReturn) {
         const back = fixture.hostScopeReturn
         const prelude = fixture.isolationPrelude
@@ -1948,6 +2031,9 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
           const negFixture = branchFixture(fixture, neg, 'deny')
           seedInventory(negFixture)
           await runTurns(negFixture, [turn])
+          if (fixture.tfl && neg.session?.historyKey) {
+            assertPatchDraftStaysOnHost(fixture, neg.session.historyKey)
+          }
         } else {
           try {
             const result = await drive({

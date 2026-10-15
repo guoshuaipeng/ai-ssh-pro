@@ -20,6 +20,7 @@ import {
   sideEffectExecutionPermitted,
   type HitlLoopState
 } from './core-a-context'
+import { citeHeldPatchDraft, type CiteWindow } from './core-a-output-truncate'
 
 export type GateFailure = {
   gate: string
@@ -229,10 +230,12 @@ function unified(hunk: PatchHunk): string {
 /**
  * Explain a gate and interrupt with a patch draft. Reads the mock tree and
  * does not write it. `autoApproveLowRisk` cannot skip the interrupt.
+ * When the thread already holds a cite window, the draft cites those scarce
+ * markers and does not cite filler that window dropped.
  */
-export function reviewGateFailure(failure: GateFailure, tree: MockTree): TflReview {
+export function reviewGateFailure(failure: GateFailure, tree: MockTree, hold?: CiteWindow | null): TflReview {
   const files = tree.snapshot()
-  const explanation = explainGateFailure(failure)
+  const explanation = citeHeldPatchDraft(explainGateFailure(failure), hold)
   const hunks = proposeHunks(failure, files)
   const summary = hunks.length
     ? `草案：${hunks.map((hunk) => hunk.path).join(', ')}（同意前不写入） / Draft: ${hunks.map((hunk) => hunk.path).join(', ')} (not written until agree)`
@@ -254,10 +257,10 @@ export function reviewGateFailure(failure: GateFailure, tree: MockTree): TflRevi
   return { failure, draft, hitl }
 }
 
-export function reviewNpmTestFailure(output: string, tree: MockTree): TflReview | null {
+export function reviewNpmTestFailure(output: string, tree: MockTree, hold?: CiteWindow | null): TflReview | null {
   const failure = parseNpmTestFailure(output)
   if (!failure) return null
-  return reviewGateFailure(failure, tree)
+  return reviewGateFailure(failure, tree, hold)
 }
 
 /** Shape a proposal the way a UX-64 confirm card already shows a command. */

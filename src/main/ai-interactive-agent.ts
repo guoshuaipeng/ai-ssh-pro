@@ -60,6 +60,7 @@ import {
   type RetryBudgetSignal
 } from './core-a-command-failure'
 import {
+  citeHeldPatchDraft,
   emptyCiteWindow,
   emptyOutputView,
   explainCiteableOutput,
@@ -1190,6 +1191,9 @@ export async function runOpenClawCoreAgentChat(
         if (cited.truncated || thread.citeHold) {
           parsed = { ...parsed, description: explainCiteableOutput(parsed.description, cited, thread.citeHold) }
         }
+      }
+      if (parsed.action === 'end' && thread.citeHold) {
+        parsed = { ...parsed, description: citeHeldPatchDraft(parsed.description, thread.citeHold) }
       }
 
       send(wc, {
