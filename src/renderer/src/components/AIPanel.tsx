@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { parseAiAssistantReply } from '@shared/ipc'
+import { highlightKeyNumbers } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import AiConfigCard from './AiConfigCard'
@@ -24,8 +25,11 @@ type AssistantLine = {
   structured?: AiAssistantReply
   /** 新交互协议下：需要用户确认后才能继续的 requestId */
   requestId?: string
-  /** 低风险命令已由主进程自动执行 */
-  autoApproved?: boolean
+  /** 本卡确认结果。命令不会因 low 风险自动执行。 */
+  decision?: 'agreed' | 'skipped'
+  /** 非结构化回复：仍用卡片壳，并提示未能识别步骤 */
+  parseMiss?: boolean
+  variant?: 'error'
 }
 
 type Line = UserLine | AssistantLine
@@ -35,6 +39,30 @@ function riskClass(level: string): string {
   if (n === 'low') return 'ai-risk-low'
   if (n === 'high') return 'ai-risk-high'
   return 'ai-risk-medium'
+}
+
+function HighlightedText({ text }: { text: string }): ReactNode {
+  const parts = highlightKeyNumbers(text)
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.kind === 'mark' ? (
+          <mark key={i} className="ai-hl-num">
+            {p.text}
+          </mark>
+        ) : p.kind === 'strong' ? (
+          <strong key={i}>{p.text}</strong>
+        ) : (
+          p.text
+        )
+      )}
+    </>
+  )
+}
+
+function RiskBadge({ level }: { level: string }) {
+  const n = (level || 'medium').toLowerCase()
+  return <div className={`ai-risk-badge ${riskClass(n)}`}>{tg('ux64.risk', { level: n })}</div>
 }
 
 function resolveHistoryKey(historyKey: string | null | undefined, activeSessionId: string | null): string | null {
@@ -218,8 +246,7 @@ export default function AIPanel({
             content: s.description,
             streaming: false,
             structured: s,
-            requestId: ev.requestId,
-            autoApproved: ev.autoApproved === true
+            requestId: ev.requestId
           }
           if (last?.role === 'assistant' && last.streaming && !last.structured) {
             next[next.length - 1] = row
@@ -263,10 +290,15 @@ export default function AIPanel({
         setLines((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
+          const row: AssistantLine = {
+            role: 'assistant',
+            content: tg('ai.errorMsg', { message: String(ev.message ?? '') }),
+            variant: 'error'
+          }
           if (last?.role === 'assistant' && last.streaming) {
-            next[next.length - 1] = { role: 'assistant', content: tg('ai.errorMsg', { message: String(ev.message ?? '') }) }
+            next[next.length - 1] = row
           } else {
-            next.push({ role: 'assistant', content: tg('ai.errorMsg', { message: String(ev.message ?? '') }) })
+            next.push(row)
           }
           return next
         })
@@ -301,15 +333,16 @@ export default function AIPanel({
             } else {
               next[next.length - 1] = {
                 role: 'assistant',
-                content: raw || tg('ai.badJson')
+                content: raw || tg('ai.badJson'),
+                parseMiss: true
               }
             }
           } else if (last?.role === 'user') {
             if (raw) {
               if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed })
-              else next.push({ role: 'assistant', content: raw })
+              else next.push({ role: 'assistant', content: raw, parseMiss: true })
             } else {
-              next.push({ role: 'assistant', content: tg('ai.noReply') })
+              next.push({ role: 'assistant', content: tg('ai.noReply'), parseMiss: true })
             }
           }
           return next
@@ -319,7 +352,7 @@ export default function AIPanel({
       unsub()
       setBusy(false)
       setPendingConfirm(null)
-      // Persist user + assistant text after the turn completes (incl. auto-approved steps)
+      // Persist user + assistant text after the turn completes
       queueMicrotask(() => {
         persistHistory(linesRef.current)
       })
@@ -378,8 +411,33 @@ export default function AIPanel({
   const confirmStep = useCallback(async (requestId: string, ok: boolean) => {
     if (!requestId) return
     setPendingConfirm(null)
+    setLines((prev) =>
+      prev.map((row) =>
+        row.role === 'assistant' && row.requestId === requestId
+          ? { ...row, decision: ok ? 'agreed' : 'skipped' }
+          : row
+      )
+    )
     await window.aiss.ai.confirmStep(requestId, ok)
   }, [])
+
+  const markDecision = useCallback((index: number, decision: 'agreed' | 'skipped') => {
+    setLines((prev) =>
+      prev.map((row, idx) => (idx === index && row.role === 'assistant' ? { ...row, decision } : row))
+    )
+  }, [])
+
+  const retryLastUser = useCallback(() => {
+    if (busy) return
+    const prev = linesRef.current
+    for (let i = prev.length - 1; i >= 0; i--) {
+      const row = prev[i]
+      if (row?.role === 'user' && row.content.trim()) {
+        void submitToAi(row.content)
+        return
+      }
+    }
+  }, [busy, submitToAi])
 
   const stopGeneration = useCallback(() => {
     void window.aiss.ai.abortChat()
@@ -484,8 +542,8 @@ export default function AIPanel({
 
 <div className="ai-messages">
         {lines.length === 0 && (
-          <div className="msg assistant" style={{ opacity: 0.85 }}>
-            {tg('ai.intro')}
+          <div className="msg assistant ai-structured ai-card-plain" data-testid="ai-reply-card" data-card="plain" style={{ opacity: 0.85 }}>
+            {tg('ux64.emptyHint')}
           </div>
         )}
         {lines.map((l, i) => {
@@ -498,76 +556,159 @@ export default function AIPanel({
           }
           if (l.streaming) {
             return (
-              <div key={i} className="msg assistant">
-                {tg('ai.generating')}
+              <div key={i} className="msg assistant ai-structured ai-card-streaming" data-testid="ai-reply-card" data-card="streaming">
+                {tg('ux64.streaming')}
+              </div>
+            )
+          }
+          if (l.variant === 'error') {
+            return (
+              <div key={i} className="msg assistant ai-structured ai-card-error" data-testid="ai-reply-card" data-card="error">
+                <div className="ai-reply-desc">{l.content}</div>
+                <div className="ai-reply-actions">
+                  <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={busy} onClick={retryLastUser}>
+                    {tg('ux64.retry')}
+                  </button>
+                  <button type="button" className="ai-fill-cmd-btn ai-btn-decline" disabled={busy} title={tg('ux64.clear')} onClick={clearConversation}>
+                    <span className="ai-btn-text">{tg('ux64.clear')}</span>
+                  </button>
+                </div>
               </div>
             )
           }
           if (l.structured) {
             const s = l.structured
             const isConfirmable = Boolean(l.requestId && pendingConfirm?.requestId === l.requestId)
+            const isSnapshot = !s.toolName || s.toolName === 'get_terminal_snapshot'
+            if (s.action === 'tool_call' && !l.requestId) {
+              return (
+                <div key={i} className="msg assistant ai-structured ai-tool-strip" data-testid="ai-reply-card" data-card="tool">
+                  {isSnapshot ? (
+                    <span>
+                      {tg('ux64.toolAutoSnapshot')}
+                      {s.toolName ? (
+                        <>
+                          : <code>{s.toolName}</code>
+                        </>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <>
+                      <span>
+                        <HighlightedText text={s.description} />
+                      </span>
+                      <code>{s.toolName}</code>
+                    </>
+                  )}
+                </div>
+              )
+            }
+            const card =
+              s.action === 'command' ? 'command' : s.action === 'tool_call' ? 'tool' : 'conclusion'
+            const showRisk = s.action === 'end' || s.action === 'command' || Boolean(l.requestId)
             return (
-              <div key={i} className="msg assistant ai-structured">
-                <div className="ai-reply-desc">{s.description}</div>
-                <div className={`ai-risk-badge ${riskClass(s.riskLevel)}`}>{tg('ai.risk', { level: String(s.riskLevel) })}</div>
-                {s.notes && <div className="ai-reply-notes">{s.notes}</div>}
+              <div key={i} className="msg assistant ai-structured" data-testid="ai-reply-card" data-card={card}>
+                <div className="ai-reply-desc">
+                  <HighlightedText text={s.description} />
+                </div>
+                {showRisk ? <RiskBadge level={s.riskLevel} /> : null}
+                {s.notes ? (
+                  <div className="ai-reply-notes">
+                    <HighlightedText text={s.notes} />
+                  </div>
+                ) : null}
                 {s.action === 'tool_call' && l.requestId ? (
                   <div className="ai-reply-cmd">
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                      {tg('ai.needTool')}<code>{s.toolName ?? '(unknown)'}</code>
-                      {s.toolInput?.maxLines ? <span style={{ marginLeft: 8 }}>{tg('ui.0')}{s.toolInput.maxLines}</span> : null}
+                    <div className="ai-tool-need">
+                      {tg('ux64.toolNeed')}
+                      <code>{s.toolName ?? '—'}</code>
+                      {s.toolInput?.maxLines ? (
+                        <span style={{ marginLeft: 8 }}>
+                          {tg('ui.0')}
+                          {s.toolInput.maxLines}
+                        </span>
+                      ) : null}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
-                        {tg('ai.approveContinue')}
-                      </button>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
-                        {tg('ai.deny')}
-                      </button>
-                    </div>
+                    {l.decision === 'agreed' ? (
+                      <div className="ai-decision">{tg('ux64.executed')}</div>
+                    ) : l.decision === 'skipped' ? (
+                      <div className="ai-decision">{tg('ux64.skipped')}</div>
+                    ) : (
+                      <div className="ai-reply-actions">
+                        <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
+                          {tg('ux64.agreeContinue')}
+                        </button>
+                        <button type="button" className="ai-fill-cmd-btn ai-btn-decline" disabled={!isConfirmable} title={tg('ux64.disagree')} onClick={() => confirmStep(l.requestId!, false)}>
+                          <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : null}
-                {s.action === 'tool_call' && !l.requestId ? (
-                  <div className="ai-reply-cmd" style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {tg('ai.autoSnapshot')}
-                    {s.toolName ? (
-                      <>
-                        {tg('ui.1')}<code>{s.toolName}</code>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-                {s.action === 'command' && s.command?.trim() && l.requestId ? (
+                {s.action === 'command' && s.command?.trim() ? (
                   <div className="ai-reply-cmd">
                     <code className="ai-reply-cmd-code">{s.command}</code>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
-                        {tg('ai.approveRun')}
-                      </button>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
-                        {tg('ai.deny')}
-                      </button>
-                    </div>
+                    {l.decision === 'agreed' ? (
+                      <div className="ai-decision">{tg('ux64.executed')}</div>
+                    ) : l.decision === 'skipped' ? (
+                      <div className="ai-decision">{tg('ux64.skipped')}</div>
+                    ) : l.requestId ? (
+                      <div className="ai-reply-actions">
+                        <span className="ai-btn-wrap" title={!activeSessionId ? tg('ux64.noSession') : undefined}>
+                          <button
+                            type="button"
+                            className="ai-fill-cmd-btn ai-btn-agree"
+                            disabled={!isConfirmable || !activeSessionId}
+                            onClick={() => confirmStep(l.requestId!, true)}
+                          >
+                            {tg('ux64.agreeRun')}
+                          </button>
+                        </span>
+                        <button
+                          type="button"
+                          className="ai-fill-cmd-btn ai-btn-decline"
+                          disabled={!isConfirmable}
+                          title={tg('ux64.disagree')}
+                          onClick={() => confirmStep(l.requestId!, false)}
+                        >
+                          <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="ai-reply-actions">
+                        <span className="ai-btn-wrap" title={!activeSessionId ? tg('ux64.noSession') : tg('ai.runTip')}>
+                          <button
+                            type="button"
+                            className="ai-fill-cmd-btn ai-btn-agree"
+                            disabled={!activeSessionId}
+                            onClick={() => {
+                              runSuggestedCommand(s.command!)
+                              markDecision(i, 'agreed')
+                            }}
+                          >
+                            {tg('ux64.agreeRun')}
+                          </button>
+                        </span>
+                        <button
+                          type="button"
+                          className="ai-fill-cmd-btn ai-btn-decline"
+                          title={tg('ux64.disagree')}
+                          onClick={() => markDecision(i, 'skipped')}
+                        >
+                          <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : null}
-                {s.action === 'command' && s.command?.trim() && l.autoApproved ? (
-                  <div className="ai-reply-cmd">
-                    <code className="ai-reply-cmd-code">{s.command}</code>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>{tg('ai.autoRan')}</div>
-                  </div>
-                ) : null}
-                {/* Legacy fallback：无 requestId 且非自动批准时，允许用户手动执行建议命令 */}
-                {!l.requestId && !l.autoApproved && s.command?.trim() ? (
-                  <div className="ai-reply-cmd">
-                    <code className="ai-reply-cmd-code">{s.command}</code>
+                {s.action === 'end' ? (
+                  <div className="ai-reply-actions">
                     <button
                       type="button"
-                      className="ai-fill-cmd-btn"
-                      disabled={!activeSessionId}
-                      title={activeSessionId ? tg('ai.runTip') : tg('ai.needTab')}
-                      onClick={() => runSuggestedCommand(s.command!)}
+                      className="ai-fill-cmd-btn ai-btn-decline"
+                      onClick={() => void navigator.clipboard.writeText([s.description, s.notes].filter(Boolean).join('\n'))}
                     >
-                      {tg('ai.run')}
+                      <span className="ai-btn-text">{tg('ux64.copy')}</span>
                     </button>
                   </div>
                 ) : null}
@@ -575,8 +716,11 @@ export default function AIPanel({
             )
           }
           return (
-            <div key={i} className="msg assistant">
-              {l.content}
+            <div key={i} className="msg assistant ai-structured ai-card-plain" data-testid="ai-reply-card" data-card="plain">
+              <div className="ai-reply-desc">
+                <HighlightedText text={l.content} />
+              </div>
+              {l.parseMiss ? <div className="ai-parse-fallback">{tg('ux64.parseFallback')}</div> : null}
             </div>
           )
         })}

@@ -1883,6 +1883,21 @@ const zhCN = {
   'host.menu.inventory': '档案与备注',
   'host.menu.inventoryTip': '在主机档案中打开',
   'host.menu.boardN': '在看板中监控 ({n})',
+  'ux64.risk': '风险: {level}',
+  'ux64.agreeRun': '同意并执行',
+  'ux64.disagree': '不同意',
+  'ux64.agreeContinue': '同意并继续',
+  'ux64.toolAutoSnapshot': '已自动读取终端快照',
+  'ux64.toolNeed': '需要调用工具：',
+  'ux64.executed': '已执行',
+  'ux64.skipped': '已跳过',
+  'ux64.streaming': '正在生成…',
+  'ux64.parseFallback': '未识别结构化步骤',
+  'ux64.emptyHint': '助手会分步给出说明；读取终端快照会自动执行，执行命令需你确认后再写入当前 SSH 标签页。',
+  'ux64.noSession': '请先连接并选中 SSH 标签页',
+  'ux64.copy': '复制',
+  'ux64.retry': '重试',
+  'ux64.clear': '清空',
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -3770,6 +3785,21 @@ const en: Record<MessageKey, string> = {
   'host.menu.inventory': 'Profile & notes',
   'host.menu.inventoryTip': 'Open in host inventory',
   'host.menu.boardN': 'Monitor on board ({n})',
+  'ux64.risk': 'Risk: {level}',
+  'ux64.agreeRun': 'Agree & run',
+  'ux64.disagree': 'Decline',
+  'ux64.agreeContinue': 'Agree & continue',
+  'ux64.toolAutoSnapshot': 'Terminal snapshot read automatically',
+  'ux64.toolNeed': 'Tool required:',
+  'ux64.executed': 'Ran',
+  'ux64.skipped': 'Skipped',
+  'ux64.streaming': 'Generating…',
+  'ux64.parseFallback': 'Couldn’t parse structured steps',
+  'ux64.emptyHint': 'The assistant replies in steps. Snapshot tools run automatically; commands need your confirmation before they enter the SSH tab.',
+  'ux64.noSession': 'Connect and select an SSH tab first',
+  'ux64.copy': 'Copy',
+  'ux64.retry': 'Retry',
+  'ux64.clear': 'Clear',
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

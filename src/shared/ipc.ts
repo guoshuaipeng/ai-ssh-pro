@@ -474,9 +474,10 @@ export type AiStreamEvent =
       /**
        * 仅当 action=command 时由主进程生成：需用户确认后才执行。
        * tool_call(get_terminal_snapshot) 由系统自动执行，不会带 requestId。
-       * 低风险自动批准时也可能不带 requestId，并带 autoApproved。
+       * autoApproved 已废止：riskLevel=low 的 command 也不再自动注入。
        */
       requestId?: string
+      /** @deprecated UX-64：命令不再自动批准。保留字段以免旧事件类型断裂。 */
       autoApproved?: boolean
       structured: AiAssistantReply
     }
@@ -517,7 +518,9 @@ export type AiSettings = {
    * 为 false 时仅用上方 Provider 直连模型。
    */
   useOpenClaw?: boolean
-  /** riskLevel=low 的 command 自动执行，无需确认 */
+  /**
+   * @deprecated UX-64：已忽略。命令一律需确认。保留字段以兼容已保存的设置。
+   */
   autoApproveLowRisk?: boolean
 }
 
@@ -550,7 +553,7 @@ export type AiAssistantReply = {
   /**
    * 下一步要做什么：
    * - tool_call：读取终端快照 / 主机档案等（多数自动执行）
-   * - command：在终端执行命令（必须用户确认，除非低风险自动批准）
+   * - command：在终端执行命令（必须用户确认；riskLevel=low 也不自动执行）
    * - end：任务完成，无需再执行下一步
    */
   action: AiAssistantAction

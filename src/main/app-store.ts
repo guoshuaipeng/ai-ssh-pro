@@ -301,10 +301,8 @@ function normalizeAi(merged: AiSettings): AiSettings {
     typeof anyMerged.useOpenClaw === 'boolean'
       ? anyMerged.useOpenClaw
       : (AI_SETTINGS_DEFAULTS.useOpenClaw ?? true)
-  const autoApproveLowRisk =
-    typeof anyMerged.autoApproveLowRisk === 'boolean'
-      ? anyMerged.autoApproveLowRisk
-      : (AI_SETTINGS_DEFAULTS.autoApproveLowRisk ?? false)
+  // UX-64: commands always require confirmation. A previously stored true must not come back.
+  const autoApproveLowRisk = false
 
   return {
     providers,
