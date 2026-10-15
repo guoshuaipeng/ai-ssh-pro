@@ -41,6 +41,7 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   exportPostmortem: 'postmortem fp fupan',
   toggleBlockStrip: 'blocks fk fenkuai',
   auditLog: 'shenji audit log',
+  exportAudit: '审计导出 合规导出 audit export sjdc hgdc 审计 / 合规 s1b',
   playbooks: 'playbook juben jb yunwei yunwei-jb',
   runPlaybook: 'playbook run juben run-playbook',
   sessionRecordings: 'record replay luzhi lz',

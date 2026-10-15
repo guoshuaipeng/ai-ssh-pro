@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { auditToCsv, auditToJsonl, filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
+import { useEffect, useMemo, useState } from 'react'
+import { auditWindowBounds, setAuditExportContext, type AuditExportSeed } from '@shared/audit-export'
+import { filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
@@ -10,7 +11,8 @@ export default function AuditLogPanel({
   enabled,
   onToggle,
   onClose,
-  onClear
+  onClear,
+  onExport
 }: {
   events: AuditEvent[]
   host?: string
@@ -18,23 +20,27 @@ export default function AuditLogPanel({
   onToggle: (on: boolean) => void
   onClose: () => void
   onClear?: () => void
+  onExport: (seed: AuditExportSeed) => void
 }) {
   const { t } = useI18n()
   const [text, setText] = useState('')
   const [type, setType] = useState<AuditType | ''>('')
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
-  const rows = useMemo(
-    () =>
-      filterAudit(events, {
-        host,
-        type,
-        text,
-        since: since ? new Date(since).getTime() : undefined,
-        until: until ? new Date(until).getTime() : undefined
-      }),
-    [events, host, type, text, since, until]
-  )
+  useEffect(() => {
+    setAuditExportContext({
+      host: host || '',
+      type,
+      range: since || until ? 'custom' : '7d',
+      since,
+      until
+    })
+    return () => setAuditExportContext(null)
+  }, [host, type, since, until])
+  const rows = useMemo(() => {
+    const bounds = since || until ? auditWindowBounds({ range: 'custom', since, until }) : {}
+    return filterAudit(events, { host, type, text, since: bounds.since, until: bounds.until })
+  }, [events, host, type, text, since, until])
   return (
     <div className="workspace-panel" data-testid="audit-log">
       <div className="workspace-panel-toolbar">
@@ -43,6 +49,14 @@ export default function AuditLogPanel({
           {host ? <span className="l7-meta">{host}</span> : null}
         </h2>
         <div className="workspace-panel-actions">
+          <button
+            type="button"
+            className="primary"
+            data-testid="s1b-open"
+            onClick={() => onExport({ host: host || '', type, range: since || until ? 'custom' : '7d', since, until })}
+          >
+            {t('s1b.open')}
+          </button>
           <button type="button" onClick={onClose}>
             {t('common.close')}
           </button>
@@ -66,8 +80,6 @@ export default function AuditLogPanel({
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('m2.search')} aria-label={t('m2.search')} />
         <input type="date" value={since} onChange={(e) => setSince(e.target.value)} aria-label={t('m2.since')} />
         <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} aria-label={t('m2.until')} />
-        <button type="button" onClick={() => void window.aiss.files.saveText('audit.csv', auditToCsv(rows))}>{t('m2.exportCsv')}</button>
-        <button type="button" onClick={() => void window.aiss.files.saveText('audit.jsonl', auditToJsonl(rows))}>{t('m2.exportJsonl')}</button>
         {onClear ? (
           <button type="button" data-testid="audit-clear" onClick={onClear}>{t('audit.clear')}</button>
         ) : null}

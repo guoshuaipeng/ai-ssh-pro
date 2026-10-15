@@ -113,6 +113,7 @@ export type MenuAction =
   | 'batchConnectGroup'
   | 'builtinSnippets'
   | 'builtinPlaybooks'
+  | 'exportAudit'
 
 export type Bilingual = { zh: string; en: string }
 
@@ -238,7 +239,8 @@ export const SHARED_MENUS: SharedMenu[] = [
       sep,
       it('alertRules', '告警规则…', 'Alert rules…'),
       it('alertHistory', '告警历史', 'Alert history', { menuHidden: true }),
-      it('auditLog', '审计日志', 'Audit log', { menuHidden: true })
+      it('auditLog', '审计日志', 'Audit log', { menuHidden: true }),
+      it('exportAudit', '导出审计（合规）', 'Export audit (compliance)', { menuHidden: true })
     ]
   },
   {
