@@ -59,6 +59,12 @@ import {
   type CommandFailureEvidence,
   type RetryBudgetSignal
 } from './core-a-command-failure'
+import {
+  emptyOutputView,
+  explainCiteableOutput,
+  truncateCiteableOutput,
+  type OutputView
+} from './core-a-output-truncate'
 
 function send(wc: WebContents, ev: AiStreamEvent): void {
   if (!wc.isDestroyed()) wc.send('ai:stream', ev)
@@ -635,6 +641,8 @@ function buildCoreSystemPrompt(
     commandFailure?: string | null
     /** Consecutive failures of that command. Present on every step; the prompt cites it after a failure. */
     retryBudget?: RetryBudgetSignal | null
+    /** The snapshot above is a capped view of a longer stdout, stderr, or ring. */
+    outputTruncated?: boolean
   }
 ): string {
   const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : mt('（暂无）', "(none)")
@@ -705,6 +713,14 @@ function buildCoreSystemPrompt(
 
   if (ctx.lastToolResult != null) {
     parts.push(mt('最近一次终端快照：\n```\n', "Latest terminal snapshot:\n```") + (ctx.lastToolResult.trim() ? ctx.lastToolResult.trim() : mt('（空）', "(empty)")) + '\n```')
+    if (ctx.outputTruncated) {
+      parts.push(
+        mt(
+          '终端输出已截断。只能引用上面保留的证据记号，不要编造被截掉的行。',
+          'Terminal output was truncated. Cite only the evidence tokens that remain above. Do not invent a line that was cut.'
+        )
+      )
+    }
   }
 
   if (ctx.lastCommand) {
@@ -880,8 +896,6 @@ export async function runOpenClawCoreAgentChat(
   let lastFailure: (CommandFailureEvidence & { requestId: string; count: number }) | null = null
   const writtenRequestIds = new Set<string>()
 
-  const MAX_TOOL_RESULT_CHARS = 6000
-
   if (activeAiChat) {
     abortAiChat()
   }
@@ -961,16 +975,19 @@ export async function runOpenClawCoreAgentChat(
           recall: mt('相关历史回忆：', 'Recalled history:')
         }
       })
+      const outputView: OutputView = lastToolResult != null ? truncateCiteableOutput(lastToolResult) : emptyOutputView()
+      const failureView = lastFailure ? truncateCiteableOutput(lastFailure.evidence) : null
       const sysPrompt = buildCoreSystemPrompt(payload, sessionState, {
         step,
         userQuestion,
-        lastToolResult: lastToolResult ? lastToolResult.slice(0, MAX_TOOL_RESULT_CHARS) : null,
+        lastToolResult: lastToolResult != null ? outputView.text : null,
         lastCommand,
         lastWriteOk,
         plannerHint,
         memoryBlocks: memory.text,
-        commandFailure: lastFailure?.evidence ?? null,
-        retryBudget
+        commandFailure: failureView ? failureView.text : null,
+        retryBudget,
+        outputTruncated: outputView.truncated
       })
 
       const messages: Array<{ role: string; content: string }> = [
@@ -998,7 +1015,16 @@ export async function runOpenClawCoreAgentChat(
         slices: budget.slices,
         totalChars: budget.totalChars,
         omBudget,
-        retryBudget
+        retryBudget,
+        outputView: {
+          truncated: outputView.truncated,
+          originalChars: outputView.originalChars,
+          shownChars: outputView.shownChars,
+          cap: outputView.cap,
+          markers: outputView.markers,
+          tipSuggest: outputView.tipSuggest,
+          rollback: outputView.rollback
+        }
       })
       logAi('ai:om-budget', {
         bullets: omBudget.bullets,
@@ -1139,15 +1165,23 @@ export async function runOpenClawCoreAgentChat(
       if (parsed.action === 'end' && lastFailure) {
         const alreadyStopped =
           parsed.description.includes('重试预算已用尽') || parsed.description.includes('retry budget is exhausted')
+        const failureForEnd = truncateCiteableOutput(lastFailure.evidence)
         parsed = {
           ...parsed,
           description: explainFailedCommand(
             parsed.description,
-            lastFailure,
+            failureForEnd.truncated ? { ...lastFailure, evidence: failureForEnd.text } : lastFailure,
             alreadyStopped
               ? ''
               : mt('不会自动重跑。若要再执行，需要新的确认。', 'This will not run again on its own. Another run needs a new confirmation.')
           )
+        }
+      }
+
+      if (parsed.action === 'end' && lastToolResult != null) {
+        const cited = truncateCiteableOutput(lastToolResult)
+        if (cited.truncated) {
+          parsed = { ...parsed, description: explainCiteableOutput(parsed.description, cited) }
         }
       }
 
