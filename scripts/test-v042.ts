@@ -162,7 +162,7 @@ assert.equal(loadAudit(store).length, 0)
 const ops = SHARED_MENUS.find((m) => m.id === 'ops')!
 const visible = visibleActionIds(ops)
 assert.ok(visible.length <= 12)
-assert.deepEqual(visible, ['opsHome', 'alertWorkbench', 'playbooks', 'runPlaybook', 'resourceMonitor', 'serverTools', 'batchExec', 'snippets', 'inventory', 'alertRules'])
+assert.deepEqual(visible, ['opsHome', 'alertWorkbench', 'playbooks', 'resourceMonitor', 'serverTools', 'batchExec', 'snippets', 'inventory'])
 assert.ok(ops.items.some((it) => it.type === 'item' && it.id === 'refreshDocker' && it.menuHidden))
 assert.ok(ops.items.some((it) => it.type === 'item' && it.id === 'alertHistory' && it.menuHidden))
 assert.ok(ops.items.some((it) => it.type === 'item' && it.id === 'dashboard' && it.menuHidden))

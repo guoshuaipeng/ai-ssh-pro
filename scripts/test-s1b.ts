@@ -170,7 +170,7 @@ assert.equal(zh('s1b.open').endsWith('…'), en('s1b.open').endsWith('…'))
 
 const ops = SHARED_MENUS.find((menu) => menu.id === 'ops')!
 const visible = visibleActionIds(ops)
-assert.deepEqual(visible, ['opsHome', 'alertWorkbench', 'playbooks', 'runPlaybook', 'resourceMonitor', 'serverTools', 'batchExec', 'snippets', 'inventory', 'alertRules'])
+assert.deepEqual(visible, ['opsHome', 'alertWorkbench', 'playbooks', 'resourceMonitor', 'serverTools', 'batchExec', 'snippets', 'inventory'])
 assert.ok(visible.length < 12)
 assert.equal(visible.includes('exportAudit'), false)
 assert.ok(ops.items.some((item) => item.type === 'item' && item.id === 'exportAudit' && item.menuHidden))
