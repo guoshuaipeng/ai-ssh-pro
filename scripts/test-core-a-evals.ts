@@ -1,9 +1,12 @@
 /**
  * Core-A multi-turn evals. Every `*.json` file in tests/fixtures/core-a/ is a
- * scenario (S1–S20 and any later drop-in, including S20-N). The real planner
+ * scenario (S1–S21 and any later drop-in, including S20-N). The real planner
  * runs against the fixture's scripted model and a fake terminal.
  * S20: after contradictory filler, observational memory still has the original
  * rare-fact tokens, and the end must not adopt the filler's path, Use%, or host state.
+ * S21: denying one HITL step mid-chain does not write that step or a later
+ * file/host update, and does not treat the deny as success. The same chain
+ * with every step approved still completes.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -24,6 +27,7 @@ import {
   reviewNpmTestFailure
 } from '../src/main/core-a-tfl.ts'
 import { patchWritePermitted, sideEffectExecutionPermitted } from '../src/main/core-a-context.ts'
+import { loadPersistedCoreSession } from '../src/main/core-a-memory.ts'
 
 const memDir = mkdtempSync(join(tmpdir(), 'core-a-eval-mem-'))
 const invDir = mkdtempSync(join(tmpdir(), 'core-a-eval-inv-'))
@@ -79,22 +83,54 @@ type Expectation = {
   activeGoalMustNotBe?: string[]
   confirmGate?: { required?: boolean; riskLevel?: string; settingsAutoApproveLowRisk?: boolean }
   ipc?: string[]
+  /** These event types must not appear (S21 all-approve must not look cancelled). */
+  ipcMustNotInclude?: string[]
   sshWriteCount?: number
   noFurtherPlannerStepsAfterDeny?: boolean
   riskLevel?: string
+  /** Host inventory after the turn (S21 deny stays at the seed; all-approve records the chain). */
+  hostState?: {
+    serviceNames?: string[]
+    notesEqual?: string[]
+    notesMustContain?: string[]
+    notesMustNotContain?: string[]
+  }
+  /**
+   * S21: one HITL deny in the middle of a chain. The denied command is not a
+   * write, not a prefix of a write, and not a recorded success. Later scripted
+   * steps must not leave file or host leftovers. Stopping with cancelled, or
+   * ending without those leftovers (证据不足 is enough), both pass.
+   */
+  midChainDeny?: {
+    deniedCommand: string
+    keptCommands?: string[]
+    laterCommands?: string[]
+    leftoverMarkers: string[]
+  }
   /** Observational-memory section must still contain these tokens (S13 / S16 / S20). */
   observationalMemoryMustContain?: string[]
   recentWindowMustNotContain?: string[]
   /** System prompt must not carry another host's facts (S18). */
   plannerPromptMustNotContain?: string[]
-  hitl?: { minInterrupts?: number; resume?: 'approve' | 'deny'; interruptRisks?: string[] }
+  hitl?: {
+    minInterrupts?: number
+    resume?: 'approve' | 'deny'
+    /** Resume decisions in confirm order. Deny ≠ an approve of that step. */
+    decisions?: Array<'approve' | 'deny'>
+    interruptRisks?: string[]
+  }
 }
 
 type Turn = {
   turnId: string
   userMessage: string
   mockTerminal?: { initialRing?: string; afterWrite?: Record<string, string> }
-  userConfirm?: { policy?: string; assert?: { stepHasRequestId?: boolean; autoApproved?: boolean; sshWriteBeforeApprove?: boolean; riskLevelMustBe?: string } }
+  userConfirm?: {
+    policy?: string
+    /** Per confirm, in order. `per-step` fails closed once this list runs out. */
+    decisions?: Array<'approve' | 'deny'>
+    assert?: { stepHasRequestId?: boolean; autoApproved?: boolean; sshWriteBeforeApprove?: boolean; riskLevelMustBe?: string }
+  }
   mockedPlannerSteps?: PlannerStep[]
   expected?: Expectation
 }
@@ -123,6 +159,15 @@ type Fixture = {
   }
   turns?: Turn[]
   negativeCase?: Turn
+  /**
+   * S21: the same planner chain with every confirm approved, on its own host
+   * and history key so the deny case cannot leave state behind for it.
+   */
+  regressionCase?: Turn & {
+    session?: Fixture['session']
+    hostProfile?: Fixture['hostProfile']
+    seedInventory?: Fixture['seedInventory']
+  }
   /**
    * S18: seed a fact on another historyKey / hostInventoryId before the main turns.
    * Main-turn prompts must not contain that host's rare service or port.
@@ -258,6 +303,12 @@ async function drive(input: {
   let lastCommand = ''
   let confirmError: Error | null = null
   const policy = input.turn.userConfirm?.policy ?? 'approve-all-commands'
+  const decisions = [...(input.turn.userConfirm?.decisions ?? [])]
+  const takeDecision = (): boolean => {
+    if (decisions.length > 0) return decisions.shift() === 'approve'
+    if (policy === 'per-step') return false
+    return input.approve
+  }
   const confirmAssert = input.turn.userConfirm?.assert
   const settings = {
     providers: [
@@ -325,7 +376,7 @@ async function drive(input: {
             if (confirmAssert?.autoApproved === false) assert.notEqual(ev.autoApproved, true)
             if (confirmAssert?.riskLevelMustBe) assert.equal(ev.structured.riskLevel, confirmAssert.riskLevelMustBe)
             assert.notEqual(ev.autoApproved, true)
-            agent.resolveAiConfirmStep(requestId, input.approve)
+            agent.resolveAiConfirmStep(requestId, takeDecision())
           } catch (error) {
             confirmError = error instanceof Error ? error : new Error(String(error))
             agent.resolveAiConfirmStep(requestId, false)
@@ -391,7 +442,12 @@ function maxConsecutiveSnapshots(events: AiStreamEvent[]): number {
   return max
 }
 
-function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: boolean): void {
+function assertExpectation(
+  turn: Turn,
+  result: DriveResult,
+  autoApproveLowRisk: boolean,
+  scope?: { hostId?: string; sessionId?: string }
+): void {
   const expected = turn.expected
   if (!expected) return
   const label = turn.turnId
@@ -493,6 +549,12 @@ function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: 
     const types = result.events.map((event) => event.type)
     assert.ok(subsequence(types, expected.ipc), `${label}: events ${types.join(',')} missing ${expected.ipc.join(',')}`)
   }
+  if (expected.ipcMustNotInclude) {
+    const types = result.events.map((event) => event.type)
+    for (const kind of expected.ipcMustNotInclude) {
+      assert.equal(types.includes(kind), false, `${label}: unexpected event ${kind}`)
+    }
+  }
   if (expected.sshWriteCount != null) assert.equal(result.writes.length, expected.sshWriteCount, label)
   if (expected.noFurtherPlannerStepsAfterDeny) {
     const commandAt = (turn.mockedPlannerSteps ?? []).findIndex((step) => step.response.action === 'command')
@@ -532,6 +594,12 @@ function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: 
         `${label}: missing HITL resume ${expected.hitl.resume}`
       )
     }
+    if (expected.hitl.decisions) {
+      const decisions = lines
+        .map((line) => /decision=(approve|deny)/.exec(line)?.[1])
+        .filter((item): item is 'approve' | 'deny' => item === 'approve' || item === 'deny')
+      assert.deepEqual(decisions, expected.hitl.decisions, `${label}: HITL decisions ${decisions.join(',')}`)
+    }
     const risks = interrupts.map((line) => /risk=(\S+)/.exec(line)?.[1] ?? '')
     for (const risk of expected.hitl.interruptRisks ?? []) {
       assert.ok(risks.includes(risk), `${label}: interrupt risks ${risks.join(',')} missing ${risk}`)
@@ -543,6 +611,119 @@ function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: 
     )
   }
   if (!expected.ipc) assert.ok(result.events.some((event) => event.type === 'done'), `${label}: missing done`)
+  assertHostState(turn, scope?.hostId)
+  assertMidChainDeny(turn, result, scope)
+}
+
+function hostBlob(hostId: string): string {
+  const rec = inventory.getInventoryStore().get(hostId)
+  if (!rec) return ''
+  return [
+    rec.notesMarkdown,
+    ...rec.services.map((service) => `${service.name} ${service.kind} ${service.notes ?? ''}`)
+  ].join('\n')
+}
+
+function assertHostState(turn: Turn, hostId: string | undefined): void {
+  const spec = turn.expected?.hostState
+  if (!spec) return
+  const label = turn.turnId
+  assert.ok(hostId, `${label}: hostState without a host id`)
+  const rec = inventory.getInventoryStore().get(hostId)
+  assert.ok(rec, `${label}: host record missing`)
+  if (!rec) return
+  if (spec.serviceNames) {
+    assert.deepEqual(
+      rec.services.map((service) => service.name),
+      spec.serviceNames,
+      `${label}: services ${rec.services.map((service) => service.name).join(',')}`
+    )
+  }
+  if (spec.notesEqual) {
+    assert.equal(rec.notesMarkdown, spec.notesEqual.join('\n'), `${label}: host notes changed`)
+  }
+  for (const fact of spec.notesMustContain ?? []) {
+    assert.ok(rec.notesMarkdown.includes(fact), `${label}: host notes missing ${fact}`)
+  }
+  for (const fact of spec.notesMustNotContain ?? []) {
+    assert.equal(rec.notesMarkdown.includes(fact), false, `${label}: host notes contain ${fact}`)
+  }
+}
+
+/**
+ * Deny in the middle of a chain is not execution. An earlier approved command
+ * may remain. The denied command must not be written, even as a prefix, and
+ * later steps must not leave a file or host leftover or a success claim.
+ * Stopping (cancelled, no end) and a replan that ends without those leftovers
+ * both pass. 证据不足 is not required when the chain already stopped.
+ */
+function assertMidChainDeny(
+  turn: Turn,
+  result: DriveResult,
+  scope?: { hostId?: string; sessionId?: string }
+): void {
+  const spec = turn.expected?.midChainDeny
+  if (!spec) return
+  const label = turn.turnId
+  const denied = spec.deniedCommand
+  assert.equal(
+    result.writes.some((write) => write.includes(denied)),
+    false,
+    `${label}: denied command was written`
+  )
+  for (const write of result.writes) {
+    const body = write.replace(/\s+$/g, '')
+    const half = body.length > 0 && body !== denied && denied.startsWith(body)
+    assert.equal(half, false, `${label}: half-written prefix of denied command: ${body}`)
+  }
+  for (const command of spec.laterCommands ?? []) {
+    assert.equal(
+      result.writes.some((write) => write.includes(command)),
+      false,
+      `${label}: later command written after deny: ${command}`
+    )
+  }
+  assert.ok(scope?.sessionId, `${label}: mid-chain deny without a session id`)
+  const persisted = scope?.sessionId ? loadPersistedCoreSession(scope.sessionId) : null
+  assert.ok(persisted, `${label}: session memory missing after deny`)
+  const recent = persisted?.recentCommands ?? []
+  assert.equal(
+    recent.some((command) => command.includes(denied)),
+    false,
+    `${label}: denied command recorded as a successful run`
+  )
+  for (const command of spec.keptCommands ?? []) {
+    assert.ok(
+      result.writes.some((write) => write.includes(command)),
+      `${label}: approved command missing from writes: ${command}`
+    )
+    assert.ok(recent.some((item) => item.includes(command)), `${label}: approved command missing from recent commands: ${command}`)
+  }
+  const ends = result.events.filter((event) => event.type === 'step' && event.structured.action === 'end')
+  const endText = ends.map((event) => (event.type === 'step' ? event.structured.description : '')).join('\n')
+  const sent = result.events
+    .filter((event) => event.type === 'debug' && event.payload.entry.kind === 'execution')
+    .map((event) => (event.type === 'debug' ? `${event.payload.entry.label}\n${event.payload.entry.detail ?? ''}` : ''))
+    .filter((line) => line.includes('writeOk=true'))
+    .join('\n')
+  const surface = [
+    result.writes.join('\n'),
+    result.served.join('\n'),
+    (persisted?.observations ?? []).join('\n'),
+    recent.join('\n'),
+    scope?.hostId ? hostBlob(scope.hostId) : '',
+    endText,
+    sent
+  ].join('\n')
+  for (const marker of spec.leftoverMarkers) {
+    assert.equal(surface.includes(marker), false, `${label}: leftover marker ${marker}`)
+  }
+  const cancelled = result.events.some((event) => event.type === 'cancelled')
+  if (ends.length === 0) {
+    assert.equal(cancelled, true, `${label}: deny did not stop or replan`)
+    return
+  }
+  assert.equal(endText.includes(denied), false, `${label}: replan treated the denied command as done`)
 }
 
 async function runTurns(fixture: Fixture, turns: Turn[]): Promise<void> {
@@ -557,7 +738,10 @@ async function runTurns(fixture: Fixture, turns: Turn[]): Promise<void> {
         history,
         approve: turn.userConfirm?.policy !== 'deny'
       })
-      assertExpectation(turn, result, false)
+      assertExpectation(turn, result, false, {
+        hostId: fixture.seedInventory?.hostId || fixture.hostProfile?.hostId,
+        sessionId: fixture.session.targetSessionId
+      })
       history.push(...assistantLines(result.events))
     } catch (error) {
       rethrowWithDraft(turn.turnId, error)
@@ -676,10 +860,37 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
             history: [{ role: 'user', content: turn.userMessage }],
             approve: false
           })
-          assertExpectation(turn, result, false)
+          assertExpectation(turn, result, false, {
+            hostId: fixture.seedInventory?.hostId || fixture.hostProfile?.hostId,
+            sessionId: `${fixture.session.targetSessionId}-deny`
+          })
         } catch (error) {
           rethrowWithDraft(turn.turnId, error)
         }
+      }
+      if (fixture.regressionCase) {
+        const sample = turns[0]
+        const reg = fixture.regressionCase
+        const turn: Turn = {
+          turnId: reg.turnId,
+          userMessage: reg.userMessage || sample?.userMessage || '',
+          mockTerminal: reg.mockTerminal || sample?.mockTerminal,
+          userConfirm: reg.userConfirm ?? sample?.userConfirm,
+          mockedPlannerSteps: reg.mockedPlannerSteps || sample?.mockedPlannerSteps,
+          expected: reg.expected
+        }
+        const regFixture: Fixture = {
+          ...fixture,
+          hostProfile: reg.hostProfile ?? fixture.hostProfile,
+          session: reg.session ?? {
+            targetSessionId: `${fixture.session.targetSessionId}-approve`,
+            historyKey: `${fixture.session.historyKey}-approve`
+          },
+          seedInventory: reg.seedInventory ?? fixture.seedInventory,
+          regressionCase: undefined
+        }
+        seedInventory(regFixture)
+        await runTurns(regFixture, [turn])
       }
     })
   }
