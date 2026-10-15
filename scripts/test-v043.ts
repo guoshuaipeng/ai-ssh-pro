@@ -76,8 +76,9 @@ assert.ok(app.includes("tg('restore.reconnecting')") && app.includes("tg('restor
 assert.ok(app.includes('data-testid="restore-connecting"') && app.includes('name="refresh-cw"'))
 assert.ok(css.includes('.restore-connecting') && css.includes('align-items: center') && css.includes('justify-content: center'))
 
-assert.ok(alertLine.includes("t('w1.create')") && alertLine.includes('w1-row-fix') && alertLine.includes('onContextMenu'))
-assert.ok(alertLine.includes('w1-row-done') && alertLine.includes('w1-row-ignore') && alertLine.includes('w1-row-board') && alertLine.includes('w1-row-copy'))
+const rowMenus = readFileSync('src/shared/inline-menus.ts', 'utf8')
+assert.ok(alertLine.includes("t('w1.create')") && alertLine.includes('onContextMenu') && alertLine.includes('alertMenuItems'))
+assert.ok(rowMenus.includes('w1-row-fix') && rowMenus.includes('w1-row-done') && rowMenus.includes('w1-row-ignore') && rowMenus.includes('w1-row-board') && rowMenus.includes('w1-row-copy'))
 assert.ok(alertLine.includes('data-testid="w1-row-locate"') && alertLine.includes('data-testid="w1-row-explain"') && alertLine.includes('name="crosshair"'))
 assert.ok(workbench.includes('onNeedAi?.()') && workbench.indexOf('if (!aiConfigured)') < workbench.indexOf('fixesFor('))
 assert.ok(workbench.includes('if (fixes) return') && workbench.includes('setHighlightCreate(true)'))
@@ -87,7 +88,8 @@ assert.ok(zh.includes("'w1.create': '生成修复剧本'") && zh.includes("'w1.a
 assert.ok(css.includes('min-width: 200px') && css.includes('white-space: nowrap'))
 assert.ok(css.includes('.alert-line-btn {') && css.includes('width: 28px'))
 
-assert.ok(app.includes("tg('host.menu.inventory')") && app.includes("tg('host.menu.inventoryTip')") && app.includes("tg('host.menu.boardN'"))
+assert.ok(rowMenus.includes('host.menu.inventory') && rowMenus.includes('host.menu.inventoryTip') && rowMenus.includes('host.menu.boardN'))
+assert.ok(app.includes('hostMenuItems'))
 assert.ok(zh.includes("'host.menu.inventory': '档案与备注'") && zh.includes("'host.menu.inventory': 'Profile & notes'"))
 assert.ok(zh.includes("'host.menu.boardN': '在看板中监控 ({n})'") && zh.includes("'host.menu.boardN': 'Monitor on board ({n})'"))
 assert.ok(styles.includes('max-height: calc(100vh - 16px)') && styles.includes('overflow: auto'))

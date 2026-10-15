@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { placeMenu } from '@shared/menu-place'
 import { Twist } from './Icon'
 
 export type ContextMenuItem =
@@ -113,11 +114,8 @@ export function ContextMenuHost() {
     if (!state || !ref.current) return
     const el = ref.current
     const rect = el.getBoundingClientRect()
-    let left = state.anchor.x
-    let top = state.anchor.y
-    if (left + rect.width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - rect.width - 8)
-    if (top + rect.height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - rect.height - 8)
-    setPos({ left, top })
+    const next = placeMenu(state.anchor.x, state.anchor.y, rect.width, rect.height, window.innerWidth, window.innerHeight)
+    setPos({ left: next.x, top: next.y })
   }, [state])
 
   useEffect(() => {

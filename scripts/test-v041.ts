@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import ssh2 from 'ssh2'
 import { allowsPageScrollX, l2Actions, l2Filter, l2Mode, l7Mode } from '../src/shared/density'
 import { HOST_MENU_MULTI, HOST_MENU_SINGLE, menuSourceFollows } from '../src/shared/host-menu'
+import { buildHostMenu, menuItemIds, type HostMenuCtx } from '../src/shared/inline-menus'
 import { chainDiagram, MAX_HOPS } from '../src/shared/jump-chain'
 import { L7_RAIL, railCollapsed, railOverflow } from '../src/shared/l7-rail'
 import { layoutPalette, bumpUsage, pinnedIds, PALETTE_CATS } from '../src/shared/palette-rank'
@@ -154,32 +155,41 @@ assert.equal(recent.length, 2)
 assert.equal(recent[0]?.id, 'c')
 assert.ok(app.includes('savedKeys={profiles.map'))
 
-const single = app.slice(app.indexOf('data-testid="host-menu"'))
+const singleCtx: HostMenuCtx = {
+  selection: 'single',
+  count: 1,
+  folders: [{ id: 'ops', name: 'Ops' }],
+  currentFolderId: 'ops'
+}
+const singleIds = menuItemIds(buildHostMenu(singleCtx))
 const singleKeys = ['connect', 'connectNew', 'sftp', 'monitor', 'toolbox', 'edit', 'profile', 'rename', 'copyAddr', 'delete']
-const itemOrder = (source: string, keys: string[]) => {
+const follows = (ids: string[], keys: string[]) => {
   let at = 0
   for (const key of keys) {
-    const token = `item('${key}'`
-    const i = source.indexOf(token, at)
+    const i = ids.indexOf(key, at)
     if (i < 0) return false
-    at = i + token.length
+    at = i + 1
   }
   return true
 }
-assert.equal(itemOrder(single, singleKeys), true)
-assert.equal(menuSourceFollows(app, ['move', 'setLevel']), true)
-assert.ok(single.indexOf('moveTo([p.id]') > single.indexOf("item('rename'"))
-assert.ok(single.indexOf('moveTo([p.id]') < single.indexOf("item('copyAddr'"))
-assert.ok(!single.includes('data-ctx="docker"') && !single.includes('data-ctx="tags"'))
+assert.equal(follows(singleIds, singleKeys), true)
+assert.equal(menuSourceFollows(singleIds.map((id) => `data-ctx="${id}"`).join(''), ['rename', 'move', 'copyAddr']), true)
+assert.ok(singleIds.indexOf('move') > singleIds.indexOf('rename'))
+assert.ok(singleIds.indexOf('move') < singleIds.indexOf('copyAddr'))
+assert.ok(!singleIds.includes('docker') && !singleIds.includes('tags'))
 assert.deepEqual([...HOST_MENU_SINGLE], ['connect', 'connectNew', 'sftp', 'monitor', 'toolbox', 'edit', 'profile', 'rename', 'move', 'copyAddr', 'delete'])
-const multi = app.slice(app.indexOf('data-testid="host-menu-multi"'), app.indexOf('data-testid="host-menu"'))
-assert.equal(itemOrder(multi, ['batch', 'monitorBoard', 'delete']), true)
-assert.equal(menuSourceFollows(multi, ['setLevel']), true)
-assert.ok(multi.indexOf('data-ctx="setLevel"') < multi.indexOf('moveTo(multi)'))
-assert.ok(multi.indexOf('moveTo(multi)') < multi.indexOf("item('delete'"))
+const multiCtx: HostMenuCtx = { selection: 'multi', count: 2, folders: [{ id: 'ops', name: 'Ops' }] }
+const multiIds = menuItemIds(buildHostMenu(multiCtx))
+assert.equal(follows(multiIds, ['batch', 'monitorBoard', 'delete']), true)
+assert.equal(menuSourceFollows(multiIds.map((id) => `data-ctx="${id}"`).join(''), ['setLevel', 'move', 'delete']), true)
+assert.ok(multiIds.indexOf('setLevel') < multiIds.indexOf('move'))
+assert.ok(multiIds.indexOf('move') < multiIds.indexOf('delete'))
 assert.deepEqual([...HOST_MENU_MULTI], ['connectAll', 'batch', 'monitorBoard', 'setLevel', 'move', 'delete'])
-assert.ok(app.includes("opts?.danger ? ' danger' : ''"))
-assert.ok(single.slice(single.indexOf("item('delete'")).includes('danger: true'))
+const builtMenu = readFileSync('src/renderer/src/components/BuiltMenu.tsx', 'utf8')
+assert.ok(builtMenu.includes("danger ? ' danger' : ''"))
+const deleteNode = buildHostMenu(singleCtx).find((node) => node.type === 'item' && node.id === 'delete')
+assert.equal(deleteNode && deleteNode.type === 'item' ? deleteNode.danger : false, true)
+assert.ok(app.includes("testId={multi ? 'host-menu-multi' : 'host-menu'}"))
 
 const restored = planRestore(
   [

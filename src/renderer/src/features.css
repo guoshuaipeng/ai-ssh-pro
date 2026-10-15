@@ -389,8 +389,11 @@
 
 .tab-context-menu {
   position: fixed;
-  z-index: 1000;
+  z-index: 10000;
   min-width: 168px;
+  max-height: calc(100vh - 16px);
+  max-width: min(280px, calc(100vw - 16px));
+  overflow: auto;
   padding: 4px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
@@ -414,6 +417,7 @@
 }
 .tab-context-menu button:hover:not(:disabled) { background: var(--color-row-hover-bg); }
 .tab-context-menu button:disabled { opacity: 0.45; }
+.tab-context-menu button.danger { color: var(--danger); }
 .tab-context-menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
 .tab-rename-input { width: 140px; font-size: 12px; padding: 1px 4px; }
 .tab[draggable='true'] { cursor: grab; }
