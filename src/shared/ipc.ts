@@ -643,6 +643,29 @@ export type AiDebugEntry =
         markers: string[]
         tipSuggest: string
         rollback: string
+        /**
+         * Cite window of this stdout, stderr, or ring (Core-A S30).
+         * `outsideHeadTail` are scarce markers a naive head/tail cut would lose.
+         * `droppedFiller` must not be cited. `stable` means the kept text matches that.
+         */
+        citeWindow: {
+          head: number
+          tail: number
+          outsideHeadTail: string[]
+          droppedFiller: string[]
+          stable: boolean
+        }
+        /**
+         * The same window after observational compression. Host-scoped.
+         * Empty and stable when this thread has not compressed a long output.
+         */
+        citeHold: {
+          head: number
+          tail: number
+          outsideHeadTail: string[]
+          droppedFiller: string[]
+          stable: boolean
+        }
       }
     }
 
