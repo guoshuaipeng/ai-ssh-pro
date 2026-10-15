@@ -3,7 +3,7 @@
 **Purpose:** Regression bar for Core-A interactive agent (`runOpenClawCoreAgentChat` in `src/main/ai-interactive-agent.ts`) after memory / intent upgrades.  
 **Industry bar:** [Mastra working memory](https://mastra.ai/docs/memory/working-memory) + [observational compression](https://mastra.ai/docs/memory/observational-memory); LangGraph-style confirm-before-run.  
 **Design align:** `/workspace/ai-ssh-pro-pm/A-intent-memory-v1.md`  
-**Fixtures:** `fixtures/core-a-s{1..12}-*.json` — **12 scenarios** (S1 disk, S2 topic-switch, S3 no-snap-loop, S4 confirm, S5 service-down, S6 oom, S7 permission-denied, S8 paste-log, S9 bilingual, S10 intent-switch, S11 evidence-enough, S12 high-risk-confirm)  
+**Fixtures:** `fixtures/core-a-s{1..14}-*.json` — **14 scenarios** (S1–S12 plus S13 observational memory and S14 HITL interrupt/resume)  
 **Do not merge PRs from this folder** — artifacts for QA / mocked planner harness only.
 
 ---
@@ -16,7 +16,7 @@
 | Auto tools | `get_terminal_snapshot`, `get_host_inventory`, `upsert_host_service`, `append_host_note` |
 | Confirm | `command` waits for user approval unless `settings.autoApproveLowRisk === true` **and** `riskLevel=low` |
 | Loop guards | `AISS_MAX_POLLS` default **10**; same-snapshot repeat ≥2 or consecutive snapshot tools ≥6 → force `end` |
-| Conversation window | `compactConversation` ≈ last **8** turns (≤16 messages) |
+| Conversation window | Last **8** turns (≤16 messages). Older turns fold into a running summary and observational-memory bullets |
 | Persistence | `core-a-memory` (notes / observations / recentCommands / taskGraph); chat history separate |
 
 ---
@@ -37,6 +37,8 @@
 | **S10** | User says「换个问题」mid-flight | ≥2 user messages | archive disk intent → new nginx goal; **no** df/du after switch | `fixtures/core-a-s10-intent-switch.json` |
 | **S11** | Evidence enough after 1 snap (anti-over-ask) | 1 ask | ring already has uptime → 1 snap → `end` ≤3 steps; no re-run uptime | `fixtures/core-a-s11-evidence-enough.json` |
 | **S12** | High-risk rm/reboot confirm + deny path | 1 ask (+ deny variant) | `riskLevel=high` + `requestId`; approve writes after gate; deny → cancelled+done, 0 writes | `fixtures/core-a-s12-high-risk-confirm.json` |
+| **S13** | Observational memory after a long chat | 10 user messages | Fact from turn 2 leaves the raw window and remains an observational bullet in the planner prompt | `fixtures/core-a-s13-observational-memory.json` |
+| **S14** | Explicit HITL interrupt / resume | 1 ask (+ deny variant) | Snapshot does not interrupt; low and high commands enter `phase=interrupted`; deny writes nothing | `fixtures/core-a-s14-hitl-interrupt.json` |
 
 **Bands:** Core loop S1/S5/S6 · Memory/intent S2/S9/S10 · Anti-loop/anti-ask S3/S8/S11 · Safety HITL S4/S7/S12
 
@@ -52,7 +54,7 @@
 
 ### Observational compression
 
-- After more than ~8 raw turns of history would be needed, older evidence appears as **dense observation bullets** (notes / observations / task summaries), not only the last 8 raw messages.
+- After more than ~8 raw turns of history would be needed, older evidence appears as **dense observation bullets** in the planner's observational-memory section, not only the last 8 raw messages. S13: a fact that has left the raw window is still in that section.
 - S2 / S9 return-or-recall: model answer (or fixture-expected `end.description`) must mention a fact that only existed in an **earlier** turn's observation / inventory, proving recall — not re-asking the terminal for the same fact if already stored.
 - S8: facts may arrive in the **user paste**; treat paste as evidence equivalent to a snap.
 

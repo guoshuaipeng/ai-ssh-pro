@@ -27,13 +27,21 @@ import {
   actionNeedsHumanInterrupt,
   buildMemoryPromptBlocks,
   compactTranscript,
+  confirmBypassAllowed,
   contextBudget,
+  createHitlLoop,
   formatArchivedGoal,
   appendEpisode,
+  interruptForProposal,
+  markHitlExecuting,
+  markHitlObserving,
   markWorkingStatus,
   recallEpisodes,
   resolveThreadId,
+  resumeHitl,
+  sideEffectExecutionPermitted,
   summarizePlannerStep,
+  type HitlLoopState,
   type TranscriptTurn
 } from './core-a-context'
 import { getInventoryStore } from './inventory-store'
@@ -853,10 +861,12 @@ export async function runOpenClawCoreAgentChat(
       const recalled = recallEpisodes(userQuestion, thread.episodes, { topK: 5 })
       const memory = buildMemoryPromptBlocks({
         working: thread.workingMemory,
+        observations: thread.observationalMemory,
         runningSummary: thread.runningSummary,
         hits: recalled,
         headings: {
           working: mt('工作记忆（当前目标）：', 'Working memory (current goal):'),
+          observations: mt('观测记忆（较早对话压缩）：', 'Observational memory (compressed older turns):'),
           summary: mt('较早对话摘要：', 'Earlier transcript summary:'),
           recall: mt('相关历史回忆：', 'Recalled history:')
         }
@@ -880,6 +890,8 @@ export async function runOpenClawCoreAgentChat(
       const budget = contextBudget({
         workingChars: memory.sections.working.length,
         workingItems: thread.workingMemory ? 1 : 0,
+        observationChars: memory.sections.observations.length,
+        observationItems: thread.observationalMemory.length,
         summaryChars: memory.sections.runningSummary.length,
         recallChars: memory.sections.recall.length,
         recallItems: recalled.length,
@@ -961,9 +973,32 @@ export async function runOpenClawCoreAgentChat(
         parseError
       })
 
-      // Side-effecting SSH commands pause for confirmation (LangGraph interrupt / ToolLoopAgent needsApproval).
-      // Read-only tools still omit requestId and run immediately. riskLevel never skips the wait.
-      const requestId = actionNeedsHumanInterrupt(parsed.action) ? randomUUID() : undefined
+      // Explicit HITL phases: planning → interrupted → resumed|cancelled → executing → observing.
+      // Read-only tools skip the interrupt. riskLevel and autoApproveLowRisk never skip it.
+      // confirmBypassAllowed is always false; a future true would still fail closed below.
+      void confirmBypassAllowed(settings.autoApproveLowRisk)
+      const needsInterrupt = actionNeedsHumanInterrupt(parsed.action, parsed.toolName)
+      const requestId = needsInterrupt ? randomUUID() : undefined
+      let hitl: HitlLoopState = interruptForProposal(createHitlLoop(), {
+        action: parsed.action,
+        toolName: parsed.toolName,
+        command: parsed.command,
+        riskLevel: parsed.riskLevel,
+        requestId,
+        autoApproveLowRisk: settings.autoApproveLowRisk
+      })
+      if (needsInterrupt && sideEffectExecutionPermitted(hitl)) {
+        send(wc, { type: 'error', message: mt('内部错误：命令在确认前进入了执行态', 'Internal error: command entered executing before confirm') })
+        return
+      }
+      if (needsInterrupt) {
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: 'HITL interrupt',
+          detail: `phase=${hitl.phase} action=${parsed.action} risk=${parsed.riskLevel}`
+        })
+      }
 
       send(wc, {
         type: 'step',
@@ -993,10 +1028,10 @@ export async function runOpenClawCoreAgentChat(
         return
       }
 
-      // Command steps wait for user confirmation before anything is written to the terminal.
-      if (actionNeedsHumanInterrupt(parsed.action)) {
+      // Interrupted steps wait here. Nothing is written until resume → executing.
+      if (needsInterrupt) {
         consecutiveSnapshotTools = 0
-        if (!requestId) {
+        if (!requestId || hitl.phase !== 'interrupted') {
           send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
           return
         }
@@ -1007,7 +1042,14 @@ export async function runOpenClawCoreAgentChat(
           send(wc, { type: 'done' })
           return
         }
-        if (!ok) {
+        hitl = resumeHitl(hitl, ok)
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: 'HITL resume',
+          detail: `phase=${hitl.phase} decision=${hitl.resume ?? 'deny'}`
+        })
+        if (hitl.phase !== 'resumed') {
           emitDebug({
             kind: 'execution',
             round: step,
@@ -1018,6 +1060,7 @@ export async function runOpenClawCoreAgentChat(
           send(wc, { type: 'done' })
           return
         }
+        hitl = markHitlExecuting(hitl)
       }
 
       if (parsed.action === 'tool_call') {
@@ -1215,7 +1258,14 @@ export async function runOpenClawCoreAgentChat(
           return
         }
       } else if (parsed.action === 'command') {
-        // command requires user confirmation (handled below).
+        // Write only after interrupt → approve → executing. Bypass is fail-closed.
+        if (!sideEffectExecutionPermitted(hitl) || confirmBypassAllowed(settings.autoApproveLowRisk)) {
+          send(wc, {
+            type: 'error',
+            message: mt('命令仍在确认中，未写入终端。', 'Command is still awaiting confirmation and was not written to the terminal.')
+          })
+          return
+        }
         const cmdRaw = parsed.command ?? ''
         const oneLineCmd = cmdRaw.replace(/[\r\n]+/g, ' ').trim()
         if (!oneLineCmd) {
@@ -1237,11 +1287,12 @@ export async function runOpenClawCoreAgentChat(
           sessionState.failureStreak += 1
           rememberNote(sessionState, mt(`命令发送失败：${oneLineCmd}`, `Failed to send command: ${oneLineCmd}`))
         }
+        hitl = markHitlObserving(hitl)
         emitDebug({
           kind: 'execution',
           round: step,
           label: mt('命令已发送到 SSH（含换行）', "Command sent to SSH (with newline)"),
-          detail: `writeOk=${String(lastWriteOk)}\n${oneLineCmd}`
+          detail: `phase=${hitl.phase}\nwriteOk=${String(lastWriteOk)}\n${oneLineCmd}`
         })
 
         if (lastWriteOk && targetSessionId) {

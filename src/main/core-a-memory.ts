@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import Store from 'electron-store'
 import {
   archiveAndClearRecord,
+  normalizeObservationBullets,
   type DurableThreadFields,
   type EpisodicSummary,
   type ThreadContext,
@@ -104,6 +105,7 @@ function coerceRecord(value: unknown): PersistedCoreSession {
     workingMemory: coerceWorking(row.workingMemory),
     episodes: coerceEpisodes(row.episodes),
     runningSummary: typeof row.runningSummary === 'string' ? row.runningSummary.slice(-1500) : '',
+    observationalMemory: normalizeObservationBullets(row.observationalMemory),
     compactedCursor: typeof row.compactedCursor === 'string' ? row.compactedCursor : null
   }
 }
@@ -176,6 +178,7 @@ export function loadThreadContext(sessionKey: string): { ctx: ThreadContext; epo
       workingMemory: row.workingMemory,
       episodes: row.episodes,
       runningSummary: row.runningSummary,
+      observationalMemory: row.observationalMemory,
       compactedCursor: row.compactedCursor
     },
     epoch: currentThreadEpoch(key)
@@ -190,6 +193,7 @@ export function saveThreadContext(sessionKey: string, ctx: ThreadContext, epochA
     workingMemory: ctx.workingMemory,
     episodes: ctx.episodes.slice(-40),
     runningSummary: ctx.runningSummary.slice(-1500),
+    observationalMemory: normalizeObservationBullets(ctx.observationalMemory),
     compactedCursor: ctx.compactedCursor,
     updatedAt: Date.now()
   }))

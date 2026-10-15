@@ -14,10 +14,17 @@ import {
   archiveAndClearRecord,
   buildMemoryPromptBlocks,
   compactTranscript,
+  confirmBypassAllowed,
   contextBudget,
   createEpisode,
+  createHitlLoop,
+  interruptForProposal,
+  markHitlExecuting,
+  markHitlObserving,
   markWorkingStatus,
   recallEpisodes,
+  resumeHitl,
+  sideEffectExecutionPermitted,
   summarizePlannerStep,
   type TranscriptTurn
 } from '../src/main/core-a-context.ts'
@@ -106,9 +113,10 @@ ok(fused.some((hit) => hit.id === quiet.id && hit.signals.includes('embedding'))
 
 const prompt = buildMemoryPromptBlocks({
   working: switched.ctx.workingMemory,
+  observations: [],
   runningSummary: '先前看过磁盘',
   hits: [{ id: '1', text: '第1步看了 journal', score: 0.02, signals: ['keyword'], tags: [], createdAt: 1 }],
-  headings: { working: 'WORKING', summary: 'SUMMARY', recall: 'RECALL' }
+  headings: { working: 'WORKING', observations: 'OBSERVATIONS', summary: 'SUMMARY', recall: 'RECALL' }
 })
 ok(prompt.text.includes('WORKING'), 'prompt includes the working-memory heading')
 ok(prompt.text.includes('goal:'), 'prompt includes the current goal block')
@@ -157,6 +165,44 @@ for (let i = 0; i < 45; i++) {
 ok(packed.episodes.some((episode) => episode.text.includes('ALPHA_OLD_QUESTION')), 'compaction episodes outlive step notes')
 ok(packed.episodes.length <= 40, 'episode list stays capped')
 
+const longOm: TranscriptTurn[] = [
+  { role: 'user', content: '查看磁盘使用率' },
+  { role: 'assistant', content: JSON.stringify({ action: 'end', description: '先看磁盘' }) }
+]
+for (let i = 0; i < 4; i++) {
+  longOm.push({ role: 'user', content: `filler turn ${i} ${'n'.repeat(120)} about nothing` })
+  longOm.push({ role: 'assistant', content: JSON.stringify({ action: 'end', description: `filler ${i}` }) })
+}
+longOm.push({ role: 'user', content: 'MID_OM_FACT redis listens on 127.0.0.1:6379 only' })
+longOm.push({ role: 'assistant', content: JSON.stringify({ action: 'end', description: 'noted the bind fact' }) })
+for (let i = 0; i < 20; i++) {
+  longOm.push({ role: 'user', content: `filler turn ${100 + i} ${'n'.repeat(120)} about nothing` })
+  longOm.push({ role: 'assistant', content: JSON.stringify({ action: 'end', description: `later filler ${i}` }) })
+}
+longOm.push({ role: 'user', content: 'LATE_WINDOW_FACT please answer now' })
+longOm.push({ role: 'assistant', content: JSON.stringify({ action: 'end', description: 'latest' }) })
+const foldedOm = compactTranscript(longOm, EMPTY_THREAD, 8)
+ok(foldedOm.recent.some((turn) => turn.content.includes('LATE_WINDOW_FACT')), 'the latest turn stays in the window')
+ok(!foldedOm.recent.some((turn) => turn.content.includes('MID_OM_FACT')), 'the middle fact left the raw window')
+ok(!foldedOm.ctx.runningSummary.includes('MID_OM_FACT'), 'the summary cap drops the middle fact')
+ok(
+  foldedOm.ctx.observationalMemory.some((bullet) => bullet.text.includes('MID_OM_FACT') && bullet.text.includes('127.0.0.1:6379')),
+  'observational bullets keep the middle fact'
+)
+const againOm = compactTranscript(longOm, foldedOm.ctx, 8)
+ok(againOm.ctx.observationalMemory.length === foldedOm.ctx.observationalMemory.length, 'the same prefix is not observed twice')
+const promptOm = buildMemoryPromptBlocks({
+  working: foldedOm.ctx.workingMemory,
+  observations: foldedOm.ctx.observationalMemory,
+  runningSummary: foldedOm.ctx.runningSummary,
+  hits: [],
+  headings: { working: 'WORKING', observations: 'OBSERVATIONS', summary: 'SUMMARY', recall: 'RECALL' }
+})
+ok(promptOm.sections.observations.includes('MID_OM_FACT'), 'planner observational section keeps the older fact')
+ok(promptOm.sections.observations.includes('127.0.0.1:6379'), 'planner observational section keeps the older address')
+ok(!promptOm.sections.runningSummary.includes('MID_OM_FACT'), 'the surviving fact is not only the running summary')
+ok(promptOm.text.indexOf('OBSERVATIONS') < promptOm.text.indexOf('SUMMARY'), 'observational bullets are injected ahead of the summary')
+
 const secretTurns: TranscriptTurn[] = [
   { role: 'user', content: 'please use Bearer sk-live-SECRETVALUE' },
   { role: 'assistant', content: '{"action":"end","description":"noted"}' },
@@ -165,6 +211,10 @@ const secretTurns: TranscriptTurn[] = [
 const redacted = compactTranscript(secretTurns, EMPTY_THREAD, 8)
 ok(!redacted.ctx.runningSummary.includes('sk-live-SECRETVALUE'), 'compacted summary redacts bearer tokens')
 ok(!redacted.ctx.episodes.some((episode) => episode.text.includes('sk-live-SECRETVALUE')), 'episodes redact bearer tokens')
+ok(
+  !redacted.ctx.observationalMemory.some((bullet) => bullet.text.includes('sk-live-SECRETVALUE')),
+  'observational bullets redact bearer tokens'
+)
 
 const step = summarizePlannerStep({
   step: 2,
@@ -190,11 +240,13 @@ const cleared = archiveAndClearRecord({
   },
   episodes: [createEpisode({ text: 'sum', now: 1 })],
   runningSummary: 'earlier',
+  observationalMemory: [{ id: 'om1', text: 'user: MID_OM_FACT redis 127.0.0.1:6379', createdAt: 1 }],
   compactedCursor: 'abc'
 })
 ok(cleared.workingMemory == null, 'clear drops working memory')
 ok(cleared.episodes.length === 0, 'clear drops episodic summaries')
 ok(cleared.runningSummary === '', 'clear drops the running summary')
+ok(cleared.observationalMemory.length === 0, 'clear drops observational bullets')
 ok(cleared.observations[0] === 'load 0.1', 'clear keeps observations')
 ok(cleared.recentCommands[0] === 'uptime', 'clear keeps recent commands')
 ok(cleared.notes.includes('keep-me'), 'clear keeps existing notes')
@@ -203,11 +255,52 @@ ok(cleared.taskSummaries.some((line) => line.includes('查磁盘')), 'clear arch
 
 ok(actionNeedsHumanInterrupt('command') === true, 'ssh commands require a human interrupt')
 ok(actionNeedsHumanInterrupt('tool_call') === false, 'read-only tool calls are not interrupted')
+ok(actionNeedsHumanInterrupt('tool_call', 'get_terminal_snapshot') === false, 'terminal snapshots are not interrupted')
+ok(actionNeedsHumanInterrupt('tool_call', 'ssh_exec') === true, 'ssh_exec stays gated even as a tool_call')
+ok(actionNeedsHumanInterrupt('tool_call', 'shell') === true, 'shell stays gated')
 ok(actionNeedsHumanInterrupt('end') === false, 'end is not an interrupt')
+ok(confirmBypassAllowed(true) === false, 'autoApproveLowRisk cannot bypass confirm')
+ok(confirmBypassAllowed(false) === false, 'confirm bypass stays closed when the flag is off')
+
+const planned = createHitlLoop()
+ok(planned.phase === 'planning', 'a step starts in planning')
+const lowRisk = interruptForProposal(planned, {
+  action: 'command',
+  command: 'uptime',
+  riskLevel: 'low',
+  requestId: 'r-low',
+  autoApproveLowRisk: true
+})
+ok(lowRisk.phase === 'interrupted', 'low-risk command still interrupts when auto-approve is requested')
+ok(sideEffectExecutionPermitted(lowRisk) === false, 'an interrupted command cannot write')
+ok(sideEffectExecutionPermitted(markHitlExecuting(lowRisk)) === false, 'executing is unreachable without resume')
+const highRisk = interruptForProposal(planned, {
+  action: 'command',
+  command: 'rm -rf /var/log',
+  riskLevel: 'high',
+  requestId: 'r-high'
+})
+ok(highRisk.phase === 'interrupted', 'high-risk command interrupts')
+const denied = resumeHitl(highRisk, false)
+ok(denied.phase === 'cancelled' && denied.resume === 'deny', 'decline cancels the interrupt')
+ok(sideEffectExecutionPermitted(markHitlExecuting(denied)) === false, 'a denied command never becomes executable')
+const approved = markHitlExecuting(resumeHitl(highRisk, true))
+ok(approved.phase === 'executing' && approved.resume === 'approve', 'approve resumes into executing')
+ok(sideEffectExecutionPermitted(approved) === true, 'an approved command may write')
+ok(markHitlObserving(approved).phase === 'observing', 'after the write the loop is observing')
+const snap = interruptForProposal(planned, { action: 'tool_call', toolName: 'get_terminal_snapshot' })
+ok(snap.phase === 'executing' && snap.resume == null, 'a snapshot does not interrupt')
+ok(sideEffectExecutionPermitted(snap) === false, 'a snapshot cannot take the SSH write path')
+const riskyTool = interruptForProposal(planned, { action: 'tool_call', toolName: 'run_command', command: 'reboot', riskLevel: 'high' })
+ok(riskyTool.phase === 'interrupted', 'run_command interrupts')
+ok(sideEffectExecutionPermitted(markHitlExecuting(resumeHitl(riskyTool, true))) === false, 'a risky tool_call cannot use the SSH write gate')
+ok(resumeHitl(planned, true).phase === 'planning', 'resume ignores a step that is not interrupted')
 
 const budget = contextBudget({
   workingChars: 10,
   workingItems: 1,
+  observationChars: 12,
+  observationItems: 1,
   summaryChars: 20,
   recallChars: 30,
   recallItems: 2,
@@ -217,10 +310,16 @@ const budget = contextBudget({
 })
 ok(budget.totalChars === 140, 'context budget is system prompt plus the recent window')
 ok(budget.slices.find((slice) => slice.name === 'working')?.chars === 10, 'working-memory slice reports its chars')
+ok(budget.slices.find((slice) => slice.name === 'observations')?.chars === 12, 'observational-memory slice reports its chars')
+ok(budget.slices.find((slice) => slice.name === 'observations')?.items === 1, 'observational-memory slice reports how many bullets entered')
 ok(budget.slices.find((slice) => slice.name === 'recall')?.items === 2, 'recall slice reports how many hits entered')
 ok(budget.slices.some((slice) => slice.name === 'recentWindow'), 'recent window is its own slice')
 
 const root = join(import.meta.dirname, '..')
+const pkg = readFileSync(join(root, 'package.json'), 'utf8')
+ok(!pkg.includes('@mastra'), 'observational memory does not depend on the Mastra package')
+ok(!pkg.includes('langgraph') && !pkg.includes('@langchain'), 'HITL does not depend on LangGraph')
+ok(pkg.includes('"version": "0.4.4"'), 'package version stays 0.4.4')
 const agent = readFileSync(join(root, 'src/main/ai-interactive-agent.ts'), 'utf8')
 const memory = readFileSync(join(root, 'src/main/core-a-memory.ts'), 'utf8')
 const store = readFileSync(join(root, 'src/main/app-store.ts'), 'utf8')
@@ -230,6 +329,14 @@ ok(agent.includes('compactTranscript'), 'planner compacts instead of only slicin
 ok(!agent.includes('compactConversation'), 'hard-drop compaction helper is gone')
 ok(agent.includes("kind: 'context'"), 'debug channel records context slices')
 ok(agent.includes('actionNeedsHumanInterrupt'), 'confirm-before-run goes through the interrupt helper')
+ok(agent.includes('interruptForProposal'), 'the tool loop enters an explicit interrupt')
+ok(agent.includes('resumeHitl'), 'confirm resumes the interrupt')
+ok(agent.includes('sideEffectExecutionPermitted'), 'SSH writes check the resume gate')
+ok(agent.includes('HITL interrupt'), 'debug records the interrupt phase')
+ok(agent.includes('HITL resume'), 'debug records the resume phase')
+ok(!agent.includes('window.confirm'), 'the planner does not use window.confirm')
+ok(!agent.includes('autoApproveLowRiskCommand'), 'agent has no low-risk auto-approve branch')
+ok(agent.includes('观测记忆（较早对话压缩）'), 'prompt heading names observational memory')
 ok(agent.includes('相关历史回忆'), 'prompt heading names recalled history')
 ok(agent.includes('工作记忆（当前目标）'), 'prompt heading names working memory')
 ok(store.includes('archiveAndClearThreadContext'), 'clearing chat history archives that thread')
