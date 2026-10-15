@@ -1,0 +1,104 @@
+{
+  "id": "S17",
+  "title": "Empty or noisy ring — end must not invent disk paths or Use%",
+  "industryBar": ["anti-over-ask", "evidence-grounding"],
+  "hostProfile": {
+    "hostId": "host-s17-empty",
+    "label": "empty-ring-lab"
+  },
+  "session": {
+    "targetSessionId": "sess-s17-empty",
+    "historyKey": "host-s17-empty"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "turns": [
+    {
+      "turnId": "S17-T1",
+      "userMessage": "看一下磁盘是不是满了？没有输出就直说证据不够。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {}
+      },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先读终端快照，不猜测用量。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["暂无缓冲"]
+        },
+        {
+          "response": {
+            "description": "终端缓冲为空，证据不足，看不到挂载点或用量数字。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "maxPlannerSteps": 3,
+        "maxGetTerminalSnapshot": 1,
+        "sshWriteCount": 0,
+        "mustNotEmitCommands": ["df", "du", "lsblk"],
+        "descriptionMustMatchAny": ["证据不足"],
+        "descriptionMustNotContain": ["/dev/sda", "/var", "97%", "Use%", "IUse%", "100%"]
+      }
+    },
+    {
+      "turnId": "S17-T2",
+      "userMessage": "再看一眼磁盘。缓冲里如果只有噪声，不要编造用量。",
+      "mockTerminal": {
+        "initialRing": "Oct 15 09:01:02 web kernel: usb 1-1: device descriptor read error\nbash: qwerty: command not found\n^C\nuser@web:~$\n# noise\nuser@web:~$\n",
+        "afterWrite": {}
+      },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "再读一次终端，只采用缓冲里真实有的行。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["command not found"]
+        },
+        {
+          "response": {
+            "description": "终端只有登录噪声和 command not found，证据不足，不能判断磁盘是否已满。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "maxPlannerSteps": 3,
+        "maxGetTerminalSnapshot": 1,
+        "sshWriteCount": 0,
+        "mustNotEmitCommands": ["df", "du", "lsblk"],
+        "descriptionMustMatchAny": ["证据不足"],
+        "descriptionMustNotContain": ["/dev/sda", "/var", "97%", "Use%", "IUse%", "100%"]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Empty ring: end says evidence is insufficient and cites no disk path or Use%",
+    "Noisy ring without df output: end still does not invent a path or Use%",
+    "No SSH write"
+  ]
+}

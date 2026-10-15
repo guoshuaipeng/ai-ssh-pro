@@ -1,6 +1,6 @@
 /**
  * Core-A multi-turn evals. Every `*.json` file in tests/fixtures/core-a/ is a
- * scenario (S1–S12 and any later drop-in). The real planner runs against the
+ * scenario (S1–S19 and any later drop-in). The real planner runs against the
  * fixture's scripted model and a fake terminal.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
@@ -81,6 +81,8 @@ type Expectation = {
   riskLevel?: string
   observationalMemoryMustContain?: string[]
   recentWindowMustNotContain?: string[]
+  /** System prompt must not carry another host's facts (S18). */
+  plannerPromptMustNotContain?: string[]
   hitl?: { minInterrupts?: number; resume?: 'approve' | 'deny'; interruptRisks?: string[] }
 }
 
@@ -117,6 +119,16 @@ type Fixture = {
   }
   turns?: Turn[]
   negativeCase?: Turn
+  /**
+   * S18: seed a fact on another historyKey / hostInventoryId before the main turns.
+   * Main-turn prompts must not contain that host's rare service or port.
+   */
+  isolationPrelude?: {
+    hostProfile?: { hostId?: string; label?: string; hostname?: string }
+    session: { targetSessionId: string; historyKey: string }
+    seedInventory?: Fixture['seedInventory']
+    turns: Turn[]
+  }
 }
 
 const KINDS = new Set<HostServiceKind>(['systemd', 'docker', 'k8s', 'binary', 'unknown'])
@@ -447,6 +459,9 @@ function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: 
   for (const fact of [...(expected.memoryMustRetain ?? []), ...(expected.memoryMustStillRetainFromT1 ?? [])]) {
     assert.ok(remembered.includes(fact), `${label}: prompt dropped ${fact}`)
   }
+  for (const fact of expected.plannerPromptMustNotContain ?? []) {
+    assert.equal(remembered.includes(fact), false, `${label}: planner prompt leaked ${fact}`)
+  }
   for (const step of turn.mockedPlannerSteps ?? []) {
     for (const fact of step.expectToolResultContains ?? []) {
       assert.ok(result.prompts.some((prompt) => prompt.includes(fact)) || result.served.some((text) => text.includes(fact)), `${label}: tool result missing ${fact}`)
@@ -524,6 +539,26 @@ function assertExpectation(turn: Turn, result: DriveResult, autoApproveLowRisk: 
     )
   }
   if (!expected.ipc) assert.ok(result.events.some((event) => event.type === 'done'), `${label}: missing done`)
+}
+
+async function runTurns(fixture: Fixture, turns: Turn[]): Promise<void> {
+  const history: AiChatMessage[] = []
+  for (const turn of turns) {
+    history.push({ role: 'user', content: turn.userMessage })
+    try {
+      const result = await drive({
+        fixture,
+        turn,
+        sessionId: fixture.session.targetSessionId,
+        history,
+        approve: turn.userConfirm?.policy !== 'deny'
+      })
+      assertExpectation(turn, result, false)
+      history.push(...assistantLines(result.events))
+    } catch (error) {
+      rethrowWithDraft(turn.turnId, error)
+    }
+  }
 }
 
 function rethrowWithDraft(turnId: string, error: unknown): never {
@@ -606,27 +641,23 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
         assertTfl(fixture)
         return
       }
-      assert.ok(fixture.turns?.length, `${fixture.id} has no turns`)
-      seedInventory(fixture)
-      const history: AiChatMessage[] = []
-      for (const turn of fixture.turns) {
-        history.push({ role: 'user', content: turn.userMessage })
-        try {
-          const result = await drive({
-            fixture,
-            turn,
-            sessionId: fixture.session.targetSessionId,
-            history,
-            approve: true
-          })
-          assertExpectation(turn, result, false)
-          history.push(...assistantLines(result.events))
-        } catch (error) {
-          rethrowWithDraft(turn.turnId, error)
+      const turns = fixture.turns ?? []
+      assert.ok(turns.length, `${fixture.id} has no turns`)
+      if (fixture.isolationPrelude) {
+        const prelude = fixture.isolationPrelude
+        const preludeFixture: Fixture = {
+          ...fixture,
+          hostProfile: prelude.hostProfile ?? fixture.hostProfile,
+          session: prelude.session,
+          seedInventory: prelude.seedInventory
         }
+        seedInventory(preludeFixture)
+        await runTurns(preludeFixture, prelude.turns)
       }
+      seedInventory(fixture)
+      await runTurns(fixture, turns)
       if (fixture.negativeCase) {
-        const sample = fixture.turns[0]
+        const sample = turns[0]
         const turn: Turn = {
           ...fixture.negativeCase,
           userMessage: fixture.negativeCase.userMessage || sample?.userMessage || '',
