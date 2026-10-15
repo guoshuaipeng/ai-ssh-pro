@@ -14,7 +14,8 @@ export const HOST_MENU_SINGLE = [
   'delete'
 ] as const
 
-export const HOST_MENU_MULTI = ['batch', 'monitorBoard', 'setLevel', 'move', 'delete'] as const
+/** L10: connectAll is the batch entry. Delete stays last. */
+export const HOST_MENU_MULTI = ['connectAll', 'batch', 'monitorBoard', 'setLevel', 'move', 'delete'] as const
 
 export type HostMenuKey = (typeof HOST_MENU_SINGLE)[number] | (typeof HOST_MENU_MULTI)[number]
 

@@ -77,6 +77,8 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   readonlyOn: '只读会话 readonly session zhidu s4',
   readonlyOff: '关闭只读 readonly off s4',
   setProtection: '保护级别 protection level baohu s2 s4',
+  batchConnect: '批量连接 连接所选 piliang lianjie connect-selected l10',
+  batchConnectGroup: '连接分组 当前分组 fenzu connect-group l10',
   sftpComfort: 'midu shushi compact sftp',
   setJumpHosts: '跳板 jump tiaoban bastion proxy proxyjump',
   checkCerts: 'cert zhengshu sk fido key',
@@ -121,7 +123,9 @@ export const PALETTE_EXTRAS: ReadonlyArray<{ id: MenuAction; zh: string; en: str
   { id: 'reconnectNow', zh: '立即重连当前会话', en: 'Reconnect current session now' },
   { id: 'readonlyOn', zh: '开启只读会话', en: 'Enable read-only session' },
   { id: 'readonlyOff', zh: '关闭只读会话', en: 'Disable read-only session' },
-  { id: 'setProtection', zh: '设置保护级别…', en: 'Set protection level…' }
+  { id: 'setProtection', zh: '设置保护级别…', en: 'Set protection level…' },
+  { id: 'batchConnect', zh: '连接所选主机', en: 'Connect selected hosts' },
+  { id: 'batchConnectGroup', zh: '连接当前分组的主机', en: 'Connect hosts in the current group' }
 ]
 
 export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: string): PaletteEntry[] {

@@ -6,6 +6,8 @@ export type PaletteCat = (typeof PALETTE_CATS)[number]
 
 const CAT: Record<string, PaletteCat> = {
   connection: 'connection',
+  batchConnect: 'connection',
+  batchConnectGroup: 'connection',
   localShell: 'connection',
   newFolder: 'connection',
   importSessions: 'connection',

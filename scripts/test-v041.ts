@@ -175,7 +175,7 @@ assert.equal(itemOrder(multi, ['batch', 'monitorBoard', 'delete']), true)
 assert.equal(menuSourceFollows(multi, ['setLevel']), true)
 assert.ok(multi.indexOf('data-ctx="setLevel"') < multi.indexOf('moveTo(multi)'))
 assert.ok(multi.indexOf('moveTo(multi)') < multi.indexOf("item('delete'"))
-assert.deepEqual([...HOST_MENU_MULTI], ['batch', 'monitorBoard', 'setLevel', 'move', 'delete'])
+assert.deepEqual([...HOST_MENU_MULTI], ['connectAll', 'batch', 'monitorBoard', 'setLevel', 'move', 'delete'])
 assert.ok(app.includes("opts?.danger ? ' danger' : ''"))
 assert.ok(single.slice(single.indexOf("item('delete'")).includes('danger: true'))
 
