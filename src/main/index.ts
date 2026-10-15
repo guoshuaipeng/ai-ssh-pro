@@ -31,6 +31,7 @@ import { registerSyncIpc } from './sync-ipc'
 import { registerSnapshotIpc } from './snapshot-ipc'
 import { registerServerToolsIpc } from './server-tools-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
+import { getWorkingMemoryGoal } from './core-a-memory'
 import { streamOpenAICompatibleChat } from './ai-stream'
 import { setDebugWindowWebContents } from './debug-window-broadcast'
 import { parseSshFormWithAi } from './ai-parse-ssh'
@@ -980,6 +981,7 @@ function registerIpc(): void {
   ipcMain.handle('ai:chatHistory:set', (_e, key: string, messages: AiChatMessage[]) => {
     setAiChatHistory(key, messages)
   })
+  ipcMain.handle('ai:workingMemory:get', (_e, key: string) => getWorkingMemoryGoal(String(key ?? '')))
 
   ipcMain.handle('debug:openWindow', () => {
     openDebugWindow()

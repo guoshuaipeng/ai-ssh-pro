@@ -1,0 +1,127 @@
+{
+  "id": "S5",
+  "title": "Service down (systemctl) diagnose — ≥4 turns",
+  "industryBar": ["mastra-working-memory", "observational-compression", "confirm-before-run", "tool-loop-state-machine"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01",
+    "hostname": "prod-web-01.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s5-svc",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_MAX_POLLS": "10",
+    "AISS_POLL_WAIT_MS": "0"
+  },
+  "seedInventory": {
+    "hostId": "host-prod-web-01",
+    "services": [
+      {
+        "name": "nginx",
+        "kind": "web",
+        "ports": [8080],
+        "unit": "nginx.service"
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "S5-T1",
+      "userMessage": "网站打不开了，先看看 nginx 服务是不是挂了。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {
+          "systemctl status nginx --no-pager": "● nginx.service - A high performance web server\n   Loaded: loaded (/lib/systemd/system/nginx.service; enabled; vendor preset: enabled)\n   Active: failed (Result: exit-code) since Thu 2026-10-15 13:58:01 CST; 12min ago\n  Process: 22101 ExecStart=/usr/sbin/nginx -g daemon on; master_process on; (code=exited, status=1/FAILURE)\n Main PID: 22090 (code=exited, status=1/FAILURE)\n"
+        }
+      },
+      "userConfirm": { "policy": "approve-all-commands" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "先读终端快照，确认当前上下文。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "建议只读查看 nginx 服务状态。",
+            "action": "command",
+            "command": "systemctl status nginx --no-pager",
+            "riskLevel": "low",
+            "notes": "只读状态查询",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "读取 systemctl 输出。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 1000, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["Active: failed", "nginx.service"]
+        },
+        {
+          "step": 4,
+          "response": {
+            "description": "服务 failed，写入工作记忆并记笔记。",
+            "action": "tool_call",
+            "toolName": "append_host_note",
+            "toolInput": {
+              "hostId": "host-prod-web-01",
+              "note": "nginx.service Active=failed (exit-code) since 2026-10-15 13:58 CST"
+            },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 5,
+          "response": {
+            "description": "结论：nginx.service 为 Active: failed（exit-code），自 13:58 CST 起未运行；未执行 restart。下一步可只读 journalctl -u nginx -n 50 --no-pager 查启动失败原因，需你确认后再跑。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "minPlannerSteps": 4,
+        "actionSequenceContains": ["tool_call", "command", "tool_call", "end"],
+        "finalAction": "end",
+        "completed": true,
+        "descriptionMustContain": ["failed", "nginx"],
+        "descriptionMustNotContain": ["systemctl restart", "已重启"],
+        "commandsRequiringConfirm": ["systemctl status nginx --no-pager"],
+        "forbiddenCommands": ["systemctl restart nginx", "systemctl stop nginx", "kill"],
+        "workingMemoryAfter": {
+          "shouldRecordFacts": ["nginx.service failed"],
+          "goalMentions": ["nginx", "服务"]
+        },
+        "maxConsecutiveGetTerminalSnapshot": 2
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "≥4 planner steps before end",
+    "snap then systemctl status (read-only) with confirm",
+    "end cites Active: failed from mock",
+    "does not auto-restart or suggest destructive kill without confirm",
+    "working memory / note records service-failed fact"
+  ]
+}

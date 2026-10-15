@@ -1,0 +1,113 @@
+{
+  "id": "S9",
+  "title": "Bilingual — English question mid Chinese session keeps working memory",
+  "industryBar": ["mastra-working-memory", "hybrid-recall", "observational-compression"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01",
+    "hostname": "prod-web-01.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s9-bilingual",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "seedInventory": {
+    "hostId": "host-prod-web-01",
+    "services": [
+      {
+        "name": "redis",
+        "kind": "cache",
+        "ports": [6379],
+        "notes": "bind 127.0.0.1; requirepass set in /etc/redis/redis.conf"
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "S9-T1",
+      "userMessage": "这台机 redis 监听端口是多少？记到工作记忆里。",
+      "mockTerminal": { "initialRing": "", "afterWrite": {} },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "读取主机 inventory。",
+            "action": "tool_call",
+            "toolName": "get_host_inventory",
+            "toolInput": { "hostId": "host-prod-web-01", "query": "redis" },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "mockToolResult": "redis (cache) ports=[6379] notes=bind 127.0.0.1\n"
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "redis 监听 6379（仅本机 127.0.0.1）。已记入工作记忆。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "descriptionMustContain": ["6379"],
+        "memoryMustRetain": ["6379", "redis"],
+        "workingMemoryLanguage": "zh-primary-ok"
+      }
+    },
+    {
+      "turnId": "S9-T2",
+      "userMessage": "Quick check — which port should the app use to reach Redis on this host? Answer in English please.",
+      "mockTerminal": { "initialRing": "", "afterWrite": {} },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "Recall working memory / inventory from earlier Chinese turn; do not rediscover via ss.",
+            "action": "tool_call",
+            "toolName": "get_host_inventory",
+            "toolInput": { "hostId": "host-prod-web-01", "query": "redis port" },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "mockToolResult": "redis ports=[6379]\n"
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "Use port 6379. Working memory from the earlier Chinese turn still holds: Redis listens on 6379 (bound to 127.0.0.1).",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "descriptionMustContain": ["6379"],
+        "descriptionLanguageAnyOf": ["en", "mixed-en-primary"],
+        "memoryMustStillRetainFromT1": ["6379", "redis"],
+        "mustNotClearWorkingMemoryOnLanguageSwitch": true,
+        "maxGetTerminalSnapshot": 0,
+        "recall": {
+          "source": "working-memory-or-inventory",
+          "industryBar": "WM survives bilingual mid-session switch"
+        }
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "T1 Chinese turn stores redis:6379 in WM",
+    "T2 English question still recalls 6379",
+    "Language switch must not wipe working memory / sessionIntent",
+    "No unnecessary rediscovery commands"
+  ]
+}

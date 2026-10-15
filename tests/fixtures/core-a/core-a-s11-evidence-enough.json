@@ -1,0 +1,86 @@
+{
+  "id": "S11",
+  "title": "Evidence sufficient after 1 snap → must end ≤3 steps (anti-over-ask)",
+  "industryBar": ["anti-over-ask", "tool-loop-state-machine", "observational-compression"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01"
+  },
+  "session": {
+    "targetSessionId": "sess-s11-enough",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_MAX_POLLS": "10",
+    "AISS_POLL_WAIT_MS": "0"
+  },
+  "turns": [
+    {
+      "turnId": "S11-T1",
+      "userMessage": "终端里刚跑完的 uptime 结果是啥意思？",
+      "mockTerminal": {
+        "initialRing": "prompt$ uptime\n 14:44:01 up 3 days,  1:02,  2 users,  load average: 1.10, 0.95, 0.80\nprompt$ ",
+        "fingerprintStable": true,
+        "note": "Ring already contains complete uptime output — one snap is enough"
+      },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "读取终端快照获取已有 uptime 输出。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 400, "fromCurrentCommand": true, "includeCommandLine": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["load average: 1.10", "up 3 days"]
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "证据已够：主机已运行约 3 days，load average 1.10 / 0.95 / 0.80（中等偏低，非异常尖峰）。无需再执行 uptime 或重复快照。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "maxPlannerSteps": 3,
+        "finalAction": "end",
+        "completed": true,
+        "descriptionMustContain": ["1.10", "3 days"],
+        "maxGetTerminalSnapshot": 1,
+        "mustNotEmitCommands": ["uptime", "top", "htop", "vmstat"],
+        "antiOverAsk": {
+          "evidenceSufficientAfterOneSnap": true,
+          "mustEndWithinSteps": 3,
+          "mustNotResnapSameFingerprint": true
+        },
+        "workingMemoryAfter": {
+          "shouldRecordFacts": ["load 1.10/0.95/0.80", "uptime 3 days"]
+        }
+      }
+    }
+  ],
+  "alternateBadPlanner": {
+    "note": "Fail if planner keeps snapping or re-runs uptime after evidence present",
+    "failIf": {
+      "getTerminalSnapshotCount": { "gt": 1 },
+      "plannerSteps": { "gt": 3 },
+      "emitsCommand": ["uptime"]
+    }
+  },
+  "passCriteriaSummary": [
+    "Exactly one get_terminal_snapshot (or zero if lastToolResult already injected)",
+    "end within ≤3 planner steps",
+    "cites load/uptime facts from ring",
+    "does not re-ask or re-run uptime"
+  ]
+}

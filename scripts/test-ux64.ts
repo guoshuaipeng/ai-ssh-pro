@@ -48,7 +48,7 @@ ok(panel.includes('data-card="streaming"') && panel.includes('data-card="error"'
 
 ok(!agent.includes('autoApproveLowRiskCommand'), 'agent has no low-risk auto-approve branch')
 ok(!agent.includes('低风险可自动批准'), 'planner prompt no longer offers auto-approve')
-ok(agent.includes("parsed.action === 'command' ? randomUUID()"), 'every command step gets a confirm id')
+ok(agent.includes('actionNeedsHumanInterrupt(parsed.action) ? randomUUID()'), 'every command step gets a confirm id')
 ok(agent.includes('await waitForAiConfirm(requestId)'), 'commands still wait for confirmation')
 ok(agent.includes("toolName !== 'get_terminal_snapshot'"), 'snapshot tool path remains')
 
