@@ -3,11 +3,14 @@
 export type ShowableWindow = {
   show: () => void
   isDestroyed: () => boolean
-  once: (event: 'ready-to-show' | 'closed', listener: () => void) => void
+  once: (event: 'ready-to-show' | 'close' | 'closed', listener: () => void) => void
   webContents: {
     once: (event: 'did-finish-load', listener: () => void) => void
   }
 }
+
+/** Ignore a second-instance create this soon after the last window closed. */
+export const SECOND_INSTANCE_CREATE_DEBOUNCE_MS = 1500
 
 type ShowTarget = {
   show: () => void
@@ -23,34 +26,38 @@ export function attachShowFallback(
   const target = win as ShowableWindow
   const timeoutMs = opts?.timeoutMs ?? 3000
   let done = false
+  let aborted = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const abort = () => {
+    aborted = true
+    done = true
+    clearTimeout(timer)
+  }
   const finish = () => {
-    if (done) return
+    if (done || aborted) return
     done = true
     clearTimeout(timer)
     if (target.isDestroyed()) return
     target.show()
     opts?.onShow?.()
   }
-  const timer = setTimeout(finish, timeoutMs)
+  timer = setTimeout(finish, timeoutMs)
   target.once('ready-to-show', finish)
   target.webContents.once('did-finish-load', finish)
-  target.once('closed', () => {
-    clearTimeout(timer)
-    done = true
-  })
+  // 'close' fires before destroy; abort so a close/show race cannot paint the window again.
+  target.once('close', abort)
+  target.once('closed', abort)
 }
 
-/** Retry a single-instance lock while a previous process is still quitting. */
-export function retryLock(
-  tryOnce: () => boolean,
-  wait: (ms: number) => void,
-  attempts = 10,
-  delayMs = 300
+/**
+ * A second launch with no window shortly after close is lock-spam or an overlapping
+ * start, not a deliberate reopen. After the debounce, keep-alive still creates.
+ */
+export function shouldCreateOnSecondInstance(
+  lastWindowClosedAt: number | null,
+  now: number,
+  debounceMs = SECOND_INSTANCE_CREATE_DEBOUNCE_MS
 ): boolean {
-  const n = Math.max(1, attempts)
-  for (let i = 0; i < n; i++) {
-    if (tryOnce()) return true
-    if (i < n - 1) wait(delayMs)
-  }
-  return false
+  if (lastWindowClosedAt == null) return true
+  return now - lastWindowClosedAt >= debounceMs
 }
