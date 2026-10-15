@@ -1,0 +1,151 @@
+{
+  "id": "S20-N",
+  "title": "Noise only — evidence insufficient, no fabricated host state",
+  "industryBar": ["evidence-grounding", "anti-over-ask"],
+  "hostProfile": {
+    "hostId": "host-s20-noise",
+    "label": "s20-noise-lab"
+  },
+  "session": {
+    "targetSessionId": "sess-s20-noise",
+    "historyKey": "host-s20-noise"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "turns": [
+    {
+      "turnId": "S20N-T1",
+      "userMessage": "继续看无关噪声 01，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 01 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T2",
+      "userMessage": "继续看无关噪声 02，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 02 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T3",
+      "userMessage": "继续看无关噪声 03，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 03 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T4",
+      "userMessage": "继续看无关噪声 04，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 04 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T5",
+      "userMessage": "继续看无关噪声 05，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 05 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T6",
+      "userMessage": "继续看无关噪声 06，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 06 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T7",
+      "userMessage": "继续看无关噪声 07，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 07 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T8",
+      "userMessage": "继续看无关噪声 08，不要查端口，不要猜路径。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 08 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20N-T9",
+      "userMessage": "先前有没有记下监听端口或配置路径？没有就回答证据不足，不要编造。",
+      "mockTerminal": { "initialRing": "", "afterWrite": {} },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先读终端缓冲，不猜测端口或路径。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["暂无缓冲"]
+        },
+        {
+          "response": {
+            "description": "没有记下端口、路径或用量，证据不足。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "maxPlannerSteps": 2,
+        "mustNotEmitCommands": ["df", "du", "lsblk", "systemctl"],
+        "descriptionMustMatchAny": ["证据不足"],
+        "descriptionMustNotContain": [
+          "OM_S20_RARE_FACT",
+          "18447",
+          "/etc/s20/edge.conf",
+          "/opt/factory/s20-invented",
+          "10.8.8.8",
+          "FACTORY_DOWN",
+          "Use%",
+          "97%",
+          "/dev/sda",
+          "/var"
+        ],
+        "plannerPromptMustNotContain": [
+          "OM_S20_RARE_FACT",
+          "127.0.0.1:18447",
+          "/etc/s20/edge.conf",
+          "/opt/factory/s20-invented",
+          "FACTORY_DOWN",
+          "10.8.8.8"
+        ]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Eight noise turns never state a rare port, path, or host state",
+    "The end may say 证据不足",
+    "The end and the planner prompt do not invent a path, Use%, or host state"
+  ]
+}

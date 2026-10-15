@@ -1,0 +1,178 @@
+{
+  "id": "S20",
+  "title": "Rare fact survives contradictory filler about the same entity",
+  "industryBar": ["observational-compression", "evidence-grounding", "mastra-working-memory"],
+  "hostProfile": {
+    "hostId": "host-s20-contradict",
+    "label": "s20-contradict-lab"
+  },
+  "session": {
+    "targetSessionId": "sess-s20-contradict",
+    "historyKey": "host-s20-contradict"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "turns": [
+    {
+      "turnId": "S20-T1",
+      "userMessage": "查看这台机器，不要删除文件。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先看机器，本步结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T2",
+      "userMessage": "继续：请记下稀有事实 OM_S20_RARE_FACT 只监听 127.0.0.1:18447，配置 /etc/s20/edge.conf。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "已记下该监听约束，先到这里。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "sshWriteCount": 0,
+        "descriptionMustNotContain": ["OM_S20_RARE_FACT", "18447", "/etc/s20/edge.conf"]
+      }
+    },
+    {
+      "turnId": "S20-T3",
+      "userMessage": "更正刚才那个监听：其实改到了 10.8.8.8:9091，配置改到 /opt/factory/s20-invented，磁盘 Use% 是 91%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "后来说法先记下，本步结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T4",
+      "userMessage": "再更正：那个监听其实是 10.8.8.8:9092，配置仍写 /opt/factory/s20-invented，磁盘 Use% 是 92%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "第二条后来说法结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T5",
+      "userMessage": "又更正：那个监听其实是 10.8.8.8:9093，配置仍写 /opt/factory/s20-invented，磁盘 Use% 是 93%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "第三条后来说法结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T6",
+      "userMessage": "继续更正：那个监听其实是 10.8.8.8:9094，配置仍写 /opt/factory/s20-invented，磁盘 Use% 是 94%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "第四条后来说法结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T7",
+      "userMessage": "继续更正：那个监听其实是 10.8.8.8:9095，配置仍写 /opt/factory/s20-invented，磁盘 Use% 是 95%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "第五条后来说法结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T8",
+      "userMessage": "继续更正：那个监听其实是 10.8.8.8:9096，配置仍写 /opt/factory/s20-invented，磁盘 Use% 是 96%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "第六条后来说法结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T9",
+      "userMessage": "继续更正：那个监听其实是 10.8.8.8:9097，配置仍写 /opt/factory/s20-invented，磁盘 Use% 是 97%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "第七条后来说法结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T10",
+      "userMessage": "继续更正：那个监听其实是 10.8.8.8:9098，配置仍写 /opt/factory/s20-invented，磁盘 Use% 是 98%，主机状态 FACTORY_DOWN。不要执行命令。",
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        { "response": { "description": "第八条后来说法结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end", "sshWriteCount": 0 }
+    },
+    {
+      "turnId": "S20-T11",
+      "userMessage": "先前记下的监听和配置路径还在吗？后来的说法互相矛盾。请只根据记忆回答，证据不够就直接说明。",
+      "mockTerminal": { "initialRing": "", "afterWrite": {} },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先读终端缓冲，不采用后来说法。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["暂无缓冲"]
+        },
+        {
+          "response": {
+            "description": "仍记得 OM_S20_RARE_FACT 只监听 127.0.0.1:18447，配置仍是 /etc/s20/edge.conf。后来的说法互相矛盾，证据不足，不能当成当前主机情况。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "mustNotEmitCommands": ["df", "du", "systemctl", "rm"],
+        "memoryMustRetain": ["OM_S20_RARE_FACT", "127.0.0.1:18447", "/etc/s20/edge.conf"],
+        "observationalMemoryMustContain": ["OM_S20_RARE_FACT", "127.0.0.1:18447", "/etc/s20/edge.conf"],
+        "recentWindowMustNotContain": ["OM_S20_RARE_FACT", "127.0.0.1:18447", "/etc/s20/edge.conf"],
+        "descriptionMustContain": ["OM_S20_RARE_FACT", "127.0.0.1:18447", "/etc/s20/edge.conf", "证据不足"],
+        "descriptionMustNotContain": [
+          "/opt/factory/s20-invented",
+          "10.8.8.8",
+          "FACTORY_DOWN",
+          "Use%",
+          "91%",
+          "97%",
+          "98%"
+        ]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Eight contradictory turns follow the rare port, service token, and path",
+    "Those tokens leave the raw window and stay in observational memory",
+    "The end may say 证据不足 and must not adopt the later path, Use%, or host state"
+  ]
+}
