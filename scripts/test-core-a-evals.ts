@@ -1,17 +1,20 @@
 /**
  * Core-A multi-turn evals. Every `*.json` file in tests/fixtures/core-a/ is a
- * scenario (S1–S21 and any later drop-in, including S20-N). The real planner
+ * scenario (S1–S22 and any later drop-in, including S20-N). The real planner
  * runs against the fixture's scripted model and a fake terminal.
  * S20: after contradictory filler, observational memory still has the original
  * rare-fact tokens, and the end must not adopt the filler's path, Use%, or host state.
  * S21: denying one HITL step mid-chain does not write that step or a later
  * file/host update, and does not treat the deny as success. The same chain
  * with every step approved still completes.
+ * S22: a red unit test explains itself in human language and opens a
+ * confirm-style patch draft. The factory does not auto-apply. Deny leaves
+ * no patch on disk, and a half-written change is not success.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it, before } from 'node:test'
@@ -26,7 +29,7 @@ import {
   patchDraftConfirmCard,
   reviewNpmTestFailure
 } from '../src/main/core-a-tfl.ts'
-import { patchWritePermitted, sideEffectExecutionPermitted } from '../src/main/core-a-context.ts'
+import { markHitlExecuting, patchWritePermitted, resumeHitl, sideEffectExecutionPermitted } from '../src/main/core-a-context.ts'
 import { loadPersistedCoreSession } from '../src/main/core-a-memory.ts'
 
 const memDir = mkdtempSync(join(tmpdir(), 'core-a-eval-mem-'))
@@ -141,6 +144,12 @@ type TflSpec = {
   explanationMustContain: string[]
   explanationMustNotContain?: string[]
   agreeMustContain?: string[]
+  /**
+   * S22: confirm-before-apply. The review factory does not write. Deny leaves
+   * the temp disk and the repo fixture bytes unchanged. A half-written hunk
+   * is not a successful apply.
+   */
+  confirmBeforeApply?: boolean
 }
 
 type Fixture = {
@@ -757,15 +766,56 @@ function rethrowWithDraft(turnId: string, error: unknown): never {
   })
 }
 
+function projectRoot(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), '..')
+}
+
+function snapshotCoreADocs(root: string): Record<string, string> {
+  const dir = join(root, 'tests/fixtures/core-a')
+  const out: Record<string, string> = {}
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.json') && !name.endsWith('.md')) continue
+    out[name] = readFileSync(join(dir, name), 'utf8')
+  }
+  return out
+}
+
+function materializeMock(files: Record<string, string>): { root: string; files: Record<string, string> } {
+  const root = mkdtempSync(join(tmpdir(), 'core-a-s22-disk-'))
+  for (const [rel, body] of Object.entries(files)) {
+    const full = join(root, rel)
+    mkdirSync(dirname(full), { recursive: true })
+    writeFileSync(full, body)
+  }
+  return { root, files: { ...files } }
+}
+
+function readMaterialized(disk: { root: string; files: Record<string, string> }): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const rel of Object.keys(disk.files)) out[rel] = readFileSync(join(disk.root, rel), 'utf8')
+  return out
+}
+
 /**
  * S15: a failing npm/eval gate explains itself, then the patch stays a proposal.
  * Agree writes the harness mock. Decline leaves that tree unchanged.
+ * S22: the same loop on a red unit test. The explanation is human, not the
+ * stack wall. The factory does not auto-apply. Deny leaves no patch on disk.
+ * A half-written hunk is not success.
  */
 function assertTfl(fixture: Fixture): void {
   const spec = fixture.tfl
   assert.ok(spec, `${fixture.id}: missing tfl spec`)
   const label = fixture.id
   const started = { ...spec.mockTree }
+  const repo = spec.confirmBeforeApply ? projectRoot() : ''
+  const docsBefore = spec.confirmBeforeApply ? snapshotCoreADocs(repo) : null
+  const disk = spec.confirmBeforeApply ? materializeMock(spec.mockTree) : null
+  if (spec.confirmBeforeApply) {
+    for (const rel of Object.keys(spec.mockTree)) {
+      assert.equal(existsSync(join(repo, rel)), false, `${label}: mock path already on disk: ${rel}`)
+    }
+  }
   const reviewedOn = createMockTree(spec.mockTree)
   const review = reviewNpmTestFailure(spec.npmOutput, reviewedOn)
   assert.ok(review, `${label}: npm test failure was not recognized`)
@@ -812,6 +862,59 @@ function assertTfl(fixture: Fixture): void {
     assert.ok(body.includes(fact), `${label}: agreed file missing ${fact}`)
   }
   assert.deepEqual(declineTree.snapshot(), started, `${label}: agree mutated the declined tree`)
+
+  if (!spec.confirmBeforeApply || !docsBefore || !disk) return
+  assert.ok(spec.npmOutput.includes('node:internal'), `${label}: red unit test has no stack wall`)
+  assert.ok(
+    review.draft.explanation.length < spec.npmOutput.length,
+    `${label}: explanation is not shorter than the raw report`
+  )
+  assert.notEqual(review.draft.explanation.trim(), spec.npmOutput.trim(), `${label}: explanation is the raw report`)
+  assert.ok(review.draft.explanation.split('\n').length <= 4, `${label}: explanation is a stack wall`)
+  assert.equal(/^\s*at \S+/m.test(review.draft.explanation), false, `${label}: explanation is a stack frame`)
+  assert.equal(card.description, review.draft.explanation, `${label}: confirm card is not the human explanation`)
+  assert.equal(card.command.includes('node:internal'), false, `${label}: confirm card shows the stack wall`)
+  assert.ok(card.notes.includes('Decline'), `${label}: confirm card has no decline`)
+  assert.equal(review.hitl.phase, 'interrupted', `${label}: factory left the draft past confirm`)
+  assert.equal(reviewedOn.writeCount(), 0, `${label}: factory auto-applied the draft`)
+  assert.equal(sideEffectExecutionPermitted(review.hitl), false, `${label}: factory opened SSH`)
+
+  const first = review.draft.hunks[0]
+  assert.ok(first, `${label}: confirm draft has no hunk`)
+  assert.equal(agreeTree.snapshot()[first.path], first.after, `${label}: agree wrote a partial patch`)
+  for (const [rel, original] of Object.entries(started)) {
+    if (agreed.written.includes(rel)) continue
+    assert.equal(agreeTree.snapshot()[rel], original, `${label}: agree wrote an untouched file`)
+  }
+
+  const prefix = first.after.slice(0, Math.max(1, Math.floor(first.after.length / 2)))
+  assert.notEqual(prefix, first.before, `${label}: half fixture matches the original file`)
+  assert.notEqual(prefix, first.after, `${label}: half fixture is the full patch`)
+  const executing = markHitlExecuting(resumeHitl(review.hitl, true))
+  assert.equal(executing.phase, 'executing', `${label}: agree did not reach executing`)
+  const halfTree = createMockTree({ ...started, [first.path]: prefix })
+  const half = applyPatchDraft(executing, review.draft, halfTree)
+  assert.equal(half.applied, false, `${label}: half-written change treated as success`)
+  assert.deepEqual(half.written, [])
+  assert.equal(halfTree.snapshot()[first.path], prefix, `${label}: half-written file was completed`)
+  for (const [rel, original] of Object.entries(started)) {
+    if (rel === first.path) continue
+    assert.equal(halfTree.snapshot()[rel], original, `${label}: half apply touched ${rel}`)
+  }
+
+  const poisoned = applyPatchDraft(executing, {
+    ...review.draft,
+    hunks: [...review.draft.hunks, { path: `${first.path}.half`, before: 'S22_HALF_BEFORE', after: 'S22_HALF_APPLIED\n' }]
+  }, createMockTree(started))
+  assert.equal(poisoned.applied, false, `${label}: partial hunk chain treated as success`)
+  assert.deepEqual(poisoned.written, [])
+  assert.deepEqual(poisoned.tree.snapshot(), started, `${label}: partial hunk chain left a half write`)
+
+  assert.deepEqual(readMaterialized(disk), disk.files, `${label}: deny left a patch on disk`)
+  for (const rel of Object.keys(spec.mockTree)) {
+    assert.equal(existsSync(join(repo, rel)), false, `${label}: patch written on disk at ${rel}`)
+  }
+  assert.deepEqual(snapshotCoreADocs(repo), docsBefore, `${label}: deny rewrote a fixture file`)
 }
 
 describe('Core-A eval fixtures', { concurrency: 1 }, () => {
