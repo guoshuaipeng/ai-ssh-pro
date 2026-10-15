@@ -58,7 +58,7 @@ export default function PostmortemAiTab({ alert, events, aiConfigured, onOpenSet
         setError(result.code === 'aborted' ? '' : result.message || result.code)
         return
       }
-      if (result.kind === 'nlCommand') {
+      if (result.kind !== 'explainAlert' && result.kind !== 'explainError') {
         setPhase('error')
         setError('shape')
         return

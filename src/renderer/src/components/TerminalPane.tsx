@@ -11,7 +11,9 @@ import { AISS_INJECT_TERMINAL_EVENT } from '../lib/terminal-inject'
 import { getXtermTheme } from '../lib/terminal-themes'
 import { attachZmodem, type ZmodemAttach } from '../lib/zmodem-attach'
 import { findInBuffer, AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
-import { looksLikeError, rememberError, requestAiExplain } from '../lib/ai-events'
+import { looksLikeError, rememberError, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
+import { registerTerminalSelection } from '../lib/terminal-selection'
+import { showToast } from '../lib/toast'
 import { extractPromptCommand, ghostSuffix, rankSuggestions, terminalKeyAction } from '@shared/smart-complete'
 import { loadSmartHistory, loadSmartPrefs, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
@@ -140,6 +142,14 @@ export default function TerminalPane({
     setAiHint(false)
     requestAiExplain({ sessionId, text: sel || recentText(), source })
   }
+
+  useEffect(() => {
+    if (!active) return
+    return registerTerminalSelection(() => {
+      const term = apiRef.current?.term
+      return { sessionId, text: term?.hasSelection() ? term.getSelection() : '' }
+    })
+  }, [active, sessionId])
 
   useEffect(() => {
     const onFind = () => {
@@ -339,6 +349,17 @@ export default function TerminalPane({
           }
         },
         'sep',
+        {
+          id: 'a6Explain',
+          label: tg('a6.explain'),
+          disabled: !hasSel,
+          onSelect: () => {
+            const text = term?.getSelection() ?? ''
+            void requestSelectionExplain({ sessionId, text }).then((status) => {
+              if (status === 'empty') showToast(tg('a6.needSelection'))
+            })
+          }
+        },
         {
           id: 'aiExplain',
           label: tg('a1.explainSelection'),

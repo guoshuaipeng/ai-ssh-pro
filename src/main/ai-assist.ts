@@ -1,4 +1,5 @@
 import type { AiAssistRequest, AiAssistResult, AiSettings } from '../shared/ipc'
+import { normalizeSelectionExplain } from '../shared/selection-explain'
 
 /** A1 / A2: short, single-shot JSON completions against the active OpenAI-compatible provider. */
 const inflight = new Map<string, AbortController>()
@@ -6,6 +7,16 @@ const inflight = new Map<string, AbortController>()
 function systemPrompt(req: AiAssistRequest): string {
   const zh = req.locale === 'zh-CN'
   const lang = zh ? '用简体中文回答。' : 'Answer in English.'
+  if (req.kind === 'explainSelection') {
+    return [
+      'You explain a text selection from an SSH terminal. The explanation is read-only.',
+      'If a shell command would help, include it only as a draft. Do not claim it was executed.',
+      'Prefer a short summary. Prefer read-only diagnostics when you suggest a command. Use an empty command when none is needed.',
+      'Reply with ONE JSON object only, no markdown: {"summary": string, "command": string, "riskLevel": "low"|"medium"|"high", "notes": string}.',
+      'riskLevel low = read-only, medium = changes state but recoverable, high = destructive.',
+      lang
+    ].join('\n')
+  }
   if (req.kind === 'explainError' || req.kind === 'explainAlert') {
     const role =
       req.kind === 'explainAlert'
@@ -42,6 +53,11 @@ function extractJson(text: string): Record<string, unknown> {
 const str = (v: unknown, max = 2000) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
 export function normalizeAssist(kind: AiAssistRequest['kind'], o: Record<string, unknown>): AiAssistResult {
+  if (kind === 'explainSelection') {
+    const draft = normalizeSelectionExplain(o)
+    if (!draft) return { ok: false, code: 'error', message: 'empty answer' }
+    return { ok: true, kind, summary: draft.summary, command: draft.command, riskLevel: draft.riskLevel, notes: draft.notes }
+  }
   if (kind === 'explainError' || kind === 'explainAlert') {
     const fixes = (Array.isArray(o.fixes) ? o.fixes : [])
       .map((f): Record<string, unknown> => (f && typeof f === 'object' ? (f as Record<string, unknown>) : { command: f }))
@@ -73,9 +89,11 @@ export async function runAiAssist(req: AiAssistRequest, settings: AiSettings): P
   try {
     const url = `${provider.baseURL.replace(/\/$/, '')}/chat/completions`
     const user =
-      req.kind === 'explainError' || req.kind === 'explainAlert'
-        ? `${req.host ? `Host: ${req.host}\n` : ''}${req.kind === 'explainAlert' ? 'Alert context' : 'Terminal output'} (most recent last):\n${text.slice(-6000)}`
-        : `${req.host ? `Host: ${req.host}\n` : ''}Request: ${text.slice(0, 1000)}`
+      req.kind === 'explainSelection'
+        ? `${req.host ? `Host: ${req.host}\n` : ''}Selected text:\n${text.slice(-6000)}`
+        : req.kind === 'explainError' || req.kind === 'explainAlert'
+          ? `${req.host ? `Host: ${req.host}\n` : ''}${req.kind === 'explainAlert' ? 'Alert context' : 'Terminal output'} (most recent last):\n${text.slice(-6000)}`
+          : `${req.host ? `Host: ${req.host}\n` : ''}Request: ${text.slice(0, 1000)}`
     const body = {
       model: settings.model,
       messages: [

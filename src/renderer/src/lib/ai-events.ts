@@ -1,6 +1,8 @@
 /**
  * A1 / A2 glue between the terminal, the command bar and the AI panel (window CustomEvents, no global store).
  */
+import { planSelectionExplain } from '../../../shared/selection-explain'
+
 export const AI_EXPLAIN_EVENT = 'aiss-ai-explain'
 export const COMMAND_BAR_FILL_EVENT = 'aiss-commandbar-fill'
 export const COMMAND_BAR_AI_MODE_EVENT = 'aiss-commandbar-ai-mode'
@@ -70,8 +72,33 @@ export async function aiHasKey(): Promise<boolean> {
 }
 
 /** UX-37: unconfigured AI lands on the single config card (no second explain card). */
-export function flashAiConfig(reason: 'explain' | 'command' | 'alert'): void {
+export function flashAiConfig(reason: 'explain' | 'command' | 'alert' | 'selection'): void {
   window.dispatchEvent(new CustomEvent('aiss-ai-need-config', { detail: { reason } }))
+}
+
+export const SELECTION_EXPLAIN_EVENT = 'aiss-selection-explain'
+
+export type SelectionExplainDetail = { sessionId: string; text: string }
+
+/**
+ * A6: explain a non-empty terminal selection.
+ * No key → the existing config card. Empty text → caller toasts. Never writes.
+ */
+export async function requestSelectionExplain(detail: SelectionExplainDetail): Promise<'empty' | 'unconfigured' | 'opened'> {
+  const ready = await aiHasKey().catch(() => false)
+  const planned = planSelectionExplain({ text: detail.text, configured: ready })
+  if (!detail.sessionId || planned.status === 'empty') return 'empty'
+  window.dispatchEvent(new CustomEvent('aiss-open-right-panel', { detail: { pane: 'ai' } }))
+  if (planned.status === 'unconfigured') {
+    flashAiConfig('selection')
+    return 'unconfigured'
+  }
+  window.dispatchEvent(
+    new CustomEvent<SelectionExplainDetail>(SELECTION_EXPLAIN_EVENT, {
+      detail: { sessionId: detail.sessionId, text: planned.text }
+    })
+  )
+  return 'opened'
 }
 
 export function requestAiExplain(detail: AiExplainDetail): void {

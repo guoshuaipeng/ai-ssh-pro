@@ -148,7 +148,16 @@ export default function AIPanel({
   useEffect(() => {
     const onNeed = (e: Event) => {
       const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason
-      const text = reason === 'explain' ? tg('ux37.needExplain') : reason === 'command' ? tg('ux37.needCommand') : reason === 'alert' ? tg('ux37.needAlert') : null
+      const text =
+        reason === 'explain'
+          ? tg('ux37.needExplain')
+          : reason === 'selection'
+            ? tg('ux37.needSelection')
+            : reason === 'command'
+              ? tg('ux37.needCommand')
+              : reason === 'alert'
+                ? tg('ux37.needAlert')
+                : null
       setConfigContext(text)
       setConfigFlash(true)
       window.setTimeout(() => setConfigFlash(false), 1200)

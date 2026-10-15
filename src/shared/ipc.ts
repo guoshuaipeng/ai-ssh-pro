@@ -751,15 +751,17 @@ export type BackupExportResult =
   | { ok: false; canceled?: boolean; error: string }
 export type BackupImportResult = { ok: true; counts: BackupCounts } | { ok: false; canceled?: boolean; error: string }
 
-/** A1 / A2 / A4: one-shot AI helpers (explain an error, an alert, natural language → command) */
+/** A1 / A2 / A4 / A6: one-shot AI helpers (explain an error, an alert, a selection, natural language → command) */
 export type AiAssistRequest =
   | { requestId: string; kind: 'explainError'; text: string; host?: string; locale: string }
   | { requestId: string; kind: 'explainAlert'; text: string; host?: string; locale: string }
+  | { requestId: string; kind: 'explainSelection'; text: string; host?: string; locale: string }
   | { requestId: string; kind: 'nlCommand'; text: string; host?: string; locale: string }
 
 export type AiAssistFix = { command: string; note?: string }
 
 export type AiAssistResult =
   | { ok: true; kind: 'explainError' | 'explainAlert'; cause: string; fixes: AiAssistFix[]; notes?: string }
+  | { ok: true; kind: 'explainSelection'; summary: string; command?: string; riskLevel: 'low' | 'medium' | 'high'; notes?: string }
   | { ok: true; kind: 'nlCommand'; command: string; explanation: string; risk: 'safe' | 'caution' | 'danger' }
   | { ok: false; code: 'not-configured' | 'aborted' | 'error'; message?: string }

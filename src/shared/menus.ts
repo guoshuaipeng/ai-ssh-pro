@@ -101,6 +101,7 @@ export type MenuAction =
   | 'setDryRunReminder'
   | 'aiPostmortem'
   | 'explainDiff'
+  | 'explainSelection'
   | 'diffFixPlaybook'
   | 'openProdGuard'
   | 'reconnectPolicy'

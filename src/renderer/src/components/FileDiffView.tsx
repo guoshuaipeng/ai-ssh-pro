@@ -79,7 +79,7 @@ export default function FileDiffView({
         if (result.code === 'not-configured') needAi()
         return
       }
-      if (result.kind === 'nlCommand') return
+      if (result.kind !== 'explainAlert' && result.kind !== 'explainError') return
       setExplain(result.cause)
       setFixes(result.fixes ?? [])
       setPulse(true)
