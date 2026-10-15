@@ -32,6 +32,9 @@
   overflow-x: auto;
   max-width: 100%;
 }
+.jump-chip-wrap { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.jump-arrow { color: var(--muted); }
+.jump-chip.is-bad { color: var(--danger, #f85149); border-color: var(--danger, #f85149); }
 .jump-chip {
   flex: 0 0 auto;
   white-space: nowrap;

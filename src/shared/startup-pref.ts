@@ -17,7 +17,37 @@ export function saveStartupMode(mode: StartupMode, store: Store = globalThis.loc
   store.setItem(STARTUP_LS_KEY, mode)
 }
 
-export type LastWorkspace = { profileIds: string[] }
+/** A center tab remembered for "last session". Scrollback is intentionally absent. */
+export type SavedWorkspaceTab = {
+  kind: string
+  profileId?: string
+  title: string
+  order: number
+  toolboxTab?: string
+  focusAlertId?: string
+  settingsSection?: string
+  playbookId?: string
+  active?: boolean
+}
+
+export type LastWorkspace = { profileIds: string[]; tabs?: SavedWorkspaceTab[] }
+
+function cleanTab(raw: unknown, order: number): SavedWorkspaceTab | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Partial<SavedWorkspaceTab>
+  if (typeof o.kind !== 'string' || !o.kind) return null
+  return {
+    kind: o.kind,
+    profileId: typeof o.profileId === 'string' ? o.profileId : undefined,
+    title: typeof o.title === 'string' ? o.title : o.kind,
+    order: typeof o.order === 'number' ? o.order : order,
+    toolboxTab: typeof o.toolboxTab === 'string' ? o.toolboxTab : undefined,
+    focusAlertId: typeof o.focusAlertId === 'string' ? o.focusAlertId : undefined,
+    settingsSection: typeof o.settingsSection === 'string' ? o.settingsSection : undefined,
+    playbookId: typeof o.playbookId === 'string' ? o.playbookId : undefined,
+    active: o.active === true
+  }
+}
 
 export function loadLastWorkspace(store: Pick<Storage, 'getItem'> = globalThis.localStorage): LastWorkspace {
   try {
@@ -25,12 +55,13 @@ export function loadLastWorkspace(store: Pick<Storage, 'getItem'> = globalThis.l
     if (!raw) return { profileIds: [] }
     const parsed = JSON.parse(raw) as LastWorkspace
     const ids = Array.isArray(parsed?.profileIds) ? parsed.profileIds.filter((id) => typeof id === 'string') : []
-    return { profileIds: ids }
+    const tabs = Array.isArray(parsed?.tabs) ? parsed.tabs.map((row, i) => cleanTab(row, i)).filter((row): row is SavedWorkspaceTab => Boolean(row)) : []
+    return { profileIds: ids, tabs }
   } catch {
     return { profileIds: [] }
   }
 }
 
 export function saveLastWorkspace(state: LastWorkspace, store: Store = globalThis.localStorage): void {
-  store.setItem(LAST_WORKSPACE_LS_KEY, JSON.stringify({ profileIds: state.profileIds }))
+  store.setItem(LAST_WORKSPACE_LS_KEY, JSON.stringify({ profileIds: state.profileIds, tabs: state.tabs ?? [] }))
 }

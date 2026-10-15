@@ -12,6 +12,61 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.1': [
+    {
+      icon: '⤳',
+      text: {
+        zh: '跳板机最多五跳，失败定位到某一跳。OpenSSH 用户证书可以真正完成认证；sk-ed25519 仍必须走 SSH Agent',
+        en: 'Jump hosts support up to five hops, and a failure names the hop. OpenSSH user certificates authenticate for real; sk-ed25519 still goes through an SSH agent'
+      },
+      where: { zh: '新建连接 → 高级', en: 'New connection → Advanced' },
+      action: 'connection'
+    },
+    {
+      icon: '▦',
+      text: {
+        zh: '1366 下运维首页和告警工作台按内容宽度排布。标签条固定 36px，溢出用 ⌄ 和未显示个数，不显示滚动条',
+        en: 'At 1366, Ops home and the alert workbench follow content width. The tab strip stays 36px, overflows with ⌄ and a hidden count, and hides the scrollbar'
+      },
+      where: { zh: '运维首页 / 告警工作台', en: 'Ops home / Alert workbench' },
+      action: 'opsHome'
+    },
+    {
+      icon: '⚙',
+      text: {
+        zh: '设置并成一个中心标签（Ctrl+,）。打开 SFTP 和同步文件夹在运维首页右侧',
+        en: 'Settings is one center tab (Ctrl+,). Open SFTP and Sync folder live on the Ops home rail'
+      },
+      where: { zh: '设置', en: 'Settings' },
+      action: 'settings'
+    },
+    {
+      icon: '⌘',
+      text: {
+        zh: '命令面板按类别分组，并钉住常用项。最近连接默认折叠，不跟主机列表重复',
+        en: 'The command palette groups by category and pins frequent commands. Recent connections start collapsed and do not repeat the host list'
+      },
+      where: { zh: 'Ctrl+K', en: 'Ctrl+K' },
+      action: 'commandPalette'
+    },
+    {
+      icon: '↺',
+      text: {
+        zh: '启动「上次会话」现恢复运维首页、告警工作台、SFTP、监控、工具箱等中间标签及分屏布局；终端仅恢复标签并重连，不恢复 scrollback。',
+        en: 'Startup “Last session” restores Ops home, the alert workbench, SFTP, monitor, toolbox, and other center tabs. Terminals restore as a tab and reconnect; scrollback is not restored.'
+      },
+      where: { zh: '设置 → 常规', en: 'Settings → General' },
+      action: 'startupSettings'
+    },
+    {
+      icon: '▢',
+      text: {
+        zh: '修复冷启动首次双击窗口不显示',
+        en: 'Fix main window not showing on first cold-start launch'
+      },
+      where: { zh: '启动应用', en: 'Launch the app' }
+    }
+  ],
   '0.4.0': [
     {
       icon: '▣',

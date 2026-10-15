@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.1
+
+Jump hosts and the 1366 layout pass. Package version is `0.4.1`. Do not tag until QA signs off.
+
+- **跳板机（L6）/ Jump hosts.** 链路图最多五跳（本机 → 跳板 → 目标）。失败横幅写明第几跳，并提供「编辑跳板机」「重试」；「检查密钥与证书…」在 ⋯ 里。分组跳板会先确认再覆盖。OpenSSH 用户证书会替换 ssh2 公钥并完成进程内握手。sk-ed25519 不能当普通私钥用，只能走 SSH Agent。 / The chain diagram shows at most five hops. The failure banner names the hop and offers Edit jump hosts and Retry; Check keys and certificates… sits in ⋯. Applying a jump host to a group asks before overwrite. An OpenSSH user certificate replaces the ssh2 public key and completes an in-process handshake. sk-ed25519 is refused as a raw key and must use an SSH agent.
+- **1366 密度（UX-47 / UX-54 / UX-55）/ Density.** 运维首页和告警工作台仍用容器查询：1199 叠首页，1099 叠告警双栏，1040 时搜索独占第二行，约 900 起次要动作变成图标且「定位」留字。标签条固定 36px、无可见滚动条；标签高 30px 且等高。放不下时右端是 `⌄ n`（n 为未完整显示的个数），列表标题与标签条同一套文案。竖向滚轮改为横滚，两端有渐隐。 / Ops home and the alert workbench stay on container queries: 1199 stacks home, 1099 stacks the alert split, 1040 gives search its own row, and around 900 the secondary actions become icons while Locate keeps its label. The tab strip stays 36px with no visible scrollbar and 30px equal-height tabs. Overflow is `⌄ n` (tabs not fully in view); the list uses the same labels as the strip. A vertical wheel scrolls sideways, with a fade at each hidden edge.
+- **运维首页深链（UX-52）/ Ops home links.** 右栏有「打开 SFTP」和「同步文件夹…」，不换行；窄栏时进页头 ⋯。没有会话时走主机选择器，以中心标签打开。 / The rail has Open SFTP and Sync folder…, nowrap, and they move into the header ⋯ when the rail collapses. With no session they use the host picker and open as center tabs.
+- **设置（UX-13）/ Settings.** Ctrl+, 打开同一个设置标签。外观、终端、AI、快捷键、关于等入口跳到对应锚点，自动保存。 / Ctrl+, opens one settings tab. Appearance, terminal, AI, shortcuts, and about land on the same anchors. Changes save themselves.
+- **命令面板（UX-11b）/ Command palette.** 空查询按固定类别分组，并钉住最多 5 个常用项。查询 sync 的顺序是：云同步…、立即同步、同步冲突、同步文件夹…、同步预览。 / An empty query groups by a fixed category order and pins up to five frequent commands. The query “sync” ranks Cloud sync…, Sync now, Sync conflict, Sync folder…, Sync preview.
+- **最近连接（UX-18）/ Recent.** 侧栏「最近连接」默认折叠。同一 user@host:port 只留一行，已保存的主机带「已保存」，不再复制整棵主机树。 / Recent connections start collapsed. One row per user@host:port, with a Saved badge when the host is already in the list.
+- **主机菜单（UX-19）/ Host menu.** 单选：连接、新标签、SFTP、监控、工具箱、编辑、档案与备注、重命名、移动、复制地址、删除（底部红色）。Docker 进工具箱，不再单独占一行。 / Single selection ends with a red Delete. Docker opens inside the toolbox instead of its own row. Profile & notes opens the host profile.
+- **恢复上次会话（UX-50）/ Restore.** 启动「上次会话」现恢复运维首页、告警工作台、SFTP、监控、工具箱等中间标签及分屏布局；终端仅恢复标签并重连，不恢复 scrollback。失效档案会跳过并提示。启动「运维首页」不会把这些标签一起打开。 / Startup “Last session” restores Ops home, the alert workbench, SFTP, monitor, toolbox, and other center tabs. Terminals restore as a tab and reconnect; scrollback is not restored. A missing profile is skipped with a toast. Startup “Ops home” does not reopen those tabs.
+- **冷启动 / Cold start.** 修复冷启动首次双击窗口不显示 / Fix main window not showing on first cold-start launch.
+
 ## v0.4.0
 
 2026-10-15 · 从 SSH 客户端到 AI 运维工作台 / From SSH client to AI ops workbench.

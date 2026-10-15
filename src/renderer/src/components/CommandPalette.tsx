@@ -5,7 +5,9 @@ import { loadSmartPrefs } from '../lib/smart-history'
 import { armFolderSync } from '../lib/sftp-activity'
 import { MENUS, type TitlebarMenuAction } from './TitlebarMenus'
 import { loadSyncProfiles } from './SftpPanel'
-import { buildPaletteEntries, filterPaletteEntries, type PaletteEntry } from '../lib/palette'
+import { buildPaletteEntries, type PaletteEntry } from '../lib/palette'
+import { layoutPalette } from '@shared/palette-rank'
+import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
 
 type Props = {
   open: boolean
@@ -13,12 +15,26 @@ type Props = {
   onAction: (action: TitlebarMenuAction) => void
   /** UX-37: AI actions note "not set up" until a key exists */
   aiReady?: boolean
+  /** Grey reason shown beside an action that cannot run yet. */
+  notes?: Partial<Record<string, string>>
 }
 
 type Entry = PaletteEntry
 
 /** Ctrl+Shift+P / Ctrl+K: searchable list of every menu action (matches on the label, menu name and action id). */
-export default function CommandPalette({ open, onClose, onAction, aiReady = true }: Props) {
+const CAT_KEY: Record<string, 'palette.pinned' | 'palette.cat.connection' | 'palette.cat.session' | 'palette.cat.ops' | 'palette.cat.file' | 'palette.cat.ai' | 'palette.cat.view' | 'palette.cat.settings' | 'palette.cat.help'> = {
+  pinned: 'palette.pinned',
+  connection: 'palette.cat.connection',
+  session: 'palette.cat.session',
+  ops: 'palette.cat.ops',
+  file: 'palette.cat.file',
+  ai: 'palette.cat.ai',
+  view: 'palette.cat.view',
+  settings: 'palette.cat.settings',
+  help: 'palette.cat.help'
+}
+
+export default function CommandPalette({ open, onClose, onAction, aiReady = true, notes }: Props) {
   const { t, locale } = useI18n()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
@@ -52,12 +68,19 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
         syncId: p.id,
         label,
         group,
+        category: 'file' as const,
+        order: 10_000,
         hay: `${label} ${group} ${p.name} folder sync`.toLowerCase()
       }
     })
-    return [...base, ...profiles]
-  }, [aiReady, locale, open, t])
-  const filtered = useMemo(() => filterPaletteEntries(entries, q), [entries, q])
+    return [...base, ...profiles].map((e) => {
+      const note = notes?.[e.id]
+      return note ? { ...e, note, disabled: true } : e
+    })
+  }, [aiReady, locale, notes, open, t])
+  const usage = useMemo(() => (open ? loadPaletteUsage() : {}), [open])
+  const laid = useMemo(() => layoutPalette(entries, q, usage), [entries, q, usage])
+  const filtered = laid.items
 
   useEffect(() => {
     if (!open) return
@@ -75,6 +98,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
   const run = (e?: Entry) => {
     if (!e) return
     onClose()
+    recordPaletteUse(e.id)
     window.setTimeout(() => {
       if (e.syncId) armFolderSync(e.syncId)
       onAction(e.id)
@@ -108,22 +132,40 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
           }}
         />
         <div className="cmdp-list" role="listbox" ref={listRef}>
-          {filtered.length === 0 ? <div className="cmdp-empty">{t('cmdp.empty')}</div> : null}
-          {filtered.map((e, i) => (
-            <button
-              key={e.syncId || e.id}
-              type="button"
-              role="option"
-              aria-selected={i === sel}
-              className={`cmdp-item${i === sel ? ' is-active' : ''}`}
-              onMouseEnter={() => setSel(i)}
-              onClick={() => run(e)}
-            >
-              <span className="cmdp-label">{e.label}</span>
-              <span className="cmdp-group">{e.note ? `${e.group} · ${e.note}` : e.group}</span>
-              {e.shortcut ? <kbd className="cmdp-kbd">{e.shortcut}</kbd> : null}
-            </button>
-          ))}
+          {filtered.length === 0 ? (
+            <div className="cmdp-empty">
+              {t('cmdp.empty', { q })}
+              <div className="l7-muted">{t('cmdp.pinyinHint')}</div>
+            </div>
+          ) : null}
+          {laid.rows.map((row) => {
+            if (row.kind === 'header') {
+              const key = CAT_KEY[row.id]
+              return (
+                <div key={`h-${row.id}`} className="cmdp-head">
+                  {key ? t(key) : row.id}
+                </div>
+              )
+            }
+            const e = row.item
+            const i = filtered.indexOf(e)
+            return (
+              <button
+                key={e.syncId || `${e.id}-${e.order}`}
+                type="button"
+                role="option"
+                aria-selected={i === sel}
+                aria-disabled={e.disabled || undefined}
+                className={`cmdp-item${i === sel ? ' is-active' : ''}${e.disabled ? ' is-disabled' : ''}`}
+                onMouseEnter={() => setSel(i)}
+                onClick={() => run(e)}
+              >
+                <span className="cmdp-label">{e.label}</span>
+                <span className="cmdp-group">{e.note ? e.note : t(CAT_KEY[e.category] ?? 'palette.cat.help')}</span>
+                {e.shortcut ? <kbd className="cmdp-kbd">{e.shortcut}</kbd> : null}
+              </button>
+            )
+          })}
         </div>
         <div className="cmdp-foot">{t('cmdp.hint')}</div>
       </div>

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { tg } from '../lib/i18n'
 import { ProtectionLevelField } from './ProtectionSection'
 import JumpChainEditor from './JumpChainEditor'
+import CertCard from './CertCard'
 
 export type ConnectionConfigModalProps = {
   /** 默认「新建连接」；编辑已保存会话时可传入更明确的标题 */
@@ -61,6 +62,8 @@ export type ConnectionConfigModalProps = {
   jumpChain?: import('@shared/jump-chain').JumpHop[]
   setJumpChain?: (v: import('@shared/jump-chain').JumpHop[]) => void
   profiles?: import('@shared/ipc').SavedSessionProfile[]
+  focusSection?: 'jump' | 'cert' | null
+  onTestJump?: () => Promise<import('@shared/jump-chain').HopProbeRow[]>
 }
 
 /** UX-25: documentation-range placeholder only */
@@ -121,7 +124,9 @@ export default function ConnectionConfigModal({
   setAutoRecord,
   jumpChain,
   setJumpChain,
-  profiles = []
+  profiles = [],
+  focusSection = null,
+  onTestJump
 }: ConnectionConfigModalProps) {
   const initialAuth: 'password' | 'key' | 'agent' = authModeExternal ?? (privateKeyPath.trim() ? 'key' : 'password')
   const [authMode, setAuthModeState] = useState<'password' | 'key' | 'agent'>(initialAuth)
@@ -130,12 +135,23 @@ export default function ConnectionConfigModal({
     setAuthModeExternal?.(v)
   }
   const advancedOpenDefault = Boolean(
-    jumpHost.trim() ||
+    focusSection === 'jump' ||
+      (jumpChain && jumpChain.length) ||
+      jumpHost.trim() ||
       forwardLocalPort.trim() ||
       forwardRemoteHost.trim() ||
       forwardRemotePort.trim()
   )
   const [advancedOpen, setAdvancedOpen] = useState(advancedOpenDefault)
+  const certRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focusSection !== 'cert') return
+    if (authMode === 'password') {
+      setAuthMode('key')
+      return
+    }
+    certRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [focusSection, authMode])
 
   return (
     <div className="workspace-panel workspace-panel--editor conn-form-ux25">
@@ -252,6 +268,17 @@ export default function ConnectionConfigModal({
                       autoComplete="off"
                     />
                   </div>
+                  {authMode === 'key' || authMode === 'agent' ? (
+                    <div ref={certRef} data-testid="cert-focus">
+                      <CertCard
+                        keyPath={privateKeyPath}
+                        certificatePath={certificatePath}
+                        username={username}
+                        authMode={authMode}
+                        onSwitchAgent={() => setAuthMode('agent')}
+                      />
+                    </div>
+                  ) : null}
                 </>
               )}
             </div>
@@ -266,7 +293,7 @@ export default function ConnectionConfigModal({
             <div className="ws-collapse-body">
               <h4 className="conn-subhead">{tg('ui.50')}</h4>
               {setJumpChain ? (
-                <JumpChainEditor hops={jumpChain ?? []} targetHost={host} profiles={profiles} onChange={setJumpChain} />
+                <JumpChainEditor hops={jumpChain ?? []} targetHost={host} profiles={profiles} onChange={setJumpChain} onTest={onTestJump} />
               ) : null}
               {setJumpChain ? null : (
               <div className="field-grid field-grid--single">

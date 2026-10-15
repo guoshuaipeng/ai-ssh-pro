@@ -9,9 +9,11 @@ import type { SmartPrefs } from '@shared/smart-complete'
 type Props = {
   onClose: () => void
   onSaved?: (prefs: TerminalPrefs) => void
+  /** UX-13: inside the settings tab, changes save themselves. */
+  embedded?: boolean
 }
 
-export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
+export default function TerminalPrefsModal({ onClose, onSaved, embedded = false }: Props) {
   const [themeId, setThemeId] = useState<TerminalThemeId>(TERMINAL_PREFS_DEFAULTS.themeId)
   const [fontFamily, setFontFamily] = useState(TERMINAL_PREFS_DEFAULTS.fontFamily)
   const [fontSize, setFontSize] = useState(TERMINAL_PREFS_DEFAULTS.fontSize)
@@ -19,6 +21,8 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
   const [hint, setHint] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [smart, setSmart] = useState<SmartPrefs>(() => loadSmartPrefs())
+  const [loaded, setLoaded] = useState(false)
+  const [rangeError, setRangeError] = useState<string | null>(null)
 
   useEffect(() => {
     setHint(null)
@@ -27,8 +31,22 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
       setFontFamily(p.fontFamily)
       setFontSize(p.fontSize)
       setScrollback(p.scrollback)
+      setLoaded(true)
     })
   }, [])
+
+  useEffect(() => {
+    if (!embedded || !loaded) return
+    if (fontSize < 8 || fontSize > 48 || scrollback < 100 || scrollback > 100000) {
+      setRangeError(tg('settings.number', { min: fontSize < 8 || fontSize > 48 ? 8 : 100, max: fontSize < 8 || fontSize > 48 ? 48 : 100000 }))
+      return
+    }
+    setRangeError(null)
+    const timer = window.setTimeout(() => void save(), 400)
+    return () => window.clearTimeout(timer)
+    // save identity changes every render; the fields are the trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedded, loaded, themeId, fontFamily, fontSize, scrollback])
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -47,7 +65,8 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
   }, [fontFamily, fontSize, onSaved, scrollback, themeId])
 
   return (
-    <div className="workspace-panel workspace-panel--settings">
+    <div className={embedded ? 'settings-embed' : 'workspace-panel workspace-panel--settings'} data-testid="terminal-prefs">
+      {embedded ? null : (
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{tg('ui.275')}</h2>
         <div className="workspace-panel-actions">
@@ -59,6 +78,7 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
           </button>
         </div>
       </div>
+      )}
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings">
           <div className="field">
@@ -132,6 +152,7 @@ export default function TerminalPrefsModal({ onClose, onSaved }: Props) {
             </div>
             <p className="smart-count">{tg('x1.recorded', { n: loadSmartHistory().length })}</p>
           </fieldset>
+          {rangeError ? <p className="jump-issue">{rangeError}</p> : null}
           {hint ? <p style={{ margin: 0, fontSize: 12, color: 'var(--accent)' }}>{hint}</p> : null}
         </div>
       </div>

@@ -357,6 +357,7 @@ export class SshSessionManager {
           ...(sock ? { sock } : {})
         }
         try {
+          if (!owner.isDestroyed()) owner.send('ssh:hop', { hop: i + 1, total: hops.length, name: hop.label || hop.host })
           await applyAuth(
             hopConfig,
             { ...hop, authMode: hop.auth, agentSocket: opts.agentSocket },

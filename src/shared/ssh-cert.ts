@@ -27,6 +27,25 @@ export function skNeedsAgent(kind: KeyKind, authMode: 'password' | 'key' | 'agen
   return kind === 'sk-ed25519' && authMode !== 'agent'
 }
 
+export type CertCardState =
+  | { code: 'none' }
+  | { code: 'ok'; date: string; user: string }
+  | { code: 'soon'; days: number; date: string }
+  | { code: 'expired'; date: string }
+  | { code: 'principal'; user: string }
+  | { code: 'unknown' }
+
+export function certCardState(info: CertInfo, username = ''): CertCardState {
+  if (!info.found) return { code: 'none' }
+  const date = info.validUntil ? new Date(info.validUntil).toISOString().slice(0, 10) : ''
+  const user = info.principals[0] || username || info.keyId || ''
+  if (info.tone === 'expired') return { code: 'expired', date }
+  if (info.tone === 'soon') return { code: 'soon', days: Math.max(0, info.daysLeft ?? 0), date }
+  if (info.tone === 'principal') return { code: 'principal', user }
+  if (info.tone === 'unknown') return { code: 'unknown' }
+  return { code: 'ok', date, user }
+}
+
 export function siblingCertPath(keyPath: string): string {
   return keyPath.replace(/\.pub$/i, '') + '-cert.pub'
 }

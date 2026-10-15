@@ -1,9 +1,19 @@
 /** V2: once-a-day silent update check + "skip this version" memory. */
 const CHECKED_AT = 'aiss.updateCheckedAt'
 const SKIP = 'aiss.skipVersion'
+const AUTO = 'aiss.update.auto'
 const DAY = 24 * 60 * 60 * 1000
 
+export function loadAutoUpdate(store: Pick<Storage, 'getItem'> = localStorage): boolean {
+  return store.getItem(AUTO) !== '0'
+}
+
+export function saveAutoUpdate(on: boolean, store: Pick<Storage, 'setItem'> = localStorage): void {
+  store.setItem(AUTO, on ? '1' : '0')
+}
+
 export function shouldAutoCheck(now = Date.now(), store: Pick<Storage, 'getItem'> = localStorage): boolean {
+  if (store.getItem(AUTO) === '0') return false
   const last = Number(store.getItem(CHECKED_AT) || 0)
   return !Number.isFinite(last) || now - last >= DAY
 }

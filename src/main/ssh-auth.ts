@@ -15,6 +15,27 @@ export class SshAuthError extends Error {
   }
 }
 
+function readSshString(buf: Buffer, offset: number): { value: Buffer; next: number } | null {
+  if (offset + 4 > buf.length) return null
+  const len = buf.readUInt32BE(offset)
+  const start = offset + 4
+  const end = start + len
+  if (end > buf.length) return null
+  return { value: buf.subarray(start, end), next: end }
+}
+
+/** True when the certificate's subject key is the same public key. */
+export function certificateMatchesKey(certBlob: Buffer, publicSsh: Buffer): boolean {
+  const certType = readSshString(certBlob, 0)
+  const nonce = certType ? readSshString(certBlob, certType.next) : null
+  const subject = nonce ? readSshString(certBlob, nonce.next) : null
+  const ownType = readSshString(publicSsh, 0)
+  const ownKey = ownType ? readSshString(publicSsh, ownType.next) : null
+  if (!certType || !subject || !ownKey) return false
+  if (!certType.value.toString('utf8').includes('-cert-')) return false
+  return subject.value.equals(ownKey.value)
+}
+
 export function defaultAgentSocket(): string {
   const fromEnv = process.env.SSH_AUTH_SOCK?.trim()
   if (fromEnv) return fromEnv
@@ -61,13 +82,31 @@ export async function applyConnectAuth(
   if (certPath && existsSync(certPath)) {
     const certBuf = await readFile(certPath)
     const key = ssh2.utils.parseKey(keyBuf, auth.passphrase)
-    const cert = ssh2.utils.parseKey(certBuf)
     if (key instanceof Error) throw new SshAuthError('CERT', key.message)
-    if (cert instanceof Error) throw new SshAuthError('CERT', cert.message)
-    const blob = cert.getPublicSSH()
+    // ssh2 parses a certificate as a plain key and drops the certificate
+    // envelope (the next field is a nonce, not the public key). Offer the
+    // original certificate blob and name its algorithm so the handshake is real.
+    const parts = certBuf.toString('utf8').trim().split(/\s+/)
+    const certType = parts[0] || ''
+    const certBlob = Buffer.from(parts[1] || '', 'base64')
+    if (!certType.includes('-cert-') || certBlob.length < 16) throw new SshAuthError('CERT', 'CERT')
     const signed = key as ParsedKey
-    signed.getPublicSSH = () => blob
-    connectConfig.privateKey = signed as unknown as Buffer
+    const ownPub = Buffer.from(signed.getPublicSSH())
+    if (!certificateMatchesKey(certBlob, ownPub)) throw new SshAuthError('CERT', 'CERT')
+    const offered = Buffer.from(certBlob)
+    signed.getPublicSSH = () => Buffer.from(offered)
+    signed.type = certType as ParsedKey['type']
+    // ssh2's Client only keeps privateKey when it is a string or Buffer, so a
+    // ParsedKey assigned here is dropped. authHandler is how the certificate
+    // key object actually reaches USERAUTH_REQUEST.
+    const username = connectConfig.username || ''
+    let offeredCert = false
+    connectConfig.authHandler = () => {
+      if (offeredCert) return false
+      offeredCert = true
+      return { type: 'publickey', username, key: signed }
+    }
+    connectConfig.privateKey = keyBuf
     return
   }
 

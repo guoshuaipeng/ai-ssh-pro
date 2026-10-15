@@ -118,6 +118,36 @@ export function chainTooltip(hops: JumpHop[]): string {
   return hops.map((h) => h.label || h.host).join(' → ')
 }
 
+export type ChainChip = { id: string; label: string; role: 'local' | 'hop' | 'target'; deleted?: boolean; cycle?: boolean }
+
+/** Single-line diagram: this computer → hops → target. */
+export function chainDiagram(hops: JumpHop[], targetHost: string, knownProfileIds?: Set<string>): ChainChip[] {
+  const chips: ChainChip[] = [{ id: 'local', label: '', role: 'local' }]
+  const target = targetHost.trim().toLowerCase()
+  hops.slice(0, MAX_HOPS).forEach((hop, i) => {
+    const name = hop.label || hop.host || ''
+    chips.push({
+      id: hop.id || `hop-${i + 1}`,
+      label: name,
+      role: 'hop',
+      deleted: Boolean(hop.profileId && knownProfileIds && !knownProfileIds.has(hop.profileId)),
+      cycle: Boolean(target && hop.host.trim().toLowerCase() === target)
+    })
+  })
+  chips.push({ id: 'target', label: targetHost.trim(), role: 'target' })
+  return chips
+}
+
+export type HopProbeRow = {
+  hop: number
+  total: number
+  name: string
+  addr: string
+  ok: boolean
+  ms: number
+  reason?: string
+}
+
 export function validateChain(hops: JumpHop[], targetHost: string, knownProfileIds: Set<string>): ChainIssue[] {
   const issues: ChainIssue[] = []
   if (hops.length > MAX_HOPS) issues.push({ code: 'too-many' })
@@ -134,12 +164,37 @@ export function canAddHop(hops: JumpHop[]): boolean {
   return hops.length < MAX_HOPS
 }
 
+export const PROBE_HOST_KEY_DENIED = {
+  zh: '主机密钥未信任/已变化，请先正常连接一次确认',
+  en: 'Host key is untrusted or changed. Connect normally once to confirm it.'
+}
+
+/** Read-only known_hosts gate for 测试连接. Unknown or changed keys must not be authenticated. */
+export function probeHostKeyError(status: 'trusted' | 'unknown' | 'changed'): { zh: string; en: string } | null {
+  if (status === 'trusted') return null
+  return PROBE_HOST_KEY_DENIED
+}
+
 export function formatHopFailure(hop: number, total: number, name: string, addr: string, reason: string): string {
   return `[hop ${hop}/${total}] ${name} (${addr}): ${reason}`
 }
 
+const IPC_PREFIX = /^Error invoking remote method '[^']+':\s*/i
+const ERR_PREFIX = /^Error:\s*/i
+
+/** Drop Electron's `Error invoking remote method 'ssh:connect': Error:` wrapper. */
+export function stripHopIpcPrefix(message: string): string {
+  let s = String(message ?? '').trim()
+  for (let i = 0; i < 6; i++) {
+    const next = s.replace(IPC_PREFIX, '').replace(ERR_PREFIX, '').trim()
+    if (next === s) break
+    s = next
+  }
+  return s
+}
+
 export function parseHopFailure(message: string): { hop: number; total: number; name: string; addr: string; reason: string } | null {
-  const m = /^\[hop (\d+)\/(\d+)\] (.+) \(([^)]+)\): ([\s\S]+)$/.exec(message.trim())
+  const m = /^\[hop (\d+)\/(\d+)\] (.+) \(([^)]+)\): ([\s\S]+)$/.exec(stripHopIpcPrefix(message))
   if (!m) return null
   return { hop: Number(m[1]), total: Number(m[2]), name: m[3]!, addr: m[4]!, reason: m[5]! }
 }

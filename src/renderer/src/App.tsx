@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   AUTO_RECONNECT_DELAYS_MS,
   autoReconnectDelay,
@@ -60,7 +61,8 @@ import {
   type AlertRulesState,
   type FiredAlert
 } from '@shared/alert-rules'
-import { friendlyErrorMessage } from './lib/friendly-error'
+import { friendlyErrorMessage, stripIpcPrefix } from './lib/friendly-error'
+import { placeMenu } from '@shared/menu-place'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
@@ -77,6 +79,7 @@ import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind } from './lib/terminal-find'
 import { matchKeymap } from '@shared/keymap'
 import { changelogFor } from '@shared/changelog'
+import { tabLabel } from '@shared/tab-label'
 import { HOST_PROBE_INTERVAL_MS, type HostProbeResult } from '@shared/host-status'
 import BackupModal from './components/BackupModal'
 import ServerToolsModal from './components/ServerToolsModal'
@@ -108,7 +111,8 @@ import { RecordingPlayer, RecordingsList } from './components/RecordingsTab'
 import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
 import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTab'
 import { blocksEnabled } from '@shared/terminal-blocks'
-import { chainFromProfile, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
+import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
+import { TAB_STRIP_NUDGE, tabStripWheelDelta } from '@shared/tab-overflow'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks } from '@shared/playbook'
 import { statusGlyph, type SyncPhase } from '@shared/sync-vault'
@@ -123,7 +127,10 @@ import { appendAudit, auditEnabled, loadAudit, setAuditEnabled, type AuditEvent 
 import { hostInScope, loadDashScope, saveDashScope, type DashScope } from '@shared/dashboard-scope'
 import { assessCommandRisk } from '@shared/command-risk'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
-import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type StartupMode } from '@shared/startup-pref'
+import { loadLastWorkspace, loadStartupMode, saveLastWorkspace, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
+import { planRestore, snapshotWorkspace } from '@shared/session-restore'
+import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
+import SettingsPanel from './components/SettingsPanel'
 import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
@@ -196,6 +203,7 @@ type TabView =
   | 'recordings'
   | 'recording-play'
   | 'sync-preview'
+  | 'settings'
 
 type SettingsTabView = 'ai' | 'terminalPrefs' | 'uiTheme' | 'snippets' | 'mcpGuide' | 'updates'
 
@@ -239,7 +247,8 @@ const WORKSPACE_TAB_VIEWS = new Set<TabView>([
   'sync-conflicts',
   'recordings',
   'recording-play',
-  'sync-preview'
+  'sync-preview',
+  'settings'
 ])
 
 type Tab = {
@@ -280,6 +289,9 @@ type Tab = {
   playbookId?: string
   recordingFile?: string
   syncPlan?: SyncPreviewPlan
+  settingsSection?: SettingsSection
+  /** Restored tab that connects when it becomes active. */
+  cold?: boolean
   /** D5 compare payload */
   fileCompare?: {
     leftName: string
@@ -336,6 +348,8 @@ function syncPhaseKey(phase: SyncPhase): MessageKey {
 
 export default function App() {
   const { t: tr, locale, setLocale } = useI18n()
+  const labelFor = (tab: Pick<Tab, 'title' | 'status' | 'view' | 'auditHost'>) =>
+    tabLabel(tab, (key, vars) => tr(key as MessageKey, vars))
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
@@ -402,6 +416,16 @@ export default function App() {
   const [formAutoRecord, setFormAutoRecord] = useState(false)
   const [blocksOn, setBlocksOn] = useState(() => blocksEnabled())
   const [jumpFail, setJumpFail] = useState<{ hop: number; total: number; name: string; profileId?: string } | null>(null)
+  const [hopProgress, setHopProgress] = useState<{ hop: number; total: number; name: string } | null>(null)
+  const [connFocus, setConnFocus] = useState<'jump' | 'cert' | null>(null)
+  const [tabOverflowOpen, setTabOverflowOpen] = useState(false)
+  const [tabOverflowPos, setTabOverflowPos] = useState<{ top: number; left: number } | null>(null)
+  const [tabStripOverflowing, setTabStripOverflowing] = useState(false)
+  const [tabHiddenCount, setTabHiddenCount] = useState(0)
+  const [tabFade, setTabFade] = useState({ left: false, right: false })
+  const tabBarRef = useRef<HTMLDivElement>(null)
+  const tabOverflowBtnRef = useRef<HTMLButtonElement>(null)
+  const tabOverflowMenuRef = useRef<HTMLDivElement>(null)
   const syncMeta = useSyncPhase()
   const [syncReady, setSyncReady] = useState(false)
   const [hasPlaybooks, setHasPlaybooks] = useState(() => loadPlaybooks().length > 0)
@@ -481,6 +505,16 @@ export default function App() {
     folderName: string
   } | null>(null)
   const folderMenuRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = sessionMenu ? sessionMenuRef.current : folderMenu ? folderMenuRef.current : null
+    const origin = sessionMenu ?? folderMenu
+    if (!el || !origin) return
+    const rect = el.getBoundingClientRect()
+    const next = placeMenu(origin.x, origin.y, rect.width, rect.height, window.innerWidth, window.innerHeight)
+    if (Math.abs(next.x - origin.x) <= 1 && Math.abs(next.y - origin.y) <= 1) return
+    if (sessionMenu) setSessionMenu({ ...sessionMenu, x: next.x, y: next.y })
+    else if (folderMenu) setFolderMenu({ ...folderMenu, x: next.x, y: next.y })
+  }, [sessionMenu, folderMenu])
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>(() => {
     return loadSidebarExpandPrefs().folders
   })
@@ -701,7 +735,8 @@ export default function App() {
           protection: effectiveLevel(p),
           demo: p.demo,
           alerting,
-          folderId: p.folderId
+          folderId: p.folderId,
+          via: chainTooltip(chainFromProfile(p)) || undefined
         }
       })
   }, [profiles, dashScope, connectedSshSessions, hostStatus, activeAlertIds, alertHistory])
@@ -800,6 +835,10 @@ export default function App() {
     return window.aiss.ssh.onHostKeyPrompt((payload) => {
       setHostKeyPrompt(payload)
     })
+  }, [])
+
+  useEffect(() => {
+    return window.aiss.ssh.onHop((payload) => setHopProgress(payload))
   }, [])
 
   const respondHostKey = useCallback(async (accept: boolean, alwaysTrust: boolean) => {
@@ -922,13 +961,19 @@ export default function App() {
           }
         }
         setJumpFail(null)
+        setHopProgress(null)
         return sessionId
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = stripIpcPrefix(raw)
         const hop = parseHopFailure(msg)
+        const shown = hop
+          ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
+          : friendlyErrorMessage(raw)
+        setHopProgress(null)
         setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: extra?.profileId } : null)
-        setError(msg)
-        lastConnectErrorRef.current = msg
+        setError(shown)
+        lastConnectErrorRef.current = shown
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected' } : t))
         )
@@ -944,13 +989,78 @@ export default function App() {
   // keep the active tab visible when the tab bar scrolls
   useEffect(() => {
     if (!activeTabId) return
-    const el = document.querySelector('.tab-bar .tab.active')
+    const el = document.querySelector('.tab-bar-scroll .tab.active')
     if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activeTabId])
+  }, [activeTabId, tabs.length])
+  useEffect(() => {
+    const bar = tabBarRef.current
+    if (!bar) return
+    const scroll = bar.querySelector('.tab-bar-scroll')
+    if (!(scroll instanceof HTMLElement)) return
+    const measure = () => {
+      const box = scroll.getBoundingClientRect()
+      let hidden = 0
+      for (const node of scroll.querySelectorAll(':scope > .tab')) {
+        if (!(node instanceof HTMLElement)) continue
+        const r = node.getBoundingClientRect()
+        if (r.width < 1) continue
+        if (r.left < box.left - 1 || r.right > box.right + 1) hidden += 1
+      }
+      const overflowing = scroll.scrollWidth > scroll.clientWidth + 1
+      setTabHiddenCount(hidden)
+      setTabStripOverflowing(overflowing || hidden > 0)
+      setTabFade({
+        left: scroll.scrollLeft > 1,
+        right: scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 1
+      })
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(bar)
+    ro.observe(scroll)
+    scroll.addEventListener('scroll', measure, { passive: true })
+    const onWheel = (e: WheelEvent) => {
+      if (scroll.scrollWidth <= scroll.clientWidth + 1) return
+      const delta = tabStripWheelDelta(e.deltaX, e.deltaY)
+      if (!delta) return
+      e.preventDefault()
+      scroll.scrollLeft += delta
+    }
+    bar.addEventListener('wheel', onWheel, { capture: true, passive: false })
+    measure()
+    return () => {
+      ro.disconnect()
+      scroll.removeEventListener('scroll', measure)
+      bar.removeEventListener('wheel', onWheel, { capture: true })
+    }
+  }, [tabs.length, locale, layout.showMain])
+  useEffect(() => {
+    if (!tabOverflowOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setTabOverflowOpen(false)
+      tabOverflowBtnRef.current?.focus()
+    }
+    const onPointer = (e: MouseEvent) => {
+      const node = e.target
+      if (!(node instanceof Node)) return
+      if (tabOverflowBtnRef.current?.contains(node)) return
+      if (tabOverflowMenuRef.current?.contains(node)) return
+      setTabOverflowOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onPointer)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onPointer)
+    }
+  }, [tabOverflowOpen])
+  useEffect(() => {
+    if (!tabStripOverflowing && tabOverflowOpen) setTabOverflowOpen(false)
+  }, [tabStripOverflowing, tabOverflowOpen])
   tabsRef.current = tabs
   const autoRetryRef = useRef(new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> }>())
   const [autoRetry, setAutoRetry] = useState<{ tabId: string; attempt: number; delayMs: number } | null>(null)
-  const reconnectTabRef = useRef<(tabId: string) => Promise<boolean>>(async () => false)
+  const reconnectTabRef = useRef<(tabId: string) => Promise<string | null>>(async () => null)
   const scheduleAutoReconnectRef = useRef<(tabId: string) => void>(() => {})
 
   const cancelAutoReconnect = useCallback((tabId: string) => {
@@ -994,9 +1104,9 @@ export default function App() {
   }, [])
 
   const reconnectTab = useCallback(
-    async (tabId: string): Promise<boolean> => {
+    async (tabId: string): Promise<string | null> => {
       const tab = tabsRef.current.find((t) => t.tabId === tabId)
-      if (!tab || tab.status !== 'disconnected') return false
+      if (!tab || tab.status !== 'disconnected') return null
       setError(null)
       setReconnectingTabId(tabId)
       try {
@@ -1020,7 +1130,7 @@ export default function App() {
                 : t
             )
           )
-          return true
+          return sessionId
         }
         const { sessionId, meta } = await window.aiss.ssh.connect({
           ...tab.connectOpts,
@@ -1045,10 +1155,20 @@ export default function App() {
           )
         )
         notifyRecentChanged()
-        return true
+        setJumpFail(null)
+        setHopProgress(null)
+        return sessionId
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-        return false
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = stripIpcPrefix(raw)
+        const hop = parseHopFailure(msg)
+        const shown = hop
+          ? tg('m2.hopReason', { i: hop.hop, name: hop.name, addr: hop.addr, reason: hop.reason })
+          : friendlyErrorMessage(raw)
+        setHopProgress(null)
+        setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, profileId: tab.profileId } : null)
+        setError(shown)
+        return null
       } finally {
         setReconnectingTabId(null)
       }
@@ -1157,7 +1277,8 @@ export default function App() {
       view === 'sync-preview' ||
       view === 'updates' ||
       view === 'import-preview' ||
-      view === 'file-diff'
+      view === 'file-diff' ||
+      view === 'settings'
     ) {
       // focus the host session the tool belonged to, else the neighbour tab
       const cur = tabsRef.current
@@ -1343,8 +1464,9 @@ export default function App() {
   }, [])
 
   const openConnectionEditor = useCallback(
-    (profile?: SavedSessionProfile) => {
+    (profile?: SavedSessionProfile, focus?: 'jump' | 'cert' | null) => {
       ensureMainVisible()
+      setConnFocus(focus ?? null)
       setError(null)
       if (profile) {
         applyProfileToForm(profile)
@@ -2008,6 +2130,32 @@ export default function App() {
     [ensureMainVisible, tabs]
   )
 
+  const openUnifiedSettings = useCallback((section: SettingsSection = 'general') => {
+    ensureMainVisible()
+    saveSettingsSection(section)
+    const title = tg('settings.title')
+    const existing = tabsRef.current.find((t) => t.view === 'settings')
+    if (existing) {
+      setTabs((prev) => prev.map((t) => (t.tabId === existing.tabId ? { ...t, settingsSection: section, title } : t)))
+      setActiveTabId(existing.tabId)
+      return
+    }
+    const tabId = uuid()
+    setTabs((prev) => [
+      ...prev,
+      {
+        tabId,
+        sessionId: '',
+        title,
+        connectOpts: PLACEHOLDER_CONNECT,
+        status: 'connected',
+        view: 'settings',
+        settingsSection: section
+      }
+    ])
+    setActiveTabId(tabId)
+  }, [ensureMainVisible])
+
   const openRemoteFileEditor = useCallback(
     (info: { sessionId: string; remotePath: string; name: string; connectOpts?: SshConnectOptions }) => {
       ensureMainVisible()
@@ -2544,27 +2692,129 @@ export default function App() {
     })
   }, [locale, tr])
   const bootedRef = useRef(false)
+  const wakingRef = useRef<string | null>(null)
   useEffect(() => {
     if (!sessionsReady || bootedRef.current) return
     bootedRef.current = true
     const mode = loadStartupMode()
     if (mode === 'blank') return
-    if (mode === 'last') {
-      const ids = loadLastWorkspace().profileIds
-      const rows = ids
-        .map((id) => profilesRef.current.find((p) => p.id === id))
-        .filter((p): p is SavedSessionProfile => Boolean(p))
-      if (!rows.length) openHomeRef.current()
-      else for (const p of rows) openOrFocusProfile(p)
+    if (mode !== 'last') {
+      openHomeRef.current()
       return
     }
-    openHomeRef.current()
-  }, [sessionsReady, openOrFocusProfile])
+    const saved = loadLastWorkspace()
+    const known = new Set(profilesRef.current.map((p) => p.id))
+    const source = saved.tabs?.length
+      ? saved.tabs
+      : saved.profileIds.map((id, order) => ({
+          kind: 'terminal',
+          profileId: id,
+          title: profilesRef.current.find((p) => p.id === id)?.label || id,
+          order,
+          active: order === 0
+        }))
+    const planned = planRestore(source, known)
+    if (planned.skipped) showToast(tg('restore.skipped', { n: planned.skipped }))
+    if (!planned.keep.length) {
+      openHomeRef.current()
+      return
+    }
+    const next: Tab[] = []
+    planned.keep.forEach((row, index) => {
+      const tabId = uuid()
+      const profile = row.profileId ? profilesRef.current.find((p) => p.id === row.profileId) : undefined
+      const needsSession = row.kind === 'terminal' || row.kind === 'monitor' || row.kind === 'toolbox' || row.kind === 'sftp'
+      next.push({
+        tabId,
+        sessionId: '',
+        title: row.title,
+        connectOpts: profile ? connectOptsFromProfile(profile) : PLACEHOLDER_CONNECT,
+        status: row.kind === 'terminal' ? 'disconnected' : 'connected',
+        view: row.kind === 'terminal' ? undefined : (row.kind as TabView),
+        profileId: row.profileId,
+        hostInventoryId: profile?.hostInventoryId,
+        toolboxTab: row.toolboxTab as ServerToolsTab | undefined,
+        focusAlertId: row.focusAlertId,
+        settingsSection: isSettingsSection(row.settingsSection) ? row.settingsSection : undefined,
+        playbookId: row.playbookId,
+        cold: needsSession
+      })
+    })
+    const activeIndex = Math.max(0, planned.keep.findIndex((row) => row.active))
+    setTabs(next)
+    setActiveTabId(next[activeIndex]!.tabId)
+  }, [sessionsReady])
+  const coldActiveId = tabs.find((t) => t.tabId === activeTabId && t.cold)?.tabId ?? null
   useEffect(() => {
-    if (!sessionsReady) return
-    const ids = [...new Set(tabs.filter((t) => (!t.view || t.view === 'session') && t.profileId).map((t) => t.profileId!))]
-    if (ids.length) saveLastWorkspace({ profileIds: ids })
-  }, [tabs, sessionsReady])
+    if (!sessionsReady || !activeTabId) return
+    const tab = tabsRef.current.find((t) => t.tabId === activeTabId && t.cold)
+    if (!tab || wakingRef.current === tab.tabId) return
+    wakingRef.current = tab.tabId
+    const clearCold = (patch?: Partial<Tab>) => {
+      if (wakingRef.current === tab.tabId) wakingRef.current = null
+      setTabs((prev) => prev.map((t) => (t.tabId === tab.tabId ? { ...t, cold: false, ...patch } : t)))
+    }
+    if (!tab.view || tab.view === 'session') {
+      void reconnectTabRef.current(tab.tabId).finally(() => clearCold())
+      return
+    }
+    if (tab.view === 'sftp' || tab.view === 'monitor' || tab.view === 'toolbox') {
+      const live = tabsRef.current.find(
+        (t) => t.profileId && t.profileId === tab.profileId && t.sessionId && t.status === 'connected' && (!t.view || t.view === 'session')
+      )
+      if (live?.sessionId) {
+        clearCold({ boundSessionId: live.sessionId })
+        return
+      }
+      const term = tabsRef.current.find(
+        (t) => t.tabId !== tab.tabId && t.profileId === tab.profileId && (!t.view || t.view === 'session')
+      )
+      if (term) {
+        void reconnectTabRef.current(term.tabId).then((sid) => {
+          clearCold(sid ? { boundSessionId: sid } : undefined)
+        })
+        return
+      }
+      const profile = tab.profileId ? profilesRef.current.find((p) => p.id === tab.profileId) : undefined
+      if (!profile) {
+        clearCold()
+        return
+      }
+      void connectProfile(profile).then((sid) => {
+        clearCold(sid ? { boundSessionId: sid } : undefined)
+        if (!sid) showToast(tg('restore.fail', { host: profile.host, reason: lastConnectErrorRef.current || '' }))
+      })
+      return
+    }
+    clearCold()
+  }, [activeTabId, coldActiveId, sessionsReady, connectProfile])
+  useEffect(() => {
+    setTabs((prev) => {
+      let changed = false
+      const next = prev.map((t) => {
+        if (t.view !== 'monitor' && t.view !== 'toolbox' && t.view !== 'sftp') return t
+        if (t.boundSessionId || !t.profileId) return t
+        const live = prev.find(
+          (s) =>
+            s.profileId === t.profileId &&
+            s.sessionId &&
+            s.status === 'connected' &&
+            (!s.view || s.view === 'session')
+        )
+        if (!live?.sessionId) return t
+        changed = true
+        return { ...t, boundSessionId: live.sessionId, cold: false }
+      })
+      return changed ? next : prev
+    })
+  }, [tabs])
+  useEffect(() => {
+    if (!sessionsReady || !bootedRef.current) return
+    const snapshot = snapshotWorkspace(tabs, activeTabId)
+    const ids = [...new Set(snapshot.filter((row) => row.kind === 'terminal' && row.profileId).map((row) => row.profileId!))]
+    if (!ids.length && !snapshot.length) return
+    saveLastWorkspace({ profileIds: ids, tabs: snapshot })
+  }, [tabs, sessionsReady, activeTabId])
   const renameProfile = useCallback(
     async (p: SavedSessionProfile) => {
       setSessionMenu(null)
@@ -3019,7 +3269,7 @@ export default function App() {
         return
       }
       if (action === 'updateChannel') {
-        openSettingsTab('updates')
+        openUnifiedSettings('about')
         return
       }
       if (action === 'demoHost') {
@@ -3181,7 +3431,7 @@ export default function App() {
         return
       }
       if (action === 'startupSettings') {
-        setStartupOpen(true)
+        openUnifiedSettings('general')
         return
       }
       if (action === 'alertRules') {
@@ -3236,11 +3486,11 @@ export default function App() {
         return
       }
       if (action === 'about') {
-        setAboutOpen(true)
+        openUnifiedSettings('about')
         return
       }
       if (action === 'shortcuts') {
-        setShortcutsOpen(true)
+        openUnifiedSettings('shortcuts')
         return
       }
       if (action === 'batchExec') {
@@ -3268,16 +3518,59 @@ export default function App() {
         return
       }
       if (action === 'backup') {
-        setBackupOpen(true)
+        openUnifiedSettings('backup')
         return
       }
       if (action === 'serverTools') {
         openToolTabRef.current('toolbox')
         return
+      }
+      if (action === 'openDocker') {
+        const sid = activeSessionIdRef.current
+        if (!sid || connectedSshSessionsRef.current.length === 0) {
+          pendingLocateRef.current = 'docker'
+          setHostPicker({ action: 'serverTools', feature: 'Docker' })
+          return
+        }
+        openToolTabRef.current('toolbox', sid, undefined, 0, 'docker')
+        return
+      }
+      if (action === 'setJumpHosts' || action === 'checkCerts') {
+        const tab = tabsRef.current.find((x) => x.tabId === activeTabId && (!x.view || x.view === 'session'))
+        const profile = profilesRef.current.find((p) => p.id === tab?.profileId) ?? profilesRef.current.find((p) => p.id === selectedProfileId)
+        openConnectionEditor(profile, action === 'setJumpHosts' ? 'jump' : 'cert')
+        return
+      }
+      if (action === 'testJump') {
+        const tab = tabsRef.current.find((x) => x.tabId === activeTabId)
+        const profile = profilesRef.current.find((p) => p.id === tab?.profileId)
+        const opts = profile ? connectOptsFromProfile(profile) : tab?.connectOpts
+        if (!opts?.host) {
+          showToast(tg('toolbar.needSession'))
+          return
+        }
+        void window.aiss.ssh.probeJump(opts).then((rows) => {
+          const bad = rows.find((r) => !r.ok)
+          showToast(
+            bad
+              ? tg('m2.hopReason', { i: bad.hop, name: bad.name, addr: bad.addr, reason: bad.reason || '' })
+              : tg('m2.hopOk', { n: rows.length, ms: rows[rows.length - 1]?.ms ?? 0 })
+          )
+        }).catch((e) => showToast(e instanceof Error ? e.message : String(e), { kind: 'error' }))
+        return
+      }
+      if (action === 'syncConflicts') {
+        openM2('sync-conflicts', tg('m2.conflicts'))
+        return
+      }
+      if (action === 'syncPreview') {
+        const ex = tabsRef.current.find((t) => t.view === 'sync-preview')
+        if (ex) setActiveTabId(ex.tabId)
+        else openM2('sync-settings', tg('m2.cloudSync'))
         return
       }
       if (action === 'settings') {
-        openSettingsTab('terminalPrefs')
+        openUnifiedSettings(sectionForAction('settings') ?? 'general')
         return
       }
       if (action === 'find') {
@@ -3317,8 +3610,12 @@ export default function App() {
         else void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
         return
       }
-      if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'snippets' || action === 'mcpGuide') {
-        openSettingsTab(action)
+      if (action === 'snippets') {
+        openSettingsTab('snippets')
+        return
+      }
+      if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'mcpGuide') {
+        openUnifiedSettings(sectionForAction(action) ?? 'general')
       }
     },
     [
@@ -3332,6 +3629,8 @@ export default function App() {
       openInventoryEditor,
       openSftpTransfer,
       openSettingsTab,
+      openUnifiedSettings,
+      selectedProfileId,
       refreshDockerForActiveHost,
       recordingSessionId,
       startRecording,
@@ -3817,7 +4116,11 @@ export default function App() {
                 <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} />
               </div>
               <div className="sidebar-scroll" tabIndex={0} onKeyDown={onSidebarKeyDown}>
-                <RecentConnections hideWhenEmpty={profiles.length === 0} onQuickConnect={quickConnectRecent} />
+                <RecentConnections
+                  hideWhenEmpty={profiles.length === 0}
+                  onQuickConnect={quickConnectRecent}
+                  savedKeys={profiles.map((p) => `${p.username}@${p.host}:${p.port || 22}`)}
+                />
                 {error && activeTab?.view !== 'connection' && (
                   <div
                     style={{
@@ -3921,7 +4224,7 @@ export default function App() {
 
         {layout.showMain ? (
           <section className="main">
-          <div className="tab-bar">
+          <div className="tab-bar" ref={tabBarRef}>
             {tabs.length === 0 && <span style={{ padding: '8px 12px', color: 'var(--muted)' }}>{tr('tab.none')}</span>}
             <button
               type="button"
@@ -3952,6 +4255,32 @@ export default function App() {
                 {tr('ux10.broadcasting', { n: broadcastSessions.length })}
               </button>
             ) : null}
+            {tabStripOverflowing ? (
+              <button
+                type="button"
+                className="tab-scroll-btn"
+                data-testid="tab-scroll-left"
+                aria-label={tr('tab.scrollLeft')}
+                title={tr('tab.scrollLeft')}
+                disabled={!tabFade.left}
+                onClick={() => {
+                  const el = tabBarRef.current?.querySelector('.tab-bar-scroll')
+                  if (el instanceof HTMLElement) el.scrollLeft -= TAB_STRIP_NUDGE
+                }}
+              >
+                ←
+              </button>
+            ) : null}
+            <div
+              className={`tab-bar-scroll${tabFade.left ? ' fade-left' : ''}${tabFade.right ? ' fade-right' : ''}`}
+              data-testid="tab-bar-scroll"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+                e.preventDefault()
+                e.currentTarget.scrollLeft += e.key === 'ArrowRight' ? 80 : -80
+              }}
+            >
             {tabs.map((t) => {
               const isSession = !t.view || t.view === 'session'
               const guardLevel = isSession ? effectiveLevel(profiles.find((p) => p.id === t.profileId)) : 'normal'
@@ -4018,21 +4347,7 @@ export default function App() {
                     ●REC
                   </span>
                 ) : null}
-                <span className="tab-title">
-                  {isSession && t.status === 'connecting'
-                    ? tr('tab.connecting', { title: t.title })
-                    : isSession && t.status === 'disconnected'
-                      ? tr('tab.disconnected', { title: t.title })
-                      : t.view === 'home'
-                        ? tr('l7.title')
-                        : t.view === 'alert-workbench'
-                          ? tr('l2.title')
-                          : t.view === 'audit'
-                            ? t.auditHost
-                              ? `${tr('l4.auditTitle')} · ${t.auditHost}`
-                              : tr('l4.auditTitle')
-                            : t.title}
-                </span>
+                <span className="tab-title">{labelFor(t)}</span>
                 </>
                 )}
                 <span
@@ -4058,6 +4373,84 @@ export default function App() {
               </button>
               )
             })}
+            </div>
+            {tabStripOverflowing ? (
+              <button
+                type="button"
+                className="tab-scroll-btn"
+                data-testid="tab-scroll-right"
+                aria-label={tr('tab.scrollRight')}
+                title={tr('tab.scrollRight')}
+                disabled={!tabFade.right}
+                onClick={() => {
+                  const el = tabBarRef.current?.querySelector('.tab-bar-scroll')
+                  if (el instanceof HTMLElement) el.scrollLeft += TAB_STRIP_NUDGE
+                }}
+              >
+                →
+              </button>
+            ) : null}
+            {tabStripOverflowing ? (
+              <button
+                ref={tabOverflowBtnRef}
+                type="button"
+                className="tab-overflow-btn"
+                data-testid="tab-overflow"
+                aria-expanded={tabOverflowOpen}
+                aria-label={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
+                title={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
+                onClick={() => {
+                  const btn = tabOverflowBtnRef.current
+                  if (btn) {
+                    const r = btn.getBoundingClientRect()
+                    const width = 280
+                    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8))
+                    setTabOverflowPos({ top: Math.round(r.bottom + 4), left: Math.round(left) })
+                  }
+                  setTabOverflowOpen((v) => !v)
+                }}
+              >
+                <span aria-hidden>{`⌄ ${tabHiddenCount}`}</span>
+              </button>
+            ) : null}
+            {tabOverflowOpen && tabOverflowPos
+              ? createPortal(
+                  <div
+                    ref={tabOverflowMenuRef}
+                    className="tab-overflow-menu"
+                    data-testid="tab-overflow-menu"
+                    role="menu"
+                    aria-label={tr('tab.list.title', { n: tabs.length })}
+                    style={{ top: tabOverflowPos.top, left: tabOverflowPos.left }}
+                  >
+                    <div className="tab-overflow-title">{tr('tab.list.title', { n: tabs.length })}</div>
+                    {tabs.map((t) => {
+                      const current = t.tabId === activeTabId
+                      return (
+                        <button
+                          key={t.tabId}
+                          type="button"
+                          role="menuitem"
+                          className={current ? 'is-current' : undefined}
+                          aria-current={current ? 'true' : undefined}
+                          onClick={() => {
+                            setActiveTabId(t.tabId)
+                            setTabOverflowOpen(false)
+                          }}
+                        >
+                          <span className="tab-overflow-label">{labelFor(t)}</span>
+                          {current ? (
+                            <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
+                              ✓
+                            </span>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>,
+                  document.body
+                )
+              : null}
           </div>
           {broadcastSessions.length ? <div className="broadcast-bar" data-testid="broadcast-bar" aria-hidden /> : null}
           {tabMenu
@@ -4180,7 +4573,7 @@ export default function App() {
               sessionId={activeTab.sessionId}
               hostLabel={activeTab.connectOpts.label?.trim() || activeTab.title}
               hostKey={sessionHostKey(activeTab)}
-              onOpenAiSettings={() => openSettingsTab('ai')}
+              onOpenAiSettings={() => openUnifiedSettings('ai')}
               sendGuard={(() => {
                 const g = guardForSession(activeTab.sessionId)
                 return { level: g.level, hostName: g.hostName || activeTab.connectOpts.host, elevated: g.elevated, profileId: g.profile?.id }
@@ -4241,13 +4634,13 @@ export default function App() {
                   )
                 })()
               : null}
-            {tasksOpen ? (
+            {tasksOpen && (!activeTab?.view || activeTab.view === 'session') ? (
               <RetentionTasks
                 state={taskState}
                 onGo={(id) => {
                   if (id === 'connect') openConnectionEditor()
                   else if (id === 'monitor') handleTitlebarMenuAction('resourceMonitor')
-                  else if (id === 'ai') openSettingsTab('ai')
+                  else if (id === 'ai') openUnifiedSettings('ai')
                   else handleTitlebarMenuAction('sftp')
                 }}
                 onDismiss={(id) => setTaskState(skipTask(id))}
@@ -4338,6 +4731,22 @@ export default function App() {
                     jumpChain={jumpChain}
                     setJumpChain={setJumpChain}
                     profiles={profiles}
+                    focusSection={connFocus}
+                    onTestJump={async () => {
+                      const jump = buildJumpHost()
+                      return window.aiss.ssh.probeJump({
+                        host: host.trim(),
+                        port: Number(port) || 22,
+                        username: username.trim(),
+                        password: password || undefined,
+                        privateKeyPath: privateKeyPath.trim() || undefined,
+                        passphrase: passphrase || undefined,
+                        ...(jump ? { jumpHost: jump } : {}),
+                        ...(jumpChain.length ? { jumpChain, jumpHost: jump ?? hopToJump(jumpChain[0]!) } : {}),
+                        ...(connAuth ? { authMode: connAuth } : {}),
+                        ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {})
+                      })
+                    }}
                   />
                 ) : t.view === 'inventory' ? (
                   <HostInventoryModal
@@ -4401,6 +4810,22 @@ export default function App() {
                       )
                     }}
                   />
+                ) : (t.view === 'monitor' || t.view === 'toolbox') && !t.boundSessionId ? (
+                  <div className="workspace-panel restore-connecting" data-testid="restore-connecting">
+                    <p>{t.cold ? tg('restore.connecting') : tg('restore.click')}</p>
+                    {t.cold ? null : (
+                      <button
+                        type="button"
+                        className="primary"
+                        data-testid="restore-click"
+                        onClick={() => {
+                          setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, cold: true } : x)))
+                        }}
+                      >
+                        {tg('restore.click')}
+                      </button>
+                    )}
+                  </div>
                 ) : t.view === 'monitor' && t.boundSessionId ? (
                   <ResourceMonitorModal
                     open
@@ -4474,7 +4899,9 @@ export default function App() {
                       setAlertModalOpen(true)
                     }}
                     onInspect={() => setInspectOpen(true)}
-                    onStartup={() => setStartupOpen(true)}
+                    onStartup={() => openUnifiedSettings('general')}
+                    onOpenSftp={() => handleTitlebarMenuAction('sftp')}
+                    onSyncFolder={() => handleTitlebarMenuAction('folderSync')}
                     onImport={() => void importSessionsPick()}
                     onDemo={() => void addDemoHost(true)}
                     onTour={() => setTourOpen(true)}
@@ -4550,7 +4977,7 @@ export default function App() {
                       })
                     }}
                     buildContext={buildAlertExplain}
-                    onOpenSettings={() => openSettingsTab('ai')}
+                    onOpenSettings={() => openUnifiedSettings('ai')}
                   />
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -4793,6 +5220,37 @@ export default function App() {
                       })
                     }}
                   />
+                ) : t.view === 'settings' ? (
+                  <SettingsPanel
+                    section={isSettingsSection(t.settingsSection) ? t.settingsSection : loadSettingsSection()}
+                    onSection={(section) => {
+                      saveSettingsSection(section)
+                      setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, settingsSection: section } : x)))
+                    }}
+                    startupMode={startupMode}
+                    onStartupMode={(mode) => {
+                      saveStartupMode(mode)
+                      setStartupMode(mode)
+                    }}
+                    showHostStatus={showHostStatus}
+                    onShowHostStatus={(on) => {
+                      localStorage.setItem('aiss.showHostStatus', on ? '1' : '0')
+                      setShowHostStatus(on)
+                    }}
+                    auditOn={auditOn}
+                    onAudit={(on) => {
+                      setAuditEnabled(on)
+                      setAuditOn(on)
+                    }}
+                    version={appVersion}
+                    onBackup={() => setBackupOpen(true)}
+                    onCloudSync={() => openM2('sync-settings', tg('m2.cloudSync'))}
+                    onCheckUpdate={() => void runUpdateCheck(true)}
+                    onGithub={() => void window.aiss.app.openGithub().catch(() => undefined)}
+                    onOpenMcp={() => openSettingsTab('mcpGuide')}
+                    onOpenUpdates={() => openSettingsTab('updates')}
+                    onTerminalSaved={setTerminalPrefs}
+                  />
                 ) : t.view === 'ai' ? (
                   <AiConfigModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'terminalPrefs' ? (
@@ -4907,7 +5365,7 @@ export default function App() {
                 key={aiExplain.id}
                 request={aiExplain}
                 onClose={() => setAiExplain(null)}
-                onOpenSettings={() => openSettingsTab('ai')}
+                onOpenSettings={() => openUnifiedSettings('ai')}
                 onInsert={(sid, command) => {
                   focusSessionTab(sid)
                   window.setTimeout(() => fillCommandBar(sid, command), 60)
@@ -4931,7 +5389,7 @@ export default function App() {
               />
             ) : null}
             <AIPanel
-              onOpenSettings={() => openSettingsTab('ai')}
+              onOpenSettings={() => openUnifiedSettings('ai')}
               activeSessionId={activeSessionId}
               historyKey={activeTab?.profileId ?? activeSessionId}
               hostInventoryId={activeTab?.hostInventoryId}
@@ -4948,18 +5406,51 @@ export default function App() {
           </div>
         ) : null}
       </div>
+      {hopProgress && !jumpFail ? (
+        <div className="jump-fail-banner" data-testid="jump-hop">
+          <span>{tg('m2.connectingHop', { i: hopProgress.hop, n: hopProgress.total, name: hopProgress.name })}</span>
+        </div>
+      ) : null}
       {jumpFail ? (
-        <div className="sync-status" data-testid="jump-fail">
-          <span>{tg('m2.jumpFail', { hop: jumpFail.hop, total: jumpFail.total, name: jumpFail.name })}</span>
+        <div className="jump-fail-banner" data-testid="jump-fail">
+          <span>{tg('m2.jumpFailedTitle')} · {tg('m2.jumpFail', { hop: jumpFail.hop, total: jumpFail.total, name: jumpFail.name })}</span>
           <button
             type="button"
+            data-testid="jump-fail-edit"
             onClick={() => {
               const p = profiles.find((x) => x.id === jumpFail.profileId)
-              if (p) openConnectionEditor(p)
+              openConnectionEditor(p, 'jump')
             }}
           >
-            {tg('ctx.edit')}
+            {tg('m2.editJumps')}
           </button>
+          <button
+            type="button"
+            data-testid="jump-fail-retry"
+            onClick={() => {
+              const tab = tabs.find((t) => t.profileId === jumpFail.profileId && (!t.view || t.view === 'session') && t.status !== 'connected')
+              if (tab) void reconnectTab(tab.tabId)
+              else {
+                const p = profiles.find((x) => x.id === jumpFail.profileId)
+                if (p) void connectProfile(p)
+              }
+            }}
+          >
+            {tg('banner.reconnect')}
+          </button>
+          <details className="jump-fail-more">
+            <summary aria-label={tg('l7.shortcut.more')}>⋯</summary>
+            <button
+              type="button"
+              data-testid="jump-fail-certs"
+              onClick={() => {
+                const p = profiles.find((x) => x.id === jumpFail.profileId)
+                openConnectionEditor(p, 'cert')
+              }}
+            >
+              {tg('m2.checkCerts')}
+            </button>
+          </details>
         </div>
       ) : null}
       {syncMeta.enabled ? (
@@ -5000,7 +5491,7 @@ export default function App() {
       />
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
-      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} onOpenSettings={() => openUnifiedSettings('shortcuts')} />
       <ResourceMonitorModal
         open={resourceOpen}
         sessions={connectedSshSessions}
@@ -5014,7 +5505,16 @@ export default function App() {
           openToolTabRef.current('toolbox', sid)
         }}
       />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onAction={handleTitlebarMenuAction} aiReady={aiConfigured} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onAction={handleTitlebarMenuAction}
+        aiReady={aiConfigured}
+        notes={{
+          ...(syncReady ? {} : { syncNow: tg('m2.syncNeedSetup') }),
+          ...(hasPlaybooks ? {} : { runPlaybook: tg('m2.noPlaybooks') })
+        }}
+      />
       <WhatsNewModal
         open={whatsNewOpen}
         version={appVersion}
@@ -5091,7 +5591,7 @@ export default function App() {
         const p = sessionMenu.profile
         const multi = sessionMenu.multi
         const multiProfiles = multi ? profiles.filter((x) => multi.includes(x.id)) : []
-        const item = (key: string, label: string, onClick: () => void, opts?: { hint?: string; danger?: boolean; disabled?: boolean }) => (
+        const item = (key: string, label: string, onClick: () => void, opts?: { hint?: string; tip?: string; danger?: boolean; disabled?: boolean }) => (
           <button
             key={key}
             type="button"
@@ -5099,6 +5599,7 @@ export default function App() {
             data-ctx={key}
             className={`session-context-menu-item${opts?.danger ? ' danger' : ''}`}
             disabled={opts?.disabled}
+            title={opts?.tip}
             onClick={onClick}
           >
             <span>{label}</span>
@@ -5107,7 +5608,7 @@ export default function App() {
         )
         const moveTo = (ids: string[], currentFolder?: string) => (
           <div className={`session-context-submenu-wrap${sessionMenu.x > window.innerWidth - 320 ? ' open-left' : ''}`}>
-            <button type="button" role="menuitem" className="session-context-menu-item session-context-menu-item--submenu">
+            <button type="button" role="menuitem" data-ctx="move" className="session-context-menu-item session-context-menu-item--submenu">
               <span>{tg('app.moveTo')}</span>
               <span className="session-context-menu-caret" aria-hidden>
                 ›
@@ -5151,10 +5652,6 @@ export default function App() {
               role="menu"
               data-testid="host-menu-multi"
             >
-              {item('connectAll', tg('ctx.connectAll', { n: multi.length }), () => {
-                setSessionMenu(null)
-                for (const x of multiProfiles) openOrFocusProfile(x)
-              })}
               {item('batch', tg('ctx.batch'), () => {
                 setSessionMenu(null)
                 void (async () => {
@@ -5166,9 +5663,12 @@ export default function App() {
                   openToolTabRef.current('batch', null, sids)
                 })()
               })}
-              {moveTo(multi)}
+              {item('monitorBoard', tg('ctx.monitorBoard') + ` (${multi.length})`, () => {
+                setSessionMenu(null)
+                openDashboard()
+              })}
               <div className={`session-context-submenu-wrap${sessionMenu.x > window.innerWidth - 320 ? ' open-left' : ''}`}>
-                <button type="button" role="menuitem" className="session-context-menu-item session-context-menu-item--submenu">
+                <button type="button" role="menuitem" data-ctx="setLevel" className="session-context-menu-item session-context-menu-item--submenu">
                   <span>{tg('l4.setLevel')}</span>
                   <span className="session-context-menu-caret" aria-hidden>›</span>
                 </button>
@@ -5189,14 +5689,12 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              {moveTo(multi)}
               <div className="session-context-menu-sep" />
               {item('delete', tg('ctx.deleteMany', { n: multi.length }), () => void deleteProfilesFn(multi), { danger: true, hint: 'Del' })}
             </div>
           )
         }
-        const dockerBusy =
-          (dockerTreeByProfileId[p.id]?.status === 'connecting' || dockerTreeByProfileId[p.id]?.status === 'loading') &&
-          !expandedHosts[p.id]
         return (
           <div
             ref={sessionMenuRef}
@@ -5221,18 +5719,12 @@ export default function App() {
                 openToolTabRef.current('toolbox', sid)
               })
             )}
-            {item('docker', expandedHosts[p.id] ? tg('app.collapseDocker') : tg('app.expandDocker'), () => {
-              toggleHostExpanded(p)
-              setSessionMenu(null)
-            }, { disabled: dockerBusy || p.demo })}
             <div className="session-context-menu-sep" />
             {item('edit', tg('ctx.edit'), () => {
               openConnectionEditor(p)
               setSessionMenu(null)
             }, p.demo ? { disabled: true, hint: tg('g1.readOnly') } : undefined)}
-            {item('rename', tg('ctx.rename'), () => void renameProfile(p), { hint: 'F2' })}
-            {item('tags', tg('ctx.tags'), () => void editProfileTags(p.id))}
-            {item('inventory', tg('app.inventory'), () => {
+            {item('profile', tg('ctx.profileNotes'), () => {
               openInventoryEditor({
                 profileId: p.id,
                 host: p.host,
@@ -5242,18 +5734,8 @@ export default function App() {
                 hostInventoryId: p.hostInventoryId
               })
               setSessionMenu(null)
-            })}
-            {item('guard', tg('l4.menu'), () => {
-              openInventoryEditor({
-                profileId: p.id,
-                host: p.host,
-                port: p.port,
-                username: p.username,
-                label: p.label,
-                hostInventoryId: p.hostInventoryId
-              }, true)
-              setSessionMenu(null)
-            })}
+            }, { tip: tg('ctx.profileTip') })}
+            {item('rename', tg('ctx.rename'), () => void renameProfile(p), { hint: 'F2' })}
             {moveTo([p.id], p.folderId)}
             {item('copyAddr', tg('ctx.copyAddr'), () => {
               setSessionMenu(null)
@@ -5296,14 +5778,19 @@ export default function App() {
             onClick={() => {
               const folderId = folderMenu.folderId
               setFolderMenu(null)
-              void askText(tg('m2.proxyJump'), '').then((text) => {
+              void (async () => {
+                const text = await askText(tg('m2.proxyJump'), '')
                 if (!text?.trim()) return
                 const parsed = parseProxyJump(text)
                 if (!parsed.hops.length) return
+                const targets = profilesRef.current.filter((p) => p.folderId === folderId)
+                const ok = await askConfirm(tg('m2.groupJump'), tg('m2.groupJumpConfirm', { n: targets.length }))
+                if (!ok) return
                 const hop = hopToJump(parsed.hops[0]!)
                 const next = profilesRef.current.map((p) => (p.folderId === folderId ? { ...p, jumpChain: parsed.hops, jumpHost: hop } : p))
-                void persistSessionState({ folders, profiles: next })
-              })
+                await persistSessionState({ folders, profiles: next })
+                showToast(tg('m2.groupJumpOk', { n: targets.length }))
+              })()
             }}
           >
             {tg('m2.groupJump')}

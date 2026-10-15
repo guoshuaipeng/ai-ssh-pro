@@ -8,6 +8,9 @@ import { join, dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
+import { probeJumpChain } from './jump-probe'
+import { attachShowFallback, retryLock } from './window-show'
+import { detectKeyFileKind } from './key-kind'
 import {
   getAiSettings,
   setAiSettings,
@@ -271,9 +274,7 @@ function createWindow(): void {
           })
   })
 
-  win.once('ready-to-show', () => {
-    win.show()
-  })
+  attachShowFallback(win)
 
   attachWebContentsDiagnostics(win)
   attachF12ToggleDevTools(win)
@@ -326,9 +327,10 @@ function openDebugWindow(): void {
     setDebugWindowWebContents(null)
     debugWindow = null
   })
-  w.once('ready-to-show', () => {
-    w.show()
-    w.focus()
+  attachShowFallback(w, {
+    onShow: () => {
+      if (!w.isDestroyed()) w.focus()
+    }
   })
   debugWindow = w
 
@@ -356,6 +358,7 @@ function openDebugWindow(): void {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('ssh:probeJump', async (_event, opts: SshConnectOptions) => probeJumpChain(opts))
   ipcMain.handle('ssh:connect', async (event, opts: SshConnectOptions) => {
     // G1: simulated demo host, never touches the network or the recent list
     if (opts?.demo) return demoHostManager.open(event.sender, { label: opts.label, termCols: opts.termCols, termRows: opts.termRows })
@@ -726,6 +729,7 @@ function registerIpc(): void {
   ipcMain.handle('localFs:readText', (_e, target: string, maxBytes?: number) =>
     localFs.readLocalText(String(target ?? ''), typeof maxBytes === 'number' ? maxBytes : undefined)
   )
+  ipcMain.handle('localFs:detectKeyKind', (_e, target: string) => detectKeyFileKind(String(target ?? '')))
 
   ipcMain.handle('docker:listTree', async (_e, sessionId: string) => {
     return await dockerManager.listTree(requireSshClient(sessionId))
@@ -965,7 +969,12 @@ function registerIpc(): void {
   registerServerToolsIpc(sshManager)
 }
 
-const gotSingleInstanceLock = app.requestSingleInstanceLock()
+const gotSingleInstanceLock = retryLock(
+  () => app.requestSingleInstanceLock(),
+  (ms) => {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+  }
+)
 if (!gotSingleInstanceLock) {
   // 已有实例：尽快退出，把焦点交给第一个进程的 second-instance
   app.exit(0)

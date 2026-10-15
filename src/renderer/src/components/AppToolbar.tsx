@@ -98,6 +98,7 @@ export default function AppToolbar({
   const versionText = version ? `v${version}${isDev ? '-dev' : ''}` : ''
   const headerRef = useRef<HTMLElement>(null)
   const [compactLevel, setCompactLevel] = useState(0) // UX-17: 0..4 stash steps
+  const [autoIcon, setAutoIcon] = useState(() => localStorage.getItem('aiss.toolbar.autoIcon') !== '0')
   const [hamburgerOpen, setHamburgerOpen] = useState(false)
 
   useEffect(() => {
@@ -105,6 +106,10 @@ export default function AppToolbar({
     if (!el || typeof ResizeObserver === 'undefined') return
     let timer: number | null = null
     const measure = () => {
+      if (localStorage.getItem('aiss.toolbar.autoIcon') === '0') {
+        setCompactLevel(0)
+        return
+      }
       const w = el.clientWidth
       // Reference widths from UX-17; ResizeObserver measured, not hard breakpoints alone
       let level = 0
@@ -120,11 +125,14 @@ export default function AppToolbar({
     })
     ro.observe(el)
     measure()
+    const onPref = () => measure()
+    window.addEventListener('aiss-toolbar-auto-icon', onPref)
     return () => {
       ro.disconnect()
+      window.removeEventListener('aiss-toolbar-auto-icon', onPref)
       if (timer) window.clearTimeout(timer)
     }
-  }, [])
+  }, [autoIcon])
 
   useEffect(() => {
     const onTheme = (e: Event) => {
@@ -132,7 +140,12 @@ export default function AppToolbar({
       if (isUiThemeId(id)) setThemeId(id)
     }
     window.addEventListener('aiss-ui-theme', onTheme)
-    return () => window.removeEventListener('aiss-ui-theme', onTheme)
+    const onIcon = () => setAutoIcon(localStorage.getItem('aiss.toolbar.autoIcon') !== '0')
+    window.addEventListener('aiss-toolbar-auto-icon', onIcon)
+    return () => {
+      window.removeEventListener('aiss-ui-theme', onTheme)
+      window.removeEventListener('aiss-toolbar-auto-icon', onIcon)
+    }
   }, [])
 
   useEffect(() => {

@@ -1,0 +1,35 @@
+/** UX-55: the center tab strip stays one row. Extra tabs scroll or sit in the ⌄ list. */
+
+export function tabStripOverflow(opts: {
+  containerWidth: number
+  tabWidths: number[]
+  reserved?: number
+  gap?: number
+}): { visibleCount: number; overflow: boolean; hidden: number; wraps: false } {
+  const gap = opts.gap ?? 2
+  const reserved = opts.reserved ?? 0
+  let budget = Math.max(0, opts.containerWidth - reserved)
+  let visible = 0
+  for (const w of opts.tabWidths) {
+    const need = w + (visible > 0 ? gap : 0)
+    if (need > budget) break
+    budget -= need
+    visible += 1
+  }
+  if (visible === 0 && opts.tabWidths.length > 0 && opts.containerWidth > 0) visible = 1
+  const hidden = Math.max(0, opts.tabWidths.length - visible)
+  return { visibleCount: visible, overflow: hidden > 0, hidden, wraps: false }
+}
+
+/** Pixels a ← / → click moves the strip. */
+export const TAB_STRIP_NUDGE = 160
+
+/**
+ * Map a wheel gesture onto the tab strip.
+ * A vertical wheel (the common mouse wheel) scrolls sideways.
+ * A mostly-horizontal trackpad gesture keeps deltaX.
+ */
+export function tabStripWheelDelta(deltaX: number, deltaY: number): number {
+  if (Math.abs(deltaY) >= Math.abs(deltaX)) return deltaY
+  return deltaX
+}

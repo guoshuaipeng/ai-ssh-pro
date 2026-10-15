@@ -284,9 +284,8 @@ export default function SessionDockerBranch({
               </span>
             ) : null}
             {profile.jumpChain?.length || profile.jumpHost?.host ? (
-              <span className="jump-badge" data-testid="jump-badge" title={(profile.jumpChain ?? []).map((h) => h.host).join(' → ') || profile.jumpHost?.host}>
-                {tg('m2.jumpTitle')}
-                {profile.jumpChain && profile.jumpChain.length > 1 ? ` ×${profile.jumpChain.length}` : ''}
+              <span className="jump-badge" data-testid="jump-badge" title={tg('m2.via', { chain: (profile.jumpChain ?? []).map((h) => h.label || h.host).join(' → ') || profile.jumpHost?.host || '' })}>
+                ⤳
               </span>
             ) : null}
             {effectiveLevel(profile) !== 'normal' ? (
