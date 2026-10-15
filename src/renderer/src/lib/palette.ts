@@ -22,6 +22,7 @@ export const PALETTE_HIDDEN: ReadonlySet<MenuAction> = new Set<MenuAction>(['com
 /** UX-11: common pinyin / English aliases so Ctrl+K finds Chinese features faster */
 export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   connection: 'xinjianlianjie new conn',
+  backup: 'beifen backup 备份 加密备份 encrypted restore',
   sftp: 'wenjian sftp chuanshu',
   smartComplete: 'zhineng buquan complete history',
   clearHostHistory: 'qingchu lishi history clear',

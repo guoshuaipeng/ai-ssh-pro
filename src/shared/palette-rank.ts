@@ -117,10 +117,19 @@ export function bumpUsage(usage: Usage, id: string, now = Date.now()): Usage {
   return { ...usage, [id]: { count: (prev?.count ?? 0) + 1, last: now } }
 }
 
+/** PNG-3: after 3 recorded uses, only commands used at least 3 times stay pinned. Earlier history still pins. */
+export const PALETTE_PIN_MIN = 3
+
+export function historyUses(usage: Usage): number {
+  return Object.values(usage).reduce((n, v) => n + (v && v.count > 0 ? v.count : 0), 0)
+}
+
 export function pinnedIds(usage: Usage, limit = 5): string[] {
-  return Object.entries(usage)
-    .filter(([, v]) => v.count > 0)
-    .sort((a, b) => b[1].count - a[1].count || b[1].last - a[1].last)
+  const rows = Object.entries(usage).filter(([, v]) => v && v.count > 0)
+  const matured = historyUses(usage) >= PALETTE_PIN_MIN
+  const pool = matured ? rows.filter(([, v]) => v.count >= PALETTE_PIN_MIN) : rows
+  return pool
+    .sort((a, b) => b[1].count - a[1].count || b[1].last - a[1].last || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([id]) => id)
 }

@@ -2266,6 +2266,20 @@ const zhCN = {
   'toolbar.searchField': '搜索功能或主机… Ctrl+K',
   'toolbar.searchFieldShort': '搜索… Ctrl+K',
   'inv.serviceDeleted': '已删除「{name}」',
+  'png5.step.host': '核对主机名',
+  'png5.step.port': '核对端口',
+  'png5.step.net': '检查网络或防火墙',
+  'png5.step.user': '核对用户名',
+  'png5.step.key': '核对密钥或密码',
+  'png5.step.jump': '检查跳板机',
+  'png5.step.retry': '然后重试',
+  'png5.title.refused': '对方没有在监听',
+  'png5.title.timeout': '连接超时',
+  'png5.title.dns': '找不到这台主机',
+  'png5.title.auth': '登录没有通过',
+  'png5.title.jump': '跳板没有连上',
+  'png5.title.dropped': '连接中断了',
+  'png5.title.generic': '没有连上'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4536,6 +4550,20 @@ const en: Record<MessageKey, string> = {
   'toolbar.searchField': 'Search actions or hosts… Ctrl+K',
   'toolbar.searchFieldShort': 'Search… Ctrl+K',
   'inv.serviceDeleted': 'Deleted "{name}"',
+  'png5.step.host': 'Check the host name',
+  'png5.step.port': 'Check the port',
+  'png5.step.net': 'Check the network or firewall',
+  'png5.step.user': 'Check the user name',
+  'png5.step.key': 'Check the key or password',
+  'png5.step.jump': 'Check the jump host',
+  'png5.step.retry': 'Then retry',
+  'png5.title.refused': 'Nothing is listening',
+  'png5.title.timeout': 'The connection timed out',
+  'png5.title.dns': 'That host was not found',
+  'png5.title.auth': 'Sign-in was not accepted',
+  'png5.title.jump': 'The jump host did not connect',
+  'png5.title.dropped': 'The connection dropped',
+  'png5.title.generic': 'Could not connect'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

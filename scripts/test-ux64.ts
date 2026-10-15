@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { commandAutoRunAllowed, highlightKeyNumbers } from '../src/shared/ai-reply-cards.ts'
+import { commandAutoRunAllowed, highlightKeyNumbers, softenNumberedBreaks } from '../src/shared/ai-reply-cards.ts'
 
 let n = 0
 const ok = (cond: unknown, msg: string) => {
@@ -33,6 +33,14 @@ ok(plain.every((p) => p.kind === 'text'), 'bare integers are not treated as metr
 
 const strong = highlightKeyNumbers('请先看 **只读排查** 再决定。')
 ok(strong.some((p) => p.kind === 'strong' && p.text === '只读排查'), 'bold without digits stays strong')
+
+ok(softenNumberedBreaks('结论 1) 磁盘满 2) 日志大 3) 可清理') === '结论\n1) 磁盘满\n2) 日志大\n3) 可清理', 'inline 1) 2) 3) gains real newlines')
+ok(softenNumberedBreaks('1) 甲\n2) 乙') === '1) 甲\n2) 乙', 'items that already have newlines stay')
+ok(softenNumberedBreaks('1. 甲 2. 乙') === '1. 甲\n2. 乙', 'period numbers break the same way')
+ok(softenNumberedBreaks('端口 22 正常') === '端口 22 正常', 'a bare port is not a list item')
+const broken = highlightKeyNumbers('1) 已用 **85%** 2) 结束')
+ok(broken.map((p) => p.text).join('').includes('\n'), 'highlight path keeps the inserted newline')
+ok(broken.some((p) => p.kind === 'mark' && p.text === '85%'), 'number highlight still marks the metric')
 
 ok(commandAutoRunAllowed('low') === false, 'low risk cannot auto-run')
 ok(commandAutoRunAllowed('high') === false, 'high risk cannot auto-run')
