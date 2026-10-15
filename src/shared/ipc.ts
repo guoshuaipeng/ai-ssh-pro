@@ -630,6 +630,20 @@ export type AiDebugEntry =
         exhausted: boolean
         nearBudget: boolean
       }
+      /**
+       * Planner-visible stdout, stderr, or ring (Core-A S29).
+       * `truncated` means the original was over `cap`. `markers` are rare
+       * evidence tokens kept from the middle or the end. Not a product-shell control.
+       */
+      outputView: {
+        truncated: boolean
+        originalChars: number
+        shownChars: number
+        cap: number
+        markers: string[]
+        tipSuggest: string
+        rollback: string
+      }
     }
 
 export type AiDebugStreamPayload = {

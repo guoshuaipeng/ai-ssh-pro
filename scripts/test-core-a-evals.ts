@@ -30,6 +30,11 @@
  * reach the cap. A further write of that path does not run; the end cites
  * the failure evidence and says the budget is exhausted. Each retry that is
  * still inside the budget needs a new confirm. Deny and cancel do not write.
+ * S29: a confirmed command with a very long stdout, stderr, or ring is shown
+ * to the planner truncated. A rare evidence marker in the middle or at the
+ * end stays citeable. The end cites that marker and does not invent an absent
+ * line. Confirm-before-run stays on. Another host does not inherit the marker.
+ * The same command is not written again without a new confirm.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -57,6 +62,14 @@ import {
   RETRY_BUDGET_CAP,
   retryWritePermitted
 } from '../src/main/core-a-command-failure.ts'
+import {
+  explainCiteableOutput,
+  OUTPUT_VIEW_CAP,
+  outputViewCap,
+  rollback,
+  tipSuggest,
+  truncateCiteableOutput
+} from '../src/main/core-a-output-truncate.ts'
 import {
   cancelHitl,
   createHitlLoop,
@@ -219,6 +232,23 @@ type Expectation = {
     confirmCards?: number
     /** The planner proposed the same path again after the cap. That write did not happen. */
     blockedWrite?: boolean
+  }
+  /**
+   * S29: a long stdout, stderr, or ring is truncated for the planner.
+   * The last context debug event carries the cap and the kept markers.
+   * Filler that sat only in the dropped middle is absent from that prompt.
+   */
+  outputView?: {
+    truncated: boolean
+    cap?: number
+    minOriginalChars?: number
+    markers?: string[]
+    keptInPrompt?: string[]
+    droppedFromPrompt?: string[]
+    /** Still present in the raw ring the terminal served. */
+    presentInRaw?: string[]
+    tipSuggest?: string
+    rollback?: string
   }
   hitl?: {
     minInterrupts?: number
@@ -569,9 +599,12 @@ async function drive(input: {
 
   const previousPolls = process.env.AISS_MAX_POLLS
   const previousOmCap = process.env.AISS_OM_BULLET_CAP
+  const previousOutputCap = process.env.AISS_OUTPUT_VIEW_CAP
   if (input.fixture.env?.AISS_MAX_POLLS) process.env.AISS_MAX_POLLS = input.fixture.env.AISS_MAX_POLLS
   if (input.fixture.env?.AISS_OM_BULLET_CAP) process.env.AISS_OM_BULLET_CAP = input.fixture.env.AISS_OM_BULLET_CAP
   else delete process.env.AISS_OM_BULLET_CAP
+  if (input.fixture.env?.AISS_OUTPUT_VIEW_CAP) process.env.AISS_OUTPUT_VIEW_CAP = input.fixture.env.AISS_OUTPUT_VIEW_CAP
+  else delete process.env.AISS_OUTPUT_VIEW_CAP
   try {
     await agent.runOpenClawCoreAgentChat(
       wc as unknown as Parameters<AgentModule['runOpenClawCoreAgentChat']>[0],
@@ -591,6 +624,8 @@ async function drive(input: {
     else process.env.AISS_MAX_POLLS = previousPolls
     if (previousOmCap == null) delete process.env.AISS_OM_BULLET_CAP
     else process.env.AISS_OM_BULLET_CAP = previousOmCap
+    if (previousOutputCap == null) delete process.env.AISS_OUTPUT_VIEW_CAP
+    else process.env.AISS_OUTPUT_VIEW_CAP = previousOutputCap
   }
   if (confirmError) throw confirmError
   const failed = events.find((event) => event.type === 'error')
@@ -676,6 +711,14 @@ function assertExpectation(
     assert.equal(Number.isFinite(budget.bulletCap) && budget.bulletCap >= 2, true, `${label}: om budget cap`)
     assert.equal(Number.isFinite(budget.droppedBullets) && budget.droppedBullets >= 0, true, `${label}: om budget drops`)
     assert.equal(Number.isFinite(budget.truncatedBullets) && budget.truncatedBullets >= 0, true, `${label}: om budget cuts`)
+    const view = event.payload.entry.outputView
+    assert.equal(typeof view.truncated, 'boolean', `${label}: output view truncated is not observable`)
+    assert.equal(Number.isFinite(view.originalChars) && view.originalChars >= 0, true, `${label}: output view length`)
+    assert.equal(Number.isFinite(view.shownChars) && view.shownChars >= 0, true, `${label}: output view shown`)
+    assert.equal(Number.isFinite(view.cap) && view.cap >= 240, true, `${label}: output view cap`)
+    assert.ok(view.shownChars <= view.cap, `${label}: output view exceeds its cap`)
+    assert.ok(Array.isArray(view.markers), `${label}: output view markers`)
+    assert.equal(view.truncated, view.originalChars > view.cap, `${label}: output view truncated flag`)
     const retry = event.payload.entry.retryBudget
     assert.equal(Number.isFinite(retry.count) && retry.count >= 0, true, `${label}: retry budget count`)
     assert.equal(Number.isFinite(retry.cap) && retry.cap >= 1, true, `${label}: retry budget cap`)
@@ -923,6 +966,7 @@ function assertExpectation(
   assertMidChainCancel(turn, result, scope)
   assertCommandFailure(turn, result)
   assertRetryBudget(turn, result)
+  assertOutputView(turn, result)
 }
 
 function hostBlob(hostId: string): string {
@@ -1359,6 +1403,109 @@ function assertRetryBudget(turn: Turn, result: DriveResult): void {
   if (command) {
     const writes = result.writes.map((write) => write.replace(/\s+$/g, '')).filter((write) => write === command)
     assert.equal(writes.length, turn.expected?.commandFailure?.writeCount ?? writes.length, `${label}: over-budget write`)
+  }
+}
+
+/**
+ * A long stdout, stderr, or ring is truncated. A rare marker in the dropped
+ * middle stays in the planner view and can be cited. A rare token that was
+ * never in the output is not cited. The cap cannot be raised from the env.
+ */
+function assertCiteableTruncateModes(): void {
+  assert.equal(tipSuggest, '0.4.8-s29')
+  assert.equal(rollback, '0.4.8-s28')
+  assert.equal(OUTPUT_VIEW_CAP, 6000)
+  const short = truncateCiteableOutput('short ring')
+  assert.equal(short.truncated, false)
+  assert.equal(short.text, 'short ring')
+  assert.equal(short.shownChars, short.originalChars)
+  assert.equal(explainCiteableOutput('plain end', short), 'plain end')
+
+  const head = `s29-head-kept\n${'h\n'.repeat(400)}`
+  const middle = `s29-dropped-filler-token\n${'m\n'.repeat(2500)}S29_RARE_MARKER\n${'m\n'.repeat(500)}`
+  const tail = `${'t\n'.repeat(300)}s29-tail-kept\n`
+  const raw = `${head}${middle}${tail}`
+  assert.ok(raw.length > OUTPUT_VIEW_CAP)
+  const markerAt = raw.indexOf('S29_RARE_MARKER')
+  assert.ok(markerAt > 800, 'unit marker is outside the head window')
+  assert.ok(markerAt < raw.length - 800, 'unit marker is outside the tail window')
+  const view = truncateCiteableOutput(raw)
+  assert.equal(view.truncated, true)
+  assert.equal(view.cap, OUTPUT_VIEW_CAP)
+  assert.equal(view.tipSuggest, '0.4.8-s29')
+  assert.equal(view.rollback, '0.4.8-s28')
+  assert.ok(view.originalChars > view.cap)
+  assert.ok(view.shownChars <= view.cap)
+  assert.ok(view.shownChars < view.originalChars)
+  assert.ok(view.text.includes('S29_RARE_MARKER'))
+  assert.ok(view.text.includes('s29-head-kept'))
+  assert.ok(view.text.includes('s29-tail-kept'))
+  assert.equal(view.text.includes('s29-dropped-filler-token'), false)
+  assert.ok(view.markers.includes('S29_RARE_MARKER'))
+  const explained = explainCiteableOutput('命令已经执行。我还看到 S29_ABSENT_LINE。', view)
+  assert.match(explained, /S29_RARE_MARKER/)
+  assert.equal(explained.includes('S29_ABSENT_LINE'), false)
+  assert.equal(explainCiteableOutput(explained, view), explained)
+
+  const previous = process.env.AISS_OUTPUT_VIEW_CAP
+  try {
+    process.env.AISS_OUTPUT_VIEW_CAP = '8000'
+    assert.equal(outputViewCap(), OUTPUT_VIEW_CAP)
+    process.env.AISS_OUTPUT_VIEW_CAP = '1000'
+    const lowered = truncateCiteableOutput(raw)
+    assert.equal(lowered.cap, 1000)
+    assert.equal(lowered.truncated, true)
+    assert.ok(lowered.shownChars <= 1000)
+    assert.ok(lowered.text.includes('S29_RARE_MARKER'))
+    assert.equal(lowered.text.includes('s29-dropped-filler-token'), false)
+  } finally {
+    if (previous == null) delete process.env.AISS_OUTPUT_VIEW_CAP
+    else process.env.AISS_OUTPUT_VIEW_CAP = previous
+  }
+}
+
+function assertOutputView(turn: Turn, result: DriveResult): void {
+  const spec = turn.expected?.outputView
+  if (!spec) return
+  assertCiteableTruncateModes()
+  const label = turn.turnId
+  const rows = result.events.filter((event) => event.type === 'debug' && event.payload.entry.kind === 'context')
+  const last = rows[rows.length - 1]
+  assert.ok(last && last.type === 'debug' && last.payload.entry.kind === 'context', `${label}: output view has no context event`)
+  if (!last || last.type !== 'debug' || last.payload.entry.kind !== 'context') return
+  const view = last.payload.entry.outputView
+  const detail = JSON.stringify({
+    truncated: view.truncated,
+    originalChars: view.originalChars,
+    shownChars: view.shownChars,
+    cap: view.cap,
+    markers: view.markers
+  })
+  assert.equal(view.truncated, spec.truncated, `${label}: output truncated ${detail}`)
+  if (spec.cap != null) assert.equal(view.cap, spec.cap, `${label}: output cap ${detail}`)
+  if (spec.minOriginalChars != null) {
+    assert.ok(view.originalChars >= spec.minOriginalChars, `${label}: originalChars ${detail}`)
+  }
+  assert.ok(view.shownChars <= view.cap, `${label}: shownChars over cap ${detail}`)
+  assert.ok(view.originalChars > view.shownChars, `${label}: truncation did not shorten the view ${detail}`)
+  for (const marker of spec.markers ?? []) {
+    assert.ok(view.markers.includes(marker), `${label}: output view dropped marker ${marker}`)
+  }
+  if (spec.tipSuggest != null) assert.equal(view.tipSuggest, spec.tipSuggest, `${label}: tipSuggest`)
+  if (spec.rollback != null) assert.equal(view.rollback, spec.rollback, `${label}: rollback`)
+  const prompt = result.prompts[result.prompts.length - 1] ?? ''
+  for (const fact of spec.keptInPrompt ?? []) {
+    assert.ok(prompt.includes(fact), `${label}: truncated prompt dropped ${fact}`)
+  }
+  for (const fact of spec.droppedFromPrompt ?? []) {
+    assert.equal(prompt.includes(fact), false, `${label}: truncated prompt kept dropped filler ${fact}`)
+  }
+  const raw = result.served.join('\n')
+  for (const fact of spec.presentInRaw ?? []) {
+    assert.ok(raw.includes(fact), `${label}: raw ring missing ${fact}`)
+  }
+  for (const fact of spec.droppedFromPrompt ?? []) {
+    assert.ok(raw.includes(fact), `${label}: dropped filler was not in the raw ring ${fact}`)
   }
 }
 
