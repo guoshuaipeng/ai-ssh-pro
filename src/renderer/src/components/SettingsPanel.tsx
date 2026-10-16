@@ -22,6 +22,7 @@ import { TOUR_DONE_KEY } from './WelcomeTour'
 import type { TerminalPrefs } from '@shared/ipc'
 import type { ProbePrefs } from '@shared/health-probe'
 import AiConfigForm from './AiConfigForm'
+import SafetyTierSettings from './SafetyTierSettings'
 import HealthProbeFields from './HealthProbeFields'
 import { loadLoopPrefs, saveLoopPrefs } from '@shared/alert-loop'
 import TerminalPrefsModal from './TerminalPrefsModal'
@@ -326,6 +327,7 @@ export default function SettingsPanel({
           {active === 'ai' ? (
             <section>
               <h3>{t('settings.ai')}</h3>
+              <SafetyTierSettings />
               <AiConfigForm />
               <button type="button" onClick={onOpenMcp}>
                 {t('menu.mcpGuide')}

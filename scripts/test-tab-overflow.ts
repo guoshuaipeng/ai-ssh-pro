@@ -3,19 +3,23 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { translate } from '../src/renderer/src/lib/i18n'
 import {
+  TAB_MAX_WIDTH_PX,
+  TAB_MIN_WIDTH_PX,
   TAB_STRIP_NUDGE,
+  tabItemFlex,
   tabOverflowMark,
   tabStripChrome,
   tabStripNudgePx,
   tabStripRevealDelta,
-  tabStripWheelDelta
+  tabStripWheelDelta,
+  tabWidthKeepsLabel
 } from '../src/shared/tab-overflow'
 
 const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('zh-CN', key, vars)
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.8')
+assert.equal(pkg.version, '0.4.9')
 
 assert.equal(tabOverflowMark(0), '⌄')
 assert.equal(tabOverflowMark(3), '⌄ 3')
@@ -45,6 +49,14 @@ assert.equal(tabStripRevealDelta({ tabLeft: -40, tabRight: 40, clientWidth: 200,
 assert.equal(tabStripRevealDelta({ tabLeft: -10, tabRight: 400, clientWidth: 200, pad: 8 }), -18)
 assert.equal(tabStripRevealDelta({ tabLeft: 0, tabRight: 10, clientWidth: 0 }), 0)
 
+assert.equal(tabItemFlex(), '0 0 auto')
+assert.ok(TAB_MIN_WIDTH_PX >= 180)
+assert.ok(TAB_MAX_WIDTH_PX >= TAB_MIN_WIDTH_PX)
+assert.equal(tabWidthKeepsLabel(TAB_MIN_WIDTH_PX), true)
+assert.equal(tabWidthKeepsLabel(172), false)
+assert.equal(tabWidthKeepsLabel(112), false)
+assert.equal(tabWidthKeepsLabel(96), false)
+
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const toolbar = readFileSync('src/renderer/src/components/AppToolbar.tsx', 'utf8')
@@ -69,6 +81,15 @@ assert.match(styles, /\.tab-scroll-btn\s*\{[^}]*height:\s*24px/)
 assert.match(styles, /\.tab-overflow-btn\s*\{[^}]*white-space:\s*nowrap/)
 assert.match(styles, /\.tab-overflow-btn\s*\{[^}]*height:\s*24px/)
 assert.match(styles, /\.tab-overflow-mark\s*\{[^}]*white-space:\s*nowrap/)
+
+const itemRule = styles.slice(styles.indexOf('.tab-bar-scroll > .tab {'), styles.indexOf('.tab-bar-scroll > .tab.active'))
+assert.match(itemRule, /flex:\s*0\s*0\s*auto/)
+assert.doesNotMatch(itemRule, /flex:\s*0\s*1\s*auto/)
+assert.match(itemRule, new RegExp(`min-width:\\s*${TAB_MIN_WIDTH_PX}px`))
+assert.match(itemRule, new RegExp(`max-width:\\s*${TAB_MAX_WIDTH_PX}px`))
+const narrowTabs = styles.slice(styles.indexOf('@media (max-width: 1024px)'), styles.indexOf('.tab-scroll-btn'))
+assert.doesNotMatch(narrowTabs, /\.tab-bar-scroll > \.tab/)
+assert.equal(styles.includes('min-width: 112px'), false)
 
 assert.ok(app.includes('tabStripWheelDelta(e.deltaX, e.deltaY, e.deltaMode, scroll.clientWidth)'))
 assert.ok(app.includes('scrollLeft += delta') && app.includes('capture: true, passive: false'))
@@ -106,6 +127,6 @@ assert.equal(en('tab.scrollRight'), 'Scroll tabs right')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 assert.ok(unreleased.includes('P3-TO'))
 assert.ok(unreleased.includes('⌄'))
-assert.equal(pkg.version, '0.4.8')
+assert.equal(pkg.version, '0.4.9')
 
 console.log('test-tab-overflow ok')

@@ -42,7 +42,18 @@ const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: IconName; label
   { id: 'sftp', icon: 'folder', label: 'toolbar.sftp', title: 'toolbar.sftpTitle', needsSession: true }
 ]
 
-/** 标题栏：品牌+弱版本 + 菜单 ｜ 新建/最近 ｜ 运维工具 ｜ 搜索 ｜ 溢出图标（Polish-6） */
+function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
+  const pane =
+    kind === 'sidebar' ? 'M5.25 2.5v11' : kind === 'ai' ? 'M10.75 2.5v11' : 'M5.25 2.5v11M10.75 2.5v11'
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <rect x="1.75" y="2.5" width="12.5" height="11" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.15" />
+      <path d={pane} stroke="currentColor" strokeWidth="1.15" />
+    </svg>
+  )
+}
+
+/** 标题栏：品牌+弱版本 + 菜单 ｜ 新建/最近 ｜ 运维工具 ｜ 搜索 ｜ 溢出 ｜ 布局图标（Polish-8） */
 export default function AppToolbar({
   onMenuAction,
   onQuickConnect,
@@ -149,6 +160,14 @@ export default function AppToolbar({
   const iconOnlyTools = compactLevel >= 2
   const searchIconOnly = compactLevel >= 3
   const menusAsHamburger = compactLevel >= 4
+  const showSidebar = toggles?.toggleSidebar ?? true
+  const showMain = toggles?.toggleMain ?? true
+  const showAi = toggles?.toggleAi ?? false
+  const layoutToggles = [
+    { id: 'toggleSidebar' as const, kind: 'sidebar' as const, on: showSidebar, hide: 'toolbar.hideSidebar' as const, show: 'toolbar.showSidebar' as const },
+    { id: 'toggleMain' as const, kind: 'main' as const, on: showMain, hide: 'toolbar.hideMain' as const, show: 'toolbar.showMain' as const },
+    { id: 'toggleAi' as const, kind: 'ai' as const, on: showAi, hide: 'toolbar.hideAi' as const, show: 'toolbar.showAi' as const }
+  ]
 
   return (
     <header className={`app-titlebar titlebar-compact-${compactLevel}`} ref={headerRef} data-compact={compactLevel}>
@@ -315,6 +334,23 @@ export default function AppToolbar({
               </div>
             ) : null}
           </div>
+        </div>
+        <span className="toolbar-divider" aria-hidden />
+        <div className="app-toolbar-layout" role="group" aria-label={t('toolbar.layout')}>
+          {layoutToggles.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`layout-toggle-btn${item.on ? ' is-on' : ''}`}
+              data-testid={`layout-toggle-${item.kind}`}
+              title={item.on ? t(item.hide) : t(item.show)}
+              aria-label={item.on ? t(item.hide) : t(item.show)}
+              aria-pressed={item.on}
+              onClick={() => onMenuAction(item.id)}
+            >
+              <LayoutToggleIcon kind={item.kind} />
+            </button>
+          ))}
         </div>
       </div>
     </header>

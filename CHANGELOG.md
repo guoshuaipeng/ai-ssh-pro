@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.4.9
+
+v0.4.9 soft-start. Package version is `0.4.9`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
+
+- **布局开关回到标题栏（Polish-8）.** 会话栏、终端区、AI 面板三枚图标回到标题栏右侧。只是小图标：开着略亮，关着更淡，没有粗边框，和旁边的按钮之间一条细线。1366×768 标题栏仍是一行。 / The sidebar, terminal, and AI layout icons are back on the title bar. They are small icon-only controls, brighter when on and quieter when off, with no heavy border and a thin divider beside them. The title bar stays one line at 1366×768.
+
+- **标签不压缩（Polish-8）.** 会话标签不再为了挤进一行而缩成「服…」「17…」。每枚标签保持可读的最小宽度，主机名和 IP 认得出；放不下的标签在标签条里横向滚动。鼠标滚轮、左右箭头和 ⌄ 仍可用，系统横向滚动条不出现在整窗上。1366×768 下标签条仍是 36px 单行。 / Session tabs no longer shrink until the label reads as “服…” or “17…”. Each tab keeps a readable minimum width so a host name or IP stays recognizable. Tabs that do not fit scroll inside the strip. The wheel, the arrows, and ⌄ stay, and the window itself does not grow a horizontal scrollbar. The strip stays one 36px row at 1366×768.
+
+- **代理安全档（Polish-8）.** 设置里可以选观察、确认、信任、全自动，默认是确认。安全档和低、中、高风险徽章是两回事：徽章仍给命令贴标签，档位决定哪一档可以跳过同意。确认档下只读命令可以自动执行；中低风险写入仍走原来的同意 / 不同意；高风险要同意，并再确认一次，不会自动执行。观察档只自动执行只读，写入、删除和重启只给建议，不提供执行。信任档自动执行中低风险，高风险仍要同意。全自动必须显式打开，优先看主机允许列表；生产主机不在列表里就退回确认并警告。高风险在全自动下仍要确认，除非单独允许，而且生产主机即使允许也不会自动执行高风险。ncdu、top、vim、less 这类交互命令不会自动执行，可以改用非交互命令，或者同意一次后等你在终端里操作；同一条正在执行的命令不会再次询问同意。会话和主机可以各自覆盖全局档。Core-A 的 tipSuggest 为 `0.4.9-polish8`，rollback 为 `0.4.8-polish7`。版本号这一批只升到 0.4.9，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / Agent safety tiers (Polish-8). Settings offer Observe, Confirm, Trusted, and Autopilot. Confirm is the default. The tier is separate from the low, medium, and high risk badge: the badge still labels the command, and the tier decides which risks skip Agree. On Confirm, a read-only command may auto-run; a medium or low write still uses Agree and Decline; high risk needs Agree plus a stronger confirm, and does not auto-run. Observe auto-runs read-only only. Writes, deletes, and reboots are suggestions, with no execute button. Trusted auto-runs medium and low risk. High risk still needs Agree. Autopilot is off until you turn it on, and it prefers a host allow list. A production host that is not on the list falls back to Confirm and shows a warning. High risk still confirms under Autopilot unless that is explicitly allowed, and a production host does not auto-run high risk even then. Interactive commands such as ncdu, top, vim, and less never auto-run. Prefer a non-interactive command, or Agree once and wait. The same in-flight command does not ask for Agree again. A session or a host can override the global tier. Core-A tipSuggest is `0.4.9-polish8` and rollback is `0.4.8-polish7`. This batch bumps the package once, to 0.4.9, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
+
 ## v0.4.8
 
 v0.4.8 soft-start. Package version is `0.4.8`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
