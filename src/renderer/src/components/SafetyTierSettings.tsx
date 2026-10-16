@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SAFETY_TIERS, type SafetyTier } from '@shared/safety-tier'
+import {
+  SAFETY_LADDER_BANDS,
+  safetyBandTone,
+  safetyLadderBand,
+  type SafetyLadderBand
+} from '@shared/safety-visibility'
 import { tg, type MessageKey } from '../lib/i18n'
 
 const TIER_KEY: Record<SafetyTier, MessageKey> = {
@@ -14,6 +20,12 @@ const HINT_KEY: Record<SafetyTier, MessageKey> = {
   confirm: 'safety.confirmHint',
   trusted: 'safety.trustedHint',
   autopilot: 'safety.autopilotHint'
+}
+
+const BAND_KEY: Record<SafetyLadderBand, MessageKey> = {
+  readonly: 'safety.band.readonly',
+  confirm: 'safety.band.confirm',
+  autopilot: 'safety.band.autopilot'
 }
 
 /** Global safety tier. Host and session overrides live on the AI panel. */
@@ -46,13 +58,29 @@ export default function SafetyTierSettings() {
     void window.aiss.ai.setSettings({ safetyTier: next }).then(flash)
   }
 
+  const band = safetyLadderBand(tier)
+
   return (
     <fieldset className="settings-channel" data-testid="safety-tier">
       <legend>{tg('safety.tier')}</legend>
       <p className="l7-muted">{tg('safety.hint')}</p>
+      <div className="safety-ladder" data-testid="safety-ladder" role="list" aria-label={tg('safety.ladderHint')}>
+        {SAFETY_LADDER_BANDS.map((id) => (
+          <span
+            key={id}
+            role="listitem"
+            className={`safety-band-badge safety-band-${safetyBandTone(id)}${band === id ? ' is-active' : ''}`}
+            data-band={id}
+            data-active={band === id ? '1' : '0'}
+          >
+            {tg(BAND_KEY[id])}
+          </span>
+        ))}
+      </div>
+      <p className="l7-muted">{tg('safety.ladderHint')}</p>
       <div className="n1-sources" role="radiogroup" aria-label={tg('safety.tier')}>
         {SAFETY_TIERS.map((id) => (
-          <label key={id} className="n1-choice">
+          <label key={id} className="n1-choice" data-band={safetyLadderBand(id)}>
             <input
               type="radio"
               name="safety-tier"

@@ -38,18 +38,18 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.13')
+assert.equal(pkg.version, '0.4.14')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-11.ts'), true)
-assert.equal(tipSuggest, '0.4.13-polish12')
-assert.equal(rollback, '0.4.12-polish11')
+assert.equal(tipSuggest, '0.4.14-polish13')
+assert.equal(rollback, '0.4.13-polish12')
 assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.13'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.14'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.12'), changelog.indexOf('## v0.4.11'))
 assert.ok(note.includes('v0.4.12 soft-start'))

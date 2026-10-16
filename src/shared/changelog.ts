@@ -12,6 +12,41 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.14': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'SFTP 中心在 1366 单行工具带；磁盘切换与打开会话目录更显眼，高级默认折起',
+        en: 'SFTP center keeps a single toolbar at 1366; drive switch and session cwd stay prominent; advanced folded'
+      },
+      where: { zh: 'SFTP', en: 'SFTP' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '安全档在设置与 AI 条说清「只读 / 需确认 / 全自动」，默认偏手动',
+        en: 'Safety tiers in Settings and the AI bar read as Read-only / Confirm / Autopilot; default leans manual'
+      },
+      where: { zh: '设置 → 代理安全档', en: 'Settings → Agent safety' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标签溢出有淡出与箭头示意，滚轮可横滚，标题不压缩',
+        en: 'Tab overflow shows fade and arrows; the wheel scrolls sideways; titles are not compressed'
+      },
+      where: { zh: '标签条', en: 'Tab strip' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '列表行高与悬停统一；运维首页卡片安静上限，次要进 ⋯',
+        en: 'List row height and hover unify; ops home cards stay under a quiet cap, secondary in ⋯'
+      },
+      where: { zh: '运维首页', en: 'Ops home' },
+      action: 'opsHome'
+    }
+  ],
   '0.4.13': [
     {
       icon: '▷',

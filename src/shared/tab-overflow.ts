@@ -169,3 +169,21 @@ export function tabStripWheelDelta(deltaX: number, deltaY: number, deltaMode = 0
   if (deltaMode === 2) return raw * (pagePx > 0 ? pagePx : 320)
   return raw
 }
+
+/** P13-3: overflow fade width so the strip shows there is more to scroll. */
+export const TAB_FADE_PX = 40
+
+/** Arrow / fade cues when the strip can scroll. Titles stay full width (no compress). */
+export function tabOverflowCues(fade: { left: boolean; right: boolean }): {
+  showLeftArrow: boolean
+  showRightArrow: boolean
+  fadeLeft: boolean
+  fadeRight: boolean
+} {
+  return {
+    showLeftArrow: fade.left,
+    showRightArrow: fade.right,
+    fadeLeft: fade.left,
+    fadeRight: fade.right
+  }
+}

@@ -1282,7 +1282,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .sftp-dual.is-compact .sftp-table td,
 .sftp-dual.is-compact .sftp-table tbody tr,
 .sftp-dual.is-compact .sftp-name-btn {
-  height: 24px; max-height: 24px; line-height: 24px;
+  height: var(--list-row-height-compact); max-height: var(--list-row-height-compact); line-height: var(--list-row-height-compact);
 }
 .sftp-dual.is-compact .sftp-table th:nth-child(4),
 .sftp-dual.is-compact .sftp-table td:nth-child(4),

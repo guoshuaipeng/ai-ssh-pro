@@ -8,7 +8,8 @@ import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import { confirmDialog } from '../lib/dialogs'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
-import { isSafetyTier, releaseSessionInFlight, SAFETY_TIERS, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
+import { effectiveSafetyTier, isSafetyTier, releaseSessionInFlight, SAFETY_TIERS, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
+import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import SafetyCommandBar from './SafetyCommandBar'
 
@@ -688,9 +689,11 @@ export default function AIPanel({
     />
   )
 
-  const sessionTier = persistKey ? safetySettings.safetyTierSessions?.[persistKey] : undefined
   const hostKey = inventoryLookup?.profileId || hostInventoryId || ''
+  const sessionTier = persistKey ? safetySettings.safetyTierSessions?.[persistKey] : undefined
   const hostTier = hostKey ? safetySettings.safetyTierHosts?.[hostKey] : undefined
+  const effectiveTier = effectiveSafetyTier(safetySettings, { hostId: hostKey, sessionId: persistKey })
+  const ladderBand = safetyLadderBand(effectiveTier)
 
   return (
     <aside className="ai-panel" style={{ minWidth: 280 }}>
@@ -754,6 +757,14 @@ export default function AIPanel({
           </div>
         ) : null}
         <div className="ai-safety-row" data-testid="safety-scope">
+          <span
+            className={`safety-band-badge safety-band-${safetyBandTone(ladderBand)} is-active`}
+            data-testid="safety-band-badge"
+            data-band={ladderBand}
+            title={tg('safety.ladderHint')}
+          >
+            {tg(`safety.band.${ladderBand}` as 'safety.band.confirm')}
+          </span>
           <label>
             {tg('safety.session')}
             <select

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.4.14
+
+v0.4.14 soft-start. Package version is `0.4.14`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
+
+- **大厂质感扫尾（Polish-13）.** SFTP 中心在 1366 保持单行工具带不折行；本机 C:/D: 切换与「打开到会话目录」显眼可读，列表与预览分区清楚，高级默认折起，不重开主机档案。设置与 AI 条把「只读 / 需确认 / 全自动」级差说清：默认偏手动，风险操作必确认，气质与风险徽章一致，不堆新评测。标签条固定宽加横滚之上，溢出用淡出与短箭头可感知，滚轮可左右，标题仍完整可读，不压缩截断。侧栏树、告警、工具箱与 SFTP 行高/悬停/选中走同源 token，禁私货蓝底，选中仍不等于 outline。字重 650 与 14px 圆角继续不出现，字阶跟 `--fs-*`，圆角走 token。运维首页卡片默认安静上限，次要进 CmdK/⋯，1366 无工具墙，不重开运维菜单 ≤12。Core-A 的 tipSuggest 为 `0.4.14-polish13`，rollback 为 `0.4.13-polish12`。版本号这一批只升到 0.4.14，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / Soft-start product-feel sweep (Polish-13). SFTP center at 1366 keeps a single nowrap toolbar; local C:/D: switch and Open at session cwd stay prominent; list/preview stay clear; advanced starts folded; host profile is not reopened. Settings and the AI bar make Read-only / Confirm / Autopilot clear: default leans manual, risky ops confirm, same vibe as risk badges, no new eval fixtures. Tab strip fixed width plus horizontal scroll gains fade and short arrows; the wheel scrolls sideways; titles stay fully readable without compress/truncate. Sidebar tree, alerts, toolbox, and SFTP rows share height/hover/selected tokens; no private blue hover; selected stays not outline. Weight 650 and a 14px radius stay gone; type sizes follow `--fs-*`; radii use tokens. Ops home cards stay under a quiet cap; secondary lives in CmdK / ⋯; no tool wall at 1366; ops menu ≤12 is not reopened. Core-A tipSuggest is `0.4.14-polish13` and rollback is `0.4.13-polish12`. This batch bumps the package once, to 0.4.14, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
+
 ## v0.4.13
 
 v0.4.13 soft-start. Package version is `0.4.13`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'reac
 import type { FiredAlert } from '@shared/alert-rules'
 import type { DashScope } from '@shared/dashboard-scope'
 import { pickHealthHosts } from '@shared/dashboard-scope'
+import { opsHomeCardCap, opsHomeQuietLayout } from '@shared/ops-home-density'
 import { probeFiltersActive, selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
 import { loadMaintenance, silenceUntil } from '@shared/maintenance'
 import type { ProtectionLevel } from '@shared/protection'
@@ -168,7 +169,17 @@ export default function OpsHomeTab({
     const ids = new Set(probeTargets.map((t) => t.profileId))
     return hosts.filter((h) => ids.has(h.profileId))
   }, [hosts, probePrefs.enabled, probeTargets])
-  const ranked = useMemo(() => pickHealthHosts(cardSource, (h) => h.alerting, 8), [cardSource])
+  const [opsWidth, setOpsWidth] = useState(() => (typeof window === 'undefined' ? 1400 : window.innerWidth))
+  useEffect(() => {
+    const onResize = () => setOpsWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const quietLayout = opsHomeQuietLayout(opsWidth, typeof window === 'undefined' ? 900 : window.innerHeight)
+  const ranked = useMemo(
+    () => pickHealthHosts(cardSource, (h) => h.alerting, opsHomeCardCap(opsWidth)),
+    [cardSource, opsWidth]
+  )
   const visibleSamples = useMemo<SampleHost[]>(
     () =>
       ranked.shown.map((h) => ({
@@ -298,7 +309,7 @@ export default function OpsHomeTab({
 
   if (hosts.length === 0 && scope.mode === 'all') {
     return (
-      <div className="workspace-panel l7-root" data-testid="ops-home">
+      <div className="workspace-panel l7-root" data-testid="ops-home" data-ops-quiet={quietLayout.foldSecondary ? '1' : '0'} data-ops-card-cap={quietLayout.cardCap}>
         <div className="workspace-panel-toolbar l7-head">
           <h2 className="workspace-panel-title">{t('l7.title')}</h2>
         </div>
@@ -323,7 +334,7 @@ export default function OpsHomeTab({
   const primaryIsAlerts = activeCount > 0
 
   return (
-    <div className="workspace-panel l7-root" data-testid="ops-home">
+    <div className="workspace-panel l7-root" data-testid="ops-home" data-ops-quiet={quietLayout.foldSecondary ? '1' : '0'} data-ops-card-cap={quietLayout.cardCap}>
       <div className="workspace-panel-toolbar l7-head">
         <h2 className="workspace-panel-title">
           {t('l7.title')}
