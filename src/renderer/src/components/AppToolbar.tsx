@@ -18,12 +18,6 @@ import BrandMark from './BrandMark'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
-  onToggleSidebar?: () => void
-  onToggleMain?: () => void
-  onToggleAi?: () => void
-  showSidebar?: boolean
-  showMain?: boolean
-  showAi?: boolean
   onQuickConnect?: (row: RecentConnection) => void
   /** checked state for toggle menu items */
   toggles?: Partial<Record<TitlebarMenuAction, boolean>>
@@ -48,40 +42,9 @@ const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: IconName; label
   { id: 'sftp', icon: 'folder', label: 'toolbar.sftp', title: 'toolbar.sftpTitle', needsSession: true }
 ]
 
-function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
-  if (kind === 'sidebar') {
-    return (
-      <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden>
-        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <path d="M5.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
-    )
-  }
-  if (kind === 'ai') {
-    return (
-      <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden>
-        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <path d="M10.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden>
-      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M5.5 2.5v11M10.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  )
-}
-
-/** 标题栏：品牌+版本 + 菜单 ｜ 新建/最近 ｜ 运维工具 ｜ 搜索/更多 ｜ 布局开关（UX-04） */
+/** 标题栏：品牌+弱版本 + 菜单 ｜ 新建/最近 ｜ 运维工具 ｜ 搜索 ｜ 溢出图标（Polish-6） */
 export default function AppToolbar({
   onMenuAction,
-  onToggleSidebar,
-  onToggleMain,
-  onToggleAi,
-  showSidebar = true,
-  showMain = true,
-  showAi = true,
   onQuickConnect,
   toggles,
   disabled,
@@ -319,14 +282,15 @@ export default function AppToolbar({
           <div className="titlebar-popover-wrap" ref={moreRef}>
             <button
               type="button"
-              className="titlebar-icon-btn"
+              className="titlebar-icon-btn titlebar-overflow-btn"
               data-tool="more"
-              title={t('toolbar.more')}
-              aria-label={t('toolbar.more')}
+              data-testid="toolbar-overflow"
+              title={t('toolbar.overflow')}
+              aria-label={t('toolbar.overflow')}
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((v) => !v)}
             >
-              <span aria-hidden>⋯</span> <span className="tb-label">{t('toolbar.more')}</span> <span aria-hidden><Twist open size={12} /></span>
+              <span aria-hidden>⋯</span>
             </button>
             {moreOpen ? (
               <div className="titlebar-popover titlebar-more-menu" role="menu" data-testid="toolbar-more">
@@ -351,42 +315,6 @@ export default function AppToolbar({
               </div>
             ) : null}
           </div>
-        </div>
-        <span className="toolbar-divider" aria-hidden />
-        <div className="app-toolbar-layout" role="group" aria-label={t('toolbar.layout')}>
-          {onToggleSidebar ? (
-            <button
-              type="button"
-              className={`layout-toggle-btn ${showSidebar ? 'is-on' : ''}`}
-              title={showSidebar ? t('toolbar.hideSidebar') : t('toolbar.showSidebar')}
-              aria-pressed={showSidebar}
-              onClick={onToggleSidebar}
-            >
-              <LayoutToggleIcon kind="sidebar" />
-            </button>
-          ) : null}
-          {onToggleMain ? (
-            <button
-              type="button"
-              className={`layout-toggle-btn ${showMain ? 'is-on' : ''}`}
-              title={showMain ? t('toolbar.hideMain') : t('toolbar.showMain')}
-              aria-pressed={showMain}
-              onClick={onToggleMain}
-            >
-              <LayoutToggleIcon kind="main" />
-            </button>
-          ) : null}
-          {onToggleAi ? (
-            <button
-              type="button"
-              className={`layout-toggle-btn ${showAi ? 'is-on' : ''}`}
-              title={showAi ? t('toolbar.hideAi') : t('toolbar.showAi')}
-              aria-pressed={showAi}
-              onClick={onToggleAi}
-            >
-              <LayoutToggleIcon kind="ai" />
-            </button>
-          ) : null}
         </div>
       </div>
     </header>

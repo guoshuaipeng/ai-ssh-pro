@@ -26,18 +26,18 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.6')
+assert.equal(pkg.version, '0.4.7')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-5.ts'), true)
-assert.equal(tipSuggest, '0.4.8-polish5')
-assert.equal(rollback, '0.4.8-polish4')
+assert.equal(tipSuggest, '0.4.8-polish6')
+assert.equal(rollback, '0.4.8-polish5')
 assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes('0.4.8'), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.6'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.7'))
 const note = changelog.slice(changelog.indexOf('## v0.4.6'), changelog.indexOf('## v0.4.5'))
 assert.equal(unreleased.includes('Public HOLD'), false)
 assert.equal(note.includes('soft-start'), false)
