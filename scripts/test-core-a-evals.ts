@@ -1505,8 +1505,8 @@ function assertCiteHold(
  * The cap cannot be raised from the env.
  */
 function assertCiteableTruncateModes(): void {
-  assert.equal(tipSuggest, '0.4.11-polish10')
-  assert.equal(rollback, '0.4.10-polish9')
+  assert.equal(tipSuggest, '0.4.12-polish11')
+  assert.equal(rollback, '0.4.11-polish10')
   assert.equal(OUTPUT_VIEW_CAP, 6000)
   const short = truncateCiteableOutput('short ring')
   assert.equal(short.truncated, false)
@@ -1525,8 +1525,8 @@ function assertCiteableTruncateModes(): void {
   const view = truncateCiteableOutput(raw)
   assert.equal(view.truncated, true)
   assert.equal(view.cap, OUTPUT_VIEW_CAP)
-  assert.equal(view.tipSuggest, '0.4.11-polish10')
-  assert.equal(view.rollback, '0.4.10-polish9')
+  assert.equal(view.tipSuggest, '0.4.12-polish11')
+  assert.equal(view.rollback, '0.4.11-polish10')
   assert.ok(view.originalChars > view.cap)
   assert.ok(view.shownChars <= view.cap)
   assert.ok(view.shownChars < view.originalChars)

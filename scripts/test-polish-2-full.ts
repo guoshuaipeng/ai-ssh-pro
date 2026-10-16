@@ -18,7 +18,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: Record<string, unknown> } }
-assert.equal(pkg.version, '0.4.11')
+assert.equal(pkg.version, '0.4.12')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 
 const early = pinnedIds({ settings: { count: 2, last: 1 } })

@@ -153,7 +153,7 @@ export default function SettingsPanel({
   }
 
   return (
-    <div className="workspace-panel settings-root" data-testid="settings-panel">
+    <div className="workspace-panel settings-root" data-testid="settings-panel" data-settings-layout="column">
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{t('settings.title')}</h2>
       </div>
@@ -161,6 +161,7 @@ export default function SettingsPanel({
         <nav className="settings-nav" aria-label={t('settings.title')}>
           <input
             className="settings-search"
+            data-testid="settings-search"
             value={q}
             placeholder={t('settings.search')}
             aria-label={t('settings.search')}
@@ -184,7 +185,13 @@ export default function SettingsPanel({
               ))
             : null}
         </nav>
-        <div className="settings-body" data-section={active || 'none'} data-hit={q.trim() ? '1' : '0'}>
+        <div
+          className="settings-body"
+          id={active ? `settings-${active}` : undefined}
+          data-section={active || 'none'}
+          data-settings-anchor={active || 'none'}
+          data-hit={q.trim() ? '1' : '0'}
+        >
           {visible.length === 0 ? (
             <EmptyState
               testId="settings-search-empty"
@@ -295,7 +302,6 @@ export default function SettingsPanel({
                 {t('settings.hostStatus')}
               </label>
               <p className="l7-muted">{t('settings.agent')}</p>
-              <p className="l7-muted">{t('settings.keepalive')}</p>
               <ReconnectPolicySection anchor={settingsAnchor} />
             </section>
           ) : null}

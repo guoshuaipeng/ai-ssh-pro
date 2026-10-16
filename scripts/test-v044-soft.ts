@@ -33,7 +33,7 @@ import { hopVisual } from '../src/shared/hop-chip'
 import { planAlertFix } from '../src/renderer/src/lib/alert-fix'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.11')
+assert.equal(pkg.version, '0.4.12')
 
 const mem = () => {
   const bag = new Map<string, string>()

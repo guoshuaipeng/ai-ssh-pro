@@ -22,7 +22,8 @@ import {
 } from '@shared/sftp-queue'
 import type { SyncProfile, SyncRow } from '@shared/folder-sync'
 import { normalizeSyncProfile } from '@shared/folder-sync'
-import { tg } from '../lib/i18n'
+import { disconnectStatusSentence } from '@shared/status-bar'
+import { tg, useI18n } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import { noticeKind } from '@shared/product-error'
 import ErrorNotice from './ErrorNotice'
@@ -147,6 +148,7 @@ export default function SftpPanel({
   profileId,
   onOpenHistory
 }: Props) {
+  const { locale } = useI18n()
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
   const [snapPaths, setSnapPaths] = useState<Set<string>>(new Set())
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
@@ -1039,7 +1041,7 @@ export default function SftpPanel({
           <>
           {disconnected ? (
             <div className="sftp-disconnect" data-testid="sftp-disconnected">
-              <div>{tg('d1.disconnected')}</div>
+              <div>{disconnectStatusSentence(hostLabel || sessionTitle || '', locale === 'en' ? 'en' : 'zh-CN')}</div>
               <button type="button" className="primary" onClick={() => onReconnect?.()} disabled={!onReconnect}>
                 {tg('d1.reconnect')}
               </button>

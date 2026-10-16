@@ -11,6 +11,7 @@ import {
 import { useI18n } from '../lib/i18n'
 import { confirmDialog } from '../lib/dialogs'
 import EmptyState from './EmptyState'
+import { QUIET_LOAD_ATTRS } from '@shared/quiet-load'
 import Icon, { Twist } from './Icon'
 
 type TFn = ReturnType<typeof useI18n>['t']
@@ -153,7 +154,7 @@ export default function DockerToolboxTab({
   }
 
   if (!tree) {
-    return busy ? <p className="st-muted">{t('rm.loading')}</p> : null
+    return busy ? <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p> : null
   }
 
   const model = toolboxDockerList(tree, query)
@@ -293,7 +294,10 @@ function GroupRows({
       {open && !group.error && group.rows.length === 0 ? (
         <tr>
           <td colSpan={4} className="st-docker-group-empty">
-            {emptyLabel}
+            <span className="st-docker-group-empty-line">
+              <Icon name="list-tree" size={16} strokeWidth={1.5} />
+              {emptyLabel}
+            </span>
           </td>
         </tr>
       ) : null}

@@ -160,7 +160,8 @@ import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { type SyncPhase } from '@shared/sync-vault'
-import { disconnectStatusSentence, statusBarSlots, statusQuietLabel } from '@shared/status-bar'
+import { disconnectStatusSentence, fitStatusSlots, statusBarSlots, statusQuietLabel } from '@shared/status-bar'
+import { QUIET_LOAD_ATTRS } from '@shared/quiet-load'
 import { trayHoverTitle } from '@shared/product'
 import { tabKindIcon } from '@shared/tab-kind'
 import { connectionTechnicalDetail, showConnectionTrouble, troubleshootConnection } from '@shared/connect-trouble'
@@ -930,6 +931,8 @@ export default function App() {
   const [welcomeReplay, setWelcomeReplay] = useState(false)
   const [welcomeNotesHeld, setWelcomeNotesHeld] = useState(false)
   const welcomeSeen = useRef(false)
+  /** P11-1: Help → welcome must survive the "hosts already exist" auto-complete. */
+  const helpWelcomeReplay = useRef(false)
   const [tourQueued, setTourQueued] = useState(false)
   const [tourExplicit, setTourExplicit] = useState(false)
   const [quickExplicit, setQuickExplicit] = useState(false)
@@ -4420,6 +4423,7 @@ export default function App() {
         setTourQueued(false)
         setQuickOpen(false)
         setQuickExplicit(false)
+        helpWelcomeReplay.current = true
         setWelcomeReplay(true)
         setWelcomeDismissed(false)
         saveWelcomeDismissed(false)
@@ -5220,8 +5224,11 @@ export default function App() {
 
   useEffect(() => {
     if (!sessionsReady || profiles.length < 1 || welcomeCompleted) return
+    // P11-1: Help replay stays up. Hosts already present do not clear it.
+    if (welcomeReplay) return
     const seen = welcomeSeen.current
-    const replay = welcomeReplay
+    const replay = helpWelcomeReplay.current
+    helpWelcomeReplay.current = false
     saveWelcomeCompleted(true)
     setWelcomeCompleted(true)
     setWelcomeReplay(false)
@@ -6546,7 +6553,7 @@ export default function App() {
           ) : null}
 
           {activeIsSession && activeTab?.status === 'connecting' && (
-            <div className="session-disconnect-banner session-connecting-banner" role="status">
+            <div className="session-disconnect-banner session-connecting-banner" role="status" {...QUIET_LOAD_ATTRS}>
               <span>
                 {tr('banner.connecting', {
                   target: `${activeTab.connectOpts.username}@${activeTab.connectOpts.host}:${activeTab.connectOpts.port}`
@@ -7161,7 +7168,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.11'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.12'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -7201,7 +7208,7 @@ export default function App() {
                     onOpenWorkbench={() => openWorkbench()}
                   />
                 ) : t.view === 'playbook-import' ? (
-                  <PlaybookImportTab appVersion={appVersion || '0.4.11'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <PlaybookImportTab appVersion={appVersion || '0.4.12'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'gate-timeline' ? (
                   <GateTimelineTab
                     focusId={t.gateFocusId}
@@ -7873,15 +7880,17 @@ export default function App() {
             : undefined
           const bannerCandidate = activeIsSession && showsDroppedConnection(activeTab) ? activeTab : toolOwner
           const bannerTab = showsDroppedConnection(bannerCandidate) ? bannerCandidate : null
-          const slots = statusBarSlots({
-            syncEnabled: syncMeta.enabled,
-            phase: syncMeta.phase,
-            recording: Boolean(recordingSessionId),
-            broadcastCount: broadcastSessions.length,
-            disconnected: Boolean(bannerTab),
-            host: bannerTab ? (bannerTab.connectOpts.label?.trim() || bannerTab.connectOpts.host || bannerTab.title) : '',
-            tabId: bannerTab?.tabId
-          }).slots
+          const slots = fitStatusSlots(
+            statusBarSlots({
+              syncEnabled: syncMeta.enabled,
+              phase: syncMeta.phase,
+              recording: Boolean(recordingSessionId),
+              broadcastCount: broadcastSessions.length,
+              disconnected: Boolean(bannerTab),
+              host: bannerTab ? (bannerTab.connectOpts.label?.trim() || bannerTab.connectOpts.host || bannerTab.title) : '',
+              tabId: bannerTab?.tabId
+            }).slots
+          )
           const connectedCount = tabs.filter(
             (t) => (!t.view || t.view === 'session') && t.status === 'connected' && t.kind !== 'local'
           ).length
