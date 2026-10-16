@@ -1,4 +1,4 @@
-/** Polish-4: product feel. One version bump to 0.4.5. Package, FileVersion, and About. */
+/** Polish-4: product feel. One version bump to 0.4.5. Package version is the Win FileVersion; electron-builder 25 rejects win.fileVersion. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { aboutCopyLeaksPath, PRODUCT_NAME, trayHoverTitle } from '../src/shared/product'
@@ -12,11 +12,11 @@ const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   version: string
-  build?: { win?: { fileVersion?: string } }
+  build?: { win?: Record<string, unknown> }
   scripts: { test: string }
 }
 assert.equal(pkg.version, '0.4.5')
-assert.equal(pkg.build?.win?.fileVersion, '0.4.5')
+assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-4.ts'), true)
 assert.equal(pkg.version.split('.').length, 3, 'one semver, no extra micro build')
 
