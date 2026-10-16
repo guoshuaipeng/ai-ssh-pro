@@ -3,7 +3,7 @@ import { tg } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { parseAiAssistantReply } from '@shared/ipc'
-import { highlightKeyNumbers } from '@shared/ai-reply-cards'
+import { commandBundle, highlightKeyNumbers, layoutOpsReply, type OpsLayout } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import { confirmDialog } from '../lib/dialogs'
@@ -67,6 +67,93 @@ function HighlightedText({ text }: { text: string }): ReactNode {
 function RiskBadge({ level }: { level: string }) {
   const n = (level || 'medium').toLowerCase()
   return <div className={`ai-risk-badge ${riskClass(n)}`}>{tg('ux64.risk', { level: n })}</div>
+}
+
+function OpsReply({
+  text,
+  badge,
+  confirm,
+  decision,
+  canRun,
+  onAgree,
+  onDecline
+}: {
+  text: string
+  badge?: boolean
+  confirm?: boolean
+  decision?: 'agreed' | 'skipped'
+  canRun?: boolean
+  onAgree?: (command: string) => void
+  onDecline?: () => void
+}) {
+  const layout: OpsLayout = layoutOpsReply(text)
+  const structured = layout.blocks.some((b) => b.kind !== 'prose')
+  if (!structured) {
+    return (
+      <div className="ai-reply-desc">
+        <HighlightedText text={text} />
+      </div>
+    )
+  }
+  return (
+    <div className="ai-ops-stack" data-testid="ai-ops-stack">
+      {badge && layout.risk ? <RiskBadge level={layout.risk} /> : null}
+      {layout.blocks.map((block, i) => {
+        if (block.kind === 'prose') {
+          return (
+            <div key={i} className="ai-reply-desc">
+              <HighlightedText text={block.text} />
+            </div>
+          )
+        }
+        if (block.kind === 'finding') {
+          return (
+            <div key={i} className={`ai-finding${block.risk ? ` ai-finding--${block.risk}` : ''}`} data-testid="ai-ops-finding">
+              <div className="ai-finding-n">{block.n}</div>
+              <div className="ai-finding-body">
+                <HighlightedText text={block.text} />
+              </div>
+              {block.risk ? (
+                <span className={`ai-risk-badge ai-finding-risk ${riskClass(block.risk)}`}>{tg('ux64.risk', { level: block.risk })}</span>
+              ) : null}
+            </div>
+          )
+        }
+        if (block.kind === 'conclusion') {
+          return (
+            <div key={i} className={`ai-ops-conclusion${block.risk ? ` ai-finding--${block.risk}` : ''}`} data-testid="ai-ops-conclusion">
+              <HighlightedText text={block.text} />
+            </div>
+          )
+        }
+        const bundle = commandBundle(block.commands)
+        const showActions = confirm && block.confirm
+        return (
+          <div key={i} className="ai-reply-cmd" data-testid="ai-ops-commands">
+            <code className="ai-reply-cmd-code">{block.commands.join('\n')}</code>
+            {showActions ? (
+              decision === 'agreed' ? (
+                <div className="ai-decision">{tg('ux64.executed')}</div>
+              ) : decision === 'skipped' ? (
+                <div className="ai-decision">{tg('ux64.skipped')}</div>
+              ) : (
+                <div className="ai-reply-actions">
+                  <span className="ai-btn-wrap" title={!canRun ? tg('ux64.noSession') : tg('ai.runTip')}>
+                    <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={!canRun} onClick={() => onAgree?.(bundle)}>
+                      {tg('ux64.agreeRun')}
+                    </button>
+                  </span>
+                  <button type="button" className="ai-fill-cmd-btn ai-btn-decline" title={tg('ux64.disagree')} onClick={() => onDecline?.()}>
+                    <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+                  </button>
+                </div>
+              )
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function resolveHistoryKey(historyKey: string | null | undefined, activeSessionId: string | null): string | null {
@@ -670,12 +757,12 @@ export default function AIPanel({
             return (
               <div key={i} className="msg assistant ai-structured" data-testid="ai-reply-card" data-card={card}>
                 <div className="ai-reply-desc">
-                  <HighlightedText text={s.description} />
+                  <OpsReply text={s.description} confirm={false} />
                 </div>
                 {showRisk ? <RiskBadge level={s.riskLevel} /> : null}
                 {s.notes ? (
                   <div className="ai-reply-notes">
-                    <HighlightedText text={s.notes} />
+                    <OpsReply text={s.notes} confirm={false} />
                   </div>
                 ) : null}
                 {s.action === 'tool_call' && l.requestId ? (
@@ -778,9 +865,18 @@ export default function AIPanel({
           }
           return (
             <div key={i} className="msg assistant ai-structured ai-card-plain" data-testid="ai-reply-card" data-card="plain">
-              <div className="ai-reply-desc">
-                <HighlightedText text={l.content} />
-              </div>
+              <OpsReply
+                text={l.content}
+                badge
+                confirm
+                decision={l.decision}
+                canRun={Boolean(activeSessionId)}
+                onAgree={(cmd) => {
+                  runSuggestedCommand(cmd)
+                  markDecision(i, 'agreed')
+                }}
+                onDecline={() => markDecision(i, 'skipped')}
+              />
               {l.parseMiss ? <div className="ai-parse-fallback">{tg('ux64.parseFallback')}</div> : null}
             </div>
           )

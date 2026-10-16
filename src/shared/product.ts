@@ -10,3 +10,8 @@ export function trayHoverTitle(): string {
   }
   return PRODUCT_NAME
 }
+
+/** About copy is a sentence, never a local filesystem or debug path. */
+export function aboutCopyLeaksPath(text: string): boolean {
+  return DEBUG_PATH.test(text)
+}

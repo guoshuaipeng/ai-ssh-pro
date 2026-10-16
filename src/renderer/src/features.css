@@ -361,9 +361,9 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.session-latency-good { color: #3fb950; }
-.session-latency-fair { color: #d29922; }
-.session-latency-poor { color: #f85149; }
+.session-latency-good { color: var(--color-ok); }
+.session-latency-fair { color: var(--color-warn); }
+.session-latency-poor { color: var(--color-danger); }
 .session-latency-down { color: var(--danger); }
 
 .session-autoretry {
@@ -1008,7 +1008,7 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
 .st-more { position: relative; display: inline-block; }
 .st-more > summary { list-style: none; cursor: pointer; }
 .st-more > summary::-webkit-details-marker { display: none; }
-.st-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px; min-width: 160px; }
+.st-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px; min-width: 160px; box-shadow: var(--shadow-menu); }
 .st-host-label, .rm-host-label { font-size: 13px; color: var(--muted); margin-right: 8px; }
 
 /* ===== UX-43 monitor sparklines ===== */
@@ -1027,7 +1027,7 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
 }
 .session-command-collapse { margin-right: 4px; }
 .session-command-more { position: relative; }
-.session-command-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px; }
+.session-command-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px; box-shadow: var(--shadow-menu); }
 .terminal-pane-xterm { padding: 8px 12px; box-sizing: border-box; }
 
 /* ===== UX-22 context menu ===== */

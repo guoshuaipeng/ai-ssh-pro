@@ -29,8 +29,8 @@ import { arrangeTabs, closeOthers, closeRight } from '../src/shared/tab-actions'
 import type { TimelineEvent } from '../src/shared/timeline'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: { fileVersion?: string } } }
-assert.equal(pkg.version, '0.4.4')
-assert.equal(pkg.build?.win?.fileVersion, undefined)
+assert.equal(pkg.version, '0.4.5')
+assert.equal(pkg.build?.win?.fileVersion, '0.4.5')
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 assert.ok(changelog.startsWith('# Changelog\n\n## Unreleased'))
 for (const id of ['L2d', 'W6', 'A5', 'W7', 'L7d', 'L8b', 'UX-41', 'UX-59']) assert.ok(changelog.includes(id), id)

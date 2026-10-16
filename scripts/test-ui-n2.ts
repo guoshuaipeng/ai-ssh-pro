@@ -166,7 +166,7 @@ assert.deepEqual(
 )
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.4')
+assert.equal(pkg.version, '0.4.5')
 assert.match(pkg.scripts.test, /scripts\/test-ui-n2\.ts/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
@@ -180,6 +180,7 @@ assert.match(n2Bullet, /0\.4\.4/)
 assert.match(n2Bullet, /--color-accent/)
 assert.match(n2Bullet, /--color-danger/)
 assert.match(n2Bullet, /accent-dim/)
-assert.doesNotMatch(unreleased.slice(0, 400), /## v0\.4\.5\n/)
+assert.match(changelog, /## v0\.4\.5\n/)
+assert.doesNotMatch(n2Bullet, /## v0\.4\.5/)
 
 console.log('test-ui-n2 ok')

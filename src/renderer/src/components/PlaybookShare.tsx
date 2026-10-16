@@ -54,7 +54,7 @@ export function ShareExportModal({
   const disabled = selected.length === 0 || (usePass && !noPass && (pass.length < 4 || mismatch))
   const save = async () => {
     const hints = hosts.map((h) => ({ title: h.title, tags: h.tags }))
-    const plain = buildSharePlain(selected, hints, appVersion || '0.4.4')
+    const plain = buildSharePlain(selected, hints, appVersion || '0.4.5')
     const body = await encodeSharePack(plain, noPass || !usePass ? '' : pass)
     const file = await window.aiss.files.saveText(defaultShareName(), body)
     if (!file) return

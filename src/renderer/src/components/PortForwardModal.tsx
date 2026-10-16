@@ -101,7 +101,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
     <Modal open={open || !!embedded} title={t('pf.title')} onClose={onClose} width={760} embedded={embedded} testId="port-forward-panel">
       <div className="pf-panel">
         <p className="pf-hint">{t('pf.hint')}</p>
-        {sessions.length === 0 ? <p className="pf-empty">{t('pf.noSessions')}</p> : null}
+        {sessions.length === 0 && rows.length > 0 ? <p className="pf-empty">{t('pf.noSessions')}</p> : null}
         <div className="pf-form">
           <label>
             {t('pf.session')}

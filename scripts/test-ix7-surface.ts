@@ -201,7 +201,7 @@ const narrow = styles.slice(styles.indexOf('@media (max-width: 1366px)'), styles
 assert.match(narrow, /\.main\s*\{[^}]*overflow-x:\s*hidden/)
 assert.match(narrow, /\.main\s*\{[^}]*min-width:\s*0/)
 
-assert.equal(pkg.version, '0.4.4')
+assert.equal(pkg.version, '0.4.5')
 assert.match(pkg.scripts.test, /scripts\/test-ix7-surface\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 /** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */

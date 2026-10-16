@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-v0.4.5 soft-start. Package version stays at `0.4.4` until QA. Not tagged. No GitHub Release.
+No further batch is queued. Public HOLD: no tag, no GitHub Release, no site.
+
+## v0.4.5
+
+v0.4.5 soft-start. Package version is `0.4.5`. Not tagged. No GitHub Release.
+
+- **产品感（Polish-4）.** 关于页、标题栏和托盘共用产品名和同一枚应用标记，关于里不出现本机路径。侧栏、SFTP、片段、转发和告警的空状态是一枚图标、一句人话、最多一个主按钮，不再用灰色「暂无」底板。主按钮仍是实心强调色。壳层高流量颜色改走主题令牌，不再用 `var(--token, #hex)` 假回落。标签种类用线性图标和弱化色区分，不再用六色左边条。菜单和弹出层共用 `--shadow-menu` / `--shadow-modal`。诊断回复里连在一起的 1) 2) 3) 4) 拆成深色卡片，并标出低、中、高风险。要执行的命令单独放在等宽条里，只有同意才注入终端，拒绝不执行。工具步骤仍是紧凑的一行。主机右键「移动到」在悬停或聚焦时展开目标分组；贴着屏幕边缘会翻到另一侧；没有分组时仍显示不可用的空状态。版本号这一批只升到 0.4.5，不打 tag、不发 Release、不改公开站。Public HOLD。 / Product feel (Polish-4). About, the title bar, and the tray share the product name and one app mark. About does not show a local path. Empty sidebar, SFTP, snippets, forwards, and alerts use an icon, one sentence, and at most one primary, with no grey “none yet” plate. Primary buttons stay a solid accent. High-traffic shell color uses theme tokens, with no `var(--token, #hex)` false fallback. Tab kinds are a linear icon and a muted token, not a six-color left bar. Menus and popovers share `--shadow-menu` / `--shadow-modal`. Numbered diagnostic findings become separate dark cards with a low, medium, or high risk badge. A command the reply asks to run sits in a monospace strip and is injected only after Agree; Decline does not run it. Tool steps stay a compact strip. Hover or focus on Move to opens the group list. Near the screen edge the list flips. With no groups, a disabled empty row stays visible. This batch bumps the package once, to 0.4.5. No tag, no Release, no public site. Public HOLD.
 
 - **同意后的写入仍引用保持中的稀有记号（Core-A S33）.** 同一条主机会话里，引用保持已经稳定，确认式补丁草案也已经引用那个稀有记号之后，用户同意时，真正写入的内容仍然引用这个记号。引用窗口已经丢掉的填充不会再次被当成证据。引用保持边界仍然稳定。同意必须带上真实的确认编号；拒绝仍然不会写入。起草确认卡不会打开 SSH，只有同意之后才写入。换一台主机仍是证据不足，不会带上这个记号。版本号仍是 0.4.4，不打 tag、不发 Release、不改公开站。Public HOLD。 / Agreeing a confirm-style patch under citeHold still cites the held marker (Core-A S33). After the cite hold is stable on a host and the patch card already cites that scarce marker, the bytes written on Agree still cite it. Filler the cite window already dropped is not cited again. The held cite boundary stays stable. Agree requires a real confirm id, and deny still writes nothing. Drafting the card does not open SSH; the intended write happens only after confirm. Another host still ends as evidence insufficient and does not inherit the marker. Package version stays 0.4.4. No tag, no Release, no public site. Public HOLD.
 

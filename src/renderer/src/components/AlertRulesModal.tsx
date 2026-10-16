@@ -11,6 +11,7 @@ import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { captureEditorFocus, restoreEditorFocus, type EditorFocusTicket } from '../lib/focus-restore'
 import { isDialogOpen } from '../lib/dialogs'
 import { useI18n } from '../lib/i18n'
+import EmptyState from './EmptyState'
 
 type Props = {
   open: boolean
@@ -259,9 +260,7 @@ export default function AlertRulesModal({
       ) : (
         <div className="o2-body">
           {sortedHistory.length === 0 ? (
-            <p className="o2-empty" data-testid="o2-history-empty">
-              {t('o2.emptyHistory')}
-            </p>
+            <EmptyState compact testId="o2-history-empty" icon="alert" title={t('o2.emptyHistory')} />
           ) : (
             <>
             {onInterpret && sortedHistory.some((h) => h.status === 'active') ? (

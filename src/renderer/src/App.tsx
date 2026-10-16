@@ -162,6 +162,7 @@ import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { type SyncPhase } from '@shared/sync-vault'
 import { disconnectStatusSentence, statusBarSlots } from '@shared/status-bar'
 import { trayHoverTitle } from '@shared/product'
+import { tabKindIcon } from '@shared/tab-kind'
 import { connectionTechnicalDetail, showConnectionTrouble, troubleshootConnection } from '@shared/connect-trouble'
 import { runCloudSync, syncIsConfigured } from './lib/cloud-sync'
 import { runFolderSyncDurable, type FolderSyncPlan } from './lib/folder-sync-run'
@@ -6186,6 +6187,9 @@ export default function App() {
                   />
                 ) : (
                 <>
+                <span className="tab-kind-icon">
+                  <Icon name={tabKindIcon(t.view)} size={12} />
+                </span>
                 {t.pinned ? <Icon name="pin" size={12} /> : null}
                 {isSession && t.sessionId && broadcastSessions.includes(t.sessionId) ? (
                   <span className="tab-bc-dot" data-testid="tab-bc-dot" title={tr('ux10.inBroadcast')} aria-label={tr('ux10.inBroadcast')} />
@@ -6374,6 +6378,9 @@ export default function App() {
                               setTabOverflowOpen(false)
                             }}
                           >
+                            <span className="tab-kind-icon">
+                              <Icon name={tabKindIcon(t.view)} size={12} />
+                            </span>
                             {t.pinned ? <Icon name="pin" size={12} /> : null}
                             <span className="tab-overflow-label">{labelFor(t)}</span>
                             <span
@@ -7128,7 +7135,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.4'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.5'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -7168,7 +7175,7 @@ export default function App() {
                     onOpenWorkbench={() => openWorkbench()}
                   />
                 ) : t.view === 'playbook-import' ? (
-                  <PlaybookImportTab appVersion={appVersion || '0.4.4'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <PlaybookImportTab appVersion={appVersion || '0.4.5'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'gate-timeline' ? (
                   <GateTimelineTab
                     focusId={t.gateFocusId}

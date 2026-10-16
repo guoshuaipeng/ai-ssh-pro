@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PRODUCT_NAME } from '@shared/product'
 import Modal from './Modal'
 import AboutBlock from './AboutBlock'
 import { useI18n } from '../lib/i18n'
@@ -34,7 +35,7 @@ export default function AboutModal({ open, onClose, onCheckUpdate, onWhatsNew, c
   }, [open, version])
 
   return (
-    <Modal open={open} title={t('about.title')} onClose={onClose} width={460}>
+    <Modal open={open} title={t('about.title', { name: PRODUCT_NAME })} onClose={onClose} width={460}>
       <AboutBlock
         version={liveVersion}
         isDev={isDev}

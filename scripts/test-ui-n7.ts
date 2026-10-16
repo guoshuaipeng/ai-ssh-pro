@@ -89,7 +89,7 @@ assert.equal((welcome.match(/className="secondary"/g) ?? []).length, 3)
 assert.doesNotMatch(css, /child_process|auto-?exec|BEGIN [A-Z ]*PRIVATE KEY/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.4')
+assert.equal(pkg.version, '0.4.5')
 assert.match(pkg.scripts.test, /scripts\/test-ui-n7\.ts/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
