@@ -12,6 +12,59 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.11': [
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏按钮、图标和三枚布局开关统一为 32×32，圆角用同一套',
+        en: 'Titlebar buttons, icons, and the three layout toggles share a 32×32 hit target and one radius'
+      },
+      where: { zh: '标题栏', en: 'Title bar' },
+      action: 'toggleSidebar'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '左右分割条平时是一条细缝，悬停或拖动时才亮起',
+        en: 'The layout seam stays a hairline until you hover or drag'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '底栏固定一行。空闲时写「就绪」，有会话时写已连接的数量',
+        en: 'The status bar stays one line: Ready when idle, and a connection count when sessions are up'
+      },
+      where: { zh: '底栏', en: 'Status bar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '选中用内描边或行底色。焦点环只在键盘聚焦时出现',
+        en: 'Selection is an inset ring or a row background. The focus ring appears only for keyboard focus'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'Ctrl+K 把连接、运维、设置、帮助分清楚。收进 ⋯ 的项仍能搜到',
+        en: 'Ctrl+K keeps Connection, Ops, Settings, and Help distinct. Items behind ⋯ stay searchable'
+      },
+      where: { zh: '命令面板', en: 'Command palette' },
+      action: 'commandPalette'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运维菜单仍只留日常入口。少用的项在命令面板里，1366 下菜单不画出屏幕',
+        en: 'The Ops menu stays a short daily list. Rare items stay in the command palette, and the menu stays on screen at 1366'
+      },
+      where: { zh: '运维', en: 'Ops' },
+      action: 'opsHome'
+    }
+  ],
   '0.4.10': [
     {
       icon: '▷',

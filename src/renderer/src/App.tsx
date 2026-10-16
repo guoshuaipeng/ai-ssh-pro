@@ -160,7 +160,7 @@ import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { type SyncPhase } from '@shared/sync-vault'
-import { disconnectStatusSentence, statusBarSlots } from '@shared/status-bar'
+import { disconnectStatusSentence, statusBarSlots, statusQuietLabel } from '@shared/status-bar'
 import { trayHoverTitle } from '@shared/product'
 import { tabKindIcon } from '@shared/tab-kind'
 import { connectionTechnicalDetail, showConnectionTrouble, troubleshootConnection } from '@shared/connect-trouble'
@@ -7161,7 +7161,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.10'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.11'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -7201,7 +7201,7 @@ export default function App() {
                     onOpenWorkbench={() => openWorkbench()}
                   />
                 ) : t.view === 'playbook-import' ? (
-                  <PlaybookImportTab appVersion={appVersion || '0.4.10'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <PlaybookImportTab appVersion={appVersion || '0.4.11'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'gate-timeline' ? (
                   <GateTimelineTab
                     focusId={t.gateFocusId}
@@ -7882,9 +7882,22 @@ export default function App() {
             host: bannerTab ? (bannerTab.connectOpts.label?.trim() || bannerTab.connectOpts.host || bannerTab.title) : '',
             tabId: bannerTab?.tabId
           }).slots
+          const connectedCount = tabs.filter(
+            (t) => (!t.view || t.view === 'session') && t.status === 'connected' && t.kind !== 'local'
+          ).length
+          const quiet = statusQuietLabel({
+            connected: connectedCount,
+            disconnected: Boolean(bannerTab),
+            locale: locale === 'en' ? 'en' : 'zh-CN'
+          })
           return (
             <>
               {ro}
+              {quiet ? (
+                <span className="statusbar-quiet" data-testid="statusbar-quiet">
+                  {quiet}
+                </span>
+              ) : null}
               {slots.map((slot) => {
                 if (slot.id === 'disconnect') {
                   return (

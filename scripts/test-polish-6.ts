@@ -16,13 +16,13 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.10')
+assert.equal(pkg.version, '0.4.11')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-6.ts'), true)
-assert.equal(tipSuggest, '0.4.10-polish9')
-assert.equal(rollback, '0.4.9-polish8')
+assert.equal(tipSuggest, '0.4.11-polish10')
+assert.equal(rollback, '0.4.10-polish9')
 assert.equal(rawPkg.includes(tipSuggest), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
@@ -107,7 +107,7 @@ assert.ok(zh('toolbar.overflow').length > 0)
 assert.ok(en('toolbar.overflow').length > 0)
 
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
-assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*width:\s*24px/)
+assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*width:\s*32px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*border:\s*none/)
 assert.match(styles, /\.app-toolbar-layout\s*\{[^}]*flex-wrap:\s*nowrap/)
 assert.match(styles, /\.app-titlebar\s*\{[^}]*flex-wrap:\s*nowrap/)

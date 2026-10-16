@@ -33,6 +33,22 @@ export function statusHostLabel(raw: string): string {
   return name.slice(0, 64)
 }
 
+/**
+ * Polish-10: one quiet status phrase for the fixed bar.
+ * A live connection count wins. A dropped connection already has its own sentence, so the bar does not also say Ready.
+ * Returns null when that sentence should stand alone. Never includes a path or an error string.
+ */
+export function statusQuietLabel(input: {
+  connected: number
+  disconnected?: boolean
+  locale: 'zh-CN' | 'en'
+}): string | null {
+  const n = Number.isFinite(input.connected) ? Math.max(0, Math.floor(input.connected)) : 0
+  if (n > 0) return input.locale === 'en' ? `${n} connected` : `已连接 ${n}`
+  if (input.disconnected) return null
+  return input.locale === 'en' ? 'Ready' : '就绪'
+}
+
 /** SB-3: one human sentence, PF-5 tone. No IPC channel, stack, or path. */
 export function disconnectStatusSentence(host: string, locale: 'zh-CN' | 'en'): string {
   const name = statusHostLabel(host)

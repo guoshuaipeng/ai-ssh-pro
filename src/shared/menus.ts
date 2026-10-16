@@ -221,7 +221,7 @@ export const SHARED_MENUS: SharedMenu[] = [
   {
     id: 'ops',
     label: { zh: '运维', en: 'Ops' },
-    // PNG-2: daily rows only. Low-frequency verbs stay in this list with menuHidden
+    // PNG-2 / Polish-10: daily rows only. At least two low-frequency verbs stay menuHidden
     // so Ctrl+K still finds them, and the open menu stays under OPS_MENU_VISIBLE_CAP.
     items: [
       it('opsHome', '运维首页', 'Ops home'),

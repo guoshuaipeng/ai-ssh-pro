@@ -23,6 +23,11 @@ export const PALETTE_HIDDEN: ReadonlySet<MenuAction> = new Set<MenuAction>(['com
 export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   connection: 'xinjianlianjie new conn',
   backup: 'beifen backup 备份 加密备份 encrypted restore',
+  checkUpdate: 'jiancha gengxin check update jcgx 检查更新',
+  whatsNew: 'gengxin neirong whats new gxnr 更新内容',
+  github: 'github gitee yuanma source 源码',
+  uiTheme: 'zhuti theme jiemian 界面主题',
+  toggleLanguage: 'yuyan language yingwen zhongwen 切换语言',
   sftp: 'wenjian sftp chuanshu',
   smartComplete: 'zhineng buquan complete history',
   clearHostHistory: 'qingchu lishi history clear',

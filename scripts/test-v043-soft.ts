@@ -22,7 +22,7 @@ import { buildPaletteEntries } from '../src/renderer/src/lib/palette'
 import { SHARED_MENUS } from '../src/shared/menus'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.10')
+assert.equal(pkg.version, '0.4.11')
 
 const mem = () => {
   const bag = new Map<string, string>()

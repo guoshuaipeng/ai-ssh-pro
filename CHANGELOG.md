@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.4.11
+
+v0.4.11 soft-start. Package version is `0.4.11`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
+
+- **大厂窗口铬（Polish-10）.** 标题栏可点控件收成同一套 32×32 命中，圆角用 `--radius-md`。菜单、图标按钮和三枚布局开关都在这套里；26×4 的小按钮不再回来。三枚布局开关仍可开关会话栏、终端区和 AI 面板。左右分割条平时是 1px 边框色细缝，拖拽热区约 6px，只有悬停或拖动才用强调色。底栏固定 22–24px、表面色：空闲时写「就绪」，有 SSH 会话时写已连接的数量；断线那一句仍单独占位，不把调试路径写进底栏。面板选中用内描边或行底色，`outline` 留给 `:focus-visible`。信息条继续走 info 令牌，不再写裸的深色十六进制。字重 650 和 14px 圆角仍不出现。Ctrl+K 空查询时，连接、运维、设置、帮助四组更清楚，常用项在最上面；标题栏 ⋯ 里的备份、更新、语言、主题和 GitHub，以及运维菜单收起的项，中文、英文和别名都能搜到。没有匹配时仍是空状态的一句人话。运维菜单可见项仍不超过 12，至少两项低频动作只留在命令面板。1366×768 展开后整列留在屏内。不新增工具栏主按钮。Core-A 的 tipSuggest 为 `0.4.11-polish10`，rollback 为 `0.4.10-polish9`。版本号这一批只升到 0.4.11，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / Big-company chrome (Polish-10). Titlebar click targets share a 32×32 hit and `--radius-md`. Menus, icon buttons, and the three layout toggles are in that set. The old 26×4 controls stay retired. The three toggles still show or hide the session sidebar, the terminal, and the AI panel. The splitter is a 1px border at rest, the drag target is about 6px, and the accent shows only while hovering or dragging. The status bar stays 22–24px on the surface color: Ready when idle, and a connection count when an SSH session is up. A dropped connection keeps its own sentence, and the bar does not print a debug path. Panel selection is an inset ring or a row background. `outline` is for `:focus-visible`. Info banners stay on the info tokens. Weight 650 and a 14px radius stay gone. With an empty Ctrl+K query, Connection, Ops, Settings, and Help read as distinct groups, and frequent commands stay on top. Backup, updates, language, theme, and GitHub behind the titlebar ⋯, plus the Ops rows that are tucked away, still match in Chinese, English, and aliases. An empty result keeps the empty-state sentence. The Ops menu stays at or under 12 visible items, and at least two rare actions stay in the command palette. At 1366×768 the open menu stays inside the window. No new toolbar primary. Core-A tipSuggest is `0.4.11-polish10` and rollback is `0.4.10-polish9`. This batch bumps the package once, to 0.4.11, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
+
 ## v0.4.10
 
 v0.4.10 soft-start. Package version is `0.4.10`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.

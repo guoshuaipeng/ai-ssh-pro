@@ -8,7 +8,7 @@ import { MENUS, type TitlebarMenuAction } from './TitlebarMenus'
 import { loadSyncProfiles } from './SftpPanel'
 import { buildPaletteEntries, type PaletteEntry } from '../lib/palette'
 import { layoutPalette } from '@shared/palette-rank'
-import { paletteItemIndexes, paletteKeyStep } from '@shared/palette-nav'
+import { paletteItemIndexes, paletteKeyStep, secondNavOrder } from '@shared/palette-nav'
 import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
@@ -24,6 +24,9 @@ type Props = {
 }
 
 type Entry = PaletteEntry
+
+/** Ctrl+K second nav. These four groups stay visually distinct; the rest of the palette still lists under them. */
+const PRIMARY_NAV = new Set<string>(secondNavOrder(['connection', 'session', 'ops', 'file', 'ai', 'view', 'settings', 'help']))
 
 /** Ctrl+Shift+P / Ctrl+K: searchable list of every menu action (matches on the label, menu name and action id). */
 const CAT_KEY: Record<string, 'palette.pinned' | 'palette.cat.connection' | 'palette.cat.session' | 'palette.cat.ops' | 'palette.cat.file' | 'palette.cat.ai' | 'palette.cat.view' | 'palette.cat.settings' | 'palette.cat.help'> = {
@@ -148,7 +151,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
             if (row.kind === 'header') {
               const key = CAT_KEY[row.id]
               return (
-                <div key={`h-${row.id}`} className="cmdp-head" data-palette-group={row.id}>
+                <div key={`h-${row.id}`} className={`cmdp-head${PRIMARY_NAV.has(row.id) ? ' cmdp-head--nav' : ''}`} data-palette-group={row.id}>
                   {key ? t(key) : row.id}
                 </div>
               )
