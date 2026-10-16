@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.4.10
+
+v0.4.10 soft-start. Package version is `0.4.10`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
+
+- **产品感收尾（Polish-9）.** 主按钮是实心强调色，悬停走强调色的悬停令牌，不再用半透明 accent-dim 当主按钮底。欢迎页三个动作仍是次要按钮。工具标签不再用种类色左边条，只留线性图标；当前标签仍是原来的表面和边框。菜单、右键、弹出层、命令面板和对话框共用 `--shadow-sm` / `--shadow-menu` / `--shadow-modal`，浮层用抬升背景和默认边框。侧栏主机、SFTP、片段、转发、告警和 Docker 的空状态是一枚图标、一句人话、最多一个主按钮，补上还在用灰色「暂无」的缺口。关于页（帮助和设置同一块）写产品名、图标、版本、更新通道和一句说明，并给出 GitHub 与 Gitee。1366×768 标题栏仍是一行，三枚布局开关还在；标签条仍是 36px，标签不压缩。Core-A 的 tipSuggest 为 `0.4.10-polish9`，rollback 为 `0.4.9-polish8`。版本号这一批只升到 0.4.10，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / Product-feel chrome (Polish-9). Primary buttons are a solid accent, and hover uses the accent-hover token. A translucent accent-dim wash is no longer the primary fill. Welcome’s three actions stay secondary. Tool tabs no longer use a per-kind color bar; kind is a linear icon, and the active tab keeps its surface and border. Menus, context menus, popovers, the command palette, and dialogs share `--shadow-sm`, `--shadow-menu`, and `--shadow-modal`, on an elevated background with the default border. Empty sidebar hosts, SFTP, snippets, forwards, alerts, and Docker stay an icon, one sentence, and at most one primary. Grey “none yet” plates that were still left are filled in. About (Help and Settings share one block) shows the product name, icon, version, update channel, and one line, plus GitHub and Gitee. At 1366×768 the title bar stays one row with the three layout toggles, and the tab strip stays 36px without compressing labels. Core-A tipSuggest is `0.4.10-polish9` and rollback is `0.4.9-polish8`. This batch bumps the package once, to 0.4.10, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
+
 ## v0.4.9
 
 v0.4.9 soft-start. Package version is `0.4.9`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.

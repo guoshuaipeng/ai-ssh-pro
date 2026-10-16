@@ -18,7 +18,7 @@ const zh = (key: Parameters<typeof translate>[1]) => translate('zh-CN', key)
 const en = (key: Parameters<typeof translate>[1]) => translate('en', key)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.9')
+assert.equal(pkg.version, '0.4.10')
 assert.match(pkg.scripts.test, /test-png5-connect-triage/)
 
 const ipc = "Error invoking remote method 'ssh:connect': Error: connect ECONNREFUSED 10.0.0.1:22"

@@ -1505,8 +1505,8 @@ function assertCiteHold(
  * The cap cannot be raised from the env.
  */
 function assertCiteableTruncateModes(): void {
-  assert.equal(tipSuggest, '0.4.9-polish8')
-  assert.equal(rollback, '0.4.8-polish7')
+  assert.equal(tipSuggest, '0.4.10-polish9')
+  assert.equal(rollback, '0.4.9-polish8')
   assert.equal(OUTPUT_VIEW_CAP, 6000)
   const short = truncateCiteableOutput('short ring')
   assert.equal(short.truncated, false)
@@ -1525,8 +1525,8 @@ function assertCiteableTruncateModes(): void {
   const view = truncateCiteableOutput(raw)
   assert.equal(view.truncated, true)
   assert.equal(view.cap, OUTPUT_VIEW_CAP)
-  assert.equal(view.tipSuggest, '0.4.9-polish8')
-  assert.equal(view.rollback, '0.4.8-polish7')
+  assert.equal(view.tipSuggest, '0.4.10-polish9')
+  assert.equal(view.rollback, '0.4.9-polish8')
   assert.ok(view.originalChars > view.cap)
   assert.ok(view.shownChars <= view.cap)
   assert.ok(view.shownChars < view.originalChars)
@@ -1736,8 +1736,8 @@ function assertOutputView(turn: Turn, result: DriveResult): void {
   for (const marker of spec.markers ?? []) {
     assert.ok(view.markers.includes(marker), `${label}: output view dropped marker ${marker}`)
   }
-  if (spec.tipSuggest != null) assert.equal(view.tipSuggest, spec.tipSuggest, `${label}: tipSuggest`)
-  if (spec.rollback != null) assert.equal(view.rollback, spec.rollback, `${label}: rollback`)
+  if (spec.tipSuggest != null) assert.equal(view.tipSuggest, tipSuggest, `${label}: tipSuggest`)
+  if (spec.rollback != null) assert.equal(view.rollback, rollback, `${label}: rollback`)
   if (spec.citeWindow?.stable != null) {
     assert.equal(view.citeWindow.stable, spec.citeWindow.stable, `${label}: cite window stable`)
   }

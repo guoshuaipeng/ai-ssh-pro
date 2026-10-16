@@ -12,6 +12,33 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.10': [
+    {
+      icon: '▷',
+      text: {
+        zh: '主按钮改为实心强调色。工具标签用线性图标区分，不再用彩色左边条',
+        en: 'Primary buttons are a solid accent. Tool tabs use a linear icon instead of a colored left bar'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '菜单、弹出层和对话框共用同一套阴影和抬升表面',
+        en: 'Menus, popovers, and dialogs share one shadow and one elevated surface'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '空列表是一枚图标加一句话。关于页显示版本、更新通道，以及 GitHub 和 Gitee',
+        en: 'An empty list is an icon and one sentence. About shows the version, update channel, GitHub, and Gitee'
+      },
+      where: { zh: '帮助 → 关于', en: 'Help → About' },
+      action: 'about'
+    }
+  ],
   '0.4.9': [
     {
       icon: '▷',
