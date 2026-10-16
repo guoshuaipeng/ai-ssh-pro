@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.4.13
+
+v0.4.13 soft-start. Package version is `0.4.13`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
+
+- **大厂产品感扫尾（Polish-12）.** 助手回复默认走暗色卡：风险徽章、等宽命令块、紧凑工具条；解析失败仍是「纯答卡」，不是裸字墙；命令一律确认后才执行。欢迎、关于、空错、tooltip 和 AI 未配置等文案统一术语与动作按钮，确认语气中性，不卖萌、不恐吓。运维与 features 面废除 `var(--token, #tailwind)` 假回落，短名映射到 ui-tokens 真源，未定义应显坏而非偏色。主机档案在 1366×768 单列不墙，主操作按钮不折两行，高级默认折起，节奏与设置克制一致。Toast 同时最多两条，同主题合并；导入成功走价值条后不再叠同义提示。连接中与信息横幅走 `--color-info*`，禁裸深色十六进制，语气与断线重连一致。不新增工具栏主按钮。Core-A 的 tipSuggest 为 `0.4.13-polish12`，rollback 为 `0.4.12-polish11`。版本号这一批只升到 0.4.13，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / Soft-start product-feel sweep (Polish-12). Assistant replies default to dark cards: risk badge, monospace command block, compact tool strip. Parse failure stays a plain answer card, not a bare wall. Commands always confirm before run. Welcome, About, empty/error, tooltip, and AI-unconfigured copy share terms and action verbs, with neutral confirms — no cute or scare tone. Ops and features drop `var(--token, #tailwind)` false fallbacks; short names map to ui-tokens so an undefined token looks broken, not wrong-colored. Host profile at 1366×768 is one column, primary actions stay on one line, advanced starts folded, same rhythm as Settings restraint. Toasts show at most two, merge the same theme, and after a successful import the value strip is not stacked with a synonym toast. Connecting and info banners use `--color-info*`, with no bare deep hex, matching disconnect/reconnect tone. No new toolbar primary. Core-A tipSuggest is `0.4.13-polish12` and rollback is `0.4.12-polish11`. This batch bumps the package once, to 0.4.13, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
+
 ## v0.4.12
 
 v0.4.12 soft-start. Package version is `0.4.12`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.

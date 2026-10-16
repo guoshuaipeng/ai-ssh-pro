@@ -181,3 +181,14 @@ export function highlightKeyNumbers(raw: string): HighlightPart[] {
 export function commandAutoRunAllowed(_riskLevel?: string | null): false {
   return false
 }
+
+
+/** P12-1: parse-fail / unstructured replies still render as a plain dark card, never a bare wall. */
+export function aiReplyCardForParseFail(): 'plain' {
+  return 'plain'
+}
+
+/** P12-1: every `command` action requires human confirm before run. */
+export function commandRequiresConfirm(action: string | null | undefined): boolean {
+  return action === 'command'
+}

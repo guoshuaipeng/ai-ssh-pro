@@ -12,6 +12,50 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.13': [
+    {
+      icon: '▷',
+      text: {
+        zh: '助手回复默认是暗色卡：风险徽章、等宽命令、紧凑工具条；解析失败仍是纯答卡',
+        en: 'Assistant replies default to dark cards: risk badge, monospace command, compact tool strip; parse failure stays a plain card'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '欢迎、关于、空错和 AI 未配置等文案统一术语与动作按钮',
+        en: 'Welcome, About, empty/error, and AI-unconfigured copy share terms and action verbs'
+      },
+      where: { zh: '帮助 → 关于', en: 'Help → About' },
+      action: 'about'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '主机档案在 1366 单列，主按钮不折行，高级默认折起',
+        en: 'Host profile stays one column at 1366, primary actions on one line, advanced folded'
+      },
+      where: { zh: '主机档案', en: 'Host profile' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'Toast 最多两条并可合并；导入成功后走价值条，不再叠同义提示',
+        en: 'Toasts cap at two and can merge; after import the value strip replaces a synonym toast'
+      },
+      where: { zh: '文件 → 导入会话', en: 'File → Import sessions' },
+      action: 'importSessions'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '连接中与信息横幅走 info 令牌，语气与断线重连一致',
+        en: 'Connecting and info banners use info tokens, matching disconnect/reconnect tone'
+      },
+      where: { zh: '会话横幅', en: 'Session banner' }
+    }
+  ],
   '0.4.12': [
     {
       icon: '▷',

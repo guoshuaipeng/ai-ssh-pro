@@ -7,7 +7,7 @@
   --muted: #8b949e;
   --color-accent: #58a6ff;
   --accent-dim: #388bfd66;
-  --danger: #f85149;
+  --color-danger: #f85149;
   --tab-active: #21262d;
   --term-chrome: #0d1117;
   --scroll-thumb: #484f58;
@@ -30,7 +30,7 @@
   --muted: #9aa3b2;
   --color-accent: #7aa2f7;
   --accent-dim: #7aa2f766;
-  --danger: #f7768e;
+  --color-danger: #f7768e;
   --tab-active: #2e3440;
   --term-chrome: #16181d;
   --scroll-thumb: #4b5563;
@@ -48,7 +48,7 @@
   --muted: #94a3b8;
   --color-accent: #38bdf8;
   --accent-dim: #38bdf866;
-  --danger: #fb7185;
+  --color-danger: #fb7185;
   --tab-active: #1a2438;
   --term-chrome: #080e18;
   --scroll-thumb: #334155;
@@ -66,7 +66,7 @@
   --muted: #8b9a8e;
   --color-accent: #3fb950;
   --accent-dim: #3fb95066;
-  --danger: #f85149;
+  --color-danger: #f85149;
   --tab-active: #1f2a21;
   --term-chrome: #0b100c;
   --scroll-thumb: #3d4a3f;
@@ -84,7 +84,7 @@
   --muted: #656d76;
   --color-accent: #0969da;
   --accent-dim: #0969da33;
-  --danger: #cf222e;
+  --color-danger: #cf222e;
   --tab-active: #eaeef2;
   --term-chrome: #ffffff;
   --scroll-thumb: #afb8c1;
@@ -102,7 +102,7 @@
   --muted: #78716c;
   --color-accent: #b45309;
   --accent-dim: #b4530933;
-  --danger: #b91c1c;
+  --color-danger: #b91c1c;
   --tab-active: #ebe4d8;
   --term-chrome: #faf7f2;
   --scroll-thumb: #c4b5a0;
@@ -136,7 +136,6 @@
   --color-ok-muted: #3fb95033;
   --color-warn: #d29922;
   --color-warn-muted: #d2992233;
-  --color-danger: var(--danger);
   --color-danger-muted: #f8514933;
   --color-info: #79c0ff;
   --color-info-muted: #79c0ff33;
@@ -185,6 +184,7 @@
   --shadow-menu: 0 8px 24px rgba(0, 0, 0, 0.4);
   --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.45);
   /* UI-N1: short aliases read ui-tokens. One source, no hex fallback. */
+  --danger: var(--color-danger);
   --accent: var(--color-accent);
   --border: var(--color-border-default);
   --ok: var(--color-ok);
@@ -1815,6 +1815,7 @@ body.layout-resizing {
 .session-disconnect-banner.session-connecting-banner {
   background: var(--color-info-muted);
   color: var(--color-info);
+  border-bottom-color: color-mix(in srgb, var(--color-info) 45%, transparent);
 }
 
 .tab-more,
@@ -5139,8 +5140,10 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  pointer-events: none; /* P12-5: empty stack area must not block main CTAs */
 }
 .toast {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -5275,4 +5278,30 @@ button.danger:focus-visible,
 button.primary.danger:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--color-focus-ring-offset), 0 0 0 4px var(--color-focus-ring);
+}
+
+
+/* P12-1: compact tool strip + plain answer card (not a bare wall) */
+.ai-tool-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  min-height: 28px;
+}
+.ai-tool-strip .ai-tool-step {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+.ai-card-plain {
+  /* parse-fail / unstructured: still a dark card, never a bare wall of text */
+  padding: 10px 12px;
+}
+.ai-dark-card .ai-reply-cmd-code {
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
 }

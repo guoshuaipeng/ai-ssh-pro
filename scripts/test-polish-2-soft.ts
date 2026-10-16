@@ -25,7 +25,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.12')
+assert.equal(pkg.version, '0.4.13')
 
 assert.throws(() => assertConfirmAllowed('confirm.notWhitelist'), /whitelist/)
 assert.throws(() => assertConfirmAllowed(undefined), /whitelist/)
@@ -148,7 +148,7 @@ assert.equal(en('undo.action'), 'Undo')
 assert.ok(zh('pf4.snipTitle').length > 0 && en('pf4.snipTitle').length > 0)
 assert.equal(zh('pf1.import'), '导入会话…')
 assert.equal(zh('pf1.new'), '新建连接')
-assert.equal(zh('pf1.demo'), '试用演示主机')
+assert.equal(zh('pf1.demo'), '连接演示主机')
 assert.ok(zh('pf1.hint').includes('Ctrl+K'))
 
 const toolbar = readFileSync('src/renderer/src/components/AppToolbar.tsx', 'utf8')

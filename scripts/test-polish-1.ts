@@ -37,19 +37,19 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string>)
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string>) => translate('en', key, vars)
 
 assert.equal(zh('pf1.welcome'), '欢迎使用 AI-SSH-Pro')
-assert.equal(zh('pf1.headline'), '连得上 · 看得见 · 修得了')
+assert.equal(zh('pf1.headline'), '连接 · 观察 · 修复')
 assert.equal(zh('brand.tagline'), '本地优先的 AI 运维工作台')
 assert.equal(zh('pf1.import'), '导入会话…')
 assert.equal(zh('pf1.new'), '新建连接')
-assert.equal(zh('pf1.demo'), '试用演示主机')
-assert.equal(zh('pf1.later'), '稍后再说')
+assert.equal(zh('pf1.demo'), '连接演示主机')
+assert.equal(zh('pf1.later'), '稍后')
 assert.equal(en('pf1.welcome'), 'Welcome to AI-SSH-Pro')
-assert.equal(en('pf1.headline'), 'Connect · See · Fix')
+assert.equal(en('pf1.headline'), 'Connect · Observe · Fix')
 assert.equal(en('brand.tagline'), 'Local-first AI ops workbench')
 assert.equal(en('pf1.import'), 'Import sessions…')
 assert.equal(en('pf1.new'), 'New connection')
-assert.equal(en('pf1.demo'), 'Try demo host')
-assert.equal(en('pf1.later'), 'Maybe later')
+assert.equal(en('pf1.demo'), 'Connect demo host')
+assert.equal(en('pf1.later'), 'Later')
 assert.ok(zh('brand.tagline').length <= 28, 'tagline stays within 28 characters')
 
 for (const key of ['pf4.hostsDesc', 'pf4.sftpTitle', 'pf4.snipTitle', 'pf4.fwdTitle', 'pf4.alertTitle', 'pf4.playbookTitle', 'pf4.auditTitle', 'pf4.recTitle', 'pf4.paletteTitle'] as const) {
@@ -88,6 +88,6 @@ assert.match(css, /:focus-visible\s*\{[^}]*--color-focus-ring/)
 assert.ok(css.includes('--color-bg-elevated') && css.includes('--space-3') && css.includes('--radius-xl'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.12', 'package version stays 0.4.4')
+assert.equal(pkg.version, '0.4.13', 'package version stays 0.4.4')
 
 console.log('test-polish-1 ok')

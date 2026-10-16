@@ -12,6 +12,7 @@ import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
 import Icon, { Twist } from './Icon'
 import { confirmDialog, toastUndo } from '../lib/dialogs'
+import { hostProfileComfortLayout } from '@shared/host-profile-layout'
 export type HostInventoryLink = {
   profileId?: string
   host?: string
@@ -112,7 +113,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
   const [editingMeta, setEditingMeta] = useState(false)
   const [svcFilter, setSvcFilter] = useState('')
   const [svcKind, setSvcKind] = useState<'all' | HostServiceKind>('all')
-  const [svcCollapsed, setSvcCollapsed] = useState(false)
+  const [svcCollapsed, setSvcCollapsed] = useState(() => hostProfileComfortLayout(typeof window !== 'undefined' ? window.innerWidth : 1366, typeof window !== 'undefined' ? window.innerHeight : 768).advancedCollapsed)
   useEffect(() => {
     if (!scrollToGuard) return
     const el = document.getElementById('l4-guard')
@@ -628,7 +629,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
         {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.186')}</p> : null}
 
         {focused ? (
-          <div className="inv20" data-testid="host-profile">
+          <div className="inv20" data-testid="host-profile" data-host-profile-layout={hostProfileComfortLayout(typeof window !== 'undefined' ? window.innerWidth : 1366, typeof window !== 'undefined' ? window.innerHeight : 768).singleColumn ? 'column' : 'row'}>
             <header className="inv20-head">
               <div className="inv20-head-main">
                 <div className="inv20-title-row">
@@ -725,7 +726,9 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                   )}
                 </section>
                 {onProtectionChange && onAuditChange && onOpenAudit && onElevate ? (
-                  <ProtectionSection
+                  <details className="inv20-advanced" data-testid="host-profile-advanced">
+                    <summary>{tg('settings.advanced')}</summary>
+                    <ProtectionSection
                     level={protectionLevel ?? 'normal'}
                     auditOn={auditOn !== false}
                     suggestProd={suggestProd}
@@ -738,6 +741,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     onElevate={onElevate}
                     onOpenGate={onOpenGate}
                   />
+                  </details>
                 ) : null}
                 <section className="inv20-card">
                   <div className="inv20-card-head">
