@@ -1,6 +1,6 @@
 /**
  * P13-2: safety tier ladder visibility. Three bands the user can read at a glance:
- * 只读 / 需确认 / 全自动. Default stays confirm (manual-leaning). Risky ops still confirm.
+ * 只读 / 需确认 / 全自动. Default stays confirm — manual-leaning. Risky ops still confirm.
  * Same vibe as P12 risk badges — no new Core-A fixtures.
  */
 import { DEFAULT_SAFETY_TIER, type SafetyTier } from './safety-tier'

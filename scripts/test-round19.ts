@@ -167,7 +167,7 @@ ok(upsertCommandSnippet(updated, { title: 'df', body: 'df -hT' }, 'c') === updat
 ok(readFileSync('src/renderer/src/components/JumpChainEditor.tsx', 'utf8').includes('jump-chips'), 'jump chain has a chip row')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-ok(pkg.version === '0.4.13', 'package version 0.4.4')
+ok(pkg.version === '0.4.14', 'package version 0.4.4')
 ok(changelogFor('0.4.0').some((e) => e.action === 'playbooks'), 'whats new 0.4.0')
 ok(changelogFor('0.4.0-m2').some((e) => e.action === 'playbooks'), 'whats new m2')
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
