@@ -12,6 +12,42 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.6': [
+    {
+      icon: '▷',
+      text: {
+        zh: '工具箱的 Docker 按 Compose、Swarm 和容器分组，带状态点、数量和端口',
+        en: 'Toolbox Docker groups Compose, Swarm, and containers, with status, counts, and ports'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' },
+      action: 'serverTools'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '可以刷新、打开详情，以及启动、停止、重启；Compose 可 up/down，Swarm 可更新',
+        en: 'Refresh, open details, and start, stop, or restart. Compose can go up or down, and Swarm can update'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' },
+      action: 'serverTools'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '没有 Docker 或还没有容器时，用一枚图标和一句话说明',
+        en: 'No Docker, or no containers yet, is an icon and one sentence'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '删除容器、Compose 启动或停止、Swarm 更新和任务重启之前会先确认',
+        en: 'Deleting a container, Compose up or down, a Swarm update, or a Swarm task restart asks first'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' }
+    }
+  ],
   '0.4.5': [
     {
       icon: '▷',

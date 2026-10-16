@@ -12,17 +12,18 @@
  * Agreeing that draft writes the same cite: the applied bytes still name the
  * held marker, and filler that window already dropped is not written back.
  *
- * Soft-batch pin: tipSuggest `0.4.8-s33`. Rollback is the S32 cite on the draft.
+ * Soft-batch pin: tipSuggest `0.4.8-polish5`. Rollback is `0.4.8-polish4`.
+ * The pin is not a Windows FileVersion.
  */
 
 /** Planner-visible cap for one command's stdout, stderr, or ring. */
 export const OUTPUT_VIEW_CAP = 6000
 
 /** Citeable truncate path. */
-export const tipSuggest = '0.4.8-s33'
+export const tipSuggest = '0.4.8-polish5'
 
-/** Previous batch this path rolls back to. */
-export const rollback = '0.4.8-s32'
+/** Previous batch this path rolls back to. Not a second FileVersion. */
+export const rollback = '0.4.8-polish4'
 
 /** At least 8 characters, so ordinary words are not evidence tokens. */
 const RARE_TOKEN = /[A-Z][A-Z0-9_]{7,}/g

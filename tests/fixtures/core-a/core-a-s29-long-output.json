@@ -110,8 +110,8 @@
             "S29_RARE_MARKER",
             "s29-dropped-filler-token"
           ],
-          "tipSuggest": "0.4.8-s33",
-          "rollback": "0.4.8-s32"
+          "tipSuggest": "0.4.8-polish5",
+          "rollback": "0.4.8-polish4"
         },
         "confirmGate": {
           "required": true,

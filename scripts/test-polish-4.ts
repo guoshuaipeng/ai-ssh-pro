@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   build?: { win?: Record<string, unknown> }
   scripts: { test: string }
 }
-assert.equal(pkg.version, '0.4.5')
+assert.equal(pkg.version, '0.4.6')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-4.ts'), true)
 assert.equal(pkg.version.split('.').length, 3, 'one semver, no extra micro build')
@@ -28,8 +28,9 @@ assert.ok(unreleased.includes('0.4.5'))
 assert.ok(unreleased.includes('Public HOLD'))
 assert.ok(unreleased.includes('不打 tag'))
 assert.ok(unreleased.includes('No tag'))
-assert.equal(unreleased.includes('0.4.6'), false)
-assert.equal(unreleased.includes('0.4.5.1'), false)
+const v045 = changelog.slice(changelog.indexOf('## v0.4.5'), changelog.indexOf('## v0.4.4'))
+assert.equal(v045.includes('0.4.6'), false)
+assert.equal(v045.includes('0.4.5.1'), false)
 assert.ok(changelog.includes('v0.4.5 soft-start'))
 assert.ok(unreleased.includes('诊断回复'))
 assert.ok(unreleased.includes('monospace strip'))

@@ -6913,6 +6913,24 @@ export default function App() {
                     activeSessionId={t.boundSessionId}
                     initialTab={t.toolboxTab}
                     writesDisabled={readonlyActive(guardForSession(t.boundSessionId).level, guardForSession(t.boundSessionId).elevated)}
+                    onOpenDocker={(target) => {
+                      const profileId =
+                        t.profileId ||
+                        tabs.find((x) => x.sessionId && x.sessionId === t.boundSessionId && x.profileId)?.profileId
+                      const profile = profileId ? profiles.find((p) => p.id === profileId) : undefined
+                      if (!profile) return
+                      openDockerDetail({ profile, ...target })
+                    }}
+                    onDockerChanged={() => {
+                      const profileId =
+                        t.profileId ||
+                        tabs.find((x) => x.sessionId && x.sessionId === t.boundSessionId && x.profileId)?.profileId
+                      const profile = profileId ? profiles.find((p) => p.id === profileId) : undefined
+                      if (!profile) return
+                      void loadDockerTreeForProfile(profile, true)
+                      window.setTimeout(() => void silentRefreshDockerTree(profile), 1200)
+                      window.setTimeout(() => void silentRefreshDockerTree(profile), 3200)
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'forward' ? (
@@ -7135,7 +7153,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.5'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.6'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -7175,7 +7193,7 @@ export default function App() {
                     onOpenWorkbench={() => openWorkbench()}
                   />
                 ) : t.view === 'playbook-import' ? (
-                  <PlaybookImportTab appVersion={appVersion || '0.4.5'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <PlaybookImportTab appVersion={appVersion || '0.4.6'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'gate-timeline' ? (
                   <GateTimelineTab
                     focusId={t.gateFocusId}

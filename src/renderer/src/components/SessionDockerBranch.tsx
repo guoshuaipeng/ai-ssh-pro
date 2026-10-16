@@ -10,6 +10,7 @@ import type {
   SavedSessionProfile
 } from '@shared/ipc'
 import { normalizeQuery, profileMatches } from '../lib/session-filter'
+import { dockerStatusTone, type DockerStatusTone } from '@shared/docker-toolbox'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 import { effectiveLevel } from '@shared/protection'
 import { stricterLevel } from '@shared/readonly-session'
@@ -55,16 +56,10 @@ type Props = {
   sessionReadonly?: boolean
 }
 
-type StatusTone = 'running' | 'healthy' | 'unhealthy' | 'starting' | 'exited' | 'other'
+type StatusTone = DockerStatusTone
 
 function toneFromStatus(shortStatus?: string, status?: string): StatusTone {
-  const s = `${shortStatus || ''} ${status || ''}`.toLowerCase()
-  if (/\bunhealthy\b/.test(s)) return 'unhealthy'
-  if (/\bhealthy\b/.test(s)) return 'healthy'
-  if (/\bstarting\b|\brestarting\b|\bcreated\b|\bhealth:\s*starting\b/.test(s)) return 'starting'
-  if (/\brunning\b/.test(s)) return 'running'
-  if (/\bexited\b|\bstopped\b|\bdead\b|\bpaused\b/.test(s)) return 'exited'
-  return 'other'
+  return dockerStatusTone(shortStatus, status)
 }
 
 function statusLabel(shortStatus?: string, status?: string): string {
