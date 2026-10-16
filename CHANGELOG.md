@@ -4,6 +4,12 @@
 
 Nothing yet.
 
+## v0.4.7
+
+v0.4.7 soft-start. Package version is `0.4.7`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
+
+- **标题栏收干净（Polish-6）.** 标题栏右侧不再放三枚布局方块，默认仍是单窗格。会话栏、终端区、AI 面板和分屏留在「查看」里；标签条右侧只留一枚较轻的分屏按钮。「… 更多」改成纯图标 `⋯`，里面只放备份、更新、语言、主题这类少用项；新建连接、搜索、监控、工具箱和 SFTP 仍在标题栏上。文件到帮助的菜单都还在，包括会话和运维，只把字重和悬停收成和产品名同一套。版本号仍是弱化的一小节，关于里才是完整信息。1366×768 标题栏保持一行。Core-A 的 tipSuggest 为 `0.4.8-polish6`，rollback 为 `0.4.8-polish5`。版本号这一批只升到 0.4.7，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / Titlebar chrome (Polish-6). The three layout squares are gone from the title bar, and the default stays a single pane. Session sidebar, terminal area, AI panel, and split stay under View. The tab strip keeps one lighter split button. The labeled overflow control is now a `⋯` icon for backup, updates, language, and theme. New connection, search, monitor, toolbox, and SFTP stay on the title bar. File through Help stay, including Session and Ops. Spacing, hover, and type weight follow the product name. The version string stays weak; About still has the full note. The title bar stays one line at 1366×768. Core-A tipSuggest is `0.4.8-polish6` and rollback is `0.4.8-polish5`. This batch bumps the package once, to 0.4.7, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
+
 ## v0.4.6
 
 v0.4.6. Package version is `0.4.6`. Windows FileVersion follows the package version. `build.win.fileVersion` is not set.
