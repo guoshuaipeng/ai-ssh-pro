@@ -116,8 +116,8 @@
             "S32_RARE_MARKER",
             "s32-dropped-filler-token"
           ],
-          "tipSuggest": "0.4.8-s32",
-          "rollback": "0.4.8-s31",
+          "tipSuggest": "0.4.8-s33",
+          "rollback": "0.4.8-s32",
           "citeWindow": {
             "stable": true,
             "outsideHeadTail": [

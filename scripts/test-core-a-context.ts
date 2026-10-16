@@ -393,6 +393,14 @@ ok(patchWritePermitted(patchProposal) === false, 'an interrupted patch cannot wr
 ok(sideEffectExecutionPermitted(markHitlExecuting(resumeHitl(patchProposal, true))) === false, 'an approved patch is not an SSH write')
 ok(patchWritePermitted(markHitlExecuting(resumeHitl(patchProposal, true))) === true, 'approve then executing opens the patch gate')
 ok(patchWritePermitted(resumeHitl(patchProposal, false)) === false, 'decline keeps the patch gate closed')
+ok(
+  patchWritePermitted({ ...markHitlExecuting(resumeHitl(patchProposal, true)), requestId: null }) === false,
+  'agree without a requestId keeps the patch gate closed'
+)
+ok(
+  patchWritePermitted({ ...markHitlExecuting(resumeHitl(patchProposal, true)), requestId: '   ' }) === false,
+  'a blank requestId keeps the patch gate closed'
+)
 
 const budget = contextBudget({
   workingChars: 10,
