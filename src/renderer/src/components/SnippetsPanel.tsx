@@ -376,7 +376,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
           </Modal>
 
           {items.length > 0 && visible.length === 0 && builtinVisible.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.noMatch')}</p>
+            <EmptyState compact icon="snippet" title={t('snip.noMatch')} testId="snippets-nomatch" />
           ) : null}
           {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.loading')}</p> : null}
           {!loading && items.length === 0 && seg !== 'builtin' ? (

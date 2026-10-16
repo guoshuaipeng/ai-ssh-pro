@@ -6,6 +6,7 @@ import type {
   HostService,
   HostServiceKind
 } from '@shared/inventory'
+import EmptyState from './EmptyState'
 import NotesMarkdownPreview from './NotesMarkdownPreview'
 import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
@@ -820,7 +821,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                 </button>
               </div>
               {!loading && entries.length === 0 ? (
-                <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.190')}</p>
+                <EmptyState compact icon="host" title={tg('ui.190')} testId="inventory-empty" />
               ) : null}
               <ul className="inventory-host-list">
                 {entries.map((e) => (
