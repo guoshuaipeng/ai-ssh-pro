@@ -39,13 +39,16 @@ import {
   applyPatchDraft,
   createMockTree,
   decidePatch,
+  deniedFalseEvidence,
   explainGateFailure,
   isSafeMockPath,
   parseNpmTestFailure,
   patchDraftConfirmCard,
+  replanAfterDeny,
   reviewGateFailure,
   reviewNpmTestFailure
 } from '../src/main/core-a-tfl.ts'
+import type { CiteWindow } from '../src/main/core-a-output-truncate.ts'
 
 let n = 0
 const ok = (cond: unknown, msg: string) => {
@@ -636,6 +639,47 @@ ok(strictBlocked.applied === false && strictTree.writeCount() === 0, 'apply befo
 const strictDeclined = decidePatch(strictReview!, false, strictTree)
 ok(strictDeclined.applied === false && strictDeclined.state.resume === 'deny', 'decline does not apply')
 ok(strictTree.snapshot()['src/sample-add.ts'] === 'export const value = 1\n', 'decline leaves the mock file unchanged')
+const s34Hold: CiteWindow = {
+  head: 140,
+  tail: 0,
+  outsideHeadTail: ['S34_RARE_MARKER'],
+  droppedFiller: ['s34-dropped-filler-token'],
+  stable: true
+}
+const s34Before = 'export const value = 1\n// s34-dropped-filler-token\n'
+const s34Tree = createMockTree({ 'src/sample-add.ts': s34Before })
+const poisoned = {
+  ...strictReview!,
+  draft: {
+    ...strictReview!.draft,
+    explanation: `${strictReview!.draft.explanation}\n已写入 s34-dropped-filler-token 和 S34_ABSENT_LINE。`,
+    hunks: strictReview!.draft.hunks.map((hunk) => ({
+      ...hunk,
+      after: `${hunk.after}// s34-dropped-filler-token\nS34_ABSENT_LINE\n`
+    }))
+  }
+}
+const poisonTokens = deniedFalseEvidence(poisoned, s34Hold)
+ok(poisonTokens.includes('s34-dropped-filler-token'), 'dropped filler is false evidence on a denied draft')
+ok(poisonTokens.includes('S34_ABSENT_LINE'), 'an absent rare token on the denied draft is false evidence')
+const holdBefore = JSON.stringify(s34Hold)
+const s34Replan = replanAfterDeny(poisoned, s34Tree, s34Hold)
+ok(JSON.stringify(s34Hold) === holdBefore, 'deny does not mutate citeHold')
+ok(s34Replan.hold?.stable === true, 'replan keeps citeHold.stable')
+ok(s34Replan.denied.state.phase === 'cancelled' && s34Replan.denied.state.resume === 'deny', 'replan leaves the deny as a deny')
+ok(s34Replan.denied.applied === false && s34Tree.writeCount() === 0, 'replan deny writes nothing')
+ok(s34Tree.snapshot()['src/sample-add.ts'] === s34Before, 'replan leaves the original file in place')
+ok(s34Replan.next.hitl.phase === 'interrupted', 'replan opens a new confirm')
+ok(s34Replan.next.hitl.requestId !== strictReview!.hitl.requestId, 'replan does not reuse the denied confirm id')
+ok(sideEffectExecutionPermitted(s34Replan.next.hitl) === false, 'replan does not open SSH')
+ok(patchWritePermitted(s34Replan.next.hitl) === false, 'the replanned draft is not writable yet')
+ok(s34Replan.next.draft.explanation.includes('S34_RARE_MARKER'), 'replan still cites the held marker')
+ok(!s34Replan.next.draft.explanation.includes('s34-dropped-filler-token'), 'replan does not cite dropped filler')
+ok(!s34Replan.next.draft.explanation.includes('S34_ABSENT_LINE'), 'replan does not inherit the absent line')
+ok(s34Replan.next.draft.hunks[0]?.before === s34Before, 'replan before is the file the deny left')
+ok(s34Replan.next.draft.hunks[0]?.after.includes('S34_RARE_MARKER') === true, 'replan after cites the held marker')
+ok(s34Replan.next.draft.hunks[0]?.after.includes('s34-dropped-filler-token') === false, 'replan after drops the filler')
+ok(s34Replan.next.draft.hunks[0]?.after.includes('S34_ABSENT_LINE') === false, 'replan after drops the absent line')
 const strictAgreed = decidePatch(strictReview!, true, createMockTree({ 'src/sample-add.ts': 'export const value = 1\n' }))
 ok(strictAgreed.applied === true && strictAgreed.tree.snapshot()['src/sample-add.ts'] === 'export const value = 3\n', 'agree replaces the strict-equal actual')
 ok(sideEffectExecutionPermitted(strictAgreed.state) === false, 'the applied patch still cannot SSH-write')
