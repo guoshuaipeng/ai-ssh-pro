@@ -10,7 +10,7 @@ import { loadLastWorkspace, saveLastWorkspace } from '../src/shared/startup-pref
 
 const read = (p: string) => readFileSync(p, 'utf8')
 const pkg = JSON.parse(read('package.json')) as { version: string; build: { win: Record<string, unknown> } }
-const changelog = read('CHANGELOG.md')
+const changelog = read('CHANGELOG.md').replace(/\r\n/g, '\n')
 const app = read('src/renderer/src/App.tsx')
 const alertLine = read('src/renderer/src/components/AlertLine.tsx')
 const workbench = read('src/renderer/src/components/AlertWorkbenchTab.tsx')
