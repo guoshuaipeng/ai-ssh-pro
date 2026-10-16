@@ -20,7 +20,7 @@ import {
   sideEffectExecutionPermitted,
   type HitlLoopState
 } from './core-a-context'
-import { citeHeldPatchDraft, type CiteWindow } from './core-a-output-truncate'
+import { citeHeldAppliedWrite, citeHeldPatchDraft, type CiteWindow } from './core-a-output-truncate'
 
 export type GateFailure = {
   gate: string
@@ -231,12 +231,17 @@ function unified(hunk: PatchHunk): string {
  * Explain a gate and interrupt with a patch draft. Reads the mock tree and
  * does not write it. `autoApproveLowRisk` cannot skip the interrupt.
  * When the thread already holds a cite window, the draft cites those scarce
- * markers and does not cite filler that window dropped.
+ * markers and does not cite filler that window dropped. The hunk that Agree
+ * will write cites the same markers and drops that filler. Drafting does not
+ * write the tree.
  */
 export function reviewGateFailure(failure: GateFailure, tree: MockTree, hold?: CiteWindow | null): TflReview {
   const files = tree.snapshot()
   const explanation = citeHeldPatchDraft(explainGateFailure(failure), hold)
-  const hunks = proposeHunks(failure, files)
+  const hunks = proposeHunks(failure, files).map((hunk) => ({
+    ...hunk,
+    after: citeHeldAppliedWrite(hunk.after, hold)
+  }))
   const summary = hunks.length
     ? `草案：${hunks.map((hunk) => hunk.path).join(', ')}（同意前不写入） / Draft: ${hunks.map((hunk) => hunk.path).join(', ')} (not written until agree)`
     : '草案：仅说明，没有可安全套用的补丁（同意也不会写入） / Draft: explanation only; Agree still writes nothing'

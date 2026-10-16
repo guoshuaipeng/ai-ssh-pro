@@ -363,12 +363,14 @@ export function sideEffectExecutionPermitted(state: HitlLoopState): boolean {
 
 /**
  * A source patch may be written only after interrupt → approve → executing,
- * and only for a `patch` proposal. Decline, an interrupted draft, and an SSH
- * command never satisfy this. Callers still have to match the draft against
- * the harness mock; this gate does not touch the filesystem.
+ * and only for a `patch` proposal that carries a real `requestId`. Decline,
+ * an interrupted draft, a blank confirm id, and an SSH command never satisfy
+ * this. Callers still have to match the draft against the harness mock; this
+ * gate does not touch the filesystem.
  */
 export function patchWritePermitted(state: HitlLoopState): boolean {
-  return state.phase === 'executing' && state.resume === 'approve' && state.action === 'patch'
+  const requestId = state.requestId?.trim() ?? ''
+  return state.phase === 'executing' && state.resume === 'approve' && state.action === 'patch' && requestId.length > 0
 }
 
 export function redactSecrets(raw: string): string {

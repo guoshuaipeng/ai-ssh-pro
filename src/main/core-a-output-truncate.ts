@@ -9,18 +9,20 @@
  * the cite window dropped does not come back as a cite. A later compression
  * in the same thread keeps that hold. A later test-fail-fix patch draft on
  * that thread still cites the held marker and does not cite the dropped filler.
+ * Agreeing that draft writes the same cite: the applied bytes still name the
+ * held marker, and filler that window already dropped is not written back.
  *
- * Soft-batch pin: tipSuggest `0.4.8-s32`. Rollback is the S31 cite hold.
+ * Soft-batch pin: tipSuggest `0.4.8-s33`. Rollback is the S32 cite on the draft.
  */
 
 /** Planner-visible cap for one command's stdout, stderr, or ring. */
 export const OUTPUT_VIEW_CAP = 6000
 
 /** Citeable truncate path. */
-export const tipSuggest = '0.4.8-s32'
+export const tipSuggest = '0.4.8-s33'
 
 /** Previous batch this path rolls back to. */
-export const rollback = '0.4.8-s31'
+export const rollback = '0.4.8-s32'
 
 /** At least 8 characters, so ordinary words are not evidence tokens. */
 const RARE_TOKEN = /[A-Z][A-Z0-9_]{7,}/g
@@ -281,6 +283,25 @@ export function citeHeldPatchDraft(description: string, hold?: CiteWindow | null
   let text = explainCiteableOutput(description, emptyOutputView(), hold)
   for (const marker of hold.outsideHeadTail) {
     if (marker && !text.includes(marker)) text = `${text.trim()}\n${marker}`
+  }
+  return text
+}
+
+/**
+ * Bytes written when a confirm-style patch is agreed on a thread that already
+ * holds a cite window. Held scarce markers are cited even when the hunk omitted
+ * them. Filler that window already dropped is removed, so it is not cited again.
+ * A body with no hold is unchanged. The hold itself is not mutated.
+ */
+export function citeHeldAppliedWrite(body: string, hold?: CiteWindow | null): string {
+  if (!hold) return body
+  if (hold.outsideHeadTail.length === 0 && hold.droppedFiller.length === 0) return body
+  let text = body
+  for (const filler of hold.droppedFiller) {
+    if (filler) text = text.split(filler).join('')
+  }
+  for (const marker of hold.outsideHeadTail) {
+    if (marker && !text.includes(marker)) text = `${text.replace(/\s+$/g, '')}\n${marker}\n`
   }
   return text
 }

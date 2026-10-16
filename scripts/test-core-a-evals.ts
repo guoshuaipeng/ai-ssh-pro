@@ -45,6 +45,11 @@
  * S32: after that hold is stable, a later turn drafts a confirm-style patch.
  * The draft still cites the held marker. Dropped filler is not cited again.
  * Confirm-before-run stays on. Another host does not inherit the marker.
+ * S33: agreeing that card writes the same cite. The applied bytes still name
+ * the held marker. Filler the cite window already dropped is not written back.
+ * `citeHold.stable` stays true. Agree requires a real requestId. Deny still
+ * writes nothing. Drafting does not open SSH. Another host does not inherit
+ * the marker.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -73,6 +78,7 @@ import {
   retryWritePermitted
 } from '../src/main/core-a-command-failure.ts'
 import {
+  citeHeldAppliedWrite,
   citeHeldPatchDraft,
   citeObservationLine,
   explainCiteableOutput,
@@ -328,6 +334,8 @@ type TflSpec = {
   explanationMustContain: string[]
   explanationMustNotContain?: string[]
   agreeMustContain?: string[]
+  /** Tokens the agreed bytes must not cite. Dropped filler and absent lines. */
+  agreeMustNotContain?: string[]
   /**
    * S22: confirm-before-apply. The review factory does not write. Deny leaves
    * the temp disk and the repo fixture bytes unchanged. A half-written hunk
@@ -1497,8 +1505,8 @@ function assertCiteHold(
  * The cap cannot be raised from the env.
  */
 function assertCiteableTruncateModes(): void {
-  assert.equal(tipSuggest, '0.4.8-s32')
-  assert.equal(rollback, '0.4.8-s31')
+  assert.equal(tipSuggest, '0.4.8-s33')
+  assert.equal(rollback, '0.4.8-s32')
   assert.equal(OUTPUT_VIEW_CAP, 6000)
   const short = truncateCiteableOutput('short ring')
   assert.equal(short.truncated, false)
@@ -1517,8 +1525,8 @@ function assertCiteableTruncateModes(): void {
   const view = truncateCiteableOutput(raw)
   assert.equal(view.truncated, true)
   assert.equal(view.cap, OUTPUT_VIEW_CAP)
-  assert.equal(view.tipSuggest, '0.4.8-s32')
-  assert.equal(view.rollback, '0.4.8-s31')
+  assert.equal(view.tipSuggest, '0.4.8-s33')
+  assert.equal(view.rollback, '0.4.8-s32')
   assert.ok(view.originalChars > view.cap)
   assert.ok(view.shownChars <= view.cap)
   assert.ok(view.shownChars < view.originalChars)
@@ -1619,8 +1627,9 @@ function assertCiteableTruncateModes(): void {
     assert.equal(draft.includes('S29_ABSENT_LINE'), false)
     assert.equal(citeHeldPatchDraft(draft, held), draft)
     assert.equal(citeHeldPatchDraft('噪声结束。', held), '噪声结束。')
+    const patchBefore = 'export function answer() {\n  return 1\n}\n// s29-dropped-filler-token\n'
     const patchTree = createMockTree({
-      'tests/fixtures/core-a/mock-s29-unit.ts': 'export function answer() {\n  return 1\n}\n'
+      'tests/fixtures/core-a/mock-s29-unit.ts': patchBefore
     })
     const patchNpm = [
       'not ok 1 - cite hold patch',
@@ -1648,6 +1657,36 @@ function assertCiteableTruncateModes(): void {
     const patchDenied = decidePatch(reviewed!, false, patchTree)
     assert.equal(patchDenied.applied, false)
     assert.equal(patchTree.writeCount(), 0)
+    assert.equal(patchTree.snapshot()['tests/fixtures/core-a/mock-s29-unit.ts'], patchBefore)
+    const citedWrite = citeHeldAppliedWrite(patchBefore.replace('return 1', 'return 3'), held)
+    assert.match(citedWrite, /S29_RARE_MARKER/)
+    assert.match(citedWrite, /return 3/)
+    assert.equal(citedWrite.includes('s29-dropped-filler-token'), false)
+    assert.equal(citeHeldAppliedWrite(citedWrite, held), citedWrite)
+    assert.equal(citeHeldAppliedWrite('export const value = 3\n', null), 'export const value = 3\n')
+    assert.equal(held?.stable, true)
+    const agreeTree = createMockTree({
+      'tests/fixtures/core-a/mock-s29-unit.ts': patchBefore
+    })
+    const patchAgreed = decidePatch(reviewed!, true, agreeTree)
+    assert.equal(patchAgreed.applied, true)
+    assert.equal(sideEffectExecutionPermitted(patchAgreed.state), false)
+    assert.equal(patchWritePermitted(patchAgreed.state), true)
+    const agreedBody = agreeTree.snapshot()['tests/fixtures/core-a/mock-s29-unit.ts'] ?? ''
+    assert.match(agreedBody, /S29_RARE_MARKER/)
+    assert.match(agreedBody, /return 3/)
+    assert.equal(agreedBody.includes('s29-dropped-filler-token'), false)
+    assert.equal(agreedBody.includes('S29_ABSENT_LINE'), false)
+    const noIdTree = createMockTree({
+      'tests/fixtures/core-a/mock-s29-unit.ts': patchBefore
+    })
+    const noId = applyPatchDraft({ ...patchAgreed.state, requestId: null }, reviewed!.draft, noIdTree)
+    assert.equal(noId.applied, false)
+    assert.equal(noIdTree.writeCount(), 0)
+    assert.equal(noIdTree.snapshot()['tests/fixtures/core-a/mock-s29-unit.ts'], patchBefore)
+    const blankId = applyPatchDraft({ ...patchAgreed.state, requestId: '   ' }, reviewed!.draft, noIdTree)
+    assert.equal(blankId.applied, false)
+    assert.equal(noIdTree.writeCount(), 0)
   } finally {
     if (previousOm == null) delete process.env.AISS_OM_BULLET_CAP
     else process.env.AISS_OM_BULLET_CAP = previousOm
@@ -1879,6 +1918,27 @@ function assertTfl(fixture: Fixture, hold?: CiteWindow | null): void {
   for (const fact of spec.agreeMustContain ?? []) {
     assert.ok(body.includes(fact), `${label}: agreed file missing ${fact}`)
   }
+  for (const fact of spec.agreeMustNotContain ?? []) {
+    assert.equal(body.includes(fact), false, `${label}: agreed file cited ${fact}`)
+  }
+  if (hold && (hold.outsideHeadTail.length > 0 || hold.droppedFiller.length > 0)) {
+    assert.equal(hold.stable, true, `${label}: agree saw an unstable citeHold`)
+    for (const marker of hold.outsideHeadTail) {
+      assert.ok(body.includes(marker), `${label}: agreed write dropped held marker ${marker}`)
+    }
+    for (const filler of hold.droppedFiller) {
+      assert.equal(body.includes(filler), false, `${label}: agreed write cited dropped filler ${filler}`)
+    }
+  }
+  const noIdTree = createMockTree(spec.mockTree)
+  const approved = markHitlExecuting(resumeHitl(review.hitl, true))
+  const noId = applyPatchDraft({ ...approved, requestId: null }, review.draft, noIdTree)
+  assert.equal(noId.applied, false, `${label}: agree without requestId wrote`)
+  assert.equal(noIdTree.writeCount(), 0, `${label}: missing requestId wrote`)
+  assert.deepEqual(noIdTree.snapshot(), started, `${label}: missing requestId changed the tree`)
+  const blankId = applyPatchDraft({ ...approved, requestId: '   ' }, review.draft, noIdTree)
+  assert.equal(blankId.applied, false, `${label}: blank requestId wrote`)
+  assert.equal(noIdTree.writeCount(), 0, `${label}: blank requestId wrote`)
   assert.deepEqual(declineTree.snapshot(), started, `${label}: agree mutated the declined tree`)
 
   if (!spec.confirmBeforeApply || !docsBefore || !disk) return
@@ -1961,6 +2021,17 @@ function assertPatchDraftStaysOnHost(fixture: Fixture, historyKey: string): void
   const declined = decidePatch(review, false, tree)
   assert.equal(declined.applied, false, `${fixture.id}: host B deny applied the draft`)
   assert.equal(tree.writeCount(), 0, `${fixture.id}: host B deny wrote`)
+  const agreeTree = createMockTree(spec.mockTree)
+  const agreed = decidePatch(review, true, agreeTree)
+  assert.equal(sideEffectExecutionPermitted(agreed.state), false, `${fixture.id}: host B agree opened SSH`)
+  if (agreed.applied) {
+    for (const marker of home?.outsideHeadTail ?? []) {
+      for (const written of agreed.written) {
+        const body = agreeTree.snapshot()[written] ?? ''
+        assert.equal(body.includes(marker), false, `${fixture.id}: host B applied write cited ${marker}`)
+      }
+    }
+  }
 }
 
 describe('Core-A eval fixtures', { concurrency: 1 }, () => {
