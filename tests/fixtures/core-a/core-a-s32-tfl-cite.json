@@ -116,7 +116,7 @@
             "S32_RARE_MARKER",
             "s32-dropped-filler-token"
           ],
-          "tipSuggest": "0.4.8-polish8",
+          "tipSuggest": "0.4.9-polish8",
           "rollback": "0.4.8-polish7",
           "citeWindow": {
             "stable": true,
