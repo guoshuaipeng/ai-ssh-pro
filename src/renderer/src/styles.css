@@ -3416,7 +3416,7 @@ body:has(.debug-window-root) #root {
 
 .sftp-error { color: var(--danger); font-size: 12px; }
 .sftp-ok { color: var(--accent); font-size: 12px; }
-.sftp-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+.sftp-empty { padding: var(--space-5); text-align: center; color: var(--color-text-muted); font-size: var(--fs-sm); }
 
 .sftp-browser {
   flex: 1;
@@ -4692,11 +4692,18 @@ body.split-resizing {
   font-family: var(--mono, ui-monospace, monospace);
 }
 .st-count,
-.st-hint,
-.st-empty {
+.st-hint {
   margin: 0;
   font-size: 12px;
   opacity: 0.8;
+}
+.st-empty,
+.quiet-load {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--color-text-muted);
+  opacity: 1;
 }
 .st-error {
   margin: 0;

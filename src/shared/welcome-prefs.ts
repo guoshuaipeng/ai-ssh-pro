@@ -41,6 +41,14 @@ export function saveWelcomeCompleted(completed: boolean, store: Store = globalTh
   }
 }
 
+/**
+ * P11-1: hosts already on the machine skip the cold-start welcome.
+ * Help → 重新欢迎 (`replay`) is the only way back, and it does not delete hosts.
+ */
+export function hostPresentSuppressesWelcome(hostCount: number, replay: boolean): boolean {
+  return hostCount > 0 && !replay
+}
+
 export function shouldShowWelcome(input: {
   hostCount: number
   dismissed: boolean
@@ -56,6 +64,7 @@ export function shouldShowWelcome(input: {
 }): boolean {
   if (input.releaseNotesOpen || input.tourOpen || input.quickOpen) return false
   if (input.replay) return true
-  if (input.notesHeld || input.completed || input.dismissed || input.hostCount > 0) return false
+  if (input.notesHeld || input.completed || input.dismissed) return false
+  if (hostPresentSuppressesWelcome(input.hostCount, input.replay)) return false
   return true
 }

@@ -89,3 +89,26 @@ export function statusBarSlots(input: {
   slots.sort((a, b) => b.priority - a.priority)
   return { tray: false, slots }
 }
+
+/**
+ * P11-3: the 22–24px bar keeps the urgent chips and drops the rest.
+ * Disconnect, broadcast, and record outrank sync. Three chips fit; a fourth crowds the line.
+ */
+export const STATUS_VISIBLE_CAP = 3
+
+export function fitStatusSlots(slots: readonly StatusSlot[], cap = STATUS_VISIBLE_CAP): StatusSlot[] {
+  const limit = Number.isFinite(cap) ? Math.max(1, Math.floor(cap)) : STATUS_VISIBLE_CAP
+  return [...slots].sort((a, b) => b.priority - a.priority).slice(0, limit)
+}
+
+/**
+ * Offline and disconnect banners lead with the same sentence as the status bar.
+ * A phase tail such as " · reconnecting in 3s" stays after that sentence.
+ */
+export function shareDisconnectCopy(host: string, locale: 'zh-CN' | 'en', phaseText: string): string {
+  const lead = disconnectStatusSentence(host, locale)
+  const bare = locale === 'en' ? 'Disconnected' : '连接已断开'
+  if (phaseText.startsWith(lead)) return phaseText
+  if (phaseText.startsWith(bare)) return lead + phaseText.slice(bare.length)
+  return phaseText
+}

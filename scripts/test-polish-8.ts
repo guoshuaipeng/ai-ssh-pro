@@ -24,13 +24,13 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.11')
+assert.equal(pkg.version, '0.4.12')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-8.ts'), true)
-assert.equal(tipSuggest, '0.4.11-polish10')
-assert.equal(rollback, '0.4.10-polish9')
+assert.equal(tipSuggest, '0.4.12-polish11')
+assert.equal(rollback, '0.4.11-polish10')
 assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
@@ -39,7 +39,7 @@ const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog
 const published48 = changelog.slice(changelog.indexOf('## v0.4.8'), changelog.indexOf('## v0.4.7'))
 const published47 = changelog.slice(changelog.indexOf('## v0.4.7'), changelog.indexOf('## v0.4.6'))
 const published46 = changelog.slice(changelog.indexOf('## v0.4.6'), changelog.indexOf('## v0.4.5'))
-assert.equal(unreleased.replace('## Unreleased', '').trim().startsWith('## v0.4.11'), true)
+assert.equal(unreleased.replace('## Unreleased', '').trim().startsWith('## v0.4.12'), true)
 assert.ok(unreleased.includes('v0.4.9 soft-start'))
 assert.ok(unreleased.includes('Polish-8'))
 assert.ok(unreleased.includes('Public HOLD'))

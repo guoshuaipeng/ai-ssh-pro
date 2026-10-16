@@ -75,10 +75,19 @@ function mapKnown(clean: string, locale: Locale): { message: string; code: strin
   return null
 }
 
+function firstHumanLine(clean: string): string {
+  return (
+    clean
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line && !/^at\s+/.test(line)) ?? ''
+  )
+}
+
 export function friendlyError(e: unknown, opts?: { locale?: Locale }): FriendlyError {
   const locale = opts?.locale ?? 'zh-CN'
   const raw = e instanceof Error ? e.message : String(e ?? '')
-  const clean = stripIpcPrefix(raw)
+  const clean = firstHumanLine(stripIpcPrefix(raw))
   const mapped = mapKnown(clean, locale)
   if (mapped) {
     return { message: mapped.message, detail: clean !== mapped.message ? clean : undefined, code: mapped.code }

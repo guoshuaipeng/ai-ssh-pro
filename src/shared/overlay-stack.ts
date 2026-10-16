@@ -28,6 +28,20 @@ export const PRODUCT_OVERLAY_ORDER = ['systemUpdate', 'releaseNotes', 'welcome',
 
 export type ProductOverlay = (typeof PRODUCT_OVERLAY_ORDER)[number]
 
+/**
+ * P11-1: the product moments a person actually meets, in order.
+ * What's New, then Welcome, then the optional tour. A system-update dialog
+ * still outranks them. Only one of these is visible at a time.
+ */
+export const PRODUCT_MOMENT_ORDER = ['releaseNotes', 'welcome', 'tour'] as const
+
+export type ProductMoment = (typeof PRODUCT_MOMENT_ORDER)[number]
+
+/** Relative order inside the full stack. Earlier moments outrank later ones. */
+export function productMomentRank(id: ProductMoment): number {
+  return PRODUCT_OVERLAY_ORDER.indexOf(id)
+}
+
 export type ProductAdmission = 'show' | 'queue' | 'refuse'
 
 /** Menus, palette, and context menus sit above the product stack. Esc closes them first. */

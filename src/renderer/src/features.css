@@ -1047,7 +1047,8 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
 }
 .st-docker-toggle .st-docker-label { flex: 1; }
 .st-docker-group td { background: color-mix(in srgb, var(--border) 28%, transparent); }
-.st-docker-group-empty { color: var(--muted); font-size: 12px; }
+.st-docker-group-empty { color: var(--color-text-muted); font-size: var(--fs-sm); }
+.st-docker-group-empty-line { display: inline-flex; align-items: center; gap: var(--space-2); }
 .st-docker td.st-error,
 .st-docker td.st-docker-group-empty { white-space: normal; }
 .st-docker td.st-docker-indent-1 { padding-left: 18px; }
@@ -1596,10 +1597,11 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .settings-row, .settings-actions, .settings-themes { display: flex; align-items: center; gap: 8px; min-height: 44px; flex-wrap: nowrap; }
 .settings-themes { flex-wrap: wrap; }
 .settings-root { container-type: inline-size; display: flex; flex-direction: column; min-height: 0; }
+.settings-body { display: flex; flex-direction: column; }
+.settings-body > section { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); max-width: 640px; }
 @container (max-width: 900px) {
   .settings-shell { flex-direction: column; }
-  .settings-nav { width: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
-  .settings-search { display: none; }
+  .settings-nav { width: auto; flex-direction: column; overflow: auto; max-height: 220px; border-right: none; border-bottom: 1px solid var(--border); }
 }
 .cmdp-head { font-size: 11px; font-weight: var(--fw-semibold); letter-spacing: 0.04em; color: var(--color-text-muted); padding: 8px 10px 2px; position: sticky; top: 0; background: var(--color-bg-elevated); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdp-head--nav { color: var(--color-text-secondary); }

@@ -16,6 +16,8 @@ import Icon from './Icon'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askConfirm, askText } from '../lib/dialogs'
 import Modal from './Modal'
+import EmptyState from './EmptyState'
+import { QUIET_LOAD_ATTRS } from '@shared/quiet-load'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import DockerToolboxTab, { type DockerToolboxOpen } from './DockerToolboxTab'
 
@@ -85,7 +87,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
     <Modal open={open || !!embedded} title={t('st.title')} onClose={onClose} width={900} embedded={embedded} testId="server-tools-panel">
       <div className="st-panel">
         {sessions.length === 0 ? (
-          <p className="st-empty">{t('rm.noSessions')}</p>
+          <EmptyState icon="host" title={t('rm.noSessions')} desc={t('p11.toolboxNext')} testId="toolbox-no-sessions" />
         ) : (
           <>
             <div className="st-toolbar">
@@ -167,8 +169,10 @@ function DiskTab({ sessionId, busy, guard, t }: TabProps) {
   useEffect(() => {
     void load()
   }, [load])
-  if (!list) return <p className="st-muted">{t('rm.loading')}</p>
-  if (!list.length) return <p className="st-muted">{t('st.dfEmpty')}</p>
+  if (!list) return <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p>
+  if (!list.length) {
+    return <EmptyState compact icon={<Icon name="list-tree" size={32} strokeWidth={1.5} />} title={t('st.dfEmpty')} testId="toolbox-df-empty" />
+  }
   return (
     <div className="st-table-wrap" data-testid="toolbox-df">
       <table className="st-table">
@@ -250,7 +254,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisabl
         </button>
         {list ? <span className="st-count">{t('st.count', { shown: shown.length, total: list.length })}</span> : null}
       </div>
-      {!list && busy ? <p className="st-empty">{t('rm.loading')}</p> : null}
+      {!list && busy ? <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p> : null}
       {list ? (
         <div className="st-table-wrap">
           <table className="st-table st-procs">
@@ -361,7 +365,7 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisable
           </button>
         ) : null}
       </div>
-      {!list && busy ? <p className="st-empty">{t('rm.loading')}</p> : null}
+      {!list && busy ? <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p> : null}
       {list ? (
         <div className="st-table-wrap">
           <table className="st-table st-services">
@@ -464,8 +468,10 @@ function PortsTab({ sessionId, busy, guard, setNotice, t }: TabProps) {
         {list ? <span className="st-count">{t('st.count', { shown: shown.length, total: list.length })}</span> : null}
         <span className="st-hint">{t('st.portsHint')}</span>
       </div>
-      {!list && busy ? <p className="st-empty">{t('rm.loading')}</p> : null}
-      {list && list.length === 0 ? <p className="st-empty">{t('st.noPorts')}</p> : null}
+      {!list && busy ? <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p> : null}
+      {list && list.length === 0 ? (
+        <EmptyState compact icon="forward" title={t('st.noPorts')} testId="toolbox-no-ports" />
+      ) : null}
       {shown.length ? (
         <div className="st-table-wrap">
           <table className="st-table st-ports">
@@ -596,9 +602,9 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
           ))}
         </pre>
       ) : busy ? (
-        <p className="st-empty">{t('st.logReading')}</p>
+        <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('st.logReading')}</p>
       ) : (
-        <p className="st-empty">{t('st.logIntro')}</p>
+        <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('st.logIntro')}</p>
       )}
     </div>
   )

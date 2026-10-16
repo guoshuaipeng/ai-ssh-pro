@@ -1,4 +1,7 @@
-import { tg } from '../lib/i18n'
+import { isEngineerLeak } from '@shared/product-error'
+import { shareDisconnectCopy } from '@shared/status-bar'
+import { quietFailureCopy } from '@shared/quiet-load'
+import { tg, useI18n } from '../lib/i18n'
 import Icon from './Icon'
 
 export type DisconnectBannerModel = {
@@ -25,21 +28,32 @@ type Props = {
 }
 
 /** UX-14 banner extended with L9 countdown, stop, and jump resume. One row at 1366. */
+function readableReason(raw: string, locale: 'zh-CN' | 'en', host: string): string {
+  const leaked = isEngineerLeak(raw) || /(?:^|\n)\s*at\s+\S+/.test(raw)
+  if (!raw.trim() || leaked) return quietFailureCopy(raw, locale, host).message
+  return raw
+}
+
 export default function DisconnectBanner({ model, onNow, onStop, onHop, onFull, onClose, onEdit }: Props) {
+  const { locale } = useI18n()
+  const loc = locale === 'en' ? 'en' : 'zh-CN'
   const hop = model.jumpHop
   const jump = hop != null && hop > 0
   const exhausted = model.phase === 'exhausted'
   const countdown = model.phase === 'countdown'
   const stopped = model.phase === 'stopped'
-  const text = exhausted
-    ? tg('l9.fail', { host: model.host, reason: model.reason || tg('png5.title.generic') })
+  const reason = readableReason(model.reason, loc, model.host)
+  const jumpReason = readableReason(model.jumpReason || model.reason, loc, model.host)
+  const phaseText = exhausted
+    ? tg('l9.fail', { host: model.host, reason: reason || tg('png5.title.generic') })
     : hop != null && hop > 0
-      ? tg('l9.jumpFail', { n: hop, reason: model.jumpReason || model.reason })
+      ? tg('l9.jumpFail', { n: hop, reason: jumpReason })
       : countdown
         ? tg('l9.bannerRetry', { n: model.seconds, i: model.attempt, max: model.max })
         : stopped
           ? tg('l9.bannerStopped')
           : tg('l9.bannerOff')
+  const text = shareDisconnectCopy(model.host, loc, phaseText)
 
   const phaseClass = exhausted ? 'is-exhausted' : stopped || model.phase === 'off' ? 'is-stopped' : 'is-retry'
 

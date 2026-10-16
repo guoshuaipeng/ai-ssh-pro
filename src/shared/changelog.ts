@@ -12,6 +12,52 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.12': [
+    {
+      icon: '▷',
+      text: {
+        zh: '更新内容、欢迎和引导同一时间只留一层。Esc 只关最上面这一层',
+        en: 'What’s New, Welcome, and the tour take one layer. Esc closes only the top one'
+      },
+      where: { zh: '帮助 → 更新内容', en: 'Help → What’s new' },
+      action: 'whatsNew'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '导入后有一条不挡操作的提示，写明导入了几台，以及下一步。第一次连上只有一个主按钮',
+        en: 'After an import, a quiet strip says how many hosts came in and the next step. The first connection has one primary button'
+      },
+      where: { zh: '文件 → 导入会话', en: 'File → Import sessions' },
+      action: 'importSessions'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '底栏仍是一行。同步、录制、广播按优先级排，挤不下就收起较低的。断线可以点重连',
+        en: 'The status bar stays one line. Sync, recording, and broadcast follow priority and drop the quieter chip when the line is full. A dropped connection can reconnect'
+      },
+      where: { zh: '底栏', en: 'Status bar' },
+      action: 'reconnect'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '空列表是一枚图标加一句话，最多一个主按钮。设置按组排开，高级默认收起，可以搜索',
+        en: 'An empty list is an icon and one sentence, with at most one primary. Settings stay grouped, advanced starts collapsed, and search still works'
+      },
+      where: { zh: '设置', en: 'Settings' },
+      action: 'settings'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '加载不抢走焦点。断线和离线跟底栏同一句人话，不出现调用栈，可以重试或去设置',
+        en: 'Loading does not take focus. Offline and disconnect copy matches the status bar, with no stack trace, and offers retry or Settings'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    }
+  ],
   '0.4.11': [
     {
       icon: '▷',

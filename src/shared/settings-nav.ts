@@ -92,3 +92,52 @@ export function loadSettingsSection(store: Pick<Storage, 'getItem'> = globalThis
 export function saveSettingsSection(section: SettingsSection, store: Pick<Storage, 'setItem'> = globalThis.localStorage): void {
   store.setItem(SETTINGS_SECTION_KEY, section)
 }
+
+/** Pairs that mean the same setting. They must not render as sibling rows. */
+export const SETTINGS_SYNONYM_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ['keepalive', '保活'],
+  ['keep-alive', '保活'],
+  ['默认保活', '保活'],
+  ['theme', '主题'],
+  ['appearance', '外观']
+]
+
+export function settingsRowsAreSynonyms(a: string, b: string): boolean {
+  const left = a.trim().toLowerCase()
+  const right = b.trim().toLowerCase()
+  if (!left || !right) return false
+  if (left === right) return true
+  return SETTINGS_SYNONYM_PAIRS.some(([x, y]) => {
+    const pair = [x.toLowerCase(), y.toLowerCase()]
+    const hit = (label: string, word: string) => label.includes(word)
+    return (hit(left, pair[0]!) && hit(right, pair[1]!)) || (hit(left, pair[1]!) && hit(right, pair[0]!))
+  })
+}
+
+/** True when two labels in one group are the same setting said twice. */
+export function settingsSynonymClash(labels: readonly string[]): boolean {
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
+      if (settingsRowsAreSynonyms(labels[i]!, labels[j]!)) return true
+    }
+  }
+  return false
+}
+
+/**
+ * P11-5: 1366×768 stays one column. Search stays. Advanced starts collapsed.
+ * A narrow pane stacks the nav above the body; it does not turn sections into a sideways synonym strip.
+ */
+export function settingsComfortLayout(width: number, height: number): {
+  singleColumn: boolean
+  searchVisible: boolean
+  advancedCollapsed: boolean
+} {
+  const w = Number.isFinite(width) ? width : 1366
+  const h = Number.isFinite(height) ? height : 768
+  return {
+    singleColumn: w <= 1366 || h <= 768,
+    searchVisible: w >= 320,
+    advancedCollapsed: true
+  }
+}

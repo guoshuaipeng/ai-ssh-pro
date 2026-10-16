@@ -27,7 +27,13 @@ export default function ValueMomentBar({
   return (
     <div className="value-moment" role="status" data-testid="value-moment" data-kind={kind}>
       <p className="value-moment-text">
-        {kind === 'import' ? t('png.imported', { n: importCount }) : t('png.firstBody')}
+        {t(kind === 'import' ? 'png.imported' : 'png.firstBody', { n: importCount })}
+        {kind === 'import' ? (
+          <span className="value-moment-next" data-testid="png-import-next">
+            {' '}
+            {t('png.importNext')}
+          </span>
+        ) : null}
       </p>
       <div className="value-moment-actions">
         {kind === 'import' ? (
