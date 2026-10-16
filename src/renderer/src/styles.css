@@ -4980,8 +4980,46 @@ button.app-toolbar-version:hover:not(:disabled) {
   cursor: pointer;
 }
 .app-toolbar-update-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.toolbar-group { display: inline-flex; align-items: center; gap: var(--space-2); }
+.toolbar-group { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; }
 .toolbar-divider { width: 1px; height: 18px; background: var(--border); margin: 0; flex: none; }
+.app-toolbar-layout {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  flex-wrap: nowrap;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+button.layout-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  opacity: 0.45;
+  flex: none;
+}
+button.layout-toggle-btn:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--color-text-primary);
+  background: var(--color-row-hover-bg);
+  border-color: transparent;
+}
+button.layout-toggle-btn.is-on {
+  opacity: 1;
+  color: var(--color-text-primary);
+  background: transparent;
+  border-color: transparent;
+}
 .titlebar-tool-btn.is-dim { opacity: 0.45; }
 .titlebar-tool-btn.is-dim:hover { opacity: 0.75; }
 .titlebar-search-btn {

@@ -54,6 +54,14 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
         en: 'Session tabs no longer shrink to an unreadable stub. Extra tabs scroll sideways, and the host or IP stays readable'
       },
       where: { zh: '标签条', en: 'Tab strip' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏右侧恢复会话栏、终端区和 AI 面板三枚小图标，开着略亮',
+        en: 'The title bar again has three small icons for the sidebar, terminal, and AI panel'
+      },
+      where: { zh: '标题栏', en: 'Title bar' }
     }
   ],
   '0.4.8': [

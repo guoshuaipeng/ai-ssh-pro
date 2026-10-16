@@ -27,8 +27,10 @@ for (const sel of ['.titlebar-menu-trigger', '.titlebar-btn', '.titlebar-icon-bt
   assert.match(ruleBody(styles, sel), /padding-inline:\s*8px/, `${sel} padding-inline`)
 }
 assert.match(ruleBody(styles, '.app-toolbar-version'), /padding-inline:\s*4px/)
-assert.equal(styles.includes('.layout-toggle-btn'), false)
-assert.equal(styles.includes('.app-toolbar-layout'), false)
+assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*width:\s*24px/)
+assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*height:\s*24px/)
+assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*border:\s*none/)
+assert.match(styles, /\.app-toolbar-layout\s*\{[^}]*flex-wrap:\s*nowrap/)
 
 const search = ruleBody(styles, '.titlebar-search-btn')
 assert.match(search, /height:\s*32px/)
