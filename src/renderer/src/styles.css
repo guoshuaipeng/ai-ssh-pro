@@ -1593,20 +1593,20 @@ body.layout-resizing {
   mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 .tab-bar-scroll > .tab {
-  flex: 0 1 auto;
-  min-width: 112px;
-  max-width: 200px;
+  /* Polish-8: size to the label. Do not shrink the row down to 服… / 17…. */
+  flex: 0 0 auto;
+  min-width: 188px;
+  max-width: 280px;
 }
 .tab-bar-scroll > .tab.active {
-  min-width: 140px;
+  min-width: 188px;
   flex-shrink: 0;
 }
 .tab-bar-scroll > .tab:has(.tab-rename-input) {
-  min-width: 160px;
+  min-width: 188px;
   flex-shrink: 0;
 }
 @media (max-width: 1024px) {
-  .tab-bar-scroll > .tab { min-width: 96px; }
   .tab-overflow-menu { width: 240px; }
 }
 .tab-scroll-btn {
@@ -1754,7 +1754,7 @@ body.layout-resizing {
   border-bottom: none;
   border-radius: 6px 6px 0 0;
   background: transparent;
-  max-width: 200px;
+  max-width: 280px;
   color: var(--text);
 }
 
@@ -2451,6 +2451,28 @@ body.layout-resizing {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ai-safety-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.ai-safety-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.ai-safety-row select {
+  min-width: 0;
 }
 
 .ai-messages {

@@ -12,6 +12,50 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.9': [
+    {
+      icon: '▷',
+      text: {
+        zh: '设置里可以选代理安全档：观察、确认、信任、全自动。默认是确认',
+        en: 'Settings offer an agent safety tier: Observe, Confirm, Trusted, or Autopilot. Confirm is the default'
+      },
+      where: { zh: '设置 → AI', en: 'Settings → AI' },
+      action: 'ai'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '只读命令可以自动执行。写入仍要同意。高风险要同意后再确认一次，不会自动执行',
+        en: 'Read-only commands may auto-run. Writes still need Agree. High risk needs Agree and a second confirm, and does not auto-run'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '观察档对写入、删除和重启只给建议，不提供执行',
+        en: 'Observe only suggests writes, deletes, and reboots. There is no execute button'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'ncdu、top、vim、less 不会自动执行。同一条正在执行的命令不会再次询问同意',
+        en: 'ncdu, top, vim, and less never auto-run. An in-flight command is not asked to Agree again'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '会话标签不再挤成「服…」。放不下时标签条横向滚动，主机名和 IP 保持可读',
+        en: 'Session tabs no longer shrink to an unreadable stub. Extra tabs scroll sideways, and the host or IP stays readable'
+      },
+      where: { zh: '标签条', en: 'Tab strip' }
+    }
+  ],
   '0.4.8': [
     {
       icon: '▷',

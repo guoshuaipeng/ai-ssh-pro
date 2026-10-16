@@ -25,6 +25,7 @@ import {
 } from '../shared/workspace-features'
 import { decryptOptional, encryptOptional, encryptSecret, decryptSecret, isEncryptedSecret } from './secret-crypto'
 import { archiveAndClearThreadContext } from './core-a-memory'
+import { normalizeAllowHosts, normalizeSafetyTier, normalizeTierMap } from '../shared/safety-tier'
 
 type AiChatHistoryStore = Record<string, AiChatMessage[]>
 
@@ -69,7 +70,8 @@ export const AI_SETTINGS_DEFAULTS: AiSettings = {
   temperature: 0.1,
   sshParseInstructions: '',
   useOpenClaw: true,
-  autoApproveLowRisk: false
+  autoApproveLowRisk: false,
+  safetyTier: 'confirm'
 }
 
 function encryptJump(j: SshJumpHostOptions | undefined): SshJumpHostOptions | undefined {
@@ -302,8 +304,13 @@ function normalizeAi(merged: AiSettings): AiSettings {
     typeof anyMerged.useOpenClaw === 'boolean'
       ? anyMerged.useOpenClaw
       : (AI_SETTINGS_DEFAULTS.useOpenClaw ?? true)
-  // UX-64: commands always require confirmation. A previously stored true must not come back.
+  // UX-64: the old low-risk switch stays off. The safety tier is the policy that can skip Agree.
   const autoApproveLowRisk = false
+  const safetyTier = normalizeSafetyTier(anyMerged.safetyTier)
+  const safetyTierHosts = normalizeTierMap(anyMerged.safetyTierHosts)
+  const safetyTierSessions = normalizeTierMap(anyMerged.safetyTierSessions)
+  const autopilotAllowHosts = normalizeAllowHosts(anyMerged.autopilotAllowHosts)
+  const autopilotAllowHighRisk = anyMerged.autopilotAllowHighRisk === true
 
   return {
     providers,
@@ -312,7 +319,12 @@ function normalizeAi(merged: AiSettings): AiSettings {
     temperature,
     sshParseInstructions,
     useOpenClaw,
-    autoApproveLowRisk
+    autoApproveLowRisk,
+    safetyTier,
+    ...(safetyTierHosts ? { safetyTierHosts } : {}),
+    ...(safetyTierSessions ? { safetyTierSessions } : {}),
+    ...(autopilotAllowHosts ? { autopilotAllowHosts } : {}),
+    ...(autopilotAllowHighRisk ? { autopilotAllowHighRisk } : {})
   }
 }
 

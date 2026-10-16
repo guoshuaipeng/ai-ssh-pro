@@ -470,6 +470,11 @@ export type AiChatPayload = {
   hostInventoryId?: string
   /** 用于查找档案的连接信息 */
   inventoryLookup?: { host?: string; port?: number; profileId?: string }
+  /**
+   * Host context for the safety tier. Production hosts are not given autopilot
+   * unless they are on the allow list, and high risk still confirms.
+   */
+  safetyContext?: { production?: boolean; hostId?: string; hostName?: string; sessionId?: string }
 }
 
 export type AiStreamEvent =
@@ -485,6 +490,12 @@ export type AiStreamEvent =
       requestId?: string
       /** @deprecated UX-64：命令不再自动批准。保留字段以免旧事件类型断裂。 */
       autoApproved?: boolean
+      /**
+       * Safety-tier decision for this step. Absent means the legacy confirm path.
+       * `auto` already ran (or will) without Agree. `strong` still uses Agree, then a second confirm.
+       * `suggest` and `hold` do not offer Agree.
+       */
+      safetyMode?: 'auto' | 'agree' | 'strong' | 'suggest' | 'hold'
       structured: AiAssistantReply
     }
   | { type: 'done' }
@@ -526,8 +537,22 @@ export type AiSettings = {
   useOpenClaw?: boolean
   /**
    * @deprecated UX-64：已忽略。命令一律需确认。保留字段以兼容已保存的设置。
+   * 安全档见 `safetyTier`。风险徽章不决定是否跳过同意。
    */
   autoApproveLowRisk?: boolean
+  /**
+   * 代理安全档。默认 `confirm`。缺省字段表示旧的「一律确认」路径（评测夹具）。
+   * observe 只自动执行只读；trusted 自动执行中低风险；autopilot 须显式打开。
+   */
+  safetyTier?: 'observe' | 'confirm' | 'trusted' | 'autopilot'
+  /** 主机档案 id 或主机名 → 覆盖全局档。 */
+  safetyTierHosts?: Record<string, 'observe' | 'confirm' | 'trusted' | 'autopilot'>
+  /** 会话键 → 覆盖主机与全局。 */
+  safetyTierSessions?: Record<string, 'observe' | 'confirm' | 'trusted' | 'autopilot'>
+  /** 全自动允许的主机。空则仅非生产主机可走全自动。 */
+  autopilotAllowHosts?: string[]
+  /** 显式允许非生产主机在全自动下执行高风险。默认关闭。生产主机忽略。 */
+  autopilotAllowHighRisk?: boolean
 }
 
 export type AiAssistantAction = 'tool_call' | 'command' | 'end'

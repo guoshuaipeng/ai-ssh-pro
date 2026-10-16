@@ -23,7 +23,7 @@ export const SETTINGS_SEARCH_TERMS: Record<SettingsSection, readonly string[]> =
   terminal: ['终端', 'terminal', '字体', 'font'],
   connections: ['连接', '密钥', 'key', 'agent', '保活', '重连', 'reconnect', 'keep-alive'],
   ops: ['采样', '告警', 'probe', '健康'],
-  ai: ['密钥', 'key', 'api', '模型', 'model'],
+  ai: ['密钥', 'key', 'api', '模型', 'model', '安全档', 'safety', '观察', '确认', '信任', '全自动'],
   shortcuts: ['快捷键', 'shortcut'],
   security: ['安全', '审计', '密钥', 'key', 'audit'],
   files: ['快照', 'snapshot', '文件'],

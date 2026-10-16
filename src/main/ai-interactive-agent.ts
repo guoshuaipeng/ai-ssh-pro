@@ -47,6 +47,7 @@ import {
   type HitlLoopState,
   type TranscriptTurn
 } from './core-a-context'
+import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTierEngaged, effectiveSafetyTier, type SafetyMode } from '../shared/safety-tier'
 import { getInventoryStore } from './inventory-store'
 import type { HostServiceKind } from '../shared/inventory'
 import {
@@ -901,6 +902,7 @@ export async function runOpenClawCoreAgentChat(
   let lastWriteOk: boolean | null = null
   let lastFailure: (CommandFailureEvidence & { requestId: string; count: number }) | null = null
   const writtenRequestIds = new Set<string>()
+  const inFlight = createInFlightBook()
 
   if (activeAiChat) {
     abortAiChat()
@@ -1148,7 +1150,7 @@ export async function runOpenClawCoreAgentChat(
       // confirmBypassAllowed is always false; a future true would still fail closed below.
       void confirmBypassAllowed(settings.autoApproveLowRisk)
       const needsInterrupt = actionNeedsHumanInterrupt(parsed.action, parsed.toolName)
-      const requestId = needsInterrupt ? randomUUID() : undefined
+      let requestId = needsInterrupt ? randomUUID() : undefined
       let hitl: HitlLoopState = interruptForProposal(createHitlLoop(), {
         action: parsed.action,
         toolName: parsed.toolName,
@@ -1161,12 +1163,49 @@ export async function runOpenClawCoreAgentChat(
         send(wc, { type: 'error', message: mt('内部错误：命令在确认前进入了执行态', 'Internal error: command entered executing before confirm') })
         return
       }
-      if (needsInterrupt) {
+      let safetyMode: SafetyMode | undefined
+      let skipCommandWrite = false
+      if (safetyTierEngaged(settings) && parsed.action === 'command') {
+        const hostId =
+          payload.safetyContext?.hostId ||
+          payload.inventoryLookup?.profileId ||
+          payload.historyKey ||
+          payload.hostInventoryId
+        const decision = planCommandConfirm({
+          tier: effectiveSafetyTier(settings, {
+            hostId,
+            sessionId: payload.safetyContext?.sessionId || payload.historyKey
+          }),
+          command: parsed.command ?? '',
+          riskLevel: parsed.riskLevel,
+          production: payload.safetyContext?.production === true,
+          hostId,
+          hostName: payload.safetyContext?.hostName || payload.inventoryLookup?.host,
+          allowHosts: settings.autopilotAllowHosts,
+          allowHighRisk: settings.autopilotAllowHighRisk === true,
+          book: inFlight
+        })
+        safetyMode = decision.mode
+        if (decision.alternative) {
+          const note = parsed.notes?.includes(decision.alternative)
+            ? parsed.notes
+            : [parsed.notes, decision.alternative].filter(Boolean).join('\n')
+          parsed = { ...parsed, notes: note }
+        }
+        if (decision.mode === 'suggest' || decision.mode === 'hold') skipCommandWrite = true
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: 'safety tier',
+          detail: `mode=${decision.mode} tier=${decision.tier} applied=${decision.appliedTier} kind=${decision.kind} warn=${String(decision.warn)} write=${String(decision.write)}`
+        })
+      }
+      if (needsInterrupt && safetyMode !== 'auto' && safetyMode !== 'suggest' && safetyMode !== 'hold') {
         emitDebug({
           kind: 'execution',
           round: step,
           label: 'HITL interrupt',
-          detail: `phase=${hitl.phase} action=${parsed.action} risk=${parsed.riskLevel}`
+          detail: `phase=${hitl.phase} action=${parsed.action} risk=${parsed.riskLevel} safety=${safetyMode ?? 'legacy'}`
         })
       }
 
@@ -1196,9 +1235,12 @@ export async function runOpenClawCoreAgentChat(
         parsed = { ...parsed, description: citeHeldPatchDraft(parsed.description, thread.citeHold) }
       }
 
+      const emitRequestId =
+        safetyMode === 'auto' || safetyMode === 'suggest' || safetyMode === 'hold' ? undefined : requestId
       send(wc, {
         type: 'step',
-        requestId,
+        requestId: emitRequestId,
+        safetyMode,
         structured: parsed
       })
 
@@ -1227,7 +1269,24 @@ export async function runOpenClawCoreAgentChat(
       }
 
       // Interrupted steps wait here. Nothing is written until resume → executing.
-      if (needsInterrupt) {
+      // auto skips Agree and moves straight to executing. suggest / hold do not write.
+      // A missing safety tier keeps the legacy confirm path, including read-only commands.
+      if (needsInterrupt && safetyMode === 'auto') {
+        consecutiveSnapshotTools = 0
+        hitl = markHitlExecuting(resumeHitl(hitl, true))
+        if (!sideEffectExecutionPermitted(hitl)) {
+          send(wc, { type: 'error', message: mt('内部错误：安全档自动执行未进入执行态', 'Internal error: safety-tier auto-run did not enter executing') })
+          return
+        }
+      } else if (needsInterrupt && skipCommandWrite) {
+        consecutiveSnapshotTools = 0
+        rememberNote(
+          sessionState,
+          safetyMode === 'hold'
+            ? mt('交互命令已在执行，未再次询问同意，也未再次写入。', 'The interactive command is already running. Agree was not asked again, and it was not written again.')
+            : mt('当前安全档只建议这条命令，未写入终端。', 'The safety tier only suggested this command. It was not written to the terminal.')
+        )
+      } else if (needsInterrupt) {
         consecutiveSnapshotTools = 0
         if (!requestId || hitl.phase !== 'interrupted') {
           send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
@@ -1284,6 +1343,7 @@ export async function runOpenClawCoreAgentChat(
           return
         }
         hitl = markHitlExecuting(hitl)
+        if (isInteractiveCommand(parsed.command ?? '')) inFlight.note(parsed.command ?? '')
       }
 
       if (parsed.action === 'tool_call') {
@@ -1480,8 +1540,16 @@ export async function runOpenClawCoreAgentChat(
           send(wc, { type: 'done' })
           return
         }
+      } else if (parsed.action === 'command' && skipCommandWrite) {
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: safetyMode === 'hold' ? 'safety hold' : 'safety suggest',
+          detail: `write=false mode=${safetyMode ?? ''}\n${(parsed.command ?? '').trim()}`
+        })
       } else if (parsed.action === 'command') {
-        // Write only after interrupt → approve → executing. Bypass is fail-closed.
+        // Write only after interrupt → approve → executing, or a safety-tier auto decision.
+        // Bypass via autoApproveLowRisk is fail-closed. High risk is not auto.
         if (!sideEffectExecutionPermitted(hitl) || confirmBypassAllowed(settings.autoApproveLowRisk)) {
           send(wc, {
             type: 'error',

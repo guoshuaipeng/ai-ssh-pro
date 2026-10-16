@@ -26,13 +26,13 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.8')
+assert.equal(pkg.version, '0.4.9')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-5.ts'), true)
-assert.equal(tipSuggest, '0.4.8-polish7')
-assert.equal(rollback, '0.4.8-polish6')
+assert.equal(tipSuggest, '0.4.8-polish8')
+assert.equal(rollback, '0.4.8-polish7')
 assert.equal(rawPkg.includes(tipSuggest), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')

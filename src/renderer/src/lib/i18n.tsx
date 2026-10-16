@@ -2421,7 +2421,30 @@ const zhCN = {
   's1b.col.type': '类型',
   's1b.col.body': '正文',
   's1b.col.source': '来源',
-  's1b.col.result': '结果'
+  's1b.col.result': '结果',
+  'safety.tier': '代理安全档',
+  'safety.hint': '决定哪些风险可以跳过同意。风险徽章仍标出低、中、高。高风险不会自动执行。',
+  'safety.observe': '观察',
+  'safety.observeHint': '只自动执行只读命令。写入、删除和重启只给建议，不提供执行。',
+  'safety.confirm': '确认',
+  'safety.confirmHint': '默认。只读可以自动执行。中低风险写入需要同意。高风险需要同意，并再确认一次。',
+  'safety.trusted': '信任',
+  'safety.trustedHint': '中低风险自动执行。高风险仍要同意。',
+  'safety.autopilot': '全自动',
+  'safety.autopilotHint': '需显式打开。生产主机默认拒绝或警告。高风险仍要确认，除非单独允许。',
+  'safety.allowHosts': '允许全自动的主机（每行一个档案或主机名）',
+  'safety.allowHigh': '非生产主机上，允许全自动执行高风险',
+  'safety.allowHighHint': '默认关闭。生产主机即使勾选也不会自动执行高风险。',
+  'safety.session': '本会话',
+  'safety.host': '此主机',
+  'safety.follow': '跟随全局',
+  'safety.suggest': '只建议，不执行',
+  'safety.inflight': '这条交互命令已在执行，不再询问同意',
+  'safety.autoRan': '已按安全档自动执行',
+  'safety.strong': '高风险，再确认一次',
+  'safety.alt': '可改用非交互命令：{cmd}',
+  'safety.warnProd': '生产主机未在允许列表中，已退回确认档',
+  'safety.saved': '已保存'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -4847,7 +4870,30 @@ const en: Record<MessageKey, string> = {
   's1b.col.type': 'Type',
   's1b.col.body': 'Body',
   's1b.col.source': 'Source',
-  's1b.col.result': 'Result'
+  's1b.col.result': 'Result',
+  'safety.tier': 'Agent safety tier',
+  'safety.hint': 'Decides which risks can skip Agree. Risk badges still say low, medium, or high. High risk does not run on its own.',
+  'safety.observe': 'Observe',
+  'safety.observeHint': 'Auto-run read-only commands. Writes, deletes, and reboots are suggestions, with no execute button.',
+  'safety.confirm': 'Confirm',
+  'safety.confirmHint': 'Default. Read-only may auto-run. Medium and low writes need Agree. High risk needs Agree and a stronger confirm.',
+  'safety.trusted': 'Trusted',
+  'safety.trustedHint': 'Medium and low risk auto-run. High risk still needs Agree.',
+  'safety.autopilot': 'Autopilot',
+  'safety.autopilotHint': 'Only when you turn it on. Production hosts default to deny or warn. High risk still confirms unless you allow it explicitly.',
+  'safety.allowHosts': 'Hosts allowed to use autopilot (one profile or host name per line)',
+  'safety.allowHigh': 'On non-production hosts, allow autopilot to run high risk',
+  'safety.allowHighHint': 'Off by default. Production hosts still do not auto-run high risk.',
+  'safety.session': 'This session',
+  'safety.host': 'This host',
+  'safety.follow': 'Use global',
+  'safety.suggest': 'Suggestion only. Not run.',
+  'safety.inflight': 'This interactive command is already running. Agree is not asked again.',
+  'safety.autoRan': 'Auto-ran under the safety tier',
+  'safety.strong': 'High risk. Confirm again.',
+  'safety.alt': 'A non-interactive alternative: {cmd}',
+  'safety.warnProd': 'This production host is not on the allow list, so confirm is used',
+  'safety.saved': 'Saved'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

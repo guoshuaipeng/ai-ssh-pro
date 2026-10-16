@@ -12,7 +12,7 @@
  * Agreeing that draft writes the same cite: the applied bytes still name the
  * held marker, and filler that window already dropped is not written back.
  *
- * Soft-batch pin: tipSuggest `0.4.8-polish7`. Rollback is `0.4.8-polish6`.
+ * Soft-batch pin: tipSuggest `0.4.8-polish8`. Rollback is `0.4.8-polish7`.
  * The pin is not a Windows FileVersion.
  */
 
@@ -20,10 +20,10 @@
 export const OUTPUT_VIEW_CAP = 6000
 
 /** Citeable truncate path. */
-export const tipSuggest = '0.4.8-polish7'
+export const tipSuggest = '0.4.8-polish8'
 
 /** Previous batch this path rolls back to. Not a second FileVersion. */
-export const rollback = '0.4.8-polish6'
+export const rollback = '0.4.8-polish7'
 
 /** At least 8 characters, so ordinary words are not evidence tokens. */
 const RARE_TOKEN = /[A-Z][A-Z0-9_]{7,}/g

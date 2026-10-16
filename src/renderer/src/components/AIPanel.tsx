@@ -8,7 +8,9 @@ import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import { confirmDialog } from '../lib/dialogs'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
+import { isSafetyTier, releaseSessionInFlight, SAFETY_TIERS, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
 import AiConfigCard from './AiConfigCard'
+import SafetyCommandBar from './SafetyCommandBar'
 
 type Props = {
   activeSessionId: string | null
@@ -16,6 +18,9 @@ type Props = {
   historyKey?: string | null
   hostInventoryId?: string | null
   inventoryLookup?: { host?: string; port?: number; profileId?: string } | null
+  /** Saved profile protection. Production hosts do not take autopilot unless allow-listed. */
+  production?: boolean
+  hostName?: string | null
   onOpenSettings?: () => void
 }
 
@@ -28,6 +33,10 @@ type AssistantLine = {
   structured?: AiAssistantReply
   /** 新交互协议下：需要用户确认后才能继续的 requestId */
   requestId?: string
+  /** Safety-tier decision from the agent. Absent on a plain suggestion. */
+  safetyMode?: SafetyMode
+  /** Arrived this turn. History reload is not fresh, so it does not auto-run again. */
+  fresh?: boolean
   /** 本卡确认结果。命令不会因 low 风险自动执行。 */
   decision?: 'agreed' | 'skipped'
   /** 非结构化回复：仍用卡片壳，并提示未能识别步骤 */
@@ -80,7 +89,8 @@ function OpsReply({
   decision,
   canRun,
   onAgree,
-  onDecline
+  onDecline,
+  commandBar
 }: {
   text: string
   badge?: boolean
@@ -89,6 +99,7 @@ function OpsReply({
   canRun?: boolean
   onAgree?: (command: string) => void
   onDecline?: () => void
+  commandBar?: (command: string) => ReactNode
 }) {
   const layout: OpsLayout = layoutOpsReply(text)
   const structured = layout.blocks.some((b) => b.kind !== 'prose')
@@ -138,7 +149,9 @@ function OpsReply({
           <div key={i} className="ai-reply-cmd" data-testid="ai-ops-commands">
             <code className="ai-reply-cmd-code">{block.commands.join('\n')}</code>
             {showActions ? (
-              decision === 'agreed' ? (
+              commandBar ? (
+                commandBar(bundle)
+              ) : decision === 'agreed' ? (
                 <div className="ai-decision">{tg('ux64.executed')}</div>
               ) : decision === 'skipped' ? (
                 <div className="ai-decision">{tg('ux64.skipped')}</div>
@@ -188,6 +201,8 @@ export default function AIPanel({
   historyKey = null,
   hostInventoryId = null,
   inventoryLookup = null,
+  production = false,
+  hostName = null,
   onOpenSettings
 }: Props) {
   const [lines, setLines] = useState<Line[]>([])
@@ -208,6 +223,8 @@ export default function AIPanel({
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [workingGoal, setWorkingGoal] = useState<string | null>(null)
+  const [safetySettings, setSafetySettings] = useState<SafetySettings>({ safetyTier: 'confirm' })
+  const seenConfirm = useRef(new Set<string>())
   const moreRef = useRef<HTMLDivElement>(null)
   const inputMenuRef = useRef<HTMLDivElement>(null)
   const linesRef = useRef<Line[]>([])
@@ -226,6 +243,7 @@ export default function AIPanel({
         setProviders(s.providers)
         setActiveProviderId(s.activeProviderId)
         setActiveModel(s.model)
+        setSafetySettings(s)
         const ready = Boolean(p?.apiKey?.trim())
         setHasApiKey(ready)
         if (sawSettings.current && !hadKey.current && ready) showToast(tg('ux37.ready'))
@@ -332,6 +350,7 @@ export default function AIPanel({
   const submitToAi = useCallback(
     async (text: string, terminalExcerpt?: string) => {
       const userLine: UserLine = { role: 'user', content: text }
+      releaseSessionInFlight(persistKey)
       setLines((prev) => [...prev, userLine])
       setBusy(true)
       setPendingConfirm(null)
@@ -370,7 +389,9 @@ export default function AIPanel({
             content: s.description,
             streaming: false,
             structured: s,
-            requestId: ev.requestId
+            requestId: ev.requestId,
+            safetyMode: ev.safetyMode,
+            fresh: true
           }
           if (last?.role === 'assistant' && last.streaming && !last.structured) {
             next[next.length - 1] = row
@@ -445,7 +466,13 @@ export default function AIPanel({
               port: inventoryLookup.port,
               profileId: inventoryLookup.profileId
             }
-          : undefined
+          : undefined,
+        safetyContext: {
+          production,
+          hostId: inventoryLookup?.profileId || hostInventoryId || undefined,
+          hostName: hostName || inventoryLookup?.host,
+          sessionId: persistKey || undefined
+        }
       })
       if (!usedStepProtocol) {
         const raw = assistant.trim()
@@ -455,18 +482,19 @@ export default function AIPanel({
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
             if (parsed) {
-              next[next.length - 1] = { role: 'assistant', content: raw, structured: parsed }
+              next[next.length - 1] = { role: 'assistant', content: raw, structured: parsed, fresh: true }
             } else {
               next[next.length - 1] = {
                 role: 'assistant',
                 content: raw || tg('ai.badJson'),
-                parseMiss: true
+                parseMiss: true,
+                fresh: true
               }
             }
           } else if (last?.role === 'user') {
             if (raw) {
-              if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed })
-              else next.push({ role: 'assistant', content: raw, parseMiss: true })
+              if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed, fresh: true })
+              else next.push({ role: 'assistant', content: raw, parseMiss: true, fresh: true })
             } else {
               next.push({ role: 'assistant', content: tg('ai.noReply'), parseMiss: true })
             }
@@ -485,7 +513,7 @@ export default function AIPanel({
       })
     }
   },
-    [activeSessionId, hostInventoryId, inventoryLookup, lines, persistHistory, persistKey, refreshWorkingGoal]
+    [activeSessionId, hostInventoryId, hostName, inventoryLookup, lines, persistHistory, persistKey, production, refreshWorkingGoal]
   )
 
   const send = useCallback(async () => {
@@ -537,6 +565,8 @@ export default function AIPanel({
 
   const confirmStep = useCallback(async (requestId: string, ok: boolean) => {
     if (!requestId) return
+    if (seenConfirm.current.has(requestId)) return
+    seenConfirm.current.add(requestId)
     setPendingConfirm(null)
     setLines((prev) =>
       prev.map((row) =>
@@ -625,6 +655,43 @@ export default function AIPanel({
     return () => window.removeEventListener('mousedown', close, true)
   }, [moreOpen])
 
+  const saveScope = (field: 'safetyTierSessions' | 'safetyTierHosts', id: string | null | undefined, value: string) => {
+    const key = id?.trim() ?? ''
+    if (!key) return
+    const current = { ...(safetySettings[field] ?? {}) }
+    if (!value) delete current[key]
+    else if (isSafetyTier(value)) current[key] = value
+    setSafetySettings((prev) => ({ ...prev, [field]: current }))
+    void window.aiss.ai.setSettings({ [field]: current })
+  }
+
+  const commandActions = (opts: {
+    command: string
+    riskLevel?: string | null
+    safetyMode?: SafetyMode
+    requestId?: string
+    fresh?: boolean
+    decision?: 'agreed' | 'skipped'
+    confirmable?: boolean
+    agreeLabel?: string
+    onAgree: (command: string) => void
+    onDecline: () => void
+  }) => (
+    <SafetyCommandBar
+      {...opts}
+      canRun={Boolean(activeSessionId)}
+      sessionKey={persistKey}
+      hostId={inventoryLookup?.profileId || hostInventoryId}
+      hostName={hostName || inventoryLookup?.host}
+      production={production}
+      settings={safetySettings}
+    />
+  )
+
+  const sessionTier = persistKey ? safetySettings.safetyTierSessions?.[persistKey] : undefined
+  const hostKey = inventoryLookup?.profileId || hostInventoryId || ''
+  const hostTier = hostKey ? safetySettings.safetyTierHosts?.[hostKey] : undefined
+
   return (
     <aside className="ai-panel" style={{ minWidth: 280 }}>
       {!hasApiKey ? (
@@ -686,6 +753,35 @@ export default function AIPanel({
             <span className="ai-working-goal-text">{workingGoal}</span>
           </div>
         ) : null}
+        <div className="ai-safety-row" data-testid="safety-scope">
+          <label>
+            {tg('safety.session')}
+            <select
+              data-testid="safety-session"
+              value={isSafetyTier(sessionTier) ? sessionTier : ''}
+              onChange={(e) => saveScope('safetyTierSessions', persistKey, e.target.value)}
+            >
+              <option value="">{tg('safety.follow')}</option>
+              {SAFETY_TIERS.map((id) => (
+                <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {tg('safety.host')}
+            <select
+              data-testid="safety-host"
+              value={isSafetyTier(hostTier) ? hostTier : ''}
+              disabled={!hostKey}
+              onChange={(e) => saveScope('safetyTierHosts', hostKey, e.target.value)}
+            >
+              <option value="">{tg('safety.follow')}</option>
+              {SAFETY_TIERS.map((id) => (
+                <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
 <div className="ai-messages">
@@ -812,57 +908,26 @@ export default function AIPanel({
                 {s.action === 'command' && s.command?.trim() ? (
                   <div className="ai-reply-cmd">
                     <code className="ai-reply-cmd-code">{s.command}</code>
-                    {l.decision === 'agreed' ? (
-                      <div className="ai-decision">{tg('ux64.executed')}</div>
-                    ) : l.decision === 'skipped' ? (
-                      <div className="ai-decision">{tg('ux64.skipped')}</div>
-                    ) : l.requestId ? (
-                      <div className="ai-reply-actions">
-                        <span className="ai-btn-wrap" title={!activeSessionId ? tg('ux64.noSession') : undefined}>
-                          <button
-                            type="button"
-                            className="ai-fill-cmd-btn ai-btn-agree"
-                            disabled={!isConfirmable || !activeSessionId}
-                            onClick={() => confirmStep(l.requestId!, true)}
-                          >
-                            {tg('ux64.agreeRun')}
-                          </button>
-                        </span>
-                        <button
-                          type="button"
-                          className="ai-fill-cmd-btn ai-btn-decline"
-                          disabled={!isConfirmable}
-                          title={tg('ux64.disagree')}
-                          onClick={() => confirmStep(l.requestId!, false)}
-                        >
-                          <span className="ai-btn-text">{tg('ux64.disagree')}</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="ai-reply-actions">
-                        <span className="ai-btn-wrap" title={!activeSessionId ? tg('ux64.noSession') : tg('ai.runTip')}>
-                          <button
-                            type="button"
-                            className="ai-fill-cmd-btn ai-btn-agree"
-                            disabled={!activeSessionId}
-                            onClick={() => {
-                              runSuggestedCommand(s.command!)
-                              markDecision(i, 'agreed')
-                            }}
-                          >
-                            {tg('ux64.agreeRun')}
-                          </button>
-                        </span>
-                        <button
-                          type="button"
-                          className="ai-fill-cmd-btn ai-btn-decline"
-                          title={tg('ux64.disagree')}
-                          onClick={() => markDecision(i, 'skipped')}
-                        >
-                          <span className="ai-btn-text">{tg('ux64.disagree')}</span>
-                        </button>
-                      </div>
-                    )}
+                    {commandActions({
+                      command: s.command,
+                      riskLevel: s.riskLevel,
+                      safetyMode: l.safetyMode,
+                      requestId: l.requestId,
+                      fresh: l.fresh,
+                      decision: l.decision,
+                      confirmable: l.requestId ? isConfirmable : true,
+                      onAgree: () => {
+                        if (l.requestId) void confirmStep(l.requestId, true)
+                        else {
+                          runSuggestedCommand(s.command!)
+                          markDecision(i, 'agreed')
+                        }
+                      },
+                      onDecline: () => {
+                        if (l.requestId) void confirmStep(l.requestId, false)
+                        else markDecision(i, 'skipped')
+                      }
+                    })}
                   </div>
                 ) : null}
                 {s.action === 'end' ? (
@@ -887,6 +952,18 @@ export default function AIPanel({
                 confirm
                 decision={l.decision}
                 canRun={Boolean(activeSessionId)}
+                commandBar={(cmd) =>
+                  commandActions({
+                    command: cmd,
+                    fresh: l.fresh,
+                    decision: l.decision,
+                    onAgree: (command) => {
+                      runSuggestedCommand(command)
+                      markDecision(i, 'agreed')
+                    },
+                    onDecline: () => markDecision(i, 'skipped')
+                  })
+                }
                 onAgree={(cmd) => {
                   runSuggestedCommand(cmd)
                   markDecision(i, 'agreed')

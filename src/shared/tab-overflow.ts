@@ -98,6 +98,26 @@ export const TAB_STRIP_NUDGE = 160
 /** Pixels for one DOM_DELTA_LINE notch. Pixel wheels (deltaMode 0) are unchanged. */
 export const TAB_WHEEL_LINE_PX = 48
 
+/**
+ * Floor for one session tab. 188px fits an IPv4 host ("172.19.161.123") plus the
+ * kind icon, the hover ⋯, and the close control at the 13px UI face, so the label
+ * stays recognizable. Tabs do not shrink below this; the strip scrolls.
+ */
+export const TAB_MIN_WIDTH_PX = 188
+
+/** Cap so one very long title does not eat the row. Past this, only that title ellipsizes. */
+export const TAB_MAX_WIDTH_PX = 280
+
+/** `flex` for a tab in the strip: grow 0, shrink 0, basis auto. */
+export function tabItemFlex(): '0 0 auto' {
+  return '0 0 auto'
+}
+
+/** A laid-out tab still wide enough for a host or IP to stay recognizable. */
+export function tabWidthKeepsLabel(widthPx: number): boolean {
+  return Number.isFinite(widthPx) && widthPx + 0.01 >= TAB_MIN_WIDTH_PX
+}
+
 /** About one screen of tabs, and never less than the named nudge (or 120px). */
 export function tabStripNudgePx(clientWidth: number, floor = TAB_STRIP_NUDGE): number {
   const page = clientWidth > 48 ? Math.round(clientWidth * 0.85) : 0
