@@ -55,6 +55,14 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
       },
       where: { zh: 'AI 助手', en: 'AI assistant' },
       action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '主机右键「移动到」会展开目标分组',
+        en: 'Move to on a host opens the list of groups'
+      },
+      where: { zh: '会话栏右键', en: 'Sidebar right-click' }
     }
   ],
   '0.4.4': [

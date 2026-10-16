@@ -1,6 +1,6 @@
-import { forwardRef, useLayoutEffect, useRef, useState, type Ref } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type Ref } from 'react'
 import { createPortal } from 'react-dom'
-import { placeMenu } from '@shared/menu-place'
+import { placeMenu, placeSubmenu } from '@shared/menu-place'
 import type { BuiltItem, BuiltNode, BuiltSub } from '@shared/inline-menus'
 
 type LabelNode = { label?: string; labelKey?: string; labelVars?: Record<string, string | number> }
@@ -29,7 +29,8 @@ function assignRef(ref: Ref<HTMLDivElement> | undefined, value: HTMLDivElement |
 
 /**
  * One renderer for a built row menu. The menu is portaled and flipped with placeMenu
- * so a 1366 window does not grow the main pane.
+ * so a 1366 window does not grow the main pane. A submenu is a sibling of the scrollport,
+ * not a child of it, so the scrolling menu cannot clip the flyout.
  */
 export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
   { nodes, anchorX, anchorY, testId, variant, t, onPick },
@@ -37,7 +38,16 @@ export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
 ) {
   const [pos, setPos] = useState({ x: anchorX, y: anchorY })
   const innerRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const flyoutRef = useRef<HTMLDivElement>(null)
+  const triggerRefs = useRef(new Map<string, HTMLButtonElement>())
+  const closeTimer = useRef<number | null>(null)
+  const [openSubId, setOpenSubId] = useState<string | null>(null)
+  const [flyoutPos, setFlyoutPos] = useState<{ x: number; y: number } | null>(null)
   const sig = nodes.map((node) => (node.type === 'sep' ? '|' : node.id)).join(',')
+  const host = variant === 'host'
+  const subs = nodes.filter((node): node is BuiltSub => node.type === 'sub')
+  const openSub = subs.find((node) => node.id === openSubId) ?? null
 
   useLayoutEffect(() => {
     const el = innerRef.current
@@ -47,8 +57,68 @@ export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
     setPos((prev) => (Math.abs(prev.x - next.x) <= 1 && Math.abs(prev.y - next.y) <= 1 ? prev : next))
   }, [anchorX, anchorY, sig])
 
-  const openLeft = anchorX > window.innerWidth - 320
-  const host = variant === 'host'
+  const clearClose = () => {
+    if (closeTimer.current != null) {
+      window.clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+  }
+
+  const placeOpenFlyout = useCallback(() => {
+    const id = openSubId
+    const trigger = id ? triggerRefs.current.get(id) : null
+    const fly = flyoutRef.current
+    if (!id || !trigger || !fly) return
+    const rect = trigger.getBoundingClientRect()
+    const next = placeSubmenu(
+      { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+      fly.offsetWidth,
+      fly.offsetHeight,
+      window.innerWidth,
+      window.innerHeight
+    )
+    setFlyoutPos((prev) => (prev && Math.abs(prev.x - next.x) <= 1 && Math.abs(prev.y - next.y) <= 1 ? prev : { x: next.x, y: next.y }))
+  }, [openSubId])
+
+  useLayoutEffect(() => {
+    if (!openSubId) {
+      setFlyoutPos(null)
+      return
+    }
+    placeOpenFlyout()
+  }, [openSubId, sig, placeOpenFlyout])
+
+  useEffect(() => {
+    if (!openSubId) return
+    const scroll = scrollRef.current
+    const onMove = () => placeOpenFlyout()
+    scroll?.addEventListener('scroll', onMove)
+    window.addEventListener('resize', onMove)
+    return () => {
+      scroll?.removeEventListener('scroll', onMove)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [openSubId, placeOpenFlyout])
+
+  useEffect(() => () => clearClose(), [])
+
+  const showSub = (id: string) => {
+    clearClose()
+    setOpenSubId(id)
+  }
+
+  const hideSubSoon = () => {
+    clearClose()
+    closeTimer.current = window.setTimeout(() => {
+      const active = document.activeElement
+      const trigger = openSubId ? triggerRefs.current.get(openSubId) : null
+      const fly = flyoutRef.current
+      const row = trigger?.closest('.session-context-submenu-wrap')
+      if (active && (fly?.contains(active) || trigger === active)) return
+      if (fly?.matches(':hover') || row?.matches(':hover')) return
+      setOpenSubId(null)
+    }, 140)
+  }
 
   const itemClass = (node: BuiltItem) =>
     `${host ? 'session-context-menu-item' : ''}${node.danger ? ' danger' : ''}`
@@ -63,6 +133,9 @@ export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
       className={itemClass(node)}
       disabled={node.disabled}
       title={node.title ?? (node.titleKey ? t(node.titleKey) : undefined)}
+      onMouseEnter={() => {
+        if (openSubId) hideSubSoon()
+      }}
       onClick={() => {
         if (node.disabled) return
         onPick(node.id)
@@ -77,20 +150,86 @@ export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
     </button>
   )
 
-  const renderSub = (node: BuiltSub) => (
-    <div key={node.id} className={`session-context-submenu-wrap${openLeft ? ' open-left' : ''}`}>
-      <button type="button" role="menuitem" data-ctx={node.id} className="session-context-menu-item session-context-menu-item--submenu">
+  const renderSubTrigger = (node: BuiltSub) => (
+    <div
+      key={node.id}
+      className={`session-context-submenu-wrap${openSubId === node.id ? ' is-open' : ''}`}
+      onMouseEnter={() => showSub(node.id)}
+      onMouseLeave={hideSubSoon}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={openSubId === node.id}
+        data-ctx={node.id}
+        data-testid={`submenu-trigger-${node.id}`}
+        className="session-context-menu-item session-context-menu-item--submenu"
+        ref={(el) => {
+          if (el) triggerRefs.current.set(node.id, el)
+          else triggerRefs.current.delete(node.id)
+        }}
+        onFocus={() => showSub(node.id)}
+        onBlur={(e) => {
+          const next = e.relatedTarget
+          if (next instanceof Node && flyoutRef.current?.contains(next)) return
+          hideSubSoon()
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowRight' && e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault()
+          showSub(node.id)
+          window.setTimeout(() => {
+            flyoutRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+          }, 0)
+        }}
+      >
         <span>{textOf(node, t)}</span>
         <span className="session-context-menu-caret" aria-hidden>
           ›
         </span>
       </button>
-      <div className="session-context-submenu" role="menu">
-        {node.children.map((child) =>
+    </div>
+  )
+
+  const renderFlyout = (node: BuiltSub) => {
+    const rows = node.children.length
+      ? node.children
+      : [{ type: 'empty' as const, id: `${node.id}-empty`, labelKey: 'app.noFolders' }]
+    return (
+      <div
+        ref={flyoutRef}
+        className="session-context-submenu is-open"
+        role="menu"
+        data-testid={`submenu-${node.id}`}
+        style={{
+          left: flyoutPos?.x ?? 0,
+          top: flyoutPos?.y ?? 0,
+          right: 'auto',
+          visibility: flyoutPos ? 'visible' : 'hidden'
+        }}
+        onMouseEnter={() => showSub(node.id)}
+        onMouseLeave={hideSubSoon}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'Escape') return
+          e.preventDefault()
+          e.stopPropagation()
+          setOpenSubId(null)
+          triggerRefs.current.get(node.id)?.focus()
+        }}
+      >
+        {rows.map((child) =>
           child.type === 'empty' ? (
-            <div key={child.id} className="session-context-submenu-empty">
+            <button
+              key={child.id}
+              type="button"
+              className="session-context-menu-item"
+              disabled
+              data-ctx={child.id}
+              data-testid="submenu-empty"
+            >
               {textOf(child, t)}
-            </div>
+            </button>
           ) : (
             <button
               key={child.id}
@@ -109,8 +248,17 @@ export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
           )
         )}
       </div>
-    </div>
-  )
+    )
+  }
+
+  const body = nodes.map((node, index) => {
+    if (node.type === 'sep') {
+      return host ? <div key={`sep-${index}`} className="session-context-menu-sep" /> : <hr key={`sep-${index}`} />
+    }
+    if (node.type === 'sub') return renderSubTrigger(node)
+    if (node.type === 'empty') return null
+    return renderItem(node)
+  })
 
   return createPortal(
     <div
@@ -118,20 +266,20 @@ export const BuiltMenu = forwardRef<HTMLDivElement, Props>(function BuiltMenu(
         ;(innerRef as { current: HTMLDivElement | null }).current = node
         assignRef(ref, node)
       }}
-      className={host ? 'session-context-menu' : 'tab-context-menu'}
+      className={`${host ? 'session-context-menu' : 'tab-context-menu'}${host && subs.length ? ' has-flyout' : ''}`}
       role="menu"
       data-testid={testId}
       style={{ left: pos.x, top: pos.y }}
       onClick={(e) => e.stopPropagation()}
     >
-      {nodes.map((node, index) => {
-        if (node.type === 'sep') {
-          return host ? <div key={`sep-${index}`} className="session-context-menu-sep" /> : <hr key={`sep-${index}`} />
-        }
-        if (node.type === 'sub') return renderSub(node)
-        if (node.type === 'empty') return null
-        return renderItem(node)
-      })}
+      {host && subs.length ? (
+        <div className="session-context-menu-scrollport" ref={scrollRef}>
+          {body}
+        </div>
+      ) : (
+        body
+      )}
+      {openSub ? renderFlyout(openSub) : null}
     </div>,
     document.body
   )

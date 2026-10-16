@@ -2992,6 +2992,17 @@ body.layout-resizing {
   position: relative;
 }
 
+.session-context-menu.has-flyout {
+  overflow: visible;
+  max-height: none;
+}
+
+.session-context-menu-scrollport {
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+}
+
+.session-context-submenu-wrap.is-open > .session-context-menu-item--submenu,
 .session-context-submenu-wrap:hover > .session-context-menu-item--submenu,
 .session-context-submenu-wrap:focus-within > .session-context-menu-item--submenu {
   background: var(--color-row-hover-bg);
@@ -3013,9 +3024,15 @@ body.layout-resizing {
   z-index: 10001;
 }
 
+.session-context-submenu.is-open,
 .session-context-submenu-wrap:hover > .session-context-submenu,
 .session-context-submenu-wrap:focus-within > .session-context-submenu {
   display: block;
+}
+
+.session-context-submenu.is-open {
+  position: fixed;
+  z-index: 1;
 }
 
 .session-context-submenu-wrap.open-left > .session-context-submenu {
