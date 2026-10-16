@@ -37,6 +37,14 @@ export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> 
       },
       where: { zh: '帮助 → 关于', en: 'Help → About' },
       action: 'about'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏、状态和提示条改用主题色，不再写死一套深色',
+        en: 'The title bar, status, and banners follow the theme colors instead of a fixed dark palette'
+      },
+      where: { zh: '窗口', en: 'Window' }
     }
   ],
   '0.4.9': [
