@@ -17,6 +17,7 @@ import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askConfirm, askText } from '../lib/dialogs'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
+import DockerToolboxTab, { type DockerToolboxOpen } from './DockerToolboxTab'
 
 export type ServerToolsTab = 'processes' | 'services' | 'ports' | 'logs' | 'df' | 'docker'
 
@@ -29,6 +30,10 @@ type Props = {
   embedded?: boolean
   /** S4: kill and service start/stop/restart stay disabled. */
   writesDisabled?: boolean
+  /** Open the existing workspace Docker panel for one compose project, swarm service, or container. */
+  onOpenDocker?: (target: DockerToolboxOpen) => void
+  /** Refresh the session-tree Docker cache after a toolbox action. */
+  onDockerChanged?: () => void
 }
 
 const cleanErr = (e: unknown) =>
@@ -37,7 +42,7 @@ const cleanErr = (e: unknown) =>
 const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs', 'df', 'docker']
 
 /** Processes, systemd services, listening ports and log tail of one connected Linux host. */
-export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded, writesDisabled = false }: Props) {
+export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded, writesDisabled = false, onOpenDocker, onDockerChanged }: Props) {
   const { t } = useI18n()
   const [sessionId, setSessionId] = useState('')
   const [tab, setTab] = useState<ServerToolsTab>('processes')
@@ -123,7 +128,19 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
             {sessionId && tab === 'ports' ? <PortsTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'logs' ? <LogsTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'df' ? <DiskTab key={sessionId} {...common} /> : null}
-            {sessionId && tab === 'docker' ? <DockerTab key={sessionId} sessionId={sessionId} t={t} /> : null}
+            {sessionId && tab === 'docker' ? (
+              <DockerToolboxTab
+                key={sessionId}
+                sessionId={sessionId}
+                busy={busy}
+                writesDisabled={writesDisabled}
+                guard={guard}
+                setNotice={setNotice}
+                t={t}
+                onOpenDocker={onOpenDocker}
+                onDockerChanged={onDockerChanged}
+              />
+            ) : null}
           </>
         )}
       </div>
@@ -139,44 +156,6 @@ type TabProps = {
   guard: <T>(fn: () => Promise<T>) => Promise<T | undefined>
   setNotice: (s: string | null) => void
   t: ReturnType<typeof useI18n>['t']
-}
-
-function DockerTab({ sessionId, t }: { sessionId: string; t: TabProps['t'] }) {
-  const [names, setNames] = useState<string[] | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-  useEffect(() => {
-    let stop = false
-    void window.aiss.docker
-      .listTree(sessionId)
-      .then((tree) => {
-        if (stop) return
-        const rows = tree?.containers?.map((c) => c.name).filter(Boolean) ?? []
-        setNames(rows)
-      })
-      .catch((e) => {
-        if (!stop) setErr(e instanceof Error ? e.message : String(e))
-      })
-    return () => {
-      stop = true
-    }
-  }, [sessionId])
-  if (err) return <p className="st-error">{t('docker.readFail', { reason: err })}</p>
-  if (!names) return <p className="st-muted">{t('rm.loading')}</p>
-  if (!names.length) {
-    return (
-      <div data-testid="toolbox-docker-empty">
-        <p className="st-muted">{t('docker.missing')}</p>
-        <p className="st-muted">{t('docker.install')}</p>
-      </div>
-    )
-  }
-  return (
-    <ul className="st-table" data-testid="toolbox-docker">
-      {names.map((name) => (
-        <li key={name}>{name}</li>
-      ))}
-    </ul>
-  )
 }
 
 function DiskTab({ sessionId, busy, guard, t }: TabProps) {

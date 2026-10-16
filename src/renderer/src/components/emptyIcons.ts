@@ -14,7 +14,8 @@ export const EMPTY_ICONS = {
   snippet: 'clipboard-list',
   forward: 'arrow-left-right',
   alert: 'bell',
-  audit: 'scroll-text'
+  audit: 'scroll-text',
+  docker: 'list-tree'
 } as const satisfies Record<string, IconName>
 
 export type EmptyIconKey = keyof typeof EMPTY_ICONS
