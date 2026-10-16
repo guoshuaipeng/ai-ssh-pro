@@ -179,6 +179,9 @@
   --radius-xl: 10px;
   --radius-pill: 999px;
   --radius-full: 50%;
+  /* P13-4: shared list/table row height */
+  --list-row-height: 32px;
+  --list-row-height-compact: 24px;
   /* UI-N4: menus use --shadow-menu, dialogs and the palette use --shadow-modal, small floats use --shadow-sm. */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-menu: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -1590,16 +1593,16 @@ body.layout-resizing {
   background: transparent;
 }
 .tab-bar-scroll.fade-left {
-  -webkit-mask-image: linear-gradient(to right, transparent, black 24px);
-  mask-image: linear-gradient(to right, transparent, black 24px);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 40px);
+  mask-image: linear-gradient(to right, transparent, black 40px);
 }
 .tab-bar-scroll.fade-right {
-  -webkit-mask-image: linear-gradient(to left, transparent, black 24px);
-  mask-image: linear-gradient(to left, transparent, black 24px);
+  -webkit-mask-image: linear-gradient(to left, transparent, black 40px);
+  mask-image: linear-gradient(to left, transparent, black 40px);
 }
 .tab-bar-scroll.fade-left.fade-right {
-  -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
-  mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent);
 }
 .tab-bar-scroll > .tab {
   /* Polish-8: size to the label. Do not shrink the row down to 服… / 17…. */
@@ -1629,11 +1632,20 @@ body.layout-resizing {
   height: 24px;
   padding: 0;
   line-height: 1;
-  font-size: 14px;
+  font-size: var(--fs-md);
   white-space: nowrap;
 }
 .tab-scroll-btn:disabled {
   opacity: 0.35;
+}
+.tab-scroll-btn:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+  background: var(--color-bg-elevated);
+}
+.tab-scroll-btn:not(:disabled):hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 .tab-overflow-btn {
   flex: none;
@@ -2930,14 +2942,16 @@ body.layout-resizing {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px;
-  border-radius: 5px;
+  padding: 0 6px;
+  min-height: var(--list-row-height);
+  height: var(--list-row-height);
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   user-select: none;
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 
@@ -2981,15 +2995,17 @@ body.layout-resizing {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 6px;
+  padding: 0 6px;
+  min-height: var(--list-row-height);
+  height: var(--list-row-height);
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   margin-bottom: 1px;
   background: transparent;
   cursor: pointer;
   user-select: none;
-  line-height: 1.35;
-  font-size: 12px;
+  line-height: var(--lh-snug);
+  font-size: var(--fs-sm);
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -3440,22 +3456,25 @@ body:has(.debug-window-root) #root {
 }
 .sftp-table th {
   position: sticky; top: 0; background: var(--bg-panel); color: var(--muted);
-  font-weight: 500; text-align: left; padding: 0 10px; height: 32px;
+  font-weight: var(--fw-medium); text-align: left; padding: 0 10px; height: var(--list-row-height);
   border-bottom: 1px solid var(--border);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--fs-sm);
 }
 .sftp-table td {
   padding: 0 10px;
-  height: 32px;
-  max-height: 32px;
+  height: var(--list-row-height);
+  max-height: var(--list-row-height);
   border-top: 1px solid var(--border);
   vertical-align: middle;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 32px;
+  line-height: var(--list-row-height);
+  font-size: var(--fs-sm);
 }
-.sftp-table tbody tr { height: 32px; }
+.sftp-table tbody tr { height: var(--list-row-height); }
+.sftp-table tbody tr:hover { background: var(--color-row-hover-bg); }
 .sftp-table tr.is-selected { background: var(--row-selected-bg); }
 
 .sftp-name-btn {
@@ -5304,4 +5323,120 @@ button.primary.danger:focus-visible {
   font-family: var(--font-mono);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+
+/* P13-1 SFTP center 1366 restraint */
+.sftp-toolbar-actions[data-nowrap='1'] {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.sftp-drive.is-prominent {
+  flex: 0 0 88px;
+  width: 88px;
+  max-width: 96px;
+  min-width: 72px;
+}
+.sftp-drive.is-prominent select {
+  max-width: 96px;
+  height: 28px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.sftp-session-cwd {
+  font-weight: var(--fw-semibold);
+}
+.sftp-advanced {
+  position: relative;
+  flex: none;
+}
+.sftp-advanced > summary {
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  padding: 0 6px;
+  height: 26px;
+  line-height: 26px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+.sftp-advanced > summary::-webkit-details-marker { display: none; }
+.sftp-advanced > summary:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+  background: var(--color-row-hover-bg);
+}
+.sftp-advanced-body {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  padding: 6px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-menu);
+}
+.sftp-panes[data-sftp-split='clear'] {
+  min-height: 0;
+  gap: 0;
+}
+.sftp-dual.is-center-quiet .sftp-toolbar {
+  flex-wrap: nowrap;
+}
+
+/* P13-2 safety band badges (same vibe as risk badges) */
+.safety-ladder {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.safety-band-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+  white-space: nowrap;
+}
+.safety-band-badge.is-active {
+  color: var(--color-text-primary);
+}
+.safety-band-ok.is-active {
+  border-color: var(--color-ok);
+  background: var(--color-ok-muted);
+  color: var(--color-ok);
+}
+.safety-band-warn.is-active {
+  border-color: var(--color-warn);
+  background: var(--color-warn-muted);
+  color: var(--color-warn);
+}
+.safety-band-danger.is-active {
+  border-color: var(--color-danger);
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
+}
+.ai-safety-row .safety-band-badge {
+  flex: none;
+}
+
+/* P13-6 ops home quiet */
+.l7-root[data-ops-quiet='1'] .l7-rail {
+  max-width: 160px;
+}
+.l7-root[data-ops-quiet='1'] .l7-cards {
+  gap: 8px;
 }

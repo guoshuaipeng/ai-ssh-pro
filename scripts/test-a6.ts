@@ -21,7 +21,7 @@ const zh = (key: Parameters<typeof translate>[1]) => translate('zh-CN', key)
 const en = (key: Parameters<typeof translate>[1]) => translate('en', key)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.13')
+assert.equal(pkg.version, '0.4.14')
 assert.ok(pkg.scripts.test.includes('scripts/test-a6.ts'))
 
 assert.equal(canExplainSelection('  df -h  '), true)
