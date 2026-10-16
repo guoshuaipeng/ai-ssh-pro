@@ -4214,8 +4214,12 @@ export default function App() {
         policy,
         conflictIds: importPreview.rows.flatMap((row) => (row.conflict && row.existingId ? [row.existingId] : []))
       })
-      if (shouldShowImportMoment({ count, off: loadPrefFlag(IMPORT_HINT_OFF_KEY) })) setImportMoment({ count, ids })
-      setSideInfo([tg('n2.added', { n: applied.added }), tg('n2.updated', { n: applied.updated }), tg('n2.skipped', { n: applied.skipped })].join(' · '))
+      const showImportMoment = shouldShowImportMoment({ count, off: loadPrefFlag(IMPORT_HINT_OFF_KEY) })
+      if (showImportMoment) setImportMoment({ count, ids })
+      // P12-5: value strip carries the import outcome — do not stack a synonym sideInfo/toast.
+      if (!showImportMoment) {
+        setSideInfo([tg('n2.added', { n: applied.added }), tg('n2.updated', { n: applied.updated }), tg('n2.skipped', { n: applied.skipped })].join(' · '))
+      }
       setImportPreview(null)
       setTabs((prev) => prev.filter((t) => t.view !== 'import-preview'))
     },
@@ -7168,7 +7172,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.12'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.13'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -7208,7 +7212,7 @@ export default function App() {
                     onOpenWorkbench={() => openWorkbench()}
                   />
                 ) : t.view === 'playbook-import' ? (
-                  <PlaybookImportTab appVersion={appVersion || '0.4.12'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <PlaybookImportTab appVersion={appVersion || '0.4.13'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'gate-timeline' ? (
                   <GateTimelineTab
                     focusId={t.gateFocusId}

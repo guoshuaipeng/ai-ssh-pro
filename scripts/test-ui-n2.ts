@@ -96,12 +96,12 @@ const pairs: Array<[string, string, string]> = [
   ['light-hover', lightHover, lightInk],
   ['sand', themeHex("[data-ui-theme='sand']", '--color-accent'), sandInk],
   ['sand-hover', sandHover, sandInk],
-  ['github-dark-danger', themeHex("[data-ui-theme='github-dark']", '--danger'), rootDangerInk],
-  ['slate-danger', themeHex("[data-ui-theme='slate']", '--danger'), rootDangerInk],
-  ['ocean-danger', themeHex("[data-ui-theme='ocean']", '--danger'), rootDangerInk],
-  ['forest-danger', themeHex("[data-ui-theme='forest']", '--danger'), rootDangerInk],
-  ['light-danger', themeHex("[data-ui-theme='light']", '--danger'), lightDangerInk],
-  ['sand-danger', themeHex("[data-ui-theme='sand']", '--danger'), sandDangerInk]
+  ['github-dark-danger', themeHex("[data-ui-theme='github-dark']", '--color-danger'), rootDangerInk],
+  ['slate-danger', themeHex("[data-ui-theme='slate']", '--color-danger'), rootDangerInk],
+  ['ocean-danger', themeHex("[data-ui-theme='ocean']", '--color-danger'), rootDangerInk],
+  ['forest-danger', themeHex("[data-ui-theme='forest']", '--color-danger'), rootDangerInk],
+  ['light-danger', themeHex("[data-ui-theme='light']", '--color-danger'), lightDangerInk],
+  ['sand-danger', themeHex("[data-ui-theme='sand']", '--color-danger'), sandDangerInk]
 ]
 for (const [name, bg, fg] of pairs) {
   const ratio = contrast(bg, fg)
@@ -166,7 +166,7 @@ assert.deepEqual(
 )
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.12')
+assert.equal(pkg.version, '0.4.13')
 assert.match(pkg.scripts.test, /scripts\/test-ui-n2\.ts/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')

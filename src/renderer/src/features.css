@@ -1727,3 +1727,46 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .s1b-note, .s1b-empty { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .s1b-format { flex: none; }
 .s1b-format label { flex: none; }
+
+
+/* P12-4: host profile 1366 restraint — single column, actions nowrap, advanced folded rhythm */
+.inv20[data-host-profile-layout='column'] .inv20-body {
+  flex-direction: column;
+}
+.inv20[data-host-profile-layout='column'] .inv20-left {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+.inv20[data-host-profile-layout='column'] .inv20-notes {
+  width: 100%;
+}
+.inv20-head-actions {
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+.inv20-head-actions > button {
+  flex: none;
+}
+.inv20-advanced {
+  margin-top: 8px;
+}
+.inv20-advanced > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  list-style: none;
+}
+.inv20-advanced > summary::-webkit-details-marker { display: none; }
+@media (max-width: 1366px) {
+  .inv20-head {
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  .inv20-head-actions button .btn-label-wide {
+    /* keep labels; do not wrap the row */
+  }
+  .inv20-title { max-width: 280px; }
+}

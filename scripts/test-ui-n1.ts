@@ -14,6 +14,7 @@ const aliases: Array<[string, string]> = [
   ['--warn', '--color-warn'],
   ['--accent', '--color-accent'],
   ['--border', '--color-border-default'],
+  ['--danger', '--color-danger'],
   ['--panel-2', '--color-bg-code']
 ]
 for (const [alias, source] of aliases) {
@@ -41,7 +42,7 @@ for (const sel of ['.inv20-card', '.ctx-menu', '.o1-card', '.alert-line', '.tab.
 }
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { 'check:tokens': string } }
-assert.equal(pkg.version, '0.4.12')
+assert.equal(pkg.version, '0.4.13')
 assert.match(pkg.scripts['check:tokens'], /check-token-fallbacks/)
 
 const gate = spawnSync(process.execPath, ['scripts/check-token-fallbacks.mjs'], { encoding: 'utf8' })
