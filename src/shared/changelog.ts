@@ -12,6 +12,42 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.8': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 回复改成深色卡片，并标出低、中、高风险',
+        en: 'AI replies are dark cards, with a low, medium, or high risk badge'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '要执行的命令放在等宽条里，同意才写入终端，不同意不执行',
+        en: 'A command sits in a monospace block. Agree writes it; Decline does not run it'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '工具步骤收成一行，不再铺成一堵字',
+        en: 'Tool steps stay on one line instead of a wall of text'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '还没提问时只留一句提示，不再用灰色底板',
+        en: 'Before the first question there is one sentence, not a grey plate'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    }
+  ],
   '0.4.7': [
     {
       icon: '▷',

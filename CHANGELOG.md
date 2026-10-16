@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-Nothing yet.
+v0.4.8 soft-start. Package version is `0.4.8`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
+
+- **AI 回复深色卡片（Polish-7 / UX-64）.** 助手回复不再是一堵灰字。每条回复是一张深色卡片：低、中、高风险徽章在卡片顶上；诊断条目各自一张内卡。要执行的命令放在等宽条里，同意才写入当前终端，不同意不执行，确认路径不变。工具步骤收成一行，字太长就省略。还没提问时只留一句提示，不再用灰色底板。1366×768 下同意和不同意保持同一行。Core-A 的 tipSuggest 为 `0.4.8-polish7`，rollback 为 `0.4.8-polish6`。版本号这一批只升到 0.4.8，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / AI reply cards (Polish-7 / UX-64). Assistant replies are no longer a grey wall of text. Each reply is a dark card: a low, medium, or high risk badge sits at the top, and each diagnostic finding is its own inner card. A command sits in a monospace block and is written only after Agree; Decline does not run it, and the confirm path is unchanged. Tool steps stay on one line and ellipsize. Before the first question there is one sentence, not a grey plate. At 1366×768 Agree and Decline stay on one line. Core-A tipSuggest is `0.4.8-polish7` and rollback is `0.4.8-polish6`. This batch bumps the package once, to 0.4.8, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
 
 ## v0.4.7
 

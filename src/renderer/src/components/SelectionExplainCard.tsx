@@ -160,7 +160,7 @@ export default function SelectionExplainCard({ request, onClose, onOpenSettings,
       {phase === 'ready' && draft ? (
         <>
           {draft.summary ? (
-            <div className="msg assistant ai-structured" data-testid="ai-reply-card" data-card="conclusion" data-readonly="true">
+            <div className="msg assistant ai-structured ai-dark-card" data-testid="ai-reply-card" data-card="conclusion" data-readonly="true">
               <h4 className="ai-reply-notes">{t('a6.summary')}</h4>
               <div className="ai-reply-desc" data-testid="a6-summary">
                 <HighlightedText text={draft.summary} />
@@ -175,13 +175,17 @@ export default function SelectionExplainCard({ request, onClose, onOpenSettings,
           ) : null}
           {draft.command ? (
             <div
-              className="msg assistant ai-structured"
+              className="msg assistant ai-structured ai-dark-card"
               data-testid="ai-reply-card"
               data-card="command"
               data-auto-run="false"
             >
+              <div className="ai-card-head">
+                <div className={`ai-risk-badge ${selectionRiskClass(draft.riskLevel)}`} data-risk={draft.riskLevel}>
+                  {t('ux64.risk', { level: draft.riskLevel })}
+                </div>
+              </div>
               <div className="ai-reply-desc">{t('a6.draft')}</div>
-              <div className={`ai-risk-badge ${selectionRiskClass(draft.riskLevel)}`}>{t('ux64.risk', { level: draft.riskLevel })}</div>
               <div className="ai-reply-cmd">
                 <code className="ai-reply-cmd-code">{draft.command}</code>
                 {decision === 'agreed' ? (
