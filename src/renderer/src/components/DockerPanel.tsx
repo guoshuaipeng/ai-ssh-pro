@@ -12,6 +12,7 @@ import type {
 } from '@shared/ipc'
 import { loadDockerPrefs, saveDockerPrefs } from '../lib/docker-prefs'
 import { tg } from '../lib/i18n'
+import EmptyState from './EmptyState'
 import { Twist } from './Icon'
 import { confirmDialog, promptDialog } from '../lib/dialogs'
 
@@ -1000,7 +1001,7 @@ export default function DockerPanel({
           <>
             <h3 className="docker-section-title">{tg('ui.151')}</h3>
             {services.length === 0 ? (
-              <p className="docker-panel-muted">{tg('ui.152')}</p>
+              <EmptyState compact icon="docker" title={tg('ui.152')} testId="docker-services-empty" />
             ) : (
               <table className="docker-table">
                 <thead>

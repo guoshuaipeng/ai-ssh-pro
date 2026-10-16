@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { PRODUCT_NAME } from '@shared/product'
-import { GITHUB_REPO_URL, effectiveChannelLabel, loadUpdateChannelPrefs } from '@shared/update-channel'
+import { GITEE_REPO_URL, GITHUB_REPO_URL, effectiveChannelLabel, loadUpdateChannelPrefs } from '@shared/update-channel'
 import { useI18n } from '../lib/i18n'
 import BrandMark from './BrandMark'
 
@@ -66,6 +66,18 @@ export default function AboutBlock({ version, isDev = false, checking = false, o
           GitHub
         </button>
       </div>
+      <p className="about-sources">
+        <button
+          type="button"
+          className="about-link"
+          data-testid="about-gitee"
+          onClick={() => {
+            void window.aiss.app.openExternal(GITEE_REPO_URL).catch(() => undefined)
+          }}
+        >
+          {t('about.gitee')}
+        </button>
+      </p>
       <p className="about-license">
         {t('about.license')}
         {' · '}
