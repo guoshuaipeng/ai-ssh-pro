@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-Public HOLD: no tag, no GitHub Release, no site.
+Nothing yet.
 
 ## v0.4.6
 
-v0.4.6 soft-start. Package version is `0.4.6`. Not tagged. No GitHub Release. Windows FileVersion follows the package version. `build.win.fileVersion` is not set.
+v0.4.6. Package version is `0.4.6`. Windows FileVersion follows the package version. `build.win.fileVersion` is not set.
 
-- **服务器工具箱 Docker（Polish-5）.** Docker 页不再是一列名字。它和左侧会话树用同一套 Compose / Swarm / 独立容器模型：状态点、数量、端口徽章。行上可以刷新、打开原来的详情面板、启动、停止、重启；Compose 可以 up -d / down，Swarm 可以 update --force。悬停才露出操作，1366 宽下按钮不换行。没有 Docker，或装了但还没有容器，是一枚图标加一句话，不再用灰色「暂无」底板。删除容器、Compose up/down、Swarm 强制更新，以及 Swarm 任务的重启，都要先确认；确认取消则不执行。Core-A 的 tipSuggest 为 `0.4.8-polish5`，rollback 为 `0.4.8-polish4`。版本号这一批只升到 0.4.6，不另写 FileVersion，不打 tag、不发 Release、不改公开站。Public HOLD。 / Toolbox Docker (Polish-5). The Docker tab is no longer a plain name list. It uses the same Compose / Swarm / standalone model as the session tree: status dots, counts, and port badges. A row can refresh, open the existing detail panel, and start, stop, or restart. Compose can up -d / down, and Swarm can update --force. Actions show on hover and stay on one line at 1366. No Docker, or Docker with no containers, is an icon and one sentence, not a grey “none yet” plate. Deleting a container, Compose up or down, a Swarm force update, and restarting a Swarm task all ask first; cancel does not run them. Core-A tipSuggest is `0.4.8-polish5` and rollback is `0.4.8-polish4`. This batch bumps the package once, to 0.4.6, and does not set a separate FileVersion. No tag, no Release, no public site. Public HOLD.
+- **服务器工具箱 Docker（Polish-5）.** Docker 页不再是一列名字。它和左侧会话树用同一套 Compose / Swarm / 独立容器模型：状态点、数量、端口徽章。行上可以刷新、打开原来的详情面板、启动、停止、重启；Compose 可以 up -d / down，Swarm 可以 update --force。悬停才露出操作，1366 宽下按钮不换行。没有 Docker，或装了但还没有容器，是一枚图标加一句话，不再用灰色「暂无」底板。删除容器、Compose up/down、Swarm 强制更新，以及 Swarm 任务的重启，都要先确认；确认取消则不执行。Core-A 的 tipSuggest 为 `0.4.8-polish5`，rollback 为 `0.4.8-polish4`。版本号是 0.4.6，不另写 FileVersion。 / Toolbox Docker (Polish-5). The Docker tab is no longer a plain name list. It uses the same Compose / Swarm / standalone model as the session tree: status dots, counts, and port badges. A row can refresh, open the existing detail panel, and start, stop, or restart. Compose can up -d / down, and Swarm can update --force. Actions show on hover and stay on one line at 1366. No Docker, or Docker with no containers, is an icon and one sentence, not a grey “none yet” plate. Deleting a container, Compose up or down, a Swarm force update, and restarting a Swarm task all ask first; cancel does not run them. Core-A tipSuggest is `0.4.8-polish5` and rollback is `0.4.8-polish4`. Package version is 0.4.6. There is no separate FileVersion.
 
 ## v0.4.5
 
