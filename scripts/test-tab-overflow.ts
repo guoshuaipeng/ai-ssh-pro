@@ -15,7 +15,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.6')
+assert.equal(pkg.version, '0.4.7')
 
 assert.equal(tabOverflowMark(0), '⌄')
 assert.equal(tabOverflowMark(3), '⌄ 3')
@@ -91,7 +91,10 @@ assert.ok(overflowBtn.includes('tabOverflowMark(tabHiddenCount)'))
 assert.ok(overflowBtn.includes("tr('tab.overflow'"))
 assert.equal(overflowBtn.includes('⋯'), false)
 assert.equal(overflowBtn.includes('更多'), false)
-assert.ok(toolbar.includes('⋯') && toolbar.includes('toolbar.more'))
+assert.ok(toolbar.includes('⋯'))
+assert.equal(toolbar.includes('toolbar.more'), false)
+assert.equal(toolbar.includes('更多'), false)
+assert.ok(toolbar.includes('toolbar.overflow'))
 
 assert.equal(zh('tab.overflow', { n: 12, hidden: 3 }), '所有标签（12）· 3 个未显示')
 assert.equal(en('tab.overflow', { n: 12, hidden: 3 }), 'All tabs (12) · 3 hidden')
@@ -103,6 +106,6 @@ assert.equal(en('tab.scrollRight'), 'Scroll tabs right')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 assert.ok(unreleased.includes('P3-TO'))
 assert.ok(unreleased.includes('⌄'))
-assert.equal(pkg.version, '0.4.6')
+assert.equal(pkg.version, '0.4.7')
 
 console.log('test-tab-overflow ok')

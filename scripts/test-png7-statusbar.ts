@@ -105,7 +105,7 @@ assert.match(i18n, /'pf5\.reconnect': '重连'/)
 assert.match(i18n, /'pf5\.reconnect': 'Reconnect'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.6')
+assert.equal(pkg.version, '0.4.7')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

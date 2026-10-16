@@ -12,6 +12,41 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.7': [
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏不再放三枚布局方块，会话栏、终端区和 AI 面板改在查看菜单里',
+        en: 'The title bar no longer shows three layout squares. Sidebar, terminal, and AI panel live in the View menu'
+      },
+      where: { zh: '查看', en: 'View' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标签条右侧有一枚分屏按钮，默认仍是单窗格',
+        en: 'The tab strip has one split button. The default stays a single pane'
+      },
+      where: { zh: '中间标签条', en: 'Center tab strip' },
+      action: 'toggleSplit'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏溢出入口改成纯图标，只收少用操作',
+        en: 'The title bar overflow control is an icon for less-used actions'
+      },
+      where: { zh: '标题栏', en: 'Title bar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '文件到帮助的菜单都还在，字重和悬停跟产品名同一套',
+        en: 'File through Help stay on the menu bar, with type and hover aligned to the product name'
+      },
+      where: { zh: '标题栏菜单', en: 'Title bar menus' }
+    }
+  ],
   '0.4.6': [
     {
       icon: '▷',

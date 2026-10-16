@@ -14,7 +14,7 @@ function ruleBody(source: string, selector: string): string {
   return m[1]!
 }
 
-const titlebarControls = ['.titlebar-menu-trigger', '.titlebar-btn', '.titlebar-icon-btn', '.layout-toggle-btn', '.app-toolbar-version']
+const titlebarControls = ['.titlebar-menu-trigger', '.titlebar-btn', '.titlebar-icon-btn', '.app-toolbar-version']
 for (const sel of titlebarControls) {
   const body = ruleBody(styles, sel)
   assert.match(body, /min-height:\s*32px/, `${sel} min-height`)
@@ -27,7 +27,8 @@ for (const sel of ['.titlebar-menu-trigger', '.titlebar-btn', '.titlebar-icon-bt
   assert.match(ruleBody(styles, sel), /padding-inline:\s*8px/, `${sel} padding-inline`)
 }
 assert.match(ruleBody(styles, '.app-toolbar-version'), /padding-inline:\s*4px/)
-assert.match(ruleBody(styles, '.layout-toggle-btn'), /padding:\s*0/)
+assert.equal(styles.includes('.layout-toggle-btn'), false)
+assert.equal(styles.includes('.app-toolbar-layout'), false)
 
 const search = ruleBody(styles, '.titlebar-search-btn')
 assert.match(search, /height:\s*32px/)
@@ -85,7 +86,7 @@ assert.equal(toolbar.includes('className="primary"'), false)
 assert.equal(toolbar.includes("className='primary'"), false)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.6')
+assert.equal(pkg.version, '0.4.7')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

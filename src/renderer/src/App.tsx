@@ -5830,12 +5830,6 @@ export default function App() {
     <div className="app-root" data-product-layer={product ?? 'none'} data-product-dimmers={productDimmers}>
       <AppToolbar
         onMenuAction={handleTitlebarMenuAction}
-        onToggleSidebar={toggleSidebar}
-        onToggleMain={toggleMain}
-        onToggleAi={toggleAi}
-        showSidebar={layout.showSidebar}
-        showMain={layout.showMain}
-        showAi={layout.showAi}
         onQuickConnect={quickConnectRecent}
         hasSession={connectedSshSessions.length > 0}
         version={appVersion}
@@ -6273,6 +6267,20 @@ export default function App() {
                 →
               </button>
             ) : null}
+            <button
+              type="button"
+              className={`tab-split-btn${splitEnabled ? ' is-on' : ''}`}
+              data-testid="tab-split"
+              aria-pressed={splitEnabled}
+              aria-label={splitEnabled ? tr('tab.splitExit') : tr('tab.split')}
+              title={splitEnabled ? tr('tab.splitExit') : tr('tab.split')}
+              onClick={() => handleTitlebarMenuAction('toggleSplit')}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            </button>
             {tabChrome.menu ? (
               <button
                 ref={tabOverflowBtnRef}
@@ -7153,7 +7161,7 @@ export default function App() {
                       recoveredAt: alert.recoveredAt,
                       handledManually: alert.handledManually
                     }
-                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.6'} />
+                    return <PostmortemTab alert={tl} events={viewTimeline(tl, eventsFor(alert.id), auditEvents)} version={appVersion || '0.4.7'} />
                   })()
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
@@ -7193,7 +7201,7 @@ export default function App() {
                     onOpenWorkbench={() => openWorkbench()}
                   />
                 ) : t.view === 'playbook-import' ? (
-                  <PlaybookImportTab appVersion={appVersion || '0.4.6'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <PlaybookImportTab appVersion={appVersion || '0.4.7'} onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'gate-timeline' ? (
                   <GateTimelineTab
                     focusId={t.gateFocusId}
