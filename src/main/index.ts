@@ -316,7 +316,7 @@ function openDebugWindow(): void {
     height: 700,
     minWidth: 720,
     minHeight: 440,
-    title: 'AI 调试',
+    title: trayHoverTitle(),
     show: false,
     webPreferences: {
       preload: resolvedPreload,

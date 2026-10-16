@@ -14,6 +14,7 @@ import { keysFor } from '@shared/keymap'
 import { PRODUCT_NAME } from '@shared/product'
 import type { IconName } from '@shared/icon-registry'
 import Icon, { Twist } from './Icon'
+import BrandMark from './BrandMark'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -189,7 +190,10 @@ export default function AppToolbar({
   return (
     <header className={`app-titlebar titlebar-compact-${compactLevel}`} ref={headerRef} data-compact={compactLevel}>
       <div className="app-titlebar-drag">
-        <span className="app-toolbar-brand" title={versionText ? `${PRODUCT_NAME} ${versionText}` : PRODUCT_NAME}>{PRODUCT_NAME}</span>
+        <span className="app-toolbar-brand" title={versionText ? `${PRODUCT_NAME} ${versionText}` : PRODUCT_NAME}>
+          <BrandMark size={16} />
+          {PRODUCT_NAME}
+        </span>
         {versionText && !hideVersion ? (
           <button
             type="button"

@@ -92,7 +92,7 @@ ok(KEYMAP.some((k) => k.id === 'opsHome' && k.keys === 'Ctrl+Alt+H'), 'home shor
 ok(KEYMAP.some((k) => k.id === 'alertWorkbench' && k.keys === 'Ctrl+Alt+A'), 'workbench shortcut')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-ok(pkg.version === '0.4.4', 'package version')
+ok(pkg.version === '0.4.5', 'package version')
 ok(changelogFor('0.4.0').some((e) => e.action === 'playbooks'), 'whats new 0.4.0 playbooks')
 ok(changelogFor('0.4.1').length >= 4, 'whats new 0.4.1')
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')

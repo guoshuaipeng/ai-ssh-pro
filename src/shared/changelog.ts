@@ -12,6 +12,51 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.5': [
+    {
+      icon: '▷',
+      text: {
+        zh: '关于、标题栏和托盘共用产品名和图标',
+        en: 'About, the title bar, and the tray share the product name and icon'
+      },
+      where: { zh: '帮助 → 关于', en: 'Help → About' },
+      action: 'about'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '侧栏、文件、片段、转发和告警为空时，用一句话说明，最多一个主按钮',
+        en: 'An empty sidebar, file list, snippet list, forward list, or alert list is one sentence and at most one primary'
+      },
+      where: { zh: '会话栏', en: 'Sidebar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标签用图标区分种类，不再用彩色左边条',
+        en: 'Tabs use an icon for each kind, not a colored left bar'
+      },
+      where: { zh: '中间标签条', en: 'Center tab strip' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '菜单和弹出层共用同一套阴影，主按钮仍是实心的',
+        en: 'Menus and popovers share one shadow, and primary buttons stay solid'
+      },
+      where: { zh: '标题栏菜单', en: 'Title bar menus' },
+      action: 'commandPalette'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '助手的诊断回复按条目分成卡片，建议执行的命令单独列出',
+        en: 'A diagnostic reply is split into cards, and a suggested command is listed on its own'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    }
+  ],
   '0.4.4': [
     {
       icon: '▷',

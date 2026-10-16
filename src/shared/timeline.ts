@@ -250,7 +250,7 @@ export const DEFAULT_POSTMORTEM: PostmortemOptions = {
   fileDiff: false,
   notes: true,
   lang: 'zh',
-  version: '0.4.4'
+  version: '0.4.5'
 }
 
 const IP_RE = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g

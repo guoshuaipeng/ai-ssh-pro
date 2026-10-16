@@ -25,7 +25,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.4')
+assert.equal(pkg.version, '0.4.5')
 
 assert.throws(() => assertConfirmAllowed('confirm.notWhitelist'), /whitelist/)
 assert.throws(() => assertConfirmAllowed(undefined), /whitelist/)
