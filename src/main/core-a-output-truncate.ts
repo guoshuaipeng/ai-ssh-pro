@@ -11,18 +11,21 @@
  * that thread still cites the held marker and does not cite the dropped filler.
  * Agreeing that draft writes the same cite: the applied bytes still name the
  * held marker, and filler that window already dropped is not written back.
+ * Disagreeing that card does not clear the hold. A later replan still cites
+ * the held marker and does not cite filler, or any rare token that lived only
+ * on the denied draft.
  *
- * Soft-batch pin: tipSuggest `0.4.8-s33`. Rollback is the S32 cite on the draft.
+ * Soft-batch pin: tipSuggest `0.4.8-s34`. Rollback is the S33 cite on Agree.
  */
 
 /** Planner-visible cap for one command's stdout, stderr, or ring. */
 export const OUTPUT_VIEW_CAP = 6000
 
 /** Citeable truncate path. */
-export const tipSuggest = '0.4.8-s33'
+export const tipSuggest = '0.4.8-s34'
 
 /** Previous batch this path rolls back to. */
-export const rollback = '0.4.8-s32'
+export const rollback = '0.4.8-s33'
 
 /** At least 8 characters, so ordinary words are not evidence tokens. */
 const RARE_TOKEN = /[A-Z][A-Z0-9_]{7,}/g

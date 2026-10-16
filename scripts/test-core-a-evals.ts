@@ -50,6 +50,11 @@
  * `citeHold.stable` stays true. Agree requires a real requestId. Deny still
  * writes nothing. Drafting does not open SSH. Another host does not inherit
  * the marker.
+ * S34: disagreeing that card keeps `citeHold.stable`. The deny writes nothing
+ * and stays a deny. The next replan drafts again, still cites the held marker,
+ * and does not cite filler or a rare token that lived only on the denied draft.
+ * The next draft does not treat the denied after-bytes as the file. Drafting
+ * does not open SSH. Another host does not inherit the marker.
  *
  * Run: npx tsx --test scripts/test-core-a-evals.ts
  */
@@ -66,7 +71,9 @@ import {
   applyPatchDraft,
   createMockTree,
   decidePatch,
+  deniedFalseEvidence,
   patchDraftConfirmCard,
+  replanAfterDeny,
   reviewNpmTestFailure
 } from '../src/main/core-a-tfl.ts'
 import {
@@ -1505,8 +1512,8 @@ function assertCiteHold(
  * The cap cannot be raised from the env.
  */
 function assertCiteableTruncateModes(): void {
-  assert.equal(tipSuggest, '0.4.8-s33')
-  assert.equal(rollback, '0.4.8-s32')
+  assert.equal(tipSuggest, '0.4.8-s34')
+  assert.equal(rollback, '0.4.8-s33')
   assert.equal(OUTPUT_VIEW_CAP, 6000)
   const short = truncateCiteableOutput('short ring')
   assert.equal(short.truncated, false)
@@ -1525,8 +1532,8 @@ function assertCiteableTruncateModes(): void {
   const view = truncateCiteableOutput(raw)
   assert.equal(view.truncated, true)
   assert.equal(view.cap, OUTPUT_VIEW_CAP)
-  assert.equal(view.tipSuggest, '0.4.8-s33')
-  assert.equal(view.rollback, '0.4.8-s32')
+  assert.equal(view.tipSuggest, '0.4.8-s34')
+  assert.equal(view.rollback, '0.4.8-s33')
   assert.ok(view.originalChars > view.cap)
   assert.ok(view.shownChars <= view.cap)
   assert.ok(view.shownChars < view.originalChars)
@@ -1677,6 +1684,63 @@ function assertCiteableTruncateModes(): void {
     assert.match(agreedBody, /return 3/)
     assert.equal(agreedBody.includes('s29-dropped-filler-token'), false)
     assert.equal(agreedBody.includes('S29_ABSENT_LINE'), false)
+    const deniedCard = patchDraftConfirmCard(reviewed!)
+    assert.ok(deniedCard.command.includes('s29-dropped-filler-token'), 'the denied diff still shows the filler line')
+    const poisoned = {
+      ...reviewed!,
+      draft: {
+        ...reviewed!.draft,
+        explanation: `${reviewed!.draft.explanation}\n已写入 s29-dropped-filler-token 和 S29_ABSENT_LINE。`,
+        hunks: reviewed!.draft.hunks.map((hunk) => ({
+          ...hunk,
+          after: `${hunk.after}// s29-dropped-filler-token\nS29_ABSENT_LINE\n`
+        }))
+      }
+    }
+    const poisonTokens = deniedFalseEvidence(poisoned, held)
+    assert.ok(poisonTokens.includes('s29-dropped-filler-token'))
+    assert.ok(poisonTokens.includes('S29_ABSENT_LINE'))
+    const replanTree = createMockTree({
+      'tests/fixtures/core-a/mock-s29-unit.ts': patchBefore
+    })
+    const holdBefore = JSON.stringify(held)
+    const replanned = replanAfterDeny(poisoned, replanTree, held)
+    assert.equal(JSON.stringify(held), holdBefore, 'deny mutated citeHold')
+    assert.equal(replanned.hold?.stable, true)
+    assert.deepEqual(replanned.hold?.outsideHeadTail, held?.outsideHeadTail)
+    assert.deepEqual(replanned.hold?.droppedFiller, held?.droppedFiller)
+    assert.equal(replanned.denied.state.phase, 'cancelled')
+    assert.equal(replanned.denied.state.resume, 'deny')
+    assert.equal(replanned.denied.applied, false)
+    assert.equal(replanTree.writeCount(), 0)
+    assert.equal(replanTree.snapshot()['tests/fixtures/core-a/mock-s29-unit.ts'], patchBefore)
+    assert.equal(replanned.next.hitl.phase, 'interrupted')
+    assert.notEqual(replanned.next.hitl.requestId, reviewed!.hitl.requestId)
+    assert.equal(sideEffectExecutionPermitted(replanned.next.hitl), false)
+    assert.equal(patchWritePermitted(replanned.next.hitl), false)
+    assert.match(replanned.next.draft.explanation, /S29_RARE_MARKER/)
+    assert.match(replanned.next.draft.explanation, /补丁草案/)
+    assert.equal(replanned.next.draft.explanation.includes('s29-dropped-filler-token'), false)
+    assert.equal(replanned.next.draft.explanation.includes('S29_ABSENT_LINE'), false)
+    const replanHunk = replanned.next.draft.hunks[0]
+    assert.ok(replanHunk)
+    assert.equal(replanHunk.before, patchBefore)
+    assert.match(replanHunk.after, /S29_RARE_MARKER/)
+    assert.match(replanHunk.after, /return 3/)
+    assert.equal(replanHunk.after.includes('s29-dropped-filler-token'), false)
+    assert.equal(replanHunk.after.includes('S29_ABSENT_LINE'), false)
+    const replanAgreed = decidePatch(replanned.next, true, createMockTree({
+      'tests/fixtures/core-a/mock-s29-unit.ts': patchBefore
+    }))
+    assert.equal(replanAgreed.applied, true)
+    assert.equal(sideEffectExecutionPermitted(replanAgreed.state), false)
+    const replanBody = replanAgreed.tree.snapshot()['tests/fixtures/core-a/mock-s29-unit.ts'] ?? ''
+    assert.match(replanBody, /S29_RARE_MARKER/)
+    assert.equal(replanBody.includes('s29-dropped-filler-token'), false)
+    assert.equal(replanBody.includes('S29_ABSENT_LINE'), false)
+    const deniedWrite = applyPatchDraft(replanned.denied.state, replanned.next.draft, replanTree)
+    assert.equal(deniedWrite.applied, false)
+    assert.equal(replanTree.writeCount(), 0)
     const noIdTree = createMockTree({
       'tests/fixtures/core-a/mock-s29-unit.ts': patchBefore
     })
@@ -1906,6 +1970,57 @@ function assertTfl(fixture: Fixture, hold?: CiteWindow | null): void {
   assert.equal(declineTree.writeCount(), 0, `${label}: decline wrote`)
   assert.deepEqual(declineTree.snapshot(), started, `${label}: decline changed the tree`)
 
+  const replanTree = createMockTree(spec.mockTree)
+  const holdBefore = hold ? JSON.stringify(hold) : ''
+  const replanned = replanAfterDeny(review, replanTree, hold)
+  assert.equal(replanned.denied.state.phase, 'cancelled', `${label}: deny was rewritten`)
+  assert.equal(replanned.denied.state.resume, 'deny', `${label}: replan recorded a cancel`)
+  assert.equal(replanned.denied.applied, false, `${label}: deny wrote`)
+  assert.equal(replanTree.writeCount(), 0, `${label}: replan wrote`)
+  assert.deepEqual(replanTree.snapshot(), started, `${label}: replan changed the tree`)
+  assert.equal(replanned.next.hitl.phase, 'interrupted', `${label}: replan did not open a new confirm`)
+  assert.ok(replanned.next.hitl.requestId, `${label}: replan has no confirm id`)
+  assert.notEqual(replanned.next.hitl.requestId, review.hitl.requestId, `${label}: replan reused the denied confirm id`)
+  assert.equal(sideEffectExecutionPermitted(replanned.next.hitl), false, `${label}: replan opened SSH`)
+  assert.equal(patchWritePermitted(replanned.next.hitl), false, `${label}: replanned draft is writable`)
+  const replanBlocked = applyPatchDraft(replanned.next.hitl, replanned.next.draft, replanTree)
+  assert.equal(replanBlocked.applied, false, `${label}: replanned draft applied before agree`)
+  assert.equal(replanTree.writeCount(), 0, `${label}: interrupted replan wrote`)
+  const deniedStateWrite = applyPatchDraft(replanned.denied.state, replanned.next.draft, replanTree)
+  assert.equal(deniedStateWrite.applied, false, `${label}: denied state wrote the next draft`)
+  for (const fact of spec.explanationMustContain) {
+    assert.ok(replanned.next.draft.explanation.includes(fact), `${label}: replan explanation missing ${fact}`)
+  }
+  for (const fact of spec.explanationMustNotContain ?? []) {
+    assert.equal(replanned.next.draft.explanation.includes(fact), false, `${label}: replan explanation cited ${fact}`)
+  }
+  if (hold && (hold.outsideHeadTail.length > 0 || hold.droppedFiller.length > 0)) {
+    assert.equal(JSON.stringify(hold), holdBefore, `${label}: deny mutated citeHold`)
+    assert.equal(hold.stable, true, `${label}: deny saw an unstable citeHold`)
+    assert.equal(replanned.hold?.stable, true, `${label}: replan cleared citeHold.stable`)
+    assert.deepEqual(replanned.hold?.outsideHeadTail, [...hold.outsideHeadTail], `${label}: replan dropped a held marker`)
+    assert.deepEqual(replanned.hold?.droppedFiller, [...hold.droppedFiller], `${label}: replan dropped a filler hold`)
+    for (const marker of hold.outsideHeadTail) {
+      assert.ok(replanned.next.draft.explanation.includes(marker), `${label}: replan dropped held marker ${marker}`)
+    }
+    for (const token of deniedFalseEvidence(review, hold)) {
+      assert.equal(replanned.next.draft.explanation.includes(token), false, `${label}: replan inherited false evidence ${token}`)
+    }
+    for (const hunk of replanned.next.draft.hunks) {
+      assert.equal(hunk.before, started[hunk.path], `${label}: replan before is not the original file`)
+      for (const marker of hold.outsideHeadTail) {
+        assert.ok(hunk.after.includes(marker), `${label}: replan after dropped held marker ${marker}`)
+        assert.equal(hunk.before.includes(marker), false, `${label}: replan treated the denied write as the file`)
+      }
+      for (const filler of hold.droppedFiller) {
+        assert.equal(hunk.after.includes(filler), false, `${label}: replan after cited dropped filler ${filler}`)
+      }
+      for (const token of deniedFalseEvidence(review, hold)) {
+        assert.equal(hunk.after.includes(token), false, `${label}: replan after inherited false evidence ${token}`)
+      }
+    }
+  }
+
   const agreeTree = createMockTree(spec.mockTree)
   const agreed = decidePatch(review, true, agreeTree)
   assert.equal(agreed.state.phase, 'executing')
@@ -2021,6 +2136,20 @@ function assertPatchDraftStaysOnHost(fixture: Fixture, historyKey: string): void
   const declined = decidePatch(review, false, tree)
   assert.equal(declined.applied, false, `${fixture.id}: host B deny applied the draft`)
   assert.equal(tree.writeCount(), 0, `${fixture.id}: host B deny wrote`)
+  const replanTree = createMockTree(spec.mockTree)
+  const replanned = replanAfterDeny(review, replanTree, foreign)
+  assert.equal(replanned.denied.applied, false, `${fixture.id}: host B replan deny wrote`)
+  assert.equal(replanTree.writeCount(), 0, `${fixture.id}: host B replan wrote`)
+  assert.equal(sideEffectExecutionPermitted(replanned.next.hitl), false, `${fixture.id}: host B replan opened SSH`)
+  assert.equal(patchWritePermitted(replanned.next.hitl), false, `${fixture.id}: host B replanned draft is writable`)
+  assert.equal(replanned.hold?.stable ?? true, true, `${fixture.id}: host B replan marked an unstable hold`)
+  assert.deepEqual(replanned.hold?.outsideHeadTail ?? [], foreign?.outsideHeadTail ?? [], `${fixture.id}: host B replan inherited markers`)
+  for (const marker of home?.outsideHeadTail ?? []) {
+    assert.equal(replanned.next.draft.explanation.includes(marker), false, `${fixture.id}: host B replan cited ${marker}`)
+    for (const hunk of replanned.next.draft.hunks) {
+      assert.equal(hunk.after.includes(marker), false, `${fixture.id}: host B replan after cited ${marker}`)
+    }
+  }
   const agreeTree = createMockTree(spec.mockTree)
   const agreed = decidePatch(review, true, agreeTree)
   assert.equal(sideEffectExecutionPermitted(agreed.state), false, `${fixture.id}: host B agree opened SSH`)

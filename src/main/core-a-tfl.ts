@@ -3,8 +3,11 @@
  *
  * A failing gate becomes a local explanation plus a patch draft. The draft is a
  * proposal until the human Agrees, using the same interrupt / resume phases as
- * command confirm. Decline writes nothing. Agree writes only through the
- * in-memory harness mock passed by the caller.
+ * command confirm. Decline writes nothing and stays a deny. A replan after
+ * that deny drafts again from the original tree and the cite hold. It does
+ * not treat the denied diff as the file, and it does not cite filler or a
+ * rare token that existed only on the denied draft. Agree writes only through
+ * the in-memory harness mock passed by the caller.
  *
  * No model call, no network, no filesystem, no child process. No Mastra or
  * LangGraph package. Secrets in the failure text are redacted in the explanation.
@@ -20,7 +23,7 @@ import {
   sideEffectExecutionPermitted,
   type HitlLoopState
 } from './core-a-context'
-import { citeHeldAppliedWrite, citeHeldPatchDraft, type CiteWindow } from './core-a-output-truncate'
+import { citeHeldAppliedWrite, citeHeldPatchDraft, rareMarkers, type CiteWindow } from './core-a-output-truncate'
 
 export type GateFailure = {
   gate: string
@@ -313,6 +316,104 @@ export function decidePatch(review: TflReview, approved: boolean, tree: MockTree
   }
   const executing = markHitlExecuting(resumed)
   return { state: executing, ...applyPatchDraft(executing, review.draft, tree) }
+}
+
+export type DenyReplan = {
+  /** The deny that was just recorded. It stays `cancelled` / `deny`, not a cancel. */
+  denied: ApplyResult & { state: HitlLoopState }
+  /** A new confirm-style draft. Its request id is not the denied one. */
+  next: TflReview
+  /** Cite window after the deny. Markers, filler, and `stable` are unchanged. */
+  hold: CiteWindow | null
+}
+
+function cloneCiteHold(hold?: CiteWindow | null): CiteWindow | null {
+  if (!hold) return null
+  return {
+    head: hold.head,
+    tail: hold.tail,
+    outsideHeadTail: [...hold.outsideHeadTail],
+    droppedFiller: [...hold.droppedFiller],
+    stable: hold.stable
+  }
+}
+
+/**
+ * Evidence the denied draft must not hand to the next one.
+ * Dropped filler is never evidence, even when the untouched file still
+ * contains it. A rare token is false evidence when it appears only on the
+ * denied explanation or the denied after-bytes: not in the cite hold, and
+ * not already in the file the deny left unchanged.
+ */
+export function deniedFalseEvidence(review: TflReview, hold?: CiteWindow | null): string[] {
+  const held = new Set((hold?.outsideHeadTail ?? []).filter((token) => token.length > 0))
+  const before = review.draft.hunks.map((hunk) => hunk.before).join('\n')
+  const proposed = [review.draft.explanation, review.draft.summary, ...review.draft.hunks.map((hunk) => hunk.after)].join('\n')
+  const invented = rareMarkers(proposed).filter((token) => !held.has(token) && !before.includes(token))
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const token of [...(hold?.droppedFiller ?? []), ...invented]) {
+    if (!token || seen.has(token)) continue
+    seen.add(token)
+    out.push(token)
+  }
+  return out
+}
+
+function scrubFalseEvidence(text: string, tokens: readonly string[]): string {
+  let out = text
+  for (const token of tokens) {
+    if (!token || !out.includes(token)) continue
+    out = out.split(token).join('')
+  }
+  return out
+}
+
+function replanRequestId(deniedId: string | null, draftId: string): string {
+  const base = (deniedId?.trim() || draftId || 'tfl-replan').slice(0, 180)
+  const next = `${base}-replan`
+  return next === deniedId ? `${base}-replan-2` : next
+}
+
+/**
+ * Disagree, then draft again. The deny writes nothing and stays a deny.
+ * The cite hold is not mutated. The next card is a new interrupt: it cites
+ * held markers, drops filler the window already dropped, and does not inherit
+ * rare tokens that existed only on the denied draft. The next `before` is the
+ * file the deny left in place, not the denied after-bytes. Drafting does not
+ * open an SSH write.
+ */
+export function replanAfterDeny(review: TflReview, tree: MockTree, hold?: CiteWindow | null): DenyReplan {
+  const kept = cloneCiteHold(hold)
+  const started = tree.snapshot()
+  const denied = decidePatch(review, false, tree)
+  const wrote = denied.applied || denied.written.length > 0
+  const stillDenied = denied.state.phase === 'cancelled' && denied.state.resume === 'deny'
+  const unchanged = JSON.stringify(tree.snapshot()) === JSON.stringify(started)
+  if (!stillDenied || wrote || !unchanged) {
+    return { denied, next: review, hold: kept }
+  }
+  const falseTokens = deniedFalseEvidence(review, kept)
+  const drafted = reviewGateFailure(review.failure, tree, kept)
+  const explanation = citeHeldPatchDraft(scrubFalseEvidence(drafted.draft.explanation, falseTokens), kept)
+  const hunks = drafted.draft.hunks.map((hunk) => {
+    const body = tree.read(hunk.path)
+    return {
+      ...hunk,
+      before: typeof body === 'string' ? body : hunk.before,
+      after: citeHeldAppliedWrite(scrubFalseEvidence(hunk.after, falseTokens), kept)
+    }
+  })
+  const draft: PatchDraft = { ...drafted.draft, explanation, hunks }
+  const hitl = interruptForProposal(createHitlLoop(), {
+    action: 'patch',
+    toolName: 'apply_patch',
+    command: draft.summary,
+    riskLevel: 'high',
+    requestId: replanRequestId(review.hitl.requestId, draft.id),
+    autoApproveLowRisk: true
+  })
+  return { denied, next: { ...drafted, draft, hitl }, hold: kept }
 }
 
 /**
