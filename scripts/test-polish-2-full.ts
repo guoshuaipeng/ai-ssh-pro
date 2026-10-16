@@ -17,9 +17,9 @@ import { translate } from '../src/renderer/src/lib/i18n'
 const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('zh-CN', key, vars)
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: { fileVersion?: string } } }
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: Record<string, unknown> } }
 assert.equal(pkg.version, '0.4.5')
-assert.equal(pkg.build?.win?.fileVersion, '0.4.5')
+assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 
 const early = pinnedIds({ settings: { count: 2, last: 1 } })
 assert.deepEqual(early, ['settings'], 'fewer than 3 uses still pins')

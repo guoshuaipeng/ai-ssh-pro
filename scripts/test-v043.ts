@@ -21,7 +21,7 @@ const styles = read('src/renderer/src/styles.css')
 const main = read('src/main/index.ts')
 
 assert.equal(pkg.version, '0.4.5')
-assert.equal(pkg.build.win.fileVersion, '0.4.5')
+assert.equal('fileVersion' in pkg.build.win, false)
 assert.ok(changelog.includes('## v0.4.3\n'))
 assert.ok(changelog.includes('## v0.4.2\n'))
 assert.ok(changelogFor('0.4.3').length >= 4)
