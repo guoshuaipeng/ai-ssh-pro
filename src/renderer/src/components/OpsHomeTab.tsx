@@ -2,12 +2,19 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'reac
 import type { FiredAlert } from '@shared/alert-rules'
 import type { DashScope } from '@shared/dashboard-scope'
 import { pickHealthHosts } from '@shared/dashboard-scope'
-import { selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
+import { opsHomeCardCap, opsHomeQuietLayout } from '@shared/ops-home-density'
+import { probeFiltersActive, selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
+import { loadMaintenance, silenceUntil } from '@shared/maintenance'
 import type { ProtectionLevel } from '@shared/protection'
-import { useI18n } from '../lib/i18n'
+import { useI18n, type MessageKey } from '../lib/i18n'
 import { useHealthSampling, type SampleHost } from '../lib/health-sampling'
+import { healthMenuItems, type MenuEntry } from '@shared/inline-menus'
+import { planAlertFix } from '../lib/alert-fix'
+import { showToast } from '../lib/toast'
 import { AlertLine } from './AlertLine'
+import { BuiltMenu } from './BuiltMenu'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 import HealthProbeFields from './HealthProbeFields'
 import ScopePicker from './ScopePicker'
 
@@ -25,11 +32,12 @@ export type HomeHost = {
   via?: string
   recent?: boolean
   pinned?: boolean
+  tags?: string[]
 }
 
 type Snap = { cpu: number | null; mem: number | null; disk: number | null; error: string | null; loading: boolean }
 
-type MenuState = { x: number; y: number; profileId: string } | null
+type MenuState = { x: number; y: number; profileId: string; entry: MenuEntry } | null
 
 export default function OpsHomeTab({
   hosts,
@@ -49,6 +57,8 @@ export default function OpsHomeTab({
   onConnect,
   onLocate,
   onExplain,
+  aiConfigured,
+  onCreateFix,
   onDismiss,
   onUnmute,
   onRules,
@@ -71,6 +81,8 @@ export default function OpsHomeTab({
   probeGrouped,
   probeActive,
   probeNonce,
+  retryAllNonce,
+  onFailCount,
   onSample,
   onSweep,
   onRelease
@@ -92,6 +104,8 @@ export default function OpsHomeTab({
   onConnect: (host: HomeHost) => void
   onLocate: (a: FiredAlert) => void
   onExplain: (a: FiredAlert) => void
+  aiConfigured?: boolean
+  onCreateFix?: (alert: FiredAlert, fixes: Array<{ command: string; note?: string }>) => void
   onDismiss: (a: FiredAlert) => void
   onUnmute: () => void
   onRules: () => void
@@ -114,6 +128,8 @@ export default function OpsHomeTab({
   probeGrouped: boolean
   probeActive: boolean
   probeNonce: number
+  retryAllNonce?: number
+  onFailCount?: (n: number) => void
   onSample: (host: SampleHost) => Promise<HealthProbeResult>
   onSweep: (idleMs: number) => void
   onRelease: () => void
@@ -136,6 +152,8 @@ export default function OpsHomeTab({
         order,
         recent: h.recent,
         pinned: h.pinned,
+        tags: h.tags,
+        protection: h.protection,
         title: h.title,
         demo: h.demo,
         sessionId: h.sessionId
@@ -151,7 +169,17 @@ export default function OpsHomeTab({
     const ids = new Set(probeTargets.map((t) => t.profileId))
     return hosts.filter((h) => ids.has(h.profileId))
   }, [hosts, probePrefs.enabled, probeTargets])
-  const ranked = useMemo(() => pickHealthHosts(cardSource, (h) => h.alerting, 8), [cardSource])
+  const [opsWidth, setOpsWidth] = useState(() => (typeof window === 'undefined' ? 1400 : window.innerWidth))
+  useEffect(() => {
+    const onResize = () => setOpsWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const quietLayout = opsHomeQuietLayout(opsWidth, typeof window === 'undefined' ? 900 : window.innerHeight)
+  const ranked = useMemo(
+    () => pickHealthHosts(cardSource, (h) => h.alerting, opsHomeCardCap(opsWidth)),
+    [cardSource, opsWidth]
+  )
   const visibleSamples = useMemo<SampleHost[]>(
     () =>
       ranked.shown.map((h) => ({
@@ -162,16 +190,38 @@ export default function OpsHomeTab({
       })),
     [ranked.shown]
   )
+  const tagOptions = useMemo(() => [...new Set(hosts.flatMap((h) => h.tags ?? []))].sort(), [hosts])
+  const unfilteredCount = useMemo(() => {
+    if (!probePrefs.enabled) return hosts.length
+    return selectProbeTargets(
+      sampleHosts,
+      { ...probePrefs, filterTags: false, tags: [], prodOnly: false, excludeReadonly: false },
+      { grouped: probeGrouped }
+    ).length
+  }, [probePrefs, sampleHosts, probeGrouped, hosts.length])
   const sampling = useHealthSampling({
     enabled: probePrefs.enabled,
     hosts: visibleSamples,
     maxConcurrent: probePrefs.maxConcurrent,
     active: probeActive,
     nonce: probeNonce + retryNonce,
+    backoffCapMin: probePrefs.backoffCapMin,
+    retryAllNonce,
     onSample,
     onSweep,
     onRelease
   })
+  const failCount = Object.values(sampling.snaps).filter((s) => s.phase === 'fail').length
+  useEffect(() => {
+    onFailCount?.(failCount)
+  }, [failCount, onFailCount])
+  const filterSummary = [
+    probePrefs.filterTags && probePrefs.tags.length ? t('l7c.summaryTags', { tags: probePrefs.tags.join(',') }) : '',
+    probePrefs.prodOnly ? t('l7c.summaryProd') : probePrefs.excludeReadonly ? t('l7c.summaryRo') : ''
+  ].filter(Boolean).join(' · ')
+  const showFiltered = probePrefs.enabled && probeFiltersActive(probePrefs) && probeTargets.length !== unfilteredCount
+  const filterEmpty = probePrefs.enabled && hosts.length > 0 && unfilteredCount > 0 && probeTargets.length === 0
+  const cooling = now < sampling.coolUntil
   const inbox = useMemo(() => {
     const rows = alerts.filter((a) => (inboxFilter === 'all' ? true : a.status === (inboxFilter === 'ignored' ? 'ignored' : 'active')))
     return rows.slice(0, 40)
@@ -235,9 +285,9 @@ export default function OpsHomeTab({
   }, [ranked.shown, loadSnaps, retryNonce, probePrefs.enabled])
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 30000)
+    const id = window.setInterval(() => setNow(Date.now()), failCount ? 1000 : 30000)
     return () => window.clearInterval(id)
-  }, [])
+  }, [failCount])
 
   useEffect(() => {
     if (!menu && !more && !probeOpen) return
@@ -259,36 +309,22 @@ export default function OpsHomeTab({
 
   if (hosts.length === 0 && scope.mode === 'all') {
     return (
-      <div className="workspace-panel l7-root" data-testid="ops-home">
+      <div className="workspace-panel l7-root" data-testid="ops-home" data-ops-quiet={quietLayout.foldSecondary ? '1' : '0'} data-ops-card-cap={quietLayout.cardCap}>
         <div className="workspace-panel-toolbar l7-head">
           <h2 className="workspace-panel-title">{t('l7.title')}</h2>
         </div>
         <div className="workspace-panel-body">
           <EmptyState
             testId="l7-empty"
-            icon="▣"
-            title={t('l7.emptyTitle')}
-            desc={t('l7.emptyDesc')}
-            primary={{ label: t('l7.newConnection'), onClick: onNewConnection, testId: 'l7-new-connection' }}
+            icon="host"
+            title={t('ux08.sidebarTitle')}
+            desc={t('pf4.hostsDesc')}
+            primary={{ label: t('pf1.new'), onClick: onNewConnection, testId: 'l7-new-connection', command: 'connection' }}
             secondary={[
-              { label: t('l7.import'), onClick: onImport },
-              { label: t('l7.tryDemo'), onClick: onDemo, testId: 'l7-try-demo' }
+              { label: t('pf1.import'), onClick: onImport, command: 'importSessions' },
+              { label: t('pf4.tryDemo'), onClick: onDemo, testId: 'l7-try-demo', command: 'demoHost' }
             ]}
-          >
-            <div className="l7-empty-links">
-              <button type="button" onClick={onTour}>
-                {t('l7.tour')}
-              </button>
-              <button type="button" onClick={onPlaybook}>
-                {t('l7.aboutPlaybooks')}
-              </button>
-              {onRestoreSync ? (
-                <button type="button" onClick={onRestoreSync}>
-                  {t('l7.restoreSync')}
-                </button>
-              ) : null}
-            </div>
-          </EmptyState>
+          />
         </div>
       </div>
     )
@@ -298,12 +334,13 @@ export default function OpsHomeTab({
   const primaryIsAlerts = activeCount > 0
 
   return (
-    <div className="workspace-panel l7-root" data-testid="ops-home">
+    <div className="workspace-panel l7-root" data-testid="ops-home" data-ops-quiet={quietLayout.foldSecondary ? '1' : '0'} data-ops-card-cap={quietLayout.cardCap}>
       <div className="workspace-panel-toolbar l7-head">
         <h2 className="workspace-panel-title">
           {t('l7.title')}
           <span className="l7-meta">
             {t('l7.meta', { n: hosts.length, a: activeCount })}
+            {showFiltered ? <span data-testid="l7c-filtered"> · {t('l7c.filteredCount', { n: probeTargets.length })}</span> : null}
           </span>
         </h2>
         <div className="workspace-panel-actions l7-head-actions">
@@ -316,11 +353,6 @@ export default function OpsHomeTab({
               {t('l7.newConnection')}
             </button>
           )}
-          {primaryIsAlerts ? (
-            <button type="button" data-testid="l7-open-dashboard" onClick={onOpenDashboard}>
-              {t('l7.openDashboard')}
-            </button>
-          ) : null}
           <button
             type="button"
             aria-label={t('l7.more')}
@@ -334,11 +366,9 @@ export default function OpsHomeTab({
           </button>
           {more ? (
             <div className="l7-more" role="menu" onClick={(e) => e.stopPropagation()}>
-              {!primaryIsAlerts ? (
-                <button type="button" onClick={() => { setMore(false); onOpenDashboard() }}>
-                  {t('l7.openDashboard')}
-                </button>
-              ) : null}
+              <button type="button" data-testid="l7-open-dashboard" onClick={() => { setMore(false); onOpenDashboard() }}>
+                {t('l7.openDashboard')}
+              </button>
               <button type="button" onClick={() => { setMore(false); onRules() }}>
                 {t('menu.alertRules')}
               </button>
@@ -391,7 +421,7 @@ export default function OpsHomeTab({
           ) : null}
           {probeOpen ? (
             <div className="l7-more l7b-settings" data-testid="l7b-settings" role="dialog" aria-label={t('l7b.settings')} onClick={(e) => e.stopPropagation()}>
-              <HealthProbeFields prefs={probePrefs} onChange={onProbePrefs} />
+              <HealthProbeFields prefs={probePrefs} tagOptions={tagOptions} onChange={onProbePrefs} />
             </div>
           ) : null}
         </div>
@@ -401,16 +431,43 @@ export default function OpsHomeTab({
           <header className="l7-col-head">
             <strong>{t('l7.health')}</strong>
             <ScopePicker scope={scope} folders={folders} hosts={hosts.map((h) => ({ id: h.profileId, title: h.title }))} onChange={onScope} />
-            <button type="button" data-testid="l7-health-refresh" onClick={() => setRetryNonce((n) => n + 1)}>
-              {t('l7.refresh')}
+            <button
+              type="button"
+              className="l7-icon-btn"
+              data-testid="l7-health-refresh"
+              title={t('l7.refresh')}
+              aria-label={t('l7.refresh')}
+              onClick={() => setRetryNonce((n) => n + 1)}
+            >
+              <Icon name="refresh-cw" size={16} strokeWidth={1.5} />
             </button>
+            {failCount > 0 ? (
+              <button
+                type="button"
+                data-testid="l7c-retry-all"
+                disabled={cooling}
+                title={cooling ? t('l7c.retryCool') : t('l7c.retryAll')}
+                onClick={() => sampling.retryAll()}
+              >
+                {cooling ? t('l7c.retryCool') : t('l7c.retryAll')}
+              </button>
+            ) : null}
+            {filterSummary ? <span className="l7c-summary" title={filterSummary}>{filterSummary}</span> : null}
             <span className="l7b-head-status">
               {probePrefs.enabled
                 ? `${t('l7b.autoOn')} · ${sampling.lastOkAt ? (now - sampling.lastOkAt < 5000 ? t('l7b.justNow') : t('l7b.updatedAgo', { n: Math.max(0, Math.round((now - sampling.lastOkAt) / 1000)) })) : t('l7b.justNow')}`
                 : t('l7b.autoOffHint')}
             </span>
           </header>
-          {ranked.shown.length === 0 ? (
+          {filterEmpty ? (
+            <div data-testid="l7c-empty-filter">
+              <p className="l7-muted">{t('l7c.emptyFilter')}</p>
+              <button type="button" onClick={() => onProbePrefs({ filterTags: false, tags: [], prodOnly: false, excludeReadonly: false })}>
+                {t('l7c.clearFilter')}
+              </button>
+              <button type="button" onClick={() => setProbeOpen(true)}>{t('l7b.settings')}</button>
+            </div>
+          ) : ranked.shown.length === 0 ? (
             <p className="l7-muted">{t('l7.scopeEmpty')}</p>
           ) : (
             <div className="l7-cards">
@@ -433,9 +490,10 @@ export default function OpsHomeTab({
                       e.preventDefault()
                       onConnect(h)
                     }}
+                    data-overflow="none"
                     onContextMenu={(e) => {
                       e.preventDefault()
-                      setMenu({ x: e.clientX, y: e.clientY, profileId: h.profileId })
+                      setMenu({ x: e.clientX, y: e.clientY, profileId: h.profileId, entry: 'context' })
                     }}
                   >
                     <div className="l7-card-top">
@@ -461,9 +519,15 @@ export default function OpsHomeTab({
                       probingShort={t('l7b.probingShort')}
                       queued={t('l7b.queued')}
                       fail={t('l7b.fail')}
+                      failRetry={t('l7c.failRetry')}
+                      retryHint={probeSnap?.retryAt ? t('l7c.retryIn', { time: retryLabel(probeSnap.retryAt, now) }) : ''}
                       retry={t('l7b.retry')}
                       unreachable={t('l7.unreachable')}
                       ago={probeSnap?.at ? t('l7b.updatedAgo', { n: Math.max(0, Math.round((now - probeSnap.at) / 1000)) }) : ''}
+                      extraLoad={probePrefs.extraLoad}
+                      extraInode={probePrefs.extraInode}
+                      extraMounts={probePrefs.extraMounts}
+                      missingMount={t('l7d.missingMount')}
                       onEnable={(e) => {
                         e.stopPropagation()
                         onProbePrefs({ enabled: true })
@@ -480,7 +544,13 @@ export default function OpsHomeTab({
                         } else onConnect(h)
                       }}
                     />
-                    {h.alerting ? <span className="l7-alert-dot" title={t('o2.badge')} /> : null}
+                    {h.alerting ? (
+                      <span
+                        className="l7-alert-dot"
+                        data-flash={silenceUntil(loadMaintenance(), { keys: [h.profileId, h.title, h.host], tags: h.tags }, now) ? '0' : '1'}
+                        title={t('o2.badge')}
+                      />
+                    ) : null}
                   </article>
                 )
               })}
@@ -526,10 +596,10 @@ export default function OpsHomeTab({
             <EmptyState
               compact
               testId="l7-inbox-empty"
-              icon="✓"
-              title={t('l7.noAlerts')}
-              primary={{ label: t('l2.viewHistory'), onClick: () => onOpenWorkbench() }}
-              secondary={[{ label: t('menu.alertRules'), onClick: onRules }]}
+              icon="alert"
+              title={t('pf4.alertTitle')}
+              desc={t('pf4.alertDesc')}
+              primary={{ label: t('pf4.alertRules'), onClick: onRules }}
             />
           ) : (
             <div className="l7-rows" role="listbox" aria-label={t('l7.inbox')}>
@@ -544,6 +614,18 @@ export default function OpsHomeTab({
                     onOpen={() => onLocate(a)}
                     onLocate={() => onLocate(a)}
                     onExplain={() => onExplain(a)}
+                    explainDisabled={aiConfigured === false}
+                    explainTitle={aiConfigured === false ? t('w1.needAi') : t('a4.interpret')}
+                    onFixPlaybook={() => {
+                      const plan = planAlertFix(a.id, aiConfigured !== false)
+                      if (plan.action === 'need-ai') return
+                      if (plan.action === 'draft') onCreateFix?.(a, plan.fixes)
+                      else if (plan.action === 'explain') onExplain(a)
+                      else showToast(t('w1.noFix'))
+                    }}
+                    fixDisabled={aiConfigured === false}
+                    fixTitle={aiConfigured === false ? t('w1.needAi') : t('w1.create')}
+                    maintenanceUntil={silenceUntil(loadMaintenance(), { keys: [a.hostKey, a.hostTitle], tags: [] }, now)}
                   />
                   {expanded === a.id ? (
                     <div className="l7-expand">
@@ -603,56 +685,36 @@ export default function OpsHomeTab({
         </aside>
       </div>
       {menu ? (
-        <div className="session-context-menu" style={{ left: menu.x, top: menu.y }} role="menu" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const host = hosts.find((h) => h.profileId === menu.profileId)
-              setMenu(null)
+        <BuiltMenu
+          variant="host"
+          testId="health-card-menu"
+          nodes={healthMenuItems(menu.entry)}
+          anchorX={menu.x}
+          anchorY={menu.y}
+          t={(key, vars) => t(key as MessageKey, vars)}
+          onPick={(id) => {
+            const host = hosts.find((h) => h.profileId === menu.profileId)
+            const profileId = menu.profileId
+            setMenu(null)
+            if (id === 'monitor') {
               if (host) onOpenMonitor(host)
-            }}
-          >
-            {t('menu.resourceMonitor')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const host = hosts.find((h) => h.profileId === menu.profileId)
-              setMenu(null)
+            } else if (id === 'connect') {
               if (host) onConnect(host)
-            }}
-          >
-            {t('l7.connect')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const host = hosts.find((h) => h.profileId === menu.profileId)
-              setMenu(null)
+            } else if (id === 'workbench') {
               const hit = alerts.find((a) => a.status === 'active' && host?.sessionId && a.hostKey === host.sessionId)
               onOpenWorkbench(hit?.id)
-            }}
-          >
-            {t('l7.viewInWorkbench')}
-          </button>
-          <button
-            type="button"
-            className="session-context-menu-item"
-            onClick={() => {
-              const id = menu.profileId
-              setMenu(null)
-              onGuard(id)
-            }}
-          >
-            {t('l4.menu')}
-          </button>
-        </div>
+            } else if (id === 'guard') onGuard(profileId)
+          }}
+        />
       ) : null}
     </div>
   )
+}
+
+function retryLabel(retryAt: number, now: number): string {
+  const left = Math.max(0, retryAt - now)
+  if (left < 60_000) return `${Math.max(1, Math.ceil(left / 1000))}s`
+  return `${Math.max(1, Math.ceil(left / 60_000))}m`
 }
 
 function Metric({ label, value }: { label: string; value: number | null }) {
@@ -681,15 +743,30 @@ function CardMetrics({
   probingShort,
   queued,
   fail,
+  failRetry,
+  retryHint,
   retry,
   unreachable,
   ago,
+  extraLoad,
+  extraInode,
+  extraMounts,
+  missingMount,
   onEnable,
   onRetry
 }: {
   enabled: boolean
   sessionSnap?: { cpu: number | null; mem: number | null; disk: number | null; error: string | null }
-  probeSnap?: { phase: string; cpu: number | null; mem: number | null; disk: number | null; error: string | null }
+  probeSnap?: {
+    phase: string
+    cpu: number | null
+    mem: number | null
+    disk: number | null
+    error: string | null
+    load?: [number, number, number] | null
+    inode?: number | null
+    mounts?: Array<{ path: string; percent: number | null; missing?: boolean }>
+  }
   hasSession: boolean
   memLabel: string
   diskLabel: string
@@ -699,12 +776,28 @@ function CardMetrics({
   probingShort: string
   queued: string
   fail: string
+  failRetry?: string
+  retryHint?: string
   retry: string
   unreachable: string
   ago: string
+  extraLoad?: boolean
+  extraInode?: boolean
+  extraMounts?: boolean
+  missingMount?: string
   onEnable: (e: MouseEvent) => void
   onRetry: (e: MouseEvent) => void
 }) {
+  const waiting = Boolean(enabled && probeSnap && probeSnap.phase !== 'ok' && probeSnap.phase !== 'fail' && probeSnap.phase !== 'queued')
+  const [skelOn, setSkelOn] = useState(false)
+  useEffect(() => {
+    if (!waiting) {
+      setSkelOn(false)
+      return
+    }
+    const id = window.setTimeout(() => setSkelOn(true), 300)
+    return () => window.clearTimeout(id)
+  }, [waiting, probeSnap?.phase])
   if (!enabled) {
     if (!hasSession) {
       return (
@@ -736,8 +829,9 @@ function CardMetrics({
   }
   if (probeSnap?.phase === 'fail') {
     return (
-      <div className="l7-card-err" title={probeSnap.error ?? fail}>
-        <span>{fail}</span>
+      <div className="l7-card-err l7c-fail" title={probeSnap.error ?? fail} data-testid="l7c-fail">
+        <span className="l7c-fail-line">{failRetry || fail}</span>
+        {retryHint ? <span className="l7c-fail-sub">{retryHint}</span> : null}
         <button type="button" data-testid="l7b-retry" onClick={onRetry}>
           {retry}
         </button>
@@ -750,6 +844,19 @@ function CardMetrics({
         <Metric label="CPU" value={probeSnap.cpu} />
         <Metric label={memLabel} value={probeSnap.mem} />
         <Metric label={diskLabel} value={probeSnap.disk} />
+        {extraLoad && probeSnap.load ? (
+          <div className="l7d-line" data-testid="l7d-load-line">{`LOAD ${probeSnap.load.map((n) => n.toFixed(2)).join(' ')}`}</div>
+        ) : null}
+        {extraInode && probeSnap.inode != null ? (
+          <div className={`l7d-line${probeSnap.inode >= 90 ? ' is-warn' : ''}`} data-testid="l7d-inode-line">{`INO ${Math.round(probeSnap.inode)}%`}</div>
+        ) : null}
+        {extraMounts
+          ? (probeSnap.mounts ?? []).map((m) => (
+              <div key={m.path} className="l7d-line" data-testid="l7d-mount-line" title={m.missing ? missingMount : undefined}>
+                {m.missing ? `${m.path} —` : `${m.path} ${Math.round(m.percent ?? 0)}%`}
+              </div>
+            ))
+          : null}
         {ago ? <span className="l7b-ago">{ago}</span> : null}
       </div>
     )
@@ -759,11 +866,13 @@ function CardMetrics({
   }
   return (
     <div className="l7b-status" data-testid="l7b-probing">
-      <span className="l7b-skel" aria-hidden>
-        <i />
-        <i />
-        <i />
-      </span>
+      {skelOn ? (
+        <span className="l7b-skel" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+      ) : null}
       <span className="l7b-long">{probing}</span>
       <span className="l7b-short">{probingShort}</span>
     </div>

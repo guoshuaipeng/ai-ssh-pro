@@ -15,28 +15,42 @@ import {
   parentPosix,
   partPath,
   pctOf,
+  mergeHostQueue,
   queueSummary,
   resumeDecision,
   type TransferTask
 } from '@shared/sftp-queue'
 import type { SyncProfile, SyncRow } from '@shared/folder-sync'
 import { normalizeSyncProfile } from '@shared/folder-sync'
-import { tg } from '../lib/i18n'
+import { disconnectStatusSentence } from '@shared/status-bar'
+import { tg, useI18n } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
+import { noticeKind } from '@shared/product-error'
+import ErrorNotice from './ErrorNotice'
 import { askText, confirmDialog } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
 import { registerFolderSyncRunner } from '../lib/folder-sync-run'
-import { registerSftpCloseGuard, takeFolderSync } from '../lib/sftp-activity'
+import { recallTransferQueue, registerSftpCloseGuard, rememberTransferQueue, takeFolderSync } from '../lib/sftp-activity'
 import { loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
+import Icon, { Twist } from './Icon'
 import FolderSyncModal from './FolderSyncModal'
 import { isLikelyTextFile } from './RemoteTextEditor'
 import { captureRemoteSnapshot } from '../lib/remote-snapshot'
 import { loadSftpDensity, resolveSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT, type SftpDensityPref } from '@shared/sftp-density'
+import { sftpCenterComfortLayout } from '@shared/sftp-center-layout'
+import { cwdFromPwd, PWD_TIMEOUT_MS } from '@shared/sftp-host'
+import { listedPathMatchesRequest, selectedDriveId, type LocalDrive } from '@shared/local-drives'
 
 type Props = {
+  /** D8: close confirm and queue belong to this tab only. */
+  tabId?: string
   sessionId: string | null
+  /** D7: on first open, list the session cwd (pwd). Re-focus does not remount, so the path stays. */
+  alignSessionCwd?: boolean
+  /** Host is still connecting; show a skeleton instead of the disconnect mask. */
+  pendingConnect?: boolean
   sessionTitle?: string
   hostKey?: string
   hostLabel?: string
@@ -53,6 +67,8 @@ type Props = {
   remoteWritesBlocked?: boolean
   /** L8: pin the current sync plan into a center tab. */
   onPinPreview?: (plan: { direction: 'upload' | 'download'; localRoot: string; remoteRoot: string; rows: SyncRow[]; deleteExtra: boolean }) => void
+  /** PF-4: no session yet — pick a host instead of throwing. */
+  onPickHost?: () => void
   /** W3: host profile that owns snapshots for this session. */
   profileId?: string
   onOpenHistory?: (remotePath: string) => void
@@ -112,7 +128,10 @@ export function loadSyncProfiles(): SyncProfile[] {
 }
 
 export default function SftpPanel({
+  tabId = '',
   sessionId,
+  alignSessionCwd = false,
+  pendingConnect = false,
   sessionTitle,
   hostKey = '',
   hostLabel,
@@ -126,9 +145,11 @@ export default function SftpPanel({
   beforeRemoteWrite,
   remoteWritesBlocked = false,
   onPinPreview,
+  onPickHost,
   profileId,
   onOpenHistory
 }: Props) {
+  const { locale } = useI18n()
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
   const [snapPaths, setSnapPaths] = useState<Set<string>>(new Set())
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
@@ -142,9 +163,15 @@ export default function SftpPanel({
   }, [sessionId])
   const [narrow, setNarrow] = useState(false)
   const [winW, setWinW] = useState(() => (typeof window === 'undefined' ? 1400 : window.innerWidth))
+  const [winH, setWinH] = useState(() => (typeof window === 'undefined' ? 900 : window.innerHeight))
   const [densityPref, setDensityPref] = useState<SftpDensityPref>(() => loadSftpDensity())
   const density = resolveSftpDensity(densityPref, winW)
   const compact = density === 'compact'
+  const centerLayout = sftpCenterComfortLayout(winW, winH)
+  const [advancedOpen, setAdvancedOpen] = useState(() => !sftpCenterComfortLayout(
+    typeof window === 'undefined' ? 1400 : window.innerWidth,
+    typeof window === 'undefined' ? 900 : window.innerHeight
+  ).advancedCollapsed)
   const [crumbOpen, setCrumbOpen] = useState(false)
   const [pane, setPane] = useState<PaneId>('remote')
   const [activePane, setActivePane] = useState<PaneId>('remote')
@@ -157,6 +184,9 @@ export default function SftpPanel({
   const [localSel, setLocalSel] = useState<Record<string, boolean>>({})
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [drives, setDrives] = useState<LocalDrive[]>([])
+  const [drivePlatform, setDrivePlatform] = useState<'win32' | 'posix'>('posix')
+  const [driveScan, setDriveScan] = useState(true)
 
   const [remoteCwd, setRemoteCwd] = useState('/')
   const [remoteInput, setRemoteInput] = useState('/')
@@ -170,6 +200,11 @@ export default function SftpPanel({
   const [remoteSel, setRemoteSel] = useState<Record<string, boolean>>({})
   const [remoteLoading, setRemoteLoading] = useState(false)
   const [remoteError, setRemoteError] = useState<string | null>(null)
+  const [remoteOpening, setRemoteOpening] = useState(false)
+  const [cwdFallback, setCwdFallback] = useState(false)
+  const remotePathRef = useRef<HTMLInputElement>(null)
+  const remoteOpenedFor = useRef<string | null>(null)
+  const queueReady = useRef(false)
 
   const [tasks, setTasks] = useState<TransferTask[]>([])
   const [queueOpen, setQueueOpen] = useState(true)
@@ -192,6 +227,14 @@ export default function SftpPanel({
   const localShown = useMemo(() => visible(localEntries), [localEntries, showHidden])
   const remoteShown = useMemo(() => visible(remoteEntries), [remoteEntries, showHidden])
 
+  const applyLocalList = useCallback((res: SftpListResult) => {
+    setLocalCwd(res.path)
+    setLocalInput(res.path)
+    setLocalEntries(res.entries)
+    setLocalSel({})
+    setLocalError(null)
+  }, [])
+
   const refreshLocal = useCallback(async (dir?: string) => {
     const api = window.aiss?.localFs
     if (!api) return
@@ -199,16 +242,34 @@ export default function SftpPanel({
     setLocalError(null)
     try {
       const res = await api.list(dir || localCwd || '')
-      setLocalCwd(res.path)
-      setLocalInput(res.path)
-      setLocalEntries(res.entries)
-      setLocalSel({})
+      applyLocalList(res)
     } catch (e) {
       setLocalError(friendlyErrorMessage(e))
     } finally {
       setLocalLoading(false)
     }
-  }, [localCwd])
+  }, [applyLocalList, localCwd])
+
+  /** Typed path or drive pick: stay put and toast when the listing falls back or throws. */
+  const openLocalStrict = useCallback(async (dir: string, failLabel: string) => {
+    const api = window.aiss?.localFs
+    if (!api) return
+    const win = drivePlatform === 'win32'
+    setLocalLoading(true)
+    try {
+      const res = await api.list(dir)
+      if (!listedPathMatchesRequest(dir, res.path, win)) {
+        showToast(tg('d6.fail', { drive: failLabel }))
+        return
+      }
+      applyLocalList(res)
+    } catch (e) {
+      showToast(tg('d6.fail', { drive: failLabel }))
+      setLocalError(friendlyErrorMessage(e))
+    } finally {
+      setLocalLoading(false)
+    }
+  }, [applyLocalList, drivePlatform])
 
   const refreshRemote = useCallback(async (path?: string) => {
     if (!sessionId) return
@@ -239,17 +300,104 @@ export default function SftpPanel({
   }, [])
 
   useEffect(() => {
+    let alive = true
+    setDriveScan(true)
+    void window.aiss?.localFs?.drives?.()
+      .then((listing) => {
+        if (!alive || !listing) return
+        setDrivePlatform(listing.platform)
+        setDrives(Array.isArray(listing.drives) ? listing.drives : [])
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) setDriveScan(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const goRemoteHome = useCallback(async () => {
     if (!sessionId) return
-    void (async () => {
-      try {
-        const home = await window.aiss.sftp.home(sessionId)
-        await refreshRemote(home || '/')
-      } catch {
-        await refreshRemote('/')
+    setCwdFallback(false)
+    try {
+      const home = await window.aiss.sftp.home(sessionId)
+      await refreshRemote(home || '/')
+    } catch {
+      await refreshRemote('/')
+    }
+  }, [refreshRemote, sessionId])
+
+  /** P13-1: re-open remote pane at the live session cwd (pwd). */
+  const goSessionCwd = useCallback(async () => {
+    if (!sessionId) return
+    setCwdFallback(false)
+    setRemoteOpening(true)
+    try {
+      let target = ''
+      if (window.aiss?.ssh?.exec) {
+        try {
+          const res = await window.aiss.ssh.exec(sessionId, 'pwd', PWD_TIMEOUT_MS)
+          target = cwdFromPwd(res) || ''
+        } catch {
+          target = ''
+        }
       }
+      if (!target) {
+        try {
+          target = (await window.aiss.sftp.home(sessionId)) || '/'
+        } catch {
+          target = '/'
+        }
+        setCwdFallback(true)
+      }
+      await refreshRemote(target || '/')
+    } finally {
+      setRemoteOpening(false)
+    }
+  }, [refreshRemote, sessionId])
+
+  useEffect(() => {
+    if (!sessionId) return
+    if (remoteOpenedFor.current === sessionId) return
+    let cancel = false
+    void (async () => {
+      setRemoteLoading(true)
+      setRemoteError(null)
+      let target = ''
+      let failedCwd = false
+      if (alignSessionCwd && window.aiss?.ssh?.exec) {
+        setRemoteOpening(true)
+        try {
+          const res = await window.aiss.ssh.exec(sessionId, 'pwd', PWD_TIMEOUT_MS)
+          const cwd = cwdFromPwd(res)
+          if (cancel) return
+          if (cwd) target = cwd
+          else failedCwd = true
+        } catch {
+          failedCwd = true
+        } finally {
+          if (!cancel) setRemoteOpening(false)
+        }
+      }
+      if (!target) {
+        try {
+          target = (await window.aiss.sftp.home(sessionId)) || '/'
+        } catch {
+          target = '/'
+        }
+      }
+      if (cancel) return
+      remoteOpenedFor.current = sessionId
+      await refreshRemote(target)
+      if (!cancel && failedCwd) setCwdFallback(true)
     })()
+    return () => {
+      cancel = true
+    }
+    // Open once per session. A later focus of this tab must not reset the path.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId])
+  }, [sessionId, alignSessionCwd])
 
   useEffect(() => {
     const el = rootRef.current
@@ -260,7 +408,10 @@ export default function SftpPanel({
   }, [])
 
   useEffect(() => {
-    const onResize = () => setWinW(window.innerWidth)
+    const onResize = () => {
+      setWinW(window.innerWidth)
+      setWinH(window.innerHeight)
+    }
     const onPref = () => setDensityPref(loadSftpDensity())
     window.addEventListener('resize', onResize)
     window.addEventListener(SFTP_DENSITY_EVENT, onPref)
@@ -271,16 +422,19 @@ export default function SftpPanel({
   }, [])
 
   const persist = useCallback((next: TransferTask[]) => {
-    const keep = next.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
+    const stored = recallTransferQueue() ?? []
+    const merged = mergeHostQueue(stored, next, hostKey)
+    rememberTransferQueue(merged)
     try {
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(keep))
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(merged))
     } catch {
       /* ignore */
     }
-    void window.aiss?.sftp?.queueSave?.(keep).catch(() => undefined)
-  }, [])
+    void window.aiss?.sftp?.queueSave?.(merged).catch(() => undefined)
+  }, [hostKey])
 
   useEffect(() => {
+    if (!queueReady.current) return
     persist(tasks)
   }, [tasks, persist])
 
@@ -503,12 +657,14 @@ export default function SftpPanel({
   useEffect(() => {
     let alive = true
     void (async () => {
-      let loaded: TransferTask[] = []
-      try {
-        const remote = await window.aiss?.sftp?.queueLoad?.()
-        if (Array.isArray(remote) && remote.length) loaded = hydrateQueue(remote)
-      } catch {
-        /* ignore */
+      let loaded: TransferTask[] = recallTransferQueue() ?? []
+      if (!loaded.length) {
+        try {
+          const remote = await window.aiss?.sftp?.queueLoad?.()
+          if (Array.isArray(remote) && remote.length) loaded = hydrateQueue(remote)
+        } catch {
+          /* ignore */
+        }
       }
       if (!loaded.length) {
         try {
@@ -518,7 +674,10 @@ export default function SftpPanel({
         }
       }
       if (!alive) return
-      setTasks(loaded)
+      rememberTransferQueue(loaded)
+      const mine = hostKey ? loaded.filter((t) => t.hostKey === hostKey) : loaded
+      queueReady.current = true
+      setTasks(mine)
       if (!sessionId || connected === false) return
       const prefs = loadSmartPrefs()
       for (const t of loaded) {
@@ -534,30 +693,38 @@ export default function SftpPanel({
 
   useEffect(() => {
     const active = tasks.filter((t) => t.status === 'running' || t.status === 'queued').length
-    registerSftpCloseGuard(async () => {
+    const key = tabId || hostKey || 'sftp'
+    registerSftpCloseGuard(key, async () => {
       if (active <= 0) return 'close'
       return await new Promise<'close' | 'cancel-close' | 'stay'>((resolve) => {
         const onAnswer = (e: Event) => {
-          const d = (e as CustomEvent<'close' | 'cancel-close' | 'stay'>).detail
+          const d = (e as CustomEvent<{ tabId?: string; answer?: 'close' | 'cancel-close' | 'stay' }>).detail
+          if (d?.tabId && d.tabId !== key) return
           window.removeEventListener('aiss-sftp-close-answer', onAnswer)
-          resolve(d || 'stay')
+          resolve(d?.answer || 'stay')
         }
         window.addEventListener('aiss-sftp-close-answer', onAnswer)
-        window.dispatchEvent(new CustomEvent('aiss-sftp-close-ask', { detail: active }))
+        window.dispatchEvent(new CustomEvent('aiss-sftp-close-ask', { detail: { tabId: key, n: active } }))
       })
     })
-    return () => registerSftpCloseGuard(null)
-  }, [tasks])
+    return () => registerSftpCloseGuard(key, null)
+  }, [tasks, tabId, hostKey])
 
   const [closeAsk, setCloseAsk] = useState<number | null>(null)
   useEffect(() => {
-    const onAsk = (e: Event) => setCloseAsk((e as CustomEvent<number>).detail || 1)
+    const key = tabId || hostKey || 'sftp'
+    const onAsk = (e: Event) => {
+      const d = (e as CustomEvent<{ tabId?: string; n?: number }>).detail
+      if (!d || d.tabId !== key) return
+      setCloseAsk(d.n || 1)
+    }
     window.addEventListener('aiss-sftp-close-ask', onAsk)
     return () => window.removeEventListener('aiss-sftp-close-ask', onAsk)
-  }, [])
+  }, [tabId, hostKey])
   const answerClose = (v: 'close' | 'cancel-close' | 'stay') => {
+    const key = tabId || hostKey || 'sftp'
     setCloseAsk(null)
-    window.dispatchEvent(new CustomEvent('aiss-sftp-close-answer', { detail: v }))
+    window.dispatchEvent(new CustomEvent('aiss-sftp-close-answer', { detail: { tabId: key, answer: v } }))
     if (v === 'cancel-close') {
       for (const t of tasksRef.current) {
         if (t.status === 'running' || t.status === 'queued') void window.aiss?.sftp?.cancel?.(t.id)
@@ -592,6 +759,7 @@ export default function SftpPanel({
 
   const onDropRemote = (ev: React.DragEvent) => {
     ev.preventDefault()
+    if (readOnly || remoteWritesBlocked) return
     const internal = ev.dataTransfer.getData('application/x-aiss-sftp')
     if (internal) {
       try {
@@ -668,7 +836,7 @@ export default function SftpPanel({
   }
 
   const allowRemoteWrite = async (): Promise<boolean> => {
-    if (readOnly) return false
+    if (readOnly || remoteWritesBlocked) return false
     if (!beforeRemoteWrite) return true
     return beforeRemoteWrite()
   }
@@ -752,17 +920,55 @@ export default function SftpPanel({
     }
   }
 
+  const switchDrive = (id: string) => {
+    const drive = drives.find((d) => d.id === id)
+    if (!drive) return
+    if (!drive.ready) {
+      showToast(tg('d6.fail', { drive: drive.label || drive.id }))
+      return
+    }
+    void openLocalStrict(drive.root, drive.label || drive.id)
+  }
+
   const renderPane = (side: PaneId) => {
     const isLocal = side === 'local'
     const cwd = isLocal ? localCwd : remoteCwd
     const input = isLocal ? localInput : remoteInput
     const setInput = isLocal ? setLocalInput : setRemoteInput
     const entries = isLocal ? localShown : remoteShown
-    const loading = isLocal ? localLoading : remoteLoading
+    const loading = isLocal ? localLoading : remoteLoading || remoteOpening
     const error = isLocal ? localError : remoteError
     const selected = isLocal ? localSel : remoteSel
     const setSelected = isLocal ? setLocalSel : setRemoteSel
-    const disconnected = !isLocal && connected === false
+    const disconnected = !isLocal && connected === false && !pendingConnect
+    const unconnected = !isLocal && !sessionId && !pendingConnect
+    const showPath = !compact || crumbOpen
+    const selectedDrive = isLocal ? selectedDriveId(drives, localCwd, drivePlatform) : ''
+    const driveValue = drives.some((d) => d.id === selectedDrive) ? selectedDrive : drives[0]?.id ?? ''
+    const driveControl = isLocal ? (
+      <label className={`sftp-drive${centerLayout.driveProminent ? ' is-prominent' : ''}`}>
+        <span className="sr-only">{tg('d6.drive')}</span>
+        <select
+          data-testid="sftp-drive-switch"
+          aria-label={tg('d6.switch')}
+          title={tg('d6.switch')}
+          value={driveScan && drives.length === 0 ? '' : driveValue}
+          onChange={(e) => switchDrive(e.target.value)}
+        >
+          {driveScan && drives.length === 0 ? <option value="">{tg('d6.scanning')}</option> : null}
+          {drives.map((d) => (
+            <option
+              key={d.id}
+              value={d.id}
+              disabled={!d.ready}
+              title={d.ready ? tg('d6.root', { letter: d.id.replace(/:$/, '') }) : tg('d6.unavailable')}
+            >
+              {d.ready ? d.label : `${d.label} · ${tg('d6.unavailable')}`}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : null
     return (
       <section
         className={`sftp-pane${activePane === side ? ' is-active' : ''}`}
@@ -775,19 +981,22 @@ export default function SftpPanel({
       >
         <div className="sftp-pane-head">
           <div className="sftp-pane-title">
-            {isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}
+            <span className="sftp-pane-name">{isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}</span>
+            {isLocal && !showPath ? driveControl : null}
             {compact ? (
               <button type="button" className="sftp-crumb-toggle" onClick={() => setCrumbOpen((v) => !v)}>
                 {tg('ux46.crumb')}
               </button>
             ) : null}
           </div>
-          {!compact || crumbOpen ? (
+          {showPath ? (
           <div className="sftp-pathbar">
+            {driveControl}
             <button type="button" onClick={() => (isLocal ? void refreshLocal(parentLocal(cwd)) : void refreshRemote(parentPosix(cwd)))} disabled={!cwd || cwd === '/'}>
               {tg('sftp.up')}
             </button>
             <input
+              ref={isLocal ? undefined : remotePathRef}
               value={input}
               aria-label={isLocal ? tg('d1.localPath') : tg('sftp.remotePath')}
               spellCheck={false}
@@ -795,7 +1004,7 @@ export default function SftpPanel({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.stopPropagation()
-                  if (isLocal) void refreshLocal(input)
+                  if (isLocal) void openLocalStrict(input, input)
                   else void refreshRemote(input.startsWith('/') ? input : `/${input}`)
                 }
               }}
@@ -818,17 +1027,66 @@ export default function SftpPanel({
           </div>
           ) : null}
         </div>
-        {error ? <div className="sftp-error">{error}</div> : null}
+        {!isLocal && remoteOpening ? (
+          <div className="sftp-opening" data-testid="sftp-opening">{tg('d7.opening')}</div>
+        ) : null}
+        {!isLocal && pendingConnect ? (
+          <div className="sftp-opening" data-testid="sftp-connecting">{tg('d8.connecting')}</div>
+        ) : null}
+        {!isLocal && cwdFallback ? (
+          <div className="sftp-cwd-fallback" data-testid="sftp-cwd-fallback" role="status">
+            <span>{tg('d7.fallback')}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setCwdFallback(false)
+                remotePathRef.current?.focus()
+                remotePathRef.current?.select()
+              }}
+            >
+              {tg('d7.goto')}
+            </button>
+            <button type="button" onClick={() => void goRemoteHome()}>{tg('d7.home')}</button>
+            <button type="button" aria-label={tg('common.close')} onClick={() => setCwdFallback(false)}>×</button>
+          </div>
+        ) : null}
+        {error ? (
+          <ErrorNotice
+            testId="sftp-error"
+            message={noticeKind(error) === 'permission' ? tg('pf5.sftpPerm') : error}
+            detail={noticeKind(error) === 'permission' ? error : null}
+            actions={
+              !isLocal ? (
+                <>
+                  <button type="button" onClick={() => void refreshRemote(parentPosix(remoteCwd))}>{tg('pf5.up')}</button>
+                  <button type="button" onClick={() => remotePathRef.current?.focus()}>{tg('pf5.changePath')}</button>
+                </>
+              ) : (
+                <button type="button" onClick={() => void refreshLocal()}>{tg('pf5.retry')}</button>
+              )
+            }
+          />
+        ) : null}
         <div className={`sftp-browser${disconnected ? ' is-disconnected' : ''}`}>
+          {unconnected ? (
+            <EmptyState
+              testId="sftp-unconnected"
+              icon="sftp"
+              title={tg('pf4.sftpTitle')}
+              desc={tg('pf4.sftpDesc')}
+              primary={{ label: tg('pf4.pickHost'), onClick: () => onPickHost?.(), testId: 'sftp-pick-host' }}
+            />
+          ) : (
+          <>
           {disconnected ? (
             <div className="sftp-disconnect" data-testid="sftp-disconnected">
-              <div>{tg('d1.disconnected')}</div>
+              <div>{disconnectStatusSentence(hostLabel || sessionTitle || '', locale === 'en' ? 'en' : 'zh-CN')}</div>
               <button type="button" className="primary" onClick={() => onReconnect?.()} disabled={!onReconnect}>
                 {tg('d1.reconnect')}
               </button>
             </div>
           ) : null}
-          {loading && entries.length === 0 ? (
+          {(loading || pendingConnect) && entries.length === 0 ? (
             <div className="sftp-skel" data-testid="sftp-skel">
               {Array.from({ length: 6 }, (_, i) => (
                 <div key={i} className="sftp-skel-row" />
@@ -838,7 +1096,7 @@ export default function SftpPanel({
             <EmptyState
               compact
               testId={isLocal ? 'sftp-local-empty' : 'sftp-empty'}
-              icon={readOnly && !isLocal ? '🔒' : '📂'}
+              icon={readOnly && !isLocal ? <Icon name="lock" strokeWidth={1.5} /> : 'sftp'}
               title={readOnly && !isLocal ? tg('ux34.emptyTitle') : tg('ux08.sftpTitle')}
               desc={readOnly && !isLocal ? tg('ux34.emptyDesc') : tg('ux08.sftpDesc')}
             />
@@ -938,7 +1196,7 @@ export default function SftpPanel({
                           }
                         }}
                       >
-                        {e.isDirectory ? '📁 ' : '📄 '}
+                        {e.isDirectory ? <Icon name="folder" size={14} /> : <Icon name="file-text" size={14} />}{' '}
                         {e.name}
                       </button>
                     </td>
@@ -949,6 +1207,8 @@ export default function SftpPanel({
                 ))}
               </tbody>
             </table>
+          )}
+          </>
           )}
         </div>
       </section>
@@ -997,14 +1257,16 @@ export default function SftpPanel({
 
   return (
     <div
-      className={`workspace-panel workspace-panel--sftp sftp-dual${compact ? ' is-compact' : ''}`}
+      className={`workspace-panel workspace-panel--sftp sftp-dual${compact ? ' is-compact' : ''}${centerLayout.advancedCollapsed ? ' is-center-quiet' : ''}`}
       ref={rootRef}
       data-testid="sftp-dual"
+      data-sftp-center-layout={centerLayout.advancedCollapsed ? 'quiet' : 'wide'}
+      data-sftp-drive={centerLayout.driveProminent ? 'prominent' : 'normal'}
       role="region"
       aria-label={`${tg('sftp.title')}${sessionTitle ? ` · ${sessionTitle}` : ''}`}
     >
       <div className="workspace-panel-toolbar sftp-toolbar" data-testid="sftp-toolbar">
-        <div className="workspace-panel-actions sftp-toolbar-actions">
+        <div className="workspace-panel-actions sftp-toolbar-actions" data-nowrap={centerLayout.toolbarNowrap ? '1' : '0'}>
           {narrow ? (
             <div className="sftp-pane-toggle" role="tablist">
               <button type="button" className={pane === 'local' ? 'is-on' : ''} onClick={() => setPane('local')}>
@@ -1015,34 +1277,15 @@ export default function SftpPanel({
               </button>
             </div>
           ) : null}
-          <button type="button" disabled={!sessionId} title={tg('d2.title')} onClick={() => { setSyncProfile(null); setSyncOpen(true) }}>
-            <span className="sftp-ico" aria-hidden>↻</span>
-            <span className="sftp-label">{tg('d2.title')}</span>
-          </button>
           <button
             type="button"
-            data-testid="sftp-compare"
-            title={tg('d5.compare')}
-            disabled={!onCompare}
-            onClick={() => {
-              const local = localShown.filter((e) => localSel[e.path] && !e.isDirectory)
-              const remote = remoteShown.filter((e) => remoteSel[e.path] && !e.isDirectory)
-              if (local.length !== 1 || remote.length !== 1) {
-                showToast(tg('d5.needPair'))
-                return
-              }
-              onCompare?.({
-                localPath: local[0]!.path,
-                remotePath: remote[0]!.path,
-                localName: local[0]!.name,
-                remoteName: remote[0]!.name,
-                localSize: local[0]!.size,
-                remoteSize: remote[0]!.size
-              })
-            }}
+            className="sftp-session-cwd"
+            data-testid="sftp-session-cwd"
+            disabled={!sessionId}
+            title={tg('d7.sessionCwdTip')}
+            onClick={() => void goSessionCwd()}
           >
-            <span className="sftp-ico" aria-hidden>⇄</span>
-            <span className="sftp-label">{tg('d5.compare')}</span>
+            <span className="sftp-label sftp-label-keep">{tg('d7.sessionCwd')}</span>
           </button>
           <button
             type="button"
@@ -1056,27 +1299,66 @@ export default function SftpPanel({
           >
             <span className="sftp-label sftp-label-keep">{densityPref === 'comfort' ? tg('ux46.comfort') : tg('ux46.compact')}</span>
           </button>
-          <label className="sftp-autoresume">
-            <input
-              type="checkbox"
-              checked={autoResume}
-              onChange={(e) => {
-                const next = saveSmartPrefs({ ...loadSmartPrefs(), autoResume: e.target.checked })
-                setAutoResume(next.autoResume)
-              }}
-            />
-            {tg('d1.autoResume')}
-          </label>
           <span className="sftp-queue-summary">
             {summary.active > 0 ? tg('d1.summary', { n: summary.active, speed: formatSpeed(summary.speed) }) : tg('d1.queue')}
           </span>
+          <details
+            className="sftp-advanced"
+            data-testid="sftp-advanced"
+            open={advancedOpen}
+            onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
+          >
+            <summary>{tg('sftp.advanced')}</summary>
+            <div className="sftp-advanced-body">
+              <button type="button" disabled={!sessionId} title={tg('d2.title')} onClick={() => { setSyncProfile(null); setSyncOpen(true) }}>
+                <span className="sftp-ico" aria-hidden>↻</span>
+                <span className="sftp-label">{tg('d2.title')}</span>
+              </button>
+              <button
+                type="button"
+                data-testid="sftp-compare"
+                title={tg('d5.compare')}
+                disabled={!onCompare}
+                onClick={() => {
+                  const local = localShown.filter((e) => localSel[e.path] && !e.isDirectory)
+                  const remote = remoteShown.filter((e) => remoteSel[e.path] && !e.isDirectory)
+                  if (local.length !== 1 || remote.length !== 1) {
+                    showToast(tg('d5.needPair'))
+                    return
+                  }
+                  onCompare?.({
+                    localPath: local[0]!.path,
+                    remotePath: remote[0]!.path,
+                    localName: local[0]!.name,
+                    remoteName: remote[0]!.name,
+                    localSize: local[0]!.size,
+                    remoteSize: remote[0]!.size
+                  })
+                }}
+              >
+                <span className="sftp-ico" aria-hidden>⇄</span>
+                <span className="sftp-label">{tg('d5.compare')}</span>
+              </button>
+              <label className="sftp-autoresume">
+                <input
+                  type="checkbox"
+                  checked={autoResume}
+                  onChange={(e) => {
+                    const next = saveSmartPrefs({ ...loadSmartPrefs(), autoResume: e.target.checked })
+                    setAutoResume(next.autoResume)
+                  }}
+                />
+                {tg('d1.autoResume')}
+              </label>
+            </div>
+          </details>
         </div>
       </div>
-      <div className={`sftp-panes${narrow ? ' is-narrow' : ''}`}>
+      <div className={`sftp-panes${narrow ? ' is-narrow' : ''}`} data-sftp-split={centerLayout.listPreviewSplit ? 'clear' : 'flat'}>
         {showLocal ? renderPane('local') : null}
         {!narrow ? (
           <div className="sftp-mid">
-            <button type="button" disabled={!sessionId || readOnly || !localShown.some((e) => localSel[e.path] && !e.isDirectory)} title={roTitle} onClick={uploadSelected}>
+            <button type="button" data-testid="sftp-upload" disabled={!sessionId || readOnly || remoteWritesBlocked || !localShown.some((e) => localSel[e.path] && !e.isDirectory)} title={remoteWritesBlocked ? tg('s4.sftpDisabled') : roTitle} onClick={uploadSelected}>
               {tg('d1.toRemote')}
             </button>
             <button type="button" disabled={!sessionId || !remoteShown.some((e) => remoteSel[e.path] && !e.isDirectory)} onClick={downloadSelected}>
@@ -1088,7 +1370,7 @@ export default function SftpPanel({
       </div>
       <div className="sftp-transfers" data-testid="sftp-queue">
         <button type="button" className="sftp-transfers-title" onClick={() => setQueueOpen((v) => !v)}>
-          {queueOpen ? '▾' : '▸'} {tg('d1.queue')}
+          <Twist open={queueOpen} size={12} /> {tg('d1.queue')}
           {summary.active > 0 ? ` · ${tg('d1.summary', { n: summary.active, speed: formatSpeed(summary.speed) })}` : ''}
         </button>
         {queueOpen && tasks.length > 0 ? (

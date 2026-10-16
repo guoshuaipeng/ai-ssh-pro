@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-import Modal from './Modal'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   DEFAULT_ALERT_NOTIFY,
   DEFAULT_ALERT_RULES,
@@ -8,7 +7,11 @@ import {
   type AlertRulesState,
   type FiredAlert
 } from '@shared/alert-rules'
+import { isHigherChromeOpen } from '@shared/overlay-stack'
+import { captureEditorFocus, restoreEditorFocus, type EditorFocusTicket } from '../lib/focus-restore'
+import { isDialogOpen } from '../lib/dialogs'
 import { useI18n } from '../lib/i18n'
+import EmptyState from './EmptyState'
 
 type Props = {
   open: boolean
@@ -32,6 +35,11 @@ const METRIC_KEYS: Record<string, 'o2.metricCpu' | 'o2.metricMem' | 'o2.metricDi
   offline: 'o2.metricOffline'
 }
 
+/**
+ * IX-7: alert-rule editing is an in-tab panel (`kind=alert-rules`), not a
+ * full-screen `.modal`. The workbench list stays mounted beside it.
+ * Esc / close restores the surface that was active before the panel opened.
+ */
 export default function AlertRulesModal({
   open,
   initial,
@@ -47,17 +55,59 @@ export default function AlertRulesModal({
   onIgnore
 }: Props) {
   const { t } = useI18n()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const ticketRef = useRef<EditorFocusTicket | null>(null)
+  const initialRef = useRef(initial)
+  initialRef.current = initial
   const [tab, setTab] = useState<'rules' | 'history'>(initialTab)
-  useEffect(() => {
-    if (!open) return
-    setTab(initialTab)
-    setRules(initial.rules.map((r) => ({ ...r })))
-    setNotify({ ...initial.notify })
-  }, [open, initialTab, initial])
   const [rules, setRules] = useState<AlertRule[]>(() => initial.rules.map((r) => ({ ...r })))
   const [notify, setNotify] = useState<AlertNotifyPrefs>(() => ({ ...initial.notify }))
 
+  useEffect(() => {
+    if (!open) return
+    const snap = initialRef.current
+    setTab(initialTab)
+    setRules(snap.rules.map((r) => ({ ...r })))
+    setNotify({ ...snap.notify })
+  }, [open, initialTab])
+
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    queueMicrotask(() => {
+      if (!alive) return
+      ticketRef.current = captureEditorFocus()
+      panelRef.current?.focus()
+    })
+    return () => {
+      alive = false
+      const ticket = ticketRef.current
+      ticketRef.current = null
+      restoreEditorFocus(ticket)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const panel = panelRef.current
+      if (!panel) return
+      const layer = panel.closest('.terminal-layer')
+      if (layer && !layer.classList.contains('active')) return
+      if (isHigherChromeOpen(document)) return
+      if (isDialogOpen()) return
+      if (document.querySelector('.modal')) return
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   const title = tab === 'rules' ? t('o2.rulesTitle') : t('o2.historyTitle')
+  const kind = tab === 'history' ? 'alert-workbench' : 'alert-rules'
 
   const sortedHistory = useMemo(
     () => [...history].sort((a, b) => b.at - a.at),
@@ -67,7 +117,21 @@ export default function AlertRulesModal({
   if (!open) return null
 
   return (
-    <Modal open title={title} onClose={onClose} width={560} testId="alert-rules-modal">
+    <div
+      ref={panelRef}
+      className="alert-rules-panel"
+      data-testid="alert-rules-panel"
+      data-kind={kind}
+      role="region"
+      aria-label={title}
+      tabIndex={-1}
+    >
+      <div className="alert-rules-panel-head">
+        <h2>{title}</h2>
+        <button type="button" className="modal-close" data-testid="alert-rules-close" aria-label={t('common.close')} onClick={onClose}>
+          ×
+        </button>
+      </div>
       <div className="o2-tabs" role="tablist">
         <button type="button" className={tab === 'rules' ? 'is-on' : ''} onClick={() => setTab('rules')}>
           {t('o2.rulesTitle')}
@@ -178,14 +242,14 @@ export default function AlertRulesModal({
             <button type="button" onClick={onMute1h}>
               {t('o2.mute1h')}
             </button>
-            <button type="button" onClick={onClose}>
+            <button type="button" data-testid="alert-rules-cancel" onClick={onClose}>
               {t('dlg.cancel')}
             </button>
             <button
               type="button"
               className="primary"
               onClick={() => {
-                onSave({ rules, notify, mutedUntil: initial.mutedUntil })
+                onSave({ rules, notify, mutedUntil: initial.mutedUntil, packRules: initial.packRules ?? [] })
                 onClose()
               }}
             >
@@ -196,9 +260,7 @@ export default function AlertRulesModal({
       ) : (
         <div className="o2-body">
           {sortedHistory.length === 0 ? (
-            <p className="o2-empty" data-testid="o2-history-empty">
-              {t('o2.emptyHistory')}
-            </p>
+            <EmptyState compact testId="o2-history-empty" icon="alert" title={t('o2.emptyHistory')} />
           ) : (
             <>
             {onInterpret && sortedHistory.some((h) => h.status === 'active') ? (
@@ -251,6 +313,6 @@ export default function AlertRulesModal({
           </div>
         </div>
       )}
-    </Modal>
+    </div>
   )
 }

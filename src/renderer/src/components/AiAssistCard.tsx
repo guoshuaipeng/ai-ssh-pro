@@ -3,6 +3,7 @@ import type { AiAssistResult } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
 import { rememberAiFixes } from '../lib/ai-fix-memory'
 import AiConfigCard from './AiConfigCard'
+import Icon from './Icon'
 
 export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert'; alertId?: string }
 
@@ -44,7 +45,7 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
           setState({ phase: 'done', result })
           return
         }
-        if (result.ok && result.kind !== 'nlCommand') {
+        if (result.ok && (result.kind === 'explainError' || result.kind === 'explainAlert')) {
           const key = request.alertId ? `explainAlert:${request.alertId}` : `${request.kind ?? 'explainError'}:${request.sessionId}`
           rememberAiFixes(key, result.fixes)
         }
@@ -89,7 +90,7 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
   return (
     <section className="ai-assist-card" data-testid="ai-explain-card" aria-live="polite">
       <header className="ai-assist-head">
-        <span>✨ {request.kind === 'explainAlert' ? t('a4.title') : t('a1.title')}</span>
+        <span><Icon name="sparkles" size={14} /> {request.kind === 'explainAlert' ? t('a4.title') : t('a1.title')}</span>
         <button type="button" className="modal-close" aria-label={t('common.close')} onClick={onClose}>
           ×
         </button>
@@ -154,6 +155,7 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
             {r.fixes.length ? <span className="w1-create-hint">{t('w1.createHint', { n: r.fixes.length })}</span> : (
               <button type="button" className="linkish" data-testid="w1-blank" onClick={() => onCreatePlaybook?.([])}>{t('w1.blank')}</button>
             )}
+            {pulseCreate ? <span className="sr-only" data-testid="w1-after-interpret">{t('w1.afterInterpret')}</span> : null}
           </div>
           {r.notes ? (
             <>

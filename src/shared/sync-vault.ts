@@ -41,6 +41,14 @@ export type SyncConflict = {
 
 export type SyncPhase = 'off' | 'synced' | 'syncing' | 'conflict' | 'error'
 
+export function statusKind(phase: SyncPhase): 'check' | 'spin' | 'alert' | 'fail' | 'none' {
+  if (phase === 'synced') return 'check'
+  if (phase === 'syncing') return 'spin'
+  if (phase === 'conflict') return 'alert'
+  if (phase === 'error') return 'fail'
+  return 'none'
+}
+
 export function statusGlyph(phase: SyncPhase): '' | '✓' | '⟳' | '!' | '✕' {
   if (phase === 'synced') return '✓'
   if (phase === 'syncing') return '⟳'

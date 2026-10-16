@@ -40,20 +40,15 @@ export default function FirstWeekChip({ state, mode, onGotIt, onNever, onGo, onD
 
   useEffect(() => {
     document.body.classList.add('g3-chip-on')
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onGotIt()
-    }
     const onPointer = (e: MouseEvent) => {
       const node = e.target
       if (!(node instanceof Node)) return
       if (ref.current?.contains(node)) return
       onGotIt()
     }
-    document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onPointer)
     return () => {
       document.body.classList.remove('g3-chip-on')
-      document.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', onPointer)
     }
   }, [onGotIt])

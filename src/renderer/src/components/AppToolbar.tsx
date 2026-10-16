@@ -11,19 +11,15 @@ import {
 } from '../lib/ui-themes'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
+import { PRODUCT_NAME } from '@shared/product'
 import type { IconName } from '@shared/icon-registry'
-import Icon from './Icon'
+import Icon, { Twist } from './Icon'
+import BrandMark from './BrandMark'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
-  onToggleSidebar?: () => void
-  onToggleMain?: () => void
-  onToggleAi?: () => void
-  showSidebar?: boolean
-  showMain?: boolean
-  showAi?: boolean
   onQuickConnect?: (row: RecentConnection) => void
-  /** ☑ state for toggle menu items */
+  /** checked state for toggle menu items */
   toggles?: Partial<Record<TitlebarMenuAction, boolean>>
   /** greyed menu items (still show a tooltip) */
   disabled?: Partial<Record<TitlebarMenuAction, boolean>>
@@ -47,39 +43,19 @@ const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: IconName; label
 ]
 
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
-  if (kind === 'sidebar') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <path d="M5.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
-    )
-  }
-  if (kind === 'ai') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-        <path d="M10.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
-    )
-  }
+  const pane =
+    kind === 'sidebar' ? 'M5.25 2.5v11' : kind === 'ai' ? 'M10.75 2.5v11' : 'M5.25 2.5v11M10.75 2.5v11'
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M5.5 2.5v11M10.5 2.5v11" stroke="currentColor" strokeWidth="1.2" />
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+      <rect x="1.75" y="2.5" width="12.5" height="11" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.15" />
+      <path d={pane} stroke="currentColor" strokeWidth="1.15" />
     </svg>
   )
 }
 
-/** 标题栏：品牌+版本 + 菜单 ｜ 新建/最近 ｜ 运维工具 ｜ 搜索/更多 ｜ 布局开关（UX-04） */
+/** 标题栏：品牌+弱版本 + 菜单 ｜ 新建/最近 ｜ 运维工具 ｜ 搜索 ｜ 溢出 ｜ 布局图标（Polish-8） */
 export default function AppToolbar({
   onMenuAction,
-  onToggleSidebar,
-  onToggleMain,
-  onToggleAi,
-  showSidebar = true,
-  showMain = true,
-  showAi = true,
   onQuickConnect,
   toggles,
   disabled,
@@ -184,11 +160,22 @@ export default function AppToolbar({
   const iconOnlyTools = compactLevel >= 2
   const searchIconOnly = compactLevel >= 3
   const menusAsHamburger = compactLevel >= 4
+  const showSidebar = toggles?.toggleSidebar ?? true
+  const showMain = toggles?.toggleMain ?? true
+  const showAi = toggles?.toggleAi ?? false
+  const layoutToggles = [
+    { id: 'toggleSidebar' as const, kind: 'sidebar' as const, on: showSidebar, hide: 'toolbar.hideSidebar' as const, show: 'toolbar.showSidebar' as const },
+    { id: 'toggleMain' as const, kind: 'main' as const, on: showMain, hide: 'toolbar.hideMain' as const, show: 'toolbar.showMain' as const },
+    { id: 'toggleAi' as const, kind: 'ai' as const, on: showAi, hide: 'toolbar.hideAi' as const, show: 'toolbar.showAi' as const }
+  ]
 
   return (
     <header className={`app-titlebar titlebar-compact-${compactLevel}`} ref={headerRef} data-compact={compactLevel}>
       <div className="app-titlebar-drag">
-        <span className="app-toolbar-brand" title={versionText ? `AI-SSH-Pro ${versionText}` : 'AI-SSH-Pro'}>AI-SSH-Pro</span>
+        <span className="app-toolbar-brand" title={versionText ? `${PRODUCT_NAME} ${versionText}` : PRODUCT_NAME}>
+          <BrandMark size={16} />
+          {PRODUCT_NAME}
+        </span>
         {versionText && !hideVersion ? (
           <button
             type="button"
@@ -249,7 +236,7 @@ export default function AppToolbar({
           >
             <span aria-hidden>+</span> <span className="tb-label tb-label-keep">{t('toolbar.newConn')}</span>
           </button>
-          {false && onQuickConnect ? ( /* UX-15 hide recent */
+          {onQuickConnect ? (
             <div className="titlebar-popover-wrap" ref={recentRef}>
               <button
                 type="button"
@@ -260,7 +247,7 @@ export default function AppToolbar({
                 aria-expanded={recentOpen}
                 onClick={() => setRecentOpen((v) => !v)}
               >
-                <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden>▾</span>
+                <Icon name="history" size={20} strokeWidth={1.5} /> <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={12} /></span>
               </button>
               {recentOpen ? (
                 <div className="titlebar-popover">
@@ -281,7 +268,7 @@ export default function AppToolbar({
           {OPS_BUTTONS.map((b) => {
             const dim = b.needsSession && !hasSession
             const keys = keysFor(b.id)
-            const title = dim ? `${t(b.title)} · ${t('ux09.dimHint')}` : `${t(b.title)}${keys ? ` (${keys})` : ''}`
+            const title = dim ? t('pf7.connectFirst') : `${t(b.title)}${keys ? ` (${keys})` : ''}`
             return (
               <button
                 key={b.id}
@@ -292,7 +279,7 @@ export default function AppToolbar({
                 aria-label={t(b.title)}
                 onClick={() => onMenuAction(b.id)}
               >
-                <Icon name={b.icon} /> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
+                <Icon name={b.icon} size={20} strokeWidth={1.5} /> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
               </button>
             )
           })}
@@ -303,29 +290,26 @@ export default function AppToolbar({
             type="button"
             className="titlebar-icon-btn titlebar-tool-btn titlebar-search-btn"
             data-tool="commandPalette"
+            data-testid="toolbar-palette-field"
             title={t('toolbar.paletteTitle')}
-            aria-label={t('toolbar.paletteTitle')}
+            aria-label={t('toolbar.searchField')}
             onClick={() => onMenuAction('commandPalette')}
           >
-            <Icon name="search" />
-            {searchIconOnly ? null : (
-              <>
-                <span className="tb-label">{t('toolbar.searchFeatures')}</span>
-                <kbd className="tb-label">Ctrl+K</kbd>
-              </>
-            )}
+            <Icon name="search" size={16} strokeWidth={1.5} />
+            <span className="tb-label tb-search-ph">{searchIconOnly ? t('toolbar.searchFieldShort') : t('toolbar.searchField')}</span>
           </button>
-          <div className="titlebar-popover-wrap" ref={moreRef} style={{ display: "none" }} /* UX-15 no more */>
+          <div className="titlebar-popover-wrap" ref={moreRef}>
             <button
               type="button"
-              className="titlebar-icon-btn"
+              className="titlebar-icon-btn titlebar-overflow-btn"
               data-tool="more"
-              title={t('toolbar.more')}
-              aria-label={t('toolbar.more')}
+              data-testid="toolbar-overflow"
+              title={t('toolbar.overflow')}
+              aria-label={t('toolbar.overflow')}
               aria-expanded={moreOpen}
-              onClick={() => setMoreOpen((v) => !v)} /* UX-15 no more button */ style={{ display: "none" }}
+              onClick={() => setMoreOpen((v) => !v)}
             >
-              <span aria-hidden>⋯</span> <span className="tb-label">{t('toolbar.more')}</span> <span aria-hidden>▾</span>
+              <span aria-hidden>⋯</span>
             </button>
             {moreOpen ? (
               <div className="titlebar-popover titlebar-more-menu" role="menu" data-testid="toolbar-more">
@@ -334,6 +318,9 @@ export default function AppToolbar({
                 </button>
                 <button type="button" role="menuitem" onClick={more(() => onMenuAction('checkUpdate'))}>
                   {t('toolbar.checkUpdateEllipsis')}
+                </button>
+                <button type="button" role="menuitem" onClick={more(() => onMenuAction('whatsNew'))}>
+                  {t('menu.whatsNew')}
                 </button>
                 <button type="button" role="menuitem" onClick={more(() => setLocale(locale === 'en' ? 'zh-CN' : 'en'))}>
                   {t('toolbar.language')}: {locale === 'en' ? '中文' : 'English'}
@@ -350,39 +337,20 @@ export default function AppToolbar({
         </div>
         <span className="toolbar-divider" aria-hidden />
         <div className="app-toolbar-layout" role="group" aria-label={t('toolbar.layout')}>
-          {onToggleSidebar ? (
+          {layoutToggles.map((item) => (
             <button
+              key={item.id}
               type="button"
-              className={`layout-toggle-btn ${showSidebar ? 'is-on' : ''}`}
-              title={showSidebar ? t('toolbar.hideSidebar') : t('toolbar.showSidebar')}
-              aria-pressed={showSidebar}
-              onClick={onToggleSidebar}
+              className={`layout-toggle-btn${item.on ? ' is-on' : ''}`}
+              data-testid={`layout-toggle-${item.kind}`}
+              title={item.on ? t(item.hide) : t(item.show)}
+              aria-label={item.on ? t(item.hide) : t(item.show)}
+              aria-pressed={item.on}
+              onClick={() => onMenuAction(item.id)}
             >
-              <LayoutToggleIcon kind="sidebar" />
+              <LayoutToggleIcon kind={item.kind} />
             </button>
-          ) : null}
-          {onToggleMain ? (
-            <button
-              type="button"
-              className={`layout-toggle-btn ${showMain ? 'is-on' : ''}`}
-              title={showMain ? t('toolbar.hideMain') : t('toolbar.showMain')}
-              aria-pressed={showMain}
-              onClick={onToggleMain}
-            >
-              <LayoutToggleIcon kind="main" />
-            </button>
-          ) : null}
-          {onToggleAi ? (
-            <button
-              type="button"
-              className={`layout-toggle-btn ${showAi ? 'is-on' : ''}`}
-              title={showAi ? t('toolbar.hideAi') : t('toolbar.showAi')}
-              aria-pressed={showAi}
-              onClick={onToggleAi}
-            >
-              <LayoutToggleIcon kind="ai" />
-            </button>
-          ) : null}
+          ))}
         </div>
       </div>
     </header>

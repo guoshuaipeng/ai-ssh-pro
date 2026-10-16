@@ -5,6 +5,7 @@ import { pushSample, sparklinePoints } from '../../../shared/server-tools'
 import { useI18n } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import Modal from './Modal'
+import Icon from './Icon'
 import type { BatchSessionOption } from './BatchExecuteModal'
 
 type Props = {
@@ -204,7 +205,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
                       <div className="rm-bar rm-bar-sm">
                         <div className={`rm-fill rm-${level(d.percent)}`} style={{ width: `${d.percent}%` }} />
                       </div>{' '}
-                      {d.percent >= 85 ? '⚠ ' : ''}
+                      {d.percent >= 85 ? <Icon name="triangle-alert" size={12} /> : null}{' '}
                       {d.percent}%
                     </td>
                   </tr>

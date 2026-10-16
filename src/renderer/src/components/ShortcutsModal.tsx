@@ -3,11 +3,11 @@ import { KEYMAP } from '@shared/keymap'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import Modal from './Modal'
 
-type Props = { open: boolean; onClose: () => void; onOpenSettings?: () => void }
+type Props = { open: boolean; onClose: () => void; onOpenSettings?: () => void; onOpenPalette?: () => void }
 
 const GROUPS: ShortcutGroup[] = ['general', 'session', 'terminal', 'view']
 
-export default function ShortcutsModal({ open, onClose, onOpenSettings }: Props) {
+export default function ShortcutsModal({ open, onClose, onOpenSettings, onOpenPalette }: Props) {
   const { t, locale } = useI18n()
   return (
     <Modal open={open} title={t('shortcuts.title')} onClose={onClose} width={520}>
@@ -35,6 +35,11 @@ export default function ShortcutsModal({ open, onClose, onOpenSettings }: Props)
           </section>
         ))}
         <p className="shortcuts-hint">{t('shortcuts.hint')}</p>
+        {onOpenPalette ? (
+          <button type="button" className="link-btn" data-testid="help-open-palette" onClick={onOpenPalette}>
+            {t('help.searchPalette')}
+          </button>
+        ) : null}
         {onOpenSettings ? (
           <button type="button" onClick={onOpenSettings}>
             {t('settings.viewAll')}

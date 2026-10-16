@@ -6,10 +6,13 @@ import type {
   HostService,
   HostServiceKind
 } from '@shared/inventory'
+import EmptyState from './EmptyState'
 import NotesMarkdownPreview from './NotesMarkdownPreview'
 import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
-import { confirmDialog } from '../lib/dialogs'
+import Icon, { Twist } from './Icon'
+import { confirmDialog, toastUndo } from '../lib/dialogs'
+import { hostProfileComfortLayout } from '@shared/host-profile-layout'
 export type HostInventoryLink = {
   profileId?: string
   host?: string
@@ -34,6 +37,7 @@ type Props = {
   onAuditChange?: (on: boolean) => void
   onOpenAudit?: () => void
   onElevate?: () => void
+  onOpenGate?: () => void
   autoRecord?: boolean
   onAutoRecord?: (on: boolean) => void
   onRecordings?: () => void
@@ -86,7 +90,7 @@ function emptyForm(link?: HostInventoryLink): {
   }
 }
 
-export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool, protectionLevel, auditOn, suggestProd, scrollToGuard, onProtectionChange, onAuditChange, onOpenAudit, onElevate, autoRecord, onAutoRecord, onRecordings }: Props) {
+export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool, protectionLevel, auditOn, suggestProd, scrollToGuard, onProtectionChange, onAuditChange, onOpenAudit, onElevate, onOpenGate, autoRecord, onAutoRecord, onRecordings }: Props) {
   /** 从会话右键打开：只编辑该主机，不显示档案列表 */
   const focused = Boolean(
     link && (link.hostInventoryId?.trim() || link.profileId?.trim() || link.host?.trim())
@@ -109,7 +113,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
   const [editingMeta, setEditingMeta] = useState(false)
   const [svcFilter, setSvcFilter] = useState('')
   const [svcKind, setSvcKind] = useState<'all' | HostServiceKind>('all')
-  const [svcCollapsed, setSvcCollapsed] = useState(false)
+  const [svcCollapsed, setSvcCollapsed] = useState(() => hostProfileComfortLayout(typeof window !== 'undefined' ? window.innerWidth : 1366, typeof window !== 'undefined' ? window.innerHeight : 768).advancedCollapsed)
   useEffect(() => {
     if (!scrollToGuard) return
     const el = document.getElementById('l4-guard')
@@ -394,7 +398,20 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
   }
 
   const removeService = (idx: number) => {
+    const removed = form.services[idx]
     setForm((prev) => ({ ...prev, services: prev.services.filter((_, i) => i !== idx) }))
+    if (removed) {
+      toastUndo({
+        message: tg('inv.serviceDeleted', { name: removed.name }),
+        undo: () => {
+          setForm((prev) => {
+            const services = [...prev.services]
+            services.splice(Math.min(idx, services.length), 0, removed)
+            return { ...prev, services }
+          })
+        }
+      })
+    }
     if (editingSvcIdx === idx) {
       setEditingSvcIdx(null)
       setSvcDraft({ name: '', kind: 'unknown', notes: '' })
@@ -607,12 +624,12 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
         className={`workspace-panel-body workspace-panel-body--inventory${focused ? ' workspace-panel-body--focused' : ''}`}
       >
         {error ? (
-          <p style={{ margin: '0 0 10px', color: 'var(--danger, #f85149)', fontSize: 12 }}>{error}</p>
+          <p style={{ margin: '0 0 10px', color: 'var(--color-danger)', fontSize: 12 }}>{error}</p>
         ) : null}
         {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.186')}</p> : null}
 
         {focused ? (
-          <div className="inv20" data-testid="host-profile">
+          <div className="inv20" data-testid="host-profile" data-host-profile-layout={hostProfileComfortLayout(typeof window !== 'undefined' ? window.innerWidth : 1366, typeof window !== 'undefined' ? window.innerHeight : 768).singleColumn ? 'column' : 'row'}>
             <header className="inv20-head">
               <div className="inv20-head-main">
                 <div className="inv20-title-row">
@@ -653,7 +670,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     )
                   }}
                 >
-                  ▶ {tg('ux20.connect')}
+                  <Icon name="play" size={14} /> {tg('ux20.connect')}
                 </button>
                 <button type="button" onClick={() => onOpenTool?.('sftp', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.sftp')}</button>
                 <button type="button" onClick={() => onOpenTool?.('monitor', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.monitor')}</button>
@@ -663,6 +680,18 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                   {headerMenu ? (
                     <div className="inv20-more-menu" role="menu">
                       {rootHint ? <div className="inv20-more-hint" title={rootHint}>{tg('ui.184')}{rootHint}</div> : null}
+                      <button
+                        type="button"
+                        data-testid="l2d-inventory"
+                        onClick={() => {
+                          setHeaderMenu(false)
+                          const hostId = form.profileId || link?.profileId
+                          if (!hostId) return
+                          window.dispatchEvent(new CustomEvent('aiss-maintenance-open', { detail: { hostKeys: [hostId] } }))
+                        }}
+                      >
+                        {tg('l2d.openForHost')}
+                      </button>
                       <button type="button" className="danger" disabled={saving || !(form.id || selectedId)} onClick={() => { setHeaderMenu(false); void onDelete() }}>{tg('ux20.deleteProfile')}</button>
                     </div>
                   ) : null}
@@ -697,7 +726,9 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                   )}
                 </section>
                 {onProtectionChange && onAuditChange && onOpenAudit && onElevate ? (
-                  <ProtectionSection
+                  <details className="inv20-advanced" data-testid="host-profile-advanced">
+                    <summary>{tg('settings.advanced')}</summary>
+                    <ProtectionSection
                     level={protectionLevel ?? 'normal'}
                     auditOn={auditOn !== false}
                     suggestProd={suggestProd}
@@ -708,11 +739,13 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     onAutoRecord={onAutoRecord}
                     onRecordings={onRecordings ?? (() => undefined)}
                     onElevate={onElevate}
+                    onOpenGate={onOpenGate}
                   />
+                  </details>
                 ) : null}
                 <section className="inv20-card">
                   <div className="inv20-card-head">
-                    <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}>{svcCollapsed ? '▸' : '▾'} {tg('ux20.services')} ({form.services.length})</button>
+                    <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}><Twist open={!svcCollapsed} size={12} /> {tg('ux20.services')} ({form.services.length})</button>
                     <span className="inv20-card-actions">
                       <input className="inv20-svc-filter" placeholder={tg('ux20.filter')} value={svcFilter} onChange={(e) => setSvcFilter(e.target.value)} aria-label={tg('ux20.filter')} />
                       <button type="button" onClick={() => { setEditingSvcIdx(-1); setSvcDraft({ name: '', kind: 'unknown', notes: '' }) }}>+ {tg('ux20.add')}</button>
@@ -792,7 +825,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                 </button>
               </div>
               {!loading && entries.length === 0 ? (
-                <p style={{ fontSize: 12, color: 'var(--muted)' }}>{tg('ui.190')}</p>
+                <EmptyState compact icon="host" title={tg('ui.190')} testId="inventory-empty" />
               ) : null}
               <ul className="inventory-host-list">
                 {entries.map((e) => (

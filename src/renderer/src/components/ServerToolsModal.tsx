@@ -12,10 +12,14 @@ import {
 } from '../../../shared/server-tools'
 import { formatBytes } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
+import Icon from './Icon'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askConfirm, askText } from '../lib/dialogs'
 import Modal from './Modal'
+import EmptyState from './EmptyState'
+import { QUIET_LOAD_ATTRS } from '@shared/quiet-load'
 import type { BatchSessionOption } from './BatchExecuteModal'
+import DockerToolboxTab, { type DockerToolboxOpen } from './DockerToolboxTab'
 
 export type ServerToolsTab = 'processes' | 'services' | 'ports' | 'logs' | 'df' | 'docker'
 
@@ -26,6 +30,12 @@ type Props = {
   initialTab?: ServerToolsTab
   onClose: () => void
   embedded?: boolean
+  /** S4: kill and service start/stop/restart stay disabled. */
+  writesDisabled?: boolean
+  /** Open the existing workspace Docker panel for one compose project, swarm service, or container. */
+  onOpenDocker?: (target: DockerToolboxOpen) => void
+  /** Refresh the session-tree Docker cache after a toolbox action. */
+  onDockerChanged?: () => void
 }
 
 const cleanErr = (e: unknown) =>
@@ -34,7 +44,7 @@ const cleanErr = (e: unknown) =>
 const TABS: ServerToolsTab[] = ['processes', 'services', 'ports', 'logs', 'df', 'docker']
 
 /** Processes, systemd services, listening ports and log tail of one connected Linux host. */
-export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded }: Props) {
+export default function ServerToolsModal({ open, sessions, activeSessionId, initialTab, onClose, embedded, writesDisabled = false, onOpenDocker, onDockerChanged }: Props) {
   const { t } = useI18n()
   const [sessionId, setSessionId] = useState('')
   const [tab, setTab] = useState<ServerToolsTab>('processes')
@@ -71,13 +81,13 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
     }
   }, [])
 
-  const common = { sessionId, sudo, busy, guard, setNotice, t }
+  const common = { sessionId, sudo, busy, guard, setNotice, t, writesDisabled }
 
   return (
     <Modal open={open || !!embedded} title={t('st.title')} onClose={onClose} width={900} embedded={embedded} testId="server-tools-panel">
       <div className="st-panel">
         {sessions.length === 0 ? (
-          <p className="st-empty">{t('rm.noSessions')}</p>
+          <EmptyState icon="host" title={t('rm.noSessions')} desc={t('p11.toolboxNext')} testId="toolbox-no-sessions" />
         ) : (
           <>
             <div className="st-toolbar">
@@ -120,7 +130,19 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
             {sessionId && tab === 'ports' ? <PortsTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'logs' ? <LogsTab key={sessionId} {...common} /> : null}
             {sessionId && tab === 'df' ? <DiskTab key={sessionId} {...common} /> : null}
-            {sessionId && tab === 'docker' ? <DockerTab key={sessionId} sessionId={sessionId} t={t} /> : null}
+            {sessionId && tab === 'docker' ? (
+              <DockerToolboxTab
+                key={sessionId}
+                sessionId={sessionId}
+                busy={busy}
+                writesDisabled={writesDisabled}
+                guard={guard}
+                setNotice={setNotice}
+                t={t}
+                onOpenDocker={onOpenDocker}
+                onDockerChanged={onDockerChanged}
+              />
+            ) : null}
           </>
         )}
       </div>
@@ -132,47 +154,10 @@ type TabProps = {
   sessionId: string
   sudo: boolean
   busy: boolean
+  writesDisabled?: boolean
   guard: <T>(fn: () => Promise<T>) => Promise<T | undefined>
   setNotice: (s: string | null) => void
   t: ReturnType<typeof useI18n>['t']
-}
-
-function DockerTab({ sessionId, t }: { sessionId: string; t: TabProps['t'] }) {
-  const [names, setNames] = useState<string[] | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-  useEffect(() => {
-    let stop = false
-    void window.aiss.docker
-      .listTree(sessionId)
-      .then((tree) => {
-        if (stop) return
-        const rows = tree?.containers?.map((c) => c.name).filter(Boolean) ?? []
-        setNames(rows)
-      })
-      .catch((e) => {
-        if (!stop) setErr(e instanceof Error ? e.message : String(e))
-      })
-    return () => {
-      stop = true
-    }
-  }, [sessionId])
-  if (err) return <p className="st-error">{t('docker.readFail', { reason: err })}</p>
-  if (!names) return <p className="st-muted">{t('rm.loading')}</p>
-  if (!names.length) {
-    return (
-      <div data-testid="toolbox-docker-empty">
-        <p className="st-muted">{t('docker.missing')}</p>
-        <p className="st-muted">{t('docker.install')}</p>
-      </div>
-    )
-  }
-  return (
-    <ul className="st-table" data-testid="toolbox-docker">
-      {names.map((name) => (
-        <li key={name}>{name}</li>
-      ))}
-    </ul>
-  )
 }
 
 function DiskTab({ sessionId, busy, guard, t }: TabProps) {
@@ -184,8 +169,10 @@ function DiskTab({ sessionId, busy, guard, t }: TabProps) {
   useEffect(() => {
     void load()
   }, [load])
-  if (!list) return <p className="st-muted">{t('rm.loading')}</p>
-  if (!list.length) return <p className="st-muted">{t('st.dfEmpty')}</p>
+  if (!list) return <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p>
+  if (!list.length) {
+    return <EmptyState compact icon={<Icon name="list-tree" size={32} strokeWidth={1.5} />} title={t('st.dfEmpty')} testId="toolbox-df-empty" />
+  }
   return (
     <div className="st-table-wrap" data-testid="toolbox-df">
       <table className="st-table">
@@ -217,7 +204,7 @@ function DiskTab({ sessionId, busy, guard, t }: TabProps) {
   )
 }
 
-function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
+function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisabled }: TabProps) {
   const [list, setList] = useState<ProcInfo[] | null>(null)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<ProcSort>('cpu')
@@ -234,7 +221,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
     const ok = await askConfirm(
       t('st.killTitle', { signal }),
       t('st.killMsg', { pid: p.pid, cmd: p.command.slice(0, 120) }),
-      { danger: signal === 'KILL', okLabel: t('st.send') }
+      { id: 'confirm.killProcess', danger: true, okLabel: t('st.kill') }
     )
     if (!ok) return
     const r = await guard(() => window.aiss.tools.kill(sessionId, p.pid, signal, sudo))
@@ -267,7 +254,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
         </button>
         {list ? <span className="st-count">{t('st.count', { shown: shown.length, total: list.length })}</span> : null}
       </div>
-      {!list && busy ? <p className="st-empty">{t('rm.loading')}</p> : null}
+      {!list && busy ? <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p> : null}
       {list ? (
         <div className="st-table-wrap">
           <table className="st-table st-procs">
@@ -296,13 +283,13 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
                     {p.command}
                   </td>
                   <td className="st-actions st-actions--hover">
-                    <button type="button" className="st-icon-btn" onClick={() => void kill(p, 'TERM')} disabled={busy} title={t('st.termHint')} aria-label={t('st.term')}>
-                      ⏹
+                    <button type="button" className="st-icon-btn" onClick={() => void kill(p, 'TERM')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : t('st.termHint')} aria-label={t('st.term')}>
+                      <Icon name="square" size={12} />
                     </button>
                     <details className="st-more">
                       <summary className="st-icon-btn" title="…" aria-label="…">⋯</summary>
                       <div className="st-more-menu">
-                        <button type="button" className="danger" onClick={() => void kill(p, 'KILL')} disabled={busy} title={t('st.killHint')}>
+                        <button type="button" className="danger" onClick={() => void kill(p, 'KILL')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : t('st.killHint')}>
                           {t('st.kill')} (kill -9)
                         </button>
                       </div>
@@ -318,7 +305,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) 
   )
 }
 
-function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
+function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisabled }: TabProps) {
   const [list, setList] = useState<ServiceInfo[] | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<ServiceFilter>('all')
@@ -340,7 +327,8 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
       return
     }
     const ok = await askConfirm(t('st.svcConfirmTitle'), t('st.svcConfirmMsg', { action: t(`st.svc.${action}` as 'st.svc.start'), unit: s.unit }), {
-      danger: action === 'stop',
+      id: 'confirm.stopService',
+      danger: action !== 'start',
       okLabel: t(`st.svc.${action}` as 'st.svc.start')
     })
     if (!ok) return
@@ -377,7 +365,7 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
           </button>
         ) : null}
       </div>
-      {!list && busy ? <p className="st-empty">{t('rm.loading')}</p> : null}
+      {!list && busy ? <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p> : null}
       {list ? (
         <div className="st-table-wrap">
           <table className="st-table st-services">
@@ -407,15 +395,15 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t }: TabProps) {
                     </button>
                     {s.sub === 'running' ? (
                       <>
-                        <button type="button" onClick={() => void act(s, 'restart')} disabled={busy}>
+                        <button type="button" onClick={() => void act(s, 'restart')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : undefined}>
                           {t('st.svc.restart')}
                         </button>
-                        <button type="button" className="danger" onClick={() => void act(s, 'stop')} disabled={busy}>
+                        <button type="button" className="danger" onClick={() => void act(s, 'stop')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : undefined}>
                           {t('st.svc.stop')}
                         </button>
                       </>
                     ) : (
-                      <button type="button" onClick={() => void act(s, 'start')} disabled={busy}>
+                      <button type="button" onClick={() => void act(s, 'start')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : undefined}>
                         {t('st.svc.start')}
                       </button>
                     )}
@@ -480,8 +468,10 @@ function PortsTab({ sessionId, busy, guard, setNotice, t }: TabProps) {
         {list ? <span className="st-count">{t('st.count', { shown: shown.length, total: list.length })}</span> : null}
         <span className="st-hint">{t('st.portsHint')}</span>
       </div>
-      {!list && busy ? <p className="st-empty">{t('rm.loading')}</p> : null}
-      {list && list.length === 0 ? <p className="st-empty">{t('st.noPorts')}</p> : null}
+      {!list && busy ? <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p> : null}
+      {list && list.length === 0 ? (
+        <EmptyState compact icon="forward" title={t('st.noPorts')} testId="toolbox-no-ports" />
+      ) : null}
       {shown.length ? (
         <div className="st-table-wrap">
           <table className="st-table st-ports">
@@ -612,9 +602,9 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
           ))}
         </pre>
       ) : busy ? (
-        <p className="st-empty">{t('st.logReading')}</p>
+        <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('st.logReading')}</p>
       ) : (
-        <p className="st-empty">{t('st.logIntro')}</p>
+        <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('st.logIntro')}</p>
       )}
     </div>
   )

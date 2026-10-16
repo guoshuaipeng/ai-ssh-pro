@@ -4,6 +4,8 @@ export type StartupMode = 'home' | 'last' | 'blank'
 
 export const STARTUP_LS_KEY = 'aiss.startup.v1'
 export const LAST_WORKSPACE_LS_KEY = 'aiss.startup.last.v1'
+/** PNG-4: 「恢复上次布局」. Missing key means on. */
+export const RESTORE_LAYOUT_LS_KEY = 'aiss.startup.restoreLayout.v1'
 
 type Store = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -15,6 +17,19 @@ export function loadStartupMode(store: Pick<Storage, 'getItem'> = globalThis.loc
 
 export function saveStartupMode(mode: StartupMode, store: Store = globalThis.localStorage): void {
   store.setItem(STARTUP_LS_KEY, mode)
+}
+
+/** Defaults on. Only an explicit `0` turns last-layout restore off. */
+export function loadRestoreLayout(store: Pick<Storage, 'getItem'> = globalThis.localStorage): boolean {
+  try {
+    return store.getItem(RESTORE_LAYOUT_LS_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
+export function saveRestoreLayout(on: boolean, store: Store = globalThis.localStorage): void {
+  store.setItem(RESTORE_LAYOUT_LS_KEY, on ? '1' : '0')
 }
 
 /** A center tab remembered for "last session". Scrollback is intentionally absent. */

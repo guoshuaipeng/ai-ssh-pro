@@ -16,11 +16,12 @@ export type PlaybookVar = {
 }
 
 export type PlaybookOrigin = {
-  kind: 'alert' | 'error'
+  kind: 'alert' | 'error' | 'diff'
   alertId?: string
   hostKey: string
   hostTitle: string
   ruleId?: string
+  path?: string
   at: number
 }
 
@@ -45,6 +46,8 @@ export type Playbook = {
   steps: PlaybookStep[]
   updatedAt: number
   lastRunAt?: number
+  /** W9: shipped template. Never persisted; 「另存为」 makes a user copy. */
+  builtin?: boolean
   sample?: boolean
   draft?: boolean
   origin?: PlaybookOrigin
@@ -70,6 +73,17 @@ export type PlaybookFile = {
 }
 
 export const PLAYBOOK_LS_KEY = 'aiss.playbooks.v1'
+
+/** Stable ids of the shipped sample playbooks. User copies never reuse these. */
+export const BUILTIN_PLAYBOOK_IDS = ['sample-disk', 'sample-nginx'] as const
+
+export function isBuiltinPlaybookId(id: string): boolean {
+  return (BUILTIN_PLAYBOOK_IDS as readonly string[]).includes(id)
+}
+
+export function isBuiltinPlaybook(playbook: { id: string; builtin?: boolean }): boolean {
+  return Boolean(playbook.builtin) || isBuiltinPlaybookId(playbook.id)
+}
 export const DEFAULT_PARALLEL = 5
 export const AUTOSAVE_MS = 800
 
@@ -172,10 +186,11 @@ export function loadPlaybooks(store: Pick<Storage, 'getItem'> = globalThis.local
 }
 
 export function savePlaybooks(list: Playbook[], store: Store = globalThis.localStorage): void {
-  store.setItem(PLAYBOOK_LS_KEY, JSON.stringify(list))
+  store.setItem(PLAYBOOK_LS_KEY, JSON.stringify(partitionStoredPlaybooks(list).user))
 }
 
 export function upsertPlaybook(list: Playbook[], playbook: Playbook): Playbook[] {
+  if (isBuiltinPlaybookId(playbook.id)) return list
   const i = list.findIndex((p) => p.id === playbook.id)
   if (i < 0) return [playbook, ...list]
   const next = list.slice()
@@ -209,23 +224,32 @@ export function normalizePlaybook(raw: unknown): Playbook | null {
   const o = raw as Partial<Playbook>
   if (typeof o.name !== 'string' || !o.name.trim()) return null
   const steps = Array.isArray(o.steps) ? o.steps.map(normalizeStep).filter((s): s is PlaybookStep => Boolean(s)) : []
+  const id = typeof o.id === 'string' && o.id ? o.id : `pb-${Date.now()}`
+  const builtin = isBuiltinPlaybookId(id)
   const playbook: Playbook = {
-    id: typeof o.id === 'string' && o.id ? o.id : `pb-${Date.now()}`,
+    id,
     name: o.name.trim(),
     description: typeof o.description === 'string' ? o.description : '',
     steps,
     updatedAt: typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
     lastRunAt: typeof o.lastRunAt === 'number' ? o.lastRunAt : undefined,
-    sample: Boolean(o.sample) || undefined
+    builtin: builtin || undefined,
+    sample: builtin || Boolean(o.sample) || undefined
   }
   if (o.draft) playbook.draft = true
-  if (o.origin && typeof o.origin === 'object' && (o.origin.kind === 'alert' || o.origin.kind === 'error') && typeof o.origin.hostKey === 'string') {
+  if (
+    o.origin &&
+    typeof o.origin === 'object' &&
+    (o.origin.kind === 'alert' || o.origin.kind === 'error' || o.origin.kind === 'diff') &&
+    typeof o.origin.hostKey === 'string'
+  ) {
     playbook.origin = {
       kind: o.origin.kind,
       alertId: typeof o.origin.alertId === 'string' ? o.origin.alertId : undefined,
       hostKey: o.origin.hostKey,
       hostTitle: typeof o.origin.hostTitle === 'string' ? o.origin.hostTitle : o.origin.hostKey,
       ruleId: typeof o.origin.ruleId === 'string' ? o.origin.ruleId : undefined,
+      path: typeof o.origin.path === 'string' ? o.origin.path : undefined,
       at: typeof o.origin.at === 'number' ? o.origin.at : playbook.updatedAt
     }
   }
@@ -303,7 +327,8 @@ export function samplePlaybooks(now = Date.now()): Playbook[] {
     {
       id: 'sample-disk',
       name: '查看磁盘占用',
-      description: '只读检查，不含删除。',
+      description: '只读检查，不含删除。示例 · 不自动执行',
+      builtin: true,
       sample: true,
       updatedAt: now,
       steps: [
@@ -314,7 +339,8 @@ export function samplePlaybooks(now = Date.now()): Playbook[] {
     {
       id: 'sample-nginx',
       name: '检查 nginx',
-      description: '状态检查；重载需要确认。',
+      description: '状态检查；重载需要确认。示例 · 不自动执行',
+      builtin: true,
       sample: true,
       updatedAt: now - 1,
       steps: [
@@ -329,6 +355,68 @@ export function samplePlaybooks(now = Date.now()): Playbook[] {
 export function ensureSamples(list: Playbook[], now = Date.now()): Playbook[] {
   if (list.length) return list
   return samplePlaybooks(now)
+}
+
+export function playbookCommandKey(playbook: Playbook): string {
+  return playbook.steps.map((s) => `${s.type}\t${s.command ?? ''}\t${s.snippetId ?? ''}`).join('\n')
+}
+
+/** Copy a built-in playbook into the user library. The source id is never reused. */
+export function saveAsPlaybook(source: Playbook, now = Date.now(), name?: string): Playbook {
+  const copy = normalizePlaybook({
+    ...source,
+    id: `pb-${now}`,
+    name: (name?.trim() || `${source.name} 副本`).slice(0, 80),
+    builtin: false,
+    sample: false,
+    draft: false,
+    updatedAt: now,
+    lastRunAt: undefined,
+    steps: source.steps.map((step, index) => ({ ...step, id: `st-${now}-${index}` }))
+  })
+  if (!copy) {
+    return {
+      id: `pb-${now}`,
+      name: source.name,
+      description: source.description,
+      steps: source.steps.map((step, index) => ({ ...step, id: `st-${now}-${index}` })),
+      updatedAt: now
+    }
+  }
+  return { ...copy, builtin: undefined, sample: undefined, draft: undefined }
+}
+
+/**
+ * Drop unchanged built-in seeds. A built-in id whose commands were edited becomes a user copy
+ * so the shipped source stays intact.
+ */
+export function partitionStoredPlaybooks(list: Playbook[], now = Date.now()): { user: Playbook[]; changed: boolean } {
+  const sources = samplePlaybooks(now)
+  const user: Playbook[] = []
+  let changed = false
+  let seq = 0
+  for (const playbook of list) {
+    if (!isBuiltinPlaybookId(playbook.id)) {
+      if (playbook.builtin) {
+        changed = true
+        const { builtin: _builtin, ...rest } = playbook
+        user.push(rest)
+      } else user.push(playbook)
+      continue
+    }
+    changed = true
+    const source = sources.find((row) => row.id === playbook.id)
+    if (source && playbookCommandKey(source) === playbookCommandKey(playbook)) continue
+    user.push(saveAsPlaybook(playbook, now + seq, playbook.name))
+    seq += 1
+  }
+  return { user, changed }
+}
+
+/** Built-in ids always resolve to the shipped source, never a stored overwrite. */
+export function resolvePlaybook(id: string, list: Playbook[] = loadPlaybooks()): Playbook | null {
+  if (isBuiltinPlaybookId(id)) return samplePlaybooks().find((p) => p.id === id) ?? null
+  return list.find((p) => p.id === id) ?? null
 }
 
 export type ExecOutcome = { code: number | null; stdout: string; stderr: string; error?: string }

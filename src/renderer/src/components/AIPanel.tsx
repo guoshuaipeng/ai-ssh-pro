@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
+import { friendlyErrorMessage } from '../lib/friendly-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { parseAiAssistantReply } from '@shared/ipc'
+import { commandBundle, highlightKeyNumbers, layoutOpsReply, type OpsLayout } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
+import { confirmDialog } from '../lib/dialogs'
+import { visibleWorkingGoal } from '@shared/working-memory-view'
+import { effectiveSafetyTier, isSafetyTier, releaseSessionInFlight, SAFETY_TIERS, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
+import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
+import SafetyCommandBar from './SafetyCommandBar'
 
 type Props = {
   activeSessionId: string | null
@@ -12,6 +19,9 @@ type Props = {
   historyKey?: string | null
   hostInventoryId?: string | null
   inventoryLookup?: { host?: string; port?: number; profileId?: string } | null
+  /** Saved profile protection. Production hosts do not take autopilot unless allow-listed. */
+  production?: boolean
+  hostName?: string | null
   onOpenSettings?: () => void
 }
 
@@ -24,8 +34,16 @@ type AssistantLine = {
   structured?: AiAssistantReply
   /** 新交互协议下：需要用户确认后才能继续的 requestId */
   requestId?: string
-  /** 低风险命令已由主进程自动执行 */
-  autoApproved?: boolean
+  /** Safety-tier decision from the agent. Absent on a plain suggestion. */
+  safetyMode?: SafetyMode
+  /** Arrived this turn. History reload is not fresh, so it does not auto-run again. */
+  fresh?: boolean
+  /** 本卡确认结果。命令不会因 low 风险自动执行。 */
+  decision?: 'agreed' | 'skipped'
+  /** 非结构化回复：仍用卡片壳，并提示未能识别步骤 */
+  parseMiss?: boolean
+  variant?: 'error'
+  detail?: string
 }
 
 type Line = UserLine | AssistantLine
@@ -35,6 +53,127 @@ function riskClass(level: string): string {
   if (n === 'low') return 'ai-risk-low'
   if (n === 'high') return 'ai-risk-high'
   return 'ai-risk-medium'
+}
+
+function HighlightedText({ text }: { text: string }): ReactNode {
+  const parts = highlightKeyNumbers(text)
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.kind === 'mark' ? (
+          <mark key={i} className="ai-hl-num">
+            {p.text}
+          </mark>
+        ) : p.kind === 'strong' ? (
+          <strong key={i}>{p.text}</strong>
+        ) : (
+          p.text
+        )
+      )}
+    </>
+  )
+}
+
+function RiskBadge({ level }: { level: string }) {
+  const n = (level || 'medium').toLowerCase()
+  return (
+    <div className={`ai-risk-badge ${riskClass(n)}`} data-risk={n}>
+      {tg('ux64.risk', { level: n })}
+    </div>
+  )
+}
+
+function OpsReply({
+  text,
+  badge,
+  confirm,
+  decision,
+  canRun,
+  onAgree,
+  onDecline,
+  commandBar
+}: {
+  text: string
+  badge?: boolean
+  confirm?: boolean
+  decision?: 'agreed' | 'skipped'
+  canRun?: boolean
+  onAgree?: (command: string) => void
+  onDecline?: () => void
+  commandBar?: (command: string) => ReactNode
+}) {
+  const layout: OpsLayout = layoutOpsReply(text)
+  const structured = layout.blocks.some((b) => b.kind !== 'prose')
+  if (!structured) {
+    return (
+      <div className="ai-reply-desc">
+        <HighlightedText text={text} />
+      </div>
+    )
+  }
+  return (
+    <div className="ai-ops-stack" data-testid="ai-ops-stack">
+      {badge && layout.risk ? <RiskBadge level={layout.risk} /> : null}
+      {layout.blocks.map((block, i) => {
+        if (block.kind === 'prose') {
+          return (
+            <div key={i} className="ai-reply-desc">
+              <HighlightedText text={block.text} />
+            </div>
+          )
+        }
+        if (block.kind === 'finding') {
+          return (
+            <div key={i} className={`ai-finding${block.risk ? ` ai-finding--${block.risk}` : ''}`} data-testid="ai-ops-finding">
+              <div className="ai-finding-n">{block.n}</div>
+              <div className="ai-finding-body">
+                <HighlightedText text={block.text} />
+              </div>
+              {block.risk ? (
+                <span className={`ai-risk-badge ai-finding-risk ${riskClass(block.risk)}`} data-risk={block.risk}>
+                  {tg('ux64.risk', { level: block.risk })}
+                </span>
+              ) : null}
+            </div>
+          )
+        }
+        if (block.kind === 'conclusion') {
+          return (
+            <div key={i} className={`ai-ops-conclusion${block.risk ? ` ai-finding--${block.risk}` : ''}`} data-testid="ai-ops-conclusion">
+              <HighlightedText text={block.text} />
+            </div>
+          )
+        }
+        const bundle = commandBundle(block.commands)
+        const showActions = confirm && block.confirm
+        return (
+          <div key={i} className="ai-reply-cmd" data-testid="ai-ops-commands">
+            <code className="ai-reply-cmd-code">{block.commands.join('\n')}</code>
+            {showActions ? (
+              commandBar ? (
+                commandBar(bundle)
+              ) : decision === 'agreed' ? (
+                <div className="ai-decision">{tg('ux64.executed')}</div>
+              ) : decision === 'skipped' ? (
+                <div className="ai-decision">{tg('ux64.skipped')}</div>
+              ) : (
+                <div className="ai-reply-actions">
+                  <span className="ai-btn-wrap" title={!canRun ? tg('ux64.noSession') : tg('ai.runTip')}>
+                    <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={!canRun} onClick={() => onAgree?.(bundle)}>
+                      {tg('ux64.agreeRun')}
+                    </button>
+                  </span>
+                  <button type="button" className="ai-fill-cmd-btn ai-btn-decline" title={tg('ux64.disagree')} onClick={() => onDecline?.()}>
+                    <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+                  </button>
+                </div>
+              )
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function resolveHistoryKey(historyKey: string | null | undefined, activeSessionId: string | null): string | null {
@@ -63,6 +202,8 @@ export default function AIPanel({
   historyKey = null,
   hostInventoryId = null,
   inventoryLookup = null,
+  production = false,
+  hostName = null,
   onOpenSettings
 }: Props) {
   const [lines, setLines] = useState<Line[]>([])
@@ -82,11 +223,16 @@ export default function AIPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [workingGoal, setWorkingGoal] = useState<string | null>(null)
+  const [safetySettings, setSafetySettings] = useState<SafetySettings>({ safetyTier: 'confirm' })
+  const seenConfirm = useRef(new Set<string>())
   const moreRef = useRef<HTMLDivElement>(null)
   const inputMenuRef = useRef<HTMLDivElement>(null)
   const linesRef = useRef<Line[]>([])
   linesRef.current = lines
   const persistKey = resolveHistoryKey(historyKey, activeSessionId)
+  const persistKeyRef = useRef(persistKey)
+  persistKeyRef.current = persistKey
 
   const activeProvider = providers.find((p) => p.id === activeProviderId) ?? providers[0]
   const modelList = activeProvider?.modelList ?? []
@@ -98,6 +244,7 @@ export default function AIPanel({
         setProviders(s.providers)
         setActiveProviderId(s.activeProviderId)
         setActiveModel(s.model)
+        setSafetySettings(s)
         const ready = Boolean(p?.apiKey?.trim())
         setHasApiKey(ready)
         if (sawSettings.current && !hadKey.current && ready) showToast(tg('ux37.ready'))
@@ -113,13 +260,33 @@ export default function AIPanel({
   useEffect(() => {
     const onNeed = (e: Event) => {
       const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason
-      const text = reason === 'explain' ? tg('ux37.needExplain') : reason === 'command' ? tg('ux37.needCommand') : reason === 'alert' ? tg('ux37.needAlert') : null
+      const text =
+        reason === 'explain'
+          ? tg('ux37.needExplain')
+          : reason === 'selection'
+            ? tg('ux37.needSelection')
+            : reason === 'command'
+              ? tg('ux37.needCommand')
+              : reason === 'alert'
+                ? tg('ux37.needAlert')
+                : null
       setConfigContext(text)
       setConfigFlash(true)
       window.setTimeout(() => setConfigFlash(false), 1200)
     }
     window.addEventListener('aiss-ai-need-config', onNeed)
     return () => window.removeEventListener('aiss-ai-need-config', onNeed)
+  }, [])
+
+  const refreshWorkingGoal = useCallback((key: string | null) => {
+    if (!key) {
+      setWorkingGoal(null)
+      return
+    }
+    void window.aiss.ai.getWorkingMemory(key).then((goal) => {
+      if (persistKeyRef.current !== key) return
+      setWorkingGoal(visibleWorkingGoal(goal))
+    })
   }, [])
 
   // Load persisted chat when history key / session changes
@@ -139,6 +306,10 @@ export default function AIPanel({
       cancelled = true
     }
   }, [persistKey])
+
+  useEffect(() => {
+    refreshWorkingGoal(persistKey)
+  }, [persistKey, refreshWorkingGoal])
 
   const persistHistory = useCallback(
     (nextLines: Line[]) => {
@@ -180,6 +351,7 @@ export default function AIPanel({
   const submitToAi = useCallback(
     async (text: string, terminalExcerpt?: string) => {
       const userLine: UserLine = { role: 'user', content: text }
+      releaseSessionInFlight(persistKey)
       setLines((prev) => [...prev, userLine])
       setBusy(true)
       setPendingConfirm(null)
@@ -219,7 +391,8 @@ export default function AIPanel({
             streaming: false,
             structured: s,
             requestId: ev.requestId,
-            autoApproved: ev.autoApproved === true
+            safetyMode: ev.safetyMode,
+            fresh: true
           }
           if (last?.role === 'assistant' && last.streaming && !last.structured) {
             next[next.length - 1] = row
@@ -263,10 +436,17 @@ export default function AIPanel({
         setLines((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
+          const raw = String(ev.message ?? '')
+          const row: AssistantLine = {
+            role: 'assistant',
+            content: tg('pf5.aiFail'),
+            detail: friendlyErrorMessage(raw),
+            variant: 'error'
+          }
           if (last?.role === 'assistant' && last.streaming) {
-            next[next.length - 1] = { role: 'assistant', content: tg('ai.errorMsg', { message: String(ev.message ?? '') }) }
+            next[next.length - 1] = row
           } else {
-            next.push({ role: 'assistant', content: tg('ai.errorMsg', { message: String(ev.message ?? '') }) })
+            next.push(row)
           }
           return next
         })
@@ -287,7 +467,13 @@ export default function AIPanel({
               port: inventoryLookup.port,
               profileId: inventoryLookup.profileId
             }
-          : undefined
+          : undefined,
+        safetyContext: {
+          production,
+          hostId: inventoryLookup?.profileId || hostInventoryId || undefined,
+          hostName: hostName || inventoryLookup?.host,
+          sessionId: persistKey || undefined
+        }
       })
       if (!usedStepProtocol) {
         const raw = assistant.trim()
@@ -297,19 +483,21 @@ export default function AIPanel({
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
             if (parsed) {
-              next[next.length - 1] = { role: 'assistant', content: raw, structured: parsed }
+              next[next.length - 1] = { role: 'assistant', content: raw, structured: parsed, fresh: true }
             } else {
               next[next.length - 1] = {
                 role: 'assistant',
-                content: raw || tg('ai.badJson')
+                content: raw || tg('ai.badJson'),
+                parseMiss: true,
+                fresh: true
               }
             }
           } else if (last?.role === 'user') {
             if (raw) {
-              if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed })
-              else next.push({ role: 'assistant', content: raw })
+              if (parsed) next.push({ role: 'assistant', content: raw, structured: parsed, fresh: true })
+              else next.push({ role: 'assistant', content: raw, parseMiss: true, fresh: true })
             } else {
-              next.push({ role: 'assistant', content: tg('ai.noReply') })
+              next.push({ role: 'assistant', content: tg('ai.noReply'), parseMiss: true })
             }
           }
           return next
@@ -319,13 +507,14 @@ export default function AIPanel({
       unsub()
       setBusy(false)
       setPendingConfirm(null)
-      // Persist user + assistant text after the turn completes (incl. auto-approved steps)
+      refreshWorkingGoal(persistKey)
+      // Persist user + assistant text after the turn completes
       queueMicrotask(() => {
         persistHistory(linesRef.current)
       })
     }
   },
-    [activeSessionId, hostInventoryId, inventoryLookup, lines, persistHistory, persistKey]
+    [activeSessionId, hostInventoryId, hostName, inventoryLookup, lines, persistHistory, persistKey, production, refreshWorkingGoal]
   )
 
   const send = useCallback(async () => {
@@ -377,9 +566,36 @@ export default function AIPanel({
 
   const confirmStep = useCallback(async (requestId: string, ok: boolean) => {
     if (!requestId) return
+    if (seenConfirm.current.has(requestId)) return
+    seenConfirm.current.add(requestId)
     setPendingConfirm(null)
+    setLines((prev) =>
+      prev.map((row) =>
+        row.role === 'assistant' && row.requestId === requestId
+          ? { ...row, decision: ok ? 'agreed' : 'skipped' }
+          : row
+      )
+    )
     await window.aiss.ai.confirmStep(requestId, ok)
   }, [])
+
+  const markDecision = useCallback((index: number, decision: 'agreed' | 'skipped') => {
+    setLines((prev) =>
+      prev.map((row, idx) => (idx === index && row.role === 'assistant' ? { ...row, decision } : row))
+    )
+  }, [])
+
+  const retryLastUser = useCallback(() => {
+    if (busy) return
+    const prev = linesRef.current
+    for (let i = prev.length - 1; i >= 0; i--) {
+      const row = prev[i]
+      if (row?.role === 'user' && row.content.trim()) {
+        void submitToAi(row.content)
+        return
+      }
+    }
+  }, [busy, submitToAi])
 
   const stopGeneration = useCallback(() => {
     void window.aiss.ai.abortChat()
@@ -387,10 +603,23 @@ export default function AIPanel({
 
   const clearConversation = useCallback(() => {
     if (busy) return
-    setLines([])
-    setPendingConfirm(null)
-    if (persistKey) void window.aiss.ai.setChatHistory(persistKey, [])
-  }, [busy, persistKey])
+    void (async () => {
+      const ok = await confirmDialog({
+        title: tg('wm.clearTitle'),
+        body: tg('wm.clearBody'),
+        confirmText: tg('ai.clear'),
+        danger: true
+      })
+      if (!ok) return
+      setLines([])
+      setPendingConfirm(null)
+      setWorkingGoal(null)
+      if (persistKey) {
+        await window.aiss.ai.setChatHistory(persistKey, [])
+        refreshWorkingGoal(persistKey)
+      }
+    })()
+  }, [busy, persistKey, refreshWorkingGoal])
 
   const undoLastRound = useCallback(() => {
     if (busy) return
@@ -427,6 +656,45 @@ export default function AIPanel({
     return () => window.removeEventListener('mousedown', close, true)
   }, [moreOpen])
 
+  const saveScope = (field: 'safetyTierSessions' | 'safetyTierHosts', id: string | null | undefined, value: string) => {
+    const key = id?.trim() ?? ''
+    if (!key) return
+    const current = { ...(safetySettings[field] ?? {}) }
+    if (!value) delete current[key]
+    else if (isSafetyTier(value)) current[key] = value
+    setSafetySettings((prev) => ({ ...prev, [field]: current }))
+    void window.aiss.ai.setSettings({ [field]: current })
+  }
+
+  const commandActions = (opts: {
+    command: string
+    riskLevel?: string | null
+    safetyMode?: SafetyMode
+    requestId?: string
+    fresh?: boolean
+    decision?: 'agreed' | 'skipped'
+    confirmable?: boolean
+    agreeLabel?: string
+    onAgree: (command: string) => void
+    onDecline: () => void
+  }) => (
+    <SafetyCommandBar
+      {...opts}
+      canRun={Boolean(activeSessionId)}
+      sessionKey={persistKey}
+      hostId={inventoryLookup?.profileId || hostInventoryId}
+      hostName={hostName || inventoryLookup?.host}
+      production={production}
+      settings={safetySettings}
+    />
+  )
+
+  const hostKey = inventoryLookup?.profileId || hostInventoryId || ''
+  const sessionTier = persistKey ? safetySettings.safetyTierSessions?.[persistKey] : undefined
+  const hostTier = hostKey ? safetySettings.safetyTierHosts?.[hostKey] : undefined
+  const effectiveTier = effectiveSafetyTier(safetySettings, { hostId: hostKey, sessionId: persistKey })
+  const ladderBand = safetyLadderBand(effectiveTier)
+
   return (
     <aside className="ai-panel" style={{ minWidth: 280 }}>
       {!hasApiKey ? (
@@ -436,7 +704,8 @@ export default function AIPanel({
         </div>
       ) : (
         <>
-      <div className="ai-header" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+      <div className="ai-header">
+        <div className="ai-header-row">
         <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{tg('ai.title')}</span>
         {modelList.length > 0 ? (
           <select
@@ -480,12 +749,56 @@ export default function AIPanel({
             </div>
           ) : null}
         </div>
+        </div>
+        {workingGoal ? (
+          <div className="ai-working-goal" title={workingGoal} data-testid="ai-working-goal">
+            <span className="ai-working-goal-label">{tg('wm.goal')}</span>
+            <span className="ai-working-goal-text">{workingGoal}</span>
+          </div>
+        ) : null}
+        <div className="ai-safety-row" data-testid="safety-scope">
+          <span
+            className={`safety-band-badge safety-band-${safetyBandTone(ladderBand)} is-active`}
+            data-testid="safety-band-badge"
+            data-band={ladderBand}
+            title={tg('safety.ladderHint')}
+          >
+            {tg(`safety.band.${ladderBand}` as 'safety.band.confirm')}
+          </span>
+          <label>
+            {tg('safety.session')}
+            <select
+              data-testid="safety-session"
+              value={isSafetyTier(sessionTier) ? sessionTier : ''}
+              onChange={(e) => saveScope('safetyTierSessions', persistKey, e.target.value)}
+            >
+              <option value="">{tg('safety.follow')}</option>
+              {SAFETY_TIERS.map((id) => (
+                <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {tg('safety.host')}
+            <select
+              data-testid="safety-host"
+              value={isSafetyTier(hostTier) ? hostTier : ''}
+              disabled={!hostKey}
+              onChange={(e) => saveScope('safetyTierHosts', hostKey, e.target.value)}
+            >
+              <option value="">{tg('safety.follow')}</option>
+              {SAFETY_TIERS.map((id) => (
+                <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
 <div className="ai-messages">
         {lines.length === 0 && (
-          <div className="msg assistant" style={{ opacity: 0.85 }}>
-            {tg('ai.intro')}
+          <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">
+            <p>{tg('ux64.emptyHint')}</p>
           </div>
         )}
         {lines.map((l, i) => {
@@ -498,76 +811,144 @@ export default function AIPanel({
           }
           if (l.streaming) {
             return (
-              <div key={i} className="msg assistant">
-                {tg('ai.generating')}
+              <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-streaming" data-testid="ai-reply-card" data-card="streaming">
+                {tg('ux64.streaming')}
+              </div>
+            )
+          }
+          if (l.variant === 'error') {
+            return (
+              <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-error" data-testid="ai-reply-card" data-card="error">
+                <div className="ai-reply-desc">{l.content}</div>
+                {l.detail && l.detail !== l.content ? (
+                  <details className="pf5-details">
+                    <summary>{tg('pf5.details')}</summary>
+                    <pre>{l.detail}</pre>
+                  </details>
+                ) : null}
+                <div className="ai-reply-actions">
+                  <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={busy} onClick={retryLastUser}>
+                    {tg('ux64.retry')}
+                  </button>
+                  <button type="button" className="ai-fill-cmd-btn ai-btn-decline" disabled={busy} title={tg('ux64.clear')} onClick={clearConversation}>
+                    <span className="ai-btn-text">{tg('ux64.clear')}</span>
+                  </button>
+                </div>
               </div>
             )
           }
           if (l.structured) {
             const s = l.structured
             const isConfirmable = Boolean(l.requestId && pendingConfirm?.requestId === l.requestId)
+            const isSnapshot = !s.toolName || s.toolName === 'get_terminal_snapshot'
+            if (s.action === 'tool_call' && !l.requestId) {
+              return (
+                <div key={i} className="msg assistant ai-structured ai-dark-card ai-tool-strip" data-testid="ai-reply-card" data-card="tool">
+                  <span className="ai-tool-step">
+                    {isSnapshot ? (
+                      <>
+                        {tg('ux64.toolAutoSnapshot')}
+                        {s.toolName ? (
+                          <>
+                            {' '}
+                            <code>{s.toolName}</code>
+                          </>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        <HighlightedText text={s.description} />
+                        {s.toolName ? (
+                          <>
+                            {' '}
+                            <code>{s.toolName}</code>
+                          </>
+                        ) : null}
+                      </>
+                    )}
+                  </span>
+                </div>
+              )
+            }
+            const card =
+              s.action === 'command' ? 'command' : s.action === 'tool_call' ? 'tool' : 'conclusion'
+            const showRisk = s.action === 'end' || s.action === 'command' || Boolean(l.requestId)
             return (
-              <div key={i} className="msg assistant ai-structured">
-                <div className="ai-reply-desc">{s.description}</div>
-                <div className={`ai-risk-badge ${riskClass(s.riskLevel)}`}>{tg('ai.risk', { level: String(s.riskLevel) })}</div>
-                {s.notes && <div className="ai-reply-notes">{s.notes}</div>}
+              <div key={i} className="msg assistant ai-structured ai-dark-card" data-testid="ai-reply-card" data-card={card}>
+                {showRisk ? (
+                  <div className="ai-card-head">
+                    <RiskBadge level={s.riskLevel} />
+                  </div>
+                ) : null}
+                <div className="ai-card-body">
+                  <OpsReply text={s.description} confirm={false} />
+                </div>
+                {s.notes ? (
+                  <div className="ai-reply-notes">
+                    <OpsReply text={s.notes} confirm={false} />
+                  </div>
+                ) : null}
                 {s.action === 'tool_call' && l.requestId ? (
                   <div className="ai-reply-cmd">
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                      {tg('ai.needTool')}<code>{s.toolName ?? '(unknown)'}</code>
-                      {s.toolInput?.maxLines ? <span style={{ marginLeft: 8 }}>{tg('ui.0')}{s.toolInput.maxLines}</span> : null}
+                    <div className="ai-tool-need">
+                      {tg('ux64.toolNeed')}
+                      <code>{s.toolName ?? '—'}</code>
+                      {s.toolInput?.maxLines ? (
+                        <span style={{ marginLeft: 8 }}>
+                          {tg('ui.0')}
+                          {s.toolInput.maxLines}
+                        </span>
+                      ) : null}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
-                        {tg('ai.approveContinue')}
-                      </button>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
-                        {tg('ai.deny')}
-                      </button>
-                    </div>
+                    {l.decision === 'agreed' ? (
+                      <div className="ai-decision">{tg('ux64.executed')}</div>
+                    ) : l.decision === 'skipped' ? (
+                      <div className="ai-decision">{tg('ux64.skipped')}</div>
+                    ) : (
+                      <div className="ai-reply-actions">
+                        <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
+                          {tg('ux64.agreeContinue')}
+                        </button>
+                        <button type="button" className="ai-fill-cmd-btn ai-btn-decline" disabled={!isConfirmable} title={tg('ux64.disagree')} onClick={() => confirmStep(l.requestId!, false)}>
+                          <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : null}
-                {s.action === 'tool_call' && !l.requestId ? (
-                  <div className="ai-reply-cmd" style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {tg('ai.autoSnapshot')}
-                    {s.toolName ? (
-                      <>
-                        {tg('ui.1')}<code>{s.toolName}</code>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-                {s.action === 'command' && s.command?.trim() && l.requestId ? (
+                {s.action === 'command' && s.command?.trim() ? (
                   <div className="ai-reply-cmd">
                     <code className="ai-reply-cmd-code">{s.command}</code>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
-                        {tg('ai.approveRun')}
-                      </button>
-                      <button type="button" className="ai-fill-cmd-btn" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, false)}>
-                        {tg('ai.deny')}
-                      </button>
-                    </div>
+                    {commandActions({
+                      command: s.command,
+                      riskLevel: s.riskLevel,
+                      safetyMode: l.safetyMode,
+                      requestId: l.requestId,
+                      fresh: l.fresh,
+                      decision: l.decision,
+                      confirmable: l.requestId ? isConfirmable : true,
+                      onAgree: () => {
+                        if (l.requestId) void confirmStep(l.requestId, true)
+                        else {
+                          runSuggestedCommand(s.command!)
+                          markDecision(i, 'agreed')
+                        }
+                      },
+                      onDecline: () => {
+                        if (l.requestId) void confirmStep(l.requestId, false)
+                        else markDecision(i, 'skipped')
+                      }
+                    })}
                   </div>
                 ) : null}
-                {s.action === 'command' && s.command?.trim() && l.autoApproved ? (
-                  <div className="ai-reply-cmd">
-                    <code className="ai-reply-cmd-code">{s.command}</code>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>{tg('ai.autoRan')}</div>
-                  </div>
-                ) : null}
-                {/* Legacy fallback：无 requestId 且非自动批准时，允许用户手动执行建议命令 */}
-                {!l.requestId && !l.autoApproved && s.command?.trim() ? (
-                  <div className="ai-reply-cmd">
-                    <code className="ai-reply-cmd-code">{s.command}</code>
+                {s.action === 'end' ? (
+                  <div className="ai-reply-actions">
                     <button
                       type="button"
-                      className="ai-fill-cmd-btn"
-                      disabled={!activeSessionId}
-                      title={activeSessionId ? tg('ai.runTip') : tg('ai.needTab')}
-                      onClick={() => runSuggestedCommand(s.command!)}
+                      className="ai-fill-cmd-btn ai-btn-decline"
+                      onClick={() => void navigator.clipboard.writeText([s.description, s.notes].filter(Boolean).join('\n'))}
                     >
-                      {tg('ai.run')}
+                      <span className="ai-btn-text">{tg('ux64.copy')}</span>
                     </button>
                   </div>
                 ) : null}
@@ -575,8 +956,32 @@ export default function AIPanel({
             )
           }
           return (
-            <div key={i} className="msg assistant">
-              {l.content}
+            <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-plain" data-testid="ai-reply-card" data-card="plain">
+              <OpsReply
+                text={l.content}
+                badge
+                confirm
+                decision={l.decision}
+                canRun={Boolean(activeSessionId)}
+                commandBar={(cmd) =>
+                  commandActions({
+                    command: cmd,
+                    fresh: l.fresh,
+                    decision: l.decision,
+                    onAgree: (command) => {
+                      runSuggestedCommand(command)
+                      markDecision(i, 'agreed')
+                    },
+                    onDecline: () => markDecision(i, 'skipped')
+                  })
+                }
+                onAgree={(cmd) => {
+                  runSuggestedCommand(cmd)
+                  markDecision(i, 'agreed')
+                }}
+                onDecline={() => markDecision(i, 'skipped')}
+              />
+              {l.parseMiss ? <div className="ai-parse-fallback">{tg('ux64.parseFallback')}</div> : null}
             </div>
           )
         })}

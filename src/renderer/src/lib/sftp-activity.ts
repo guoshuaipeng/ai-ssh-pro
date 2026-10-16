@@ -1,14 +1,30 @@
-/** Lets the tab closer ask the open SFTP panel before dropping in-flight transfers. */
+import type { TransferTask } from '@shared/sftp-queue'
+
+/** In-renderer copy so two SFTP tabs merge their own host slice instead of wiping the other. */
+let queueShadow: TransferTask[] | null = null
+
+export function recallTransferQueue(): TransferTask[] | null {
+  return queueShadow
+}
+
+export function rememberTransferQueue(tasks: TransferTask[]): void {
+  queueShadow = tasks
+}
+
+/** Lets the tab closer ask one SFTP tab before dropping that tab's in-flight transfers. */
 
 type Guard = () => Promise<'close' | 'cancel-close' | 'stay'>
 
-let guard: Guard | null = null
+const guards = new Map<string, Guard>()
 
-export function registerSftpCloseGuard(fn: Guard | null): void {
-  guard = fn
+export function registerSftpCloseGuard(tabId: string, fn: Guard | null): void {
+  if (!tabId) return
+  if (fn) guards.set(tabId, fn)
+  else guards.delete(tabId)
 }
 
-export async function askSftpClose(): Promise<'close' | 'cancel-close' | 'stay'> {
+export async function askSftpClose(tabId?: string): Promise<'close' | 'cancel-close' | 'stay'> {
+  const guard = tabId ? guards.get(tabId) : undefined
   if (!guard) return 'close'
   return guard()
 }

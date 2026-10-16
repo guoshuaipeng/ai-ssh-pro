@@ -46,6 +46,7 @@ export default function ProtectionSection({
   onOpenAudit,
   onRecordings,
   onElevate,
+  onOpenGate,
   autoRecord = false,
   onAutoRecord
 }: {
@@ -57,6 +58,7 @@ export default function ProtectionSection({
   onOpenAudit: () => void
   onRecordings: () => void
   onElevate: () => void
+  onOpenGate?: () => void
   autoRecord?: boolean
   onAutoRecord?: (on: boolean) => void
 }) {
@@ -98,6 +100,11 @@ export default function ProtectionSection({
           <button type="button" onClick={onElevate} disabled={level === 'normal'}>
             {t('l4.unlock')}
           </button>
+          {onOpenGate ? (
+            <button type="button" data-testid="s2b-profile" onClick={onOpenGate}>
+              {t('s2b.tab')}
+            </button>
+          ) : null}
         </div>
         <p className="l4-disclaimer">{t('l4.disclaimer')}</p>
       </div>

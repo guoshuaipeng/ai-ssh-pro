@@ -89,6 +89,31 @@ export type MenuAction =
   | 'toggleBlockStrip'
   | 'refreshHomeHealth'
   | 'switchTab'
+  | 'quickStart'
+  | 'replayWelcome'
+  | 'enableRuleTemplates'
+  | 'retryFailedProbes'
+  | 'exportPlaybookPack'
+  | 'importPlaybookPack'
+  | 'gateTimeline'
+  | 'maintOpen'
+  | 'maintEnd'
+  | 'setDryRunReminder'
+  | 'aiPostmortem'
+  | 'explainDiff'
+  | 'explainSelection'
+  | 'diffFixPlaybook'
+  | 'openProdGuard'
+  | 'reconnectPolicy'
+  | 'reconnectNow'
+  | 'readonlyOn'
+  | 'readonlyOff'
+  | 'setProtection'
+  | 'batchConnect'
+  | 'batchConnectGroup'
+  | 'builtinSnippets'
+  | 'builtinPlaybooks'
+  | 'exportAudit'
 
 export type Bilingual = { zh: string; en: string }
 
@@ -196,15 +221,17 @@ export const SHARED_MENUS: SharedMenu[] = [
   {
     id: 'ops',
     label: { zh: '运维', en: 'Ops' },
+    // PNG-2 / Polish-10: daily rows only. At least two low-frequency verbs stay menuHidden
+    // so Ctrl+K still finds them, and the open menu stays under OPS_MENU_VISIBLE_CAP.
     items: [
       it('opsHome', '运维首页', 'Ops home'),
       it('alertWorkbench', '告警工作台', 'Alert workbench'),
       sep,
       it('playbooks', '运维剧本', 'Playbooks'),
-      it('runPlaybook', '运行剧本…', 'Run playbook…'),
+      it('runPlaybook', '运行剧本…', 'Run playbook…', { menuHidden: true }),
       sep,
       it('resourceMonitor', '资源监控', 'Resource monitor', { needsSession: true }),
-      it('dashboard', '多主机看板', 'Multi-host dashboard'),
+      it('dashboard', '多主机看板', 'Multi-host dashboard', { menuHidden: true }),
       it('serverTools', '服务器工具箱', 'Server toolbox', { needsSession: true }),
       it('refreshDocker', '刷新 Docker', 'Refresh Docker', { menuHidden: true }),
       sep,
@@ -212,9 +239,10 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('snippets', '命令片段', 'Snippets'),
       it('inventory', '主机档案', 'Host inventory'),
       sep,
-      it('alertRules', '告警规则…', 'Alert rules…'),
+      it('alertRules', '告警规则…', 'Alert rules…', { menuHidden: true }),
       it('alertHistory', '告警历史', 'Alert history', { menuHidden: true }),
-      it('auditLog', '审计日志', 'Audit log')
+      it('auditLog', '审计日志', 'Audit log', { menuHidden: true }),
+      it('exportAudit', '导出审计（合规）', 'Export audit (compliance)', { menuHidden: true })
     ]
   },
   {
@@ -237,11 +265,13 @@ export const SHARED_MENUS: SharedMenu[] = [
     label: { zh: '帮助', en: 'Help' },
     items: [
       it('shortcuts', '键盘快捷键', 'Keyboard shortcuts'),
-      it('tour', '新手引导', 'Welcome tour'),
+      it('quickStart', '快速上手（3 步）', 'Quick start (3 steps)'),
+      it('replayWelcome', '重新欢迎', 'Show welcome again'),
+      it('tour', '重看完整引导', 'Replay full tour'),
       it('taskCards', '入门任务', 'Getting started tasks'),
       it('demoHost', '试用演示主机', 'Try demo host'),
       it('whatsNew', '更新内容', "What's new"),
-      it('checkUpdate', '检查更新…', 'Check for updates…'),
+      it('checkUpdate', '检查更新', 'Check for updates'),
       sep,
       it('github', 'GitHub', 'GitHub'),
       it('about', '关于 AI-SSH-Pro', 'About AI-SSH-Pro')
@@ -266,4 +296,24 @@ export function visibleMenuItems(menu: SharedMenu): SharedMenuItem[] {
 
 export function visibleActionIds(menu: SharedMenu): string[] {
   return visibleMenuItems(menu).flatMap((it) => (it.type === 'item' ? [it.id] : []))
+}
+
+/** PNG-2: open Ops rows stay at or under this count. Polish-1 keeps the list strictly under it. */
+export const OPS_MENU_VISIBLE_CAP = 12
+
+export type OpsMenuRow = {
+  id: MenuAction
+  zh: string
+  en: string
+  /** Rare action: still defined for Ctrl+K, omitted from the open menu. */
+  lowFrequency: boolean
+}
+
+/** Inventory of the Ops menu. `lowFrequency` is the menuHidden flag, not a second menu. */
+export function opsMenuInventory(): OpsMenuRow[] {
+  const ops = SHARED_MENUS.find((m) => m.id === 'ops')
+  if (!ops) return []
+  return ops.items.flatMap((item) =>
+    item.type === 'item' ? [{ id: item.id, zh: item.label.zh, en: item.label.en, lowFrequency: item.menuHidden === true }] : []
+  )
 }

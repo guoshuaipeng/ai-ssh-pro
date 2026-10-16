@@ -3,6 +3,13 @@ import { useI18n } from '../lib/i18n'
 import type { CommandSnippet } from '@shared/ipc'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import {
+  BUILTIN_SNIPPETS,
+  builtinSnippetById,
+  saveAsSnippet,
+  stripBuiltinSnippets,
+  type LibrarySeg
+} from '@shared/builtin-pack'
+import {
   buildSnippetsExport,
   extractSnippetVars,
   fillSnippetVars,
@@ -10,11 +17,15 @@ import {
   mergeSnippetsImport
 } from '@shared/workspace-features'
 import { tg } from '../lib/i18n'
+import { showToast } from '../lib/toast'
+import { toastUndo } from '../lib/dialogs'
 import EmptyState from './EmptyState'
+import Modal from './Modal'
 
 type Props = {
-  onClose: () => void
   activeSessionId: string | null
+  variant?: 'center' | 'rail'
+  launch?: { n: number; focusSearch?: boolean; openForm?: boolean; seed?: string; previewBuiltin?: boolean }
 }
 
 type SnippetsApi = {
@@ -34,9 +45,10 @@ function newId(): string {
   return crypto.randomUUID()
 }
 
-export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
+export default function SnippetsPanel({ activeSessionId, variant = 'rail', launch }: Props) {
   const { t } = useI18n()
   const fileRef = useRef<HTMLInputElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [items, setItems] = useState<CommandSnippet[]>([])
   const [title, setTitle] = useState('')
@@ -47,6 +59,8 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  const [seg, setSeg] = useState<LibrarySeg>('all')
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [more, setMore] = useState(false)
   const [pending, setPending] = useState<{ snippet: CommandSnippet; execute: boolean; vars: string[] } | null>(null)
   const [varValues, setVarValues] = useState<Record<string, string>>({})
@@ -56,7 +70,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
     setError(null)
     try {
       const list = await getSnippetsApi().list()
-      setItems(Array.isArray(list) ? list : [])
+      setItems(stripBuiltinSnippets(Array.isArray(list) ? list : []))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setItems([])
@@ -72,12 +86,32 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
     setBody('')
   }, [load])
 
+  useEffect(() => {
+    if (!launch?.n) return
+    if (launch.openForm) {
+      setFormOpen(true)
+      setEditingId(null)
+      setTitle('')
+      if (launch.seed) setBody(launch.seed)
+    }
+    if (launch.previewBuiltin) {
+      setSeg('builtin')
+      setPreviewId(BUILTIN_SNIPPETS[0]?.id ?? null)
+      setFormOpen(false)
+      setEditingId(null)
+    }
+    if (launch.focusSearch) {
+      window.setTimeout(() => searchRef.current?.focus(), 0)
+    }
+  }, [launch])
+
   const persist = async (next: CommandSnippet[]) => {
+    const safe = stripBuiltinSnippets(next)
     setSaving(true)
     setError(null)
     try {
-      await getSnippetsApi().save(next)
-      setItems(next)
+      await getSnippetsApi().save(safe)
+      setItems(safe)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       throw e
@@ -103,9 +137,28 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   }
 
   const onEdit = (s: CommandSnippet) => {
+    if (builtinSnippetById(s.id)) {
+      setPreviewId(s.id)
+      setFormOpen(false)
+      setEditingId(null)
+      return
+    }
+    setPreviewId(null)
     setEditingId(s.id)
     setTitle(s.title)
     setBody(s.body)
+  }
+
+  const onSaveAsBuiltin = async (id: string) => {
+    const source = builtinSnippetById(id)
+    if (!source) return
+    const copy = saveAsSnippet(source, newId)
+    try {
+      await persist([...items, copy])
+      showToast(t('w9.savedAs', { name: copy.title }))
+    } catch {
+      /* error already set */
+    }
   }
 
   const onSaveForm = async () => {
@@ -127,13 +180,32 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
   }
 
   const onDelete = async (id: string) => {
+    const idx = items.findIndex((s) => s.id === id)
+    const removed = items[idx]
+    if (!removed) return
     const next = items.filter((s) => s.id !== id)
     try {
       await persist(next)
       if (editingId === id) resetForm()
+      toastUndo({
+        message: t('snip.deleted', { name: removed.title }),
+        undo: async () => {
+          const list = await getSnippetsApi().list()
+          const restored = Array.isArray(list) ? [...list] : []
+          restored.splice(Math.min(idx, restored.length), 0, removed)
+          await getSnippetsApi().save(restored)
+          await load()
+        }
+      })
     } catch {
       /* error already set */
     }
+  }
+
+  const finishInject = (sessionId: string, text: string, execute: boolean) => {
+    dispatchInjectTerminal(sessionId, text, execute)
+    showToast(t('snip.inserted'))
+    window.dispatchEvent(new CustomEvent('aiss-focus-terminal', { detail: { sessionId } }))
   }
 
   const onInject = (s: CommandSnippet, execute: boolean) => {
@@ -148,7 +220,7 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
       setVarValues(Object.fromEntries(vars.map((v) => [v, ''])))
       return
     }
-    dispatchInjectTerminal(activeSessionId, s.body, execute)
+    finishInject(activeSessionId, s.body, execute)
   }
 
   const confirmVars = () => {
@@ -157,12 +229,16 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
       setError(t('snip.needVars'))
       return
     }
-    dispatchInjectTerminal(activeSessionId, fillSnippetVars(pending.snippet.body, varValues), pending.execute)
+    finishInject(activeSessionId, fillSnippetVars(pending.snippet.body, varValues), pending.execute)
     setPending(null)
     setError(null)
   }
 
   const visible = filterSnippets(items, query)
+  const builtinVisible = BUILTIN_SNIPPETS.filter((row) => filterSnippets([{ title: row.title, body: `${row.summary}\n${row.body}` }], query).length > 0)
+  const showBuiltin = seg !== 'mine'
+  const showMine = seg !== 'builtin'
+  const preview = previewId ? builtinSnippetById(previewId) : undefined
 
   const onExport = () => {
     const blob = new Blob([buildSnippetsExport(items)], { type: 'application/json;charset=utf-8' })
@@ -210,12 +286,13 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
     </div>
   ) : null
 
+  const rail = variant === 'rail'
   return (
-    <div className="workspace-panel workspace-panel--settings" data-testid="snippets-panel">
+    <div className={`workspace-panel workspace-panel--settings${rail ? ' snippets-rail' : ''}`} data-testid="snippets-panel" data-variant={variant}>
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title">{t('snip.titleN', { n: items.length })}</h2>
         <div className="workspace-panel-actions">
-          <button type="button" className="primary" data-testid="snip-new" onClick={openNew}>{t('snip.newBtn')}</button>
+          {rail ? null : <button type="button" className="primary" data-testid="snip-new" onClick={openNew}>{t('snip.newBtn')}</button>}
           <button type="button" aria-label={t('w2.more')} onClick={() => setMore((v) => !v)}>⋯</button>
           {more ? (
             <span className="snip-more">
@@ -238,60 +315,127 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings workspace-panel-inner--snippets">
           {notice ? <p className="l7-meta">{notice}</p> : null}
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('snip.searchPh')} aria-label={t('snip.search')} />
+          <input ref={searchRef} data-testid="snip-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('snip.searchPh')} aria-label={t('snip.search')} />
+          <div className="w9-seg" data-testid="w9-snip-seg" role="tablist">
+            {(['all', 'builtin', 'mine'] as const).map((id) => (
+              <button key={id} type="button" aria-pressed={seg === id} onClick={() => setSeg(id)}>
+                {t(id === 'all' ? 'w9.all' : id === 'builtin' ? 'w9.sectionBuiltin' : 'w9.sectionMine')}
+              </button>
+            ))}
+          </div>
           {!editingId && formOpen ? form : null}
-
-          {pending ? (
-            <div className="snippet-vars" style={{ border: '1px solid var(--accent, #388bfd)', borderRadius: 6, padding: 10, marginBottom: 16 }}>
-              <h3 className="modal-section-title">{t('snip.fillVars', { title: pending.snippet.title })}</h3>
-              {pending.vars.map((v, idx) => (
-                <div className="field" key={v}>
-                  <label htmlFor={`snippet-var-${v}`}>{v}</label>
-                  <input
-                    id={`snippet-var-${v}`}
-                    autoFocus={idx === 0}
-                    value={varValues[v] ?? ''}
-                    onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') confirmVars()
-                    }}
-                  />
-                </div>
-              ))}
-              <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', color: 'var(--muted)', margin: '0 0 8px' }}>
-                {fillSnippetVars(pending.snippet.body, Object.fromEntries(Object.entries(varValues).filter(([, x]) => x)))}
-              </pre>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className="primary" onClick={confirmVars}>
-                  {pending.execute ? t('snip.injectRun') : t('snip.inject')}
-                </button>
-                <button type="button" onClick={() => setPending(null)}>
-                  {t('snip.cancel')}
-                </button>
+          {preview ? (
+            <div className="w9-preview" data-testid="w9-snip-preview" data-builtin="true">
+              <div className="w9-preview-head">
+                <strong>{preview.title}</strong>
+                <span className="w9-badge" data-testid="w9-builtin-badge">{t('w9.builtin')}</span>
+                <span className="w9-note">{t('w9.noAuto')}</span>
+              </div>
+              <p className="l7-meta">{preview.summary}</p>
+              <pre>{preview.body}</pre>
+              <div className="w9-row-actions">
+                <button type="button" data-testid="w9-snip-save-as" disabled={saving} onClick={() => void onSaveAsBuiltin(preview.id)}>{t('w9.saveAs')}</button>
+                <button type="button" onClick={() => setPreviewId(null)}>{t('snip.cancel')}</button>
               </div>
             </div>
           ) : null}
 
-          {items.length > 0 && visible.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.noMatch')}</p>
+          <Modal
+            open={Boolean(pending)}
+            title={pending ? t('snip.fillVars', { title: pending.snippet.title }) : ''}
+            onClose={() => setPending(null)}
+            width={420}
+            testId="snip-vars"
+            footer={
+              pending ? (
+                <>
+                  <button type="button" onClick={() => setPending(null)}>{t('snip.cancel')}</button>
+                  <button type="button" className="primary" onClick={confirmVars}>
+                    {pending.execute ? t('snip.injectRun') : t('snip.inject')}
+                  </button>
+                </>
+              ) : null
+            }
+          >
+            {pending
+              ? pending.vars.map((v, idx) => (
+                  <div className="field" key={v}>
+                    <label htmlFor={`snippet-var-${v}`}>{v}</label>
+                    <input
+                      id={`snippet-var-${v}`}
+                      autoFocus={idx === 0}
+                      value={varValues[v] ?? ''}
+                      onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmVars()
+                      }}
+                    />
+                  </div>
+                ))
+              : null}
+          </Modal>
+
+          {items.length > 0 && visible.length === 0 && builtinVisible.length === 0 ? (
+            <EmptyState compact icon="snippet" title={t('snip.noMatch')} testId="snippets-nomatch" />
           ) : null}
           {loading ? <p style={{ fontSize: 12, color: 'var(--muted)' }}>{t('snip.loading')}</p> : null}
-          {!loading && items.length === 0 ? (
+          {!loading && items.length === 0 && seg !== 'builtin' ? (
             <EmptyState
               compact
               testId="snippets-empty"
-              icon="📋"
-              title={t('ux08.snipTitle')}
-              desc={t('snip.empty')}
-              primary={{ label: t('ux08.snipNew'), onClick: openNew }}
-              secondary={[{ label: t('ux08.snipImport'), onClick: () => fileRef.current?.click() }]}
+              icon="snippet"
+              title={t('pf4.snipTitle')}
+              desc={t('w9.tryHint')}
+              primary={{ label: t('ux08.snipNew'), onClick: openNew, testId: 'snip-new' }}
+              secondary={[{
+                label: t('w9.try'),
+                testId: 'w9-try-snippet',
+                onClick: () => {
+                  setSeg('builtin')
+                  setPreviewId(BUILTIN_SNIPPETS[0]?.id ?? null)
+                }
+              }]}
             />
           ) : null}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {visible.map((s) => (
+            {showBuiltin ? builtinVisible.map((s) => (
+              <li
+                key={s.id}
+                data-testid="w9-builtin-snippet"
+                data-builtin="true"
+                onDoubleClick={() => setPreviewId(s.id)}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: 10,
+                  background: 'var(--bg)',
+                  minWidth: 0
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
+                  <span className="w9-badge">{t('w9.builtin')}</span>
+                </div>
+                <div className="l7-meta" style={{ marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.summary}</div>
+                <div className="w9-row-actions">
+                  <button type="button" data-testid="w9-snip-open" onClick={() => setPreviewId(s.id)}>{t('w9.preview')}</button>
+                  <button type="button" disabled={saving} onClick={() => void onSaveAsBuiltin(s.id)}>{t('w9.saveAs')}</button>
+                  <button
+                    type="button"
+                    disabled={!activeSessionId}
+                    title={activeSessionId ? t('snip.injectTip') : t('snip.noTerminal')}
+                    onClick={() => onInject(s, false)}
+                  >
+                    {t('snip.inject')}
+                  </button>
+                </div>
+              </li>
+            )) : null}
+            {showMine ? visible.map((s) => (
               editingId === s.id ? <li key={s.id}>{form}</li> :
               <li
                 key={s.id}
+                onDoubleClick={() => onInject(s, false)}
                 style={{
                   border: '1px solid var(--border)',
                   borderRadius: 6,
@@ -339,10 +483,15 @@ export default function SnippetsPanel({ onClose, activeSessionId }: Props) {
                   </button>
                 </div>
               </li>
-            ))}
+            )) : null}
           </ul>
         </div>
       </div>
+      {rail && items.length > 0 ? (
+        <div className="snippets-rail-foot">
+          <button type="button" className="secondary" data-testid="snip-new" onClick={openNew}>{t('ux08.snipNew')}</button>
+        </div>
+      ) : null}
     </div>
   )
 }

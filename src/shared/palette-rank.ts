@@ -6,6 +6,8 @@ export type PaletteCat = (typeof PALETTE_CATS)[number]
 
 const CAT: Record<string, PaletteCat> = {
   connection: 'connection',
+  batchConnect: 'connection',
+  batchConnectGroup: 'connection',
   localShell: 'connection',
   newFolder: 'connection',
   importSessions: 'connection',
@@ -16,6 +18,11 @@ const CAT: Record<string, PaletteCat> = {
   checkCerts: 'connection',
   testJump: 'connection',
   reconnect: 'session',
+  reconnectNow: 'session',
+  reconnectPolicy: 'settings',
+  readonlyOn: 'session',
+  readonlyOff: 'session',
+  setProtection: 'settings',
   duplicateSession: 'session',
   toggleBroadcast: 'session',
   broadcastTargets: 'session',
@@ -26,11 +33,25 @@ const CAT: Record<string, PaletteCat> = {
   portForward: 'session',
   opsHome: 'ops',
   refreshHomeHealth: 'ops',
+  enableRuleTemplates: 'ops',
+  retryFailedProbes: 'ops',
+  exportPlaybookPack: 'ops',
+  importPlaybookPack: 'ops',
+  gateTimeline: 'ops',
+  maintOpen: 'ops',
+  maintEnd: 'ops',
+  setDryRunReminder: 'ops',
+  aiPostmortem: 'ai',
+  explainDiff: 'file',
+  explainSelection: 'ai',
+  diffFixPlaybook: 'ai',
   alertWorkbench: 'ops',
   alertRules: 'ops',
   alertHistory: 'ops',
   auditLog: 'ops',
+  exportAudit: 'ops',
   playbooks: 'ops',
+  builtinPlaybooks: 'ops',
   runPlaybook: 'ops',
   fixPlaybook: 'ai',
   dryRunPlaybook: 'ops',
@@ -42,7 +63,9 @@ const CAT: Record<string, PaletteCat> = {
   openDocker: 'ops',
   batchExec: 'ops',
   inventory: 'ops',
+  openProdGuard: 'ops',
   snippets: 'session',
+  builtinSnippets: 'session',
   sftp: 'file',
   folderSync: 'file',
   cloudSync: 'file',
@@ -76,6 +99,7 @@ const CAT: Record<string, PaletteCat> = {
   backup: 'settings',
   shortcuts: 'help',
   tour: 'help',
+  quickStart: 'help',
   taskCards: 'help',
   whatsNew: 'help',
   checkUpdate: 'help',
@@ -104,10 +128,19 @@ export function bumpUsage(usage: Usage, id: string, now = Date.now()): Usage {
   return { ...usage, [id]: { count: (prev?.count ?? 0) + 1, last: now } }
 }
 
+/** PNG-3: after 3 recorded uses, only commands used at least 3 times stay pinned. Earlier history still pins. */
+export const PALETTE_PIN_MIN = 3
+
+export function historyUses(usage: Usage): number {
+  return Object.values(usage).reduce((n, v) => n + (v && v.count > 0 ? v.count : 0), 0)
+}
+
 export function pinnedIds(usage: Usage, limit = 5): string[] {
-  return Object.entries(usage)
-    .filter(([, v]) => v.count > 0)
-    .sort((a, b) => b[1].count - a[1].count || b[1].last - a[1].last)
+  const rows = Object.entries(usage).filter(([, v]) => v && v.count > 0)
+  const matured = historyUses(usage) >= PALETTE_PIN_MIN
+  const pool = matured ? rows.filter(([, v]) => v.count >= PALETTE_PIN_MIN) : rows
+  return pool
+    .sort((a, b) => b[1].count - a[1].count || b[1].last - a[1].last || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([id]) => id)
 }
@@ -122,8 +155,9 @@ export function layoutPalette<T extends { id: string; label: string; hay: string
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const withCat = entries.map((e) => ({ ...e, category: e.category ?? paletteCategory(e.id) }))
   if (!words.length) {
-    const pin = new Set(pinnedIds(usage))
-    const pinned = withCat.filter((e) => pin.has(e.id))
+    const pinOrder = pinnedIds(usage)
+    const pin = new Set(pinOrder)
+    const pinned = withCat.filter((e) => pin.has(e.id)).sort((a, b) => pinOrder.indexOf(a.id) - pinOrder.indexOf(b.id))
     const rows: RankRow<T>[] = []
     const items: T[] = []
     if (pinned.length) {

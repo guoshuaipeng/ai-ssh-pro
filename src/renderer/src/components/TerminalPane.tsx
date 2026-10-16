@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { tg } from '../lib/i18n'
+import Icon from './Icon'
 import { openContextMenu, type ContextMenuItem } from './ContextMenu'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -10,7 +11,9 @@ import { AISS_INJECT_TERMINAL_EVENT } from '../lib/terminal-inject'
 import { getXtermTheme } from '../lib/terminal-themes'
 import { attachZmodem, type ZmodemAttach } from '../lib/zmodem-attach'
 import { findInBuffer, AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
-import { looksLikeError, rememberError, requestAiExplain } from '../lib/ai-events'
+import { looksLikeError, rememberError, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
+import { registerTerminalSelection } from '../lib/terminal-selection'
+import { showToast } from '../lib/toast'
 import { extractPromptCommand, ghostSuffix, rankSuggestions, terminalKeyAction } from '@shared/smart-complete'
 import { loadSmartHistory, loadSmartPrefs, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
@@ -34,6 +37,8 @@ type Props = {
   /** S2 read-only: swallow keystrokes and tell the caller. */
   inputBlocked?: boolean
   onInputBlocked?: () => void
+  /** D7: open SFTP for this terminal at its cwd. */
+  onOpenSftp?: (sessionId: string) => void
 }
 
 /** Electron 中 xterm 会把 Ctrl+C / Ctrl+V 当控制字符发给 SSH；此处对接系统剪贴板。 */
@@ -88,7 +93,8 @@ export default function TerminalPane({
   broadcastRef,
   hostKey = '',
   inputBlocked = false,
-  onInputBlocked
+  onInputBlocked,
+  onOpenSftp
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<{ term: Terminal; fit: FitAddon } | null>(null)
@@ -100,6 +106,8 @@ export default function TerminalPane({
   onUserDataRef.current = onUserData
   const inputBlockedRef = useRef(inputBlocked)
   inputBlockedRef.current = inputBlocked
+  const onOpenSftpRef = useRef(onOpenSftp)
+  onOpenSftpRef.current = onOpenSftp
   const onInputBlockedRef = useRef(onInputBlocked)
   onInputBlockedRef.current = onInputBlocked
   const prefsRef = useRef(resolvePrefs(prefs))
@@ -134,6 +142,14 @@ export default function TerminalPane({
     setAiHint(false)
     requestAiExplain({ sessionId, text: sel || recentText(), source })
   }
+
+  useEffect(() => {
+    if (!active) return
+    return registerTerminalSelection(() => {
+      const term = apiRef.current?.term
+      return { sessionId, text: term?.hasSelection() ? term.getSelection() : '' }
+    })
+  }, [active, sessionId])
 
   useEffect(() => {
     const onFind = () => {
@@ -334,11 +350,49 @@ export default function TerminalPane({
         },
         'sep',
         {
+          id: 'a6Explain',
+          label: tg('a6.explain'),
+          disabled: !hasSel,
+          onSelect: () => {
+            const text = term?.getSelection() ?? ''
+            void requestSelectionExplain({ sessionId, text }).then((status) => {
+              if (status === 'empty') showToast(tg('a6.needSelection'))
+            })
+          }
+        },
+        {
           id: 'aiExplain',
-          label: '✨ ' + tg('a1.explainSelection'),
+          label: tg('a1.explainSelection'),
           onSelect: () => explainWithAi('selection')
         },
         'sep',
+        {
+          id: 'insertSnippet',
+          label: tg('ctx.insertSnippet'),
+          onSelect: () => window.dispatchEvent(new CustomEvent('aiss-open-right-panel', { detail: { pane: 'snippets', focusSearch: true } }))
+        },
+        {
+          id: 'allSnippets',
+          label: tg('ctx.allSnippets'),
+          onSelect: () => window.dispatchEvent(new CustomEvent('aiss-open-right-panel', { detail: { pane: 'snippets' } }))
+        },
+        {
+          id: 'saveAsSnippet',
+          label: tg('ctx.saveAsSnippet'),
+          disabled: !hasSel,
+          onSelect: () => {
+            const body = term?.getSelection() ?? ''
+            window.dispatchEvent(new CustomEvent('aiss-open-right-panel', { detail: { pane: 'snippets', openForm: true, seed: body } }))
+          }
+        },
+        'sep',
+        {
+          id: 'sftp',
+          label: tg('ctx.sftp'),
+          shortcut: 'Ctrl+Alt+F',
+          disabled: mirrorOnlyRef.current,
+          onSelect: () => onOpenSftpRef.current?.(sessionId)
+        },
         {
           id: 'find',
           label: tg('term.find'),
@@ -422,6 +476,16 @@ export default function TerminalPane({
   }, [sessionId, broadcastRef])
 
   useEffect(() => {
+    const onFocus = (ev: Event) => {
+      const sid = (ev as CustomEvent<{ sessionId?: string }>).detail?.sessionId
+      if (sid && sid !== sessionId) return
+      apiRef.current?.term.focus()
+    }
+    window.addEventListener('aiss-focus-terminal', onFocus)
+    return () => window.removeEventListener('aiss-focus-terminal', onFocus)
+  }, [sessionId])
+
+  useEffect(() => {
     const api = apiRef.current
     if (!api) return
     const p = resolvePrefs(prefs)
@@ -474,7 +538,7 @@ export default function TerminalPane({
 
   return (
     <>
-      <div className="terminal-pane-wrap">
+      <div className="terminal-pane-wrap" data-terminal="true" data-session-id={sessionId}>
         <div ref={wrapRef} className="terminal-pane-xterm" title={tg('term.tip')} />
         {ghost && !mirrorOnly ? (
           <span className="term-ghost" data-testid="term-ghost" style={{ left: ghost.x, top: ghost.y }} title={tg('x1.acceptHint')}>
@@ -484,7 +548,7 @@ export default function TerminalPane({
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
         {aiHint && !mirrorOnly ? (
           <button type="button" className="ai-explain-hint" data-testid="ai-explain-hint" onClick={() => explainWithAi('auto')}>
-            ✨ {tg('a1.button')}
+            <Icon name="sparkles" size={14} /> {tg('a1.button')}
           </button>
         ) : null}
         {findOpen ? (

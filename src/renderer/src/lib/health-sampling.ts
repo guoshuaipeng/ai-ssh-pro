@@ -6,6 +6,7 @@ import {
   allowProbeToast,
   nextBackoffMs,
   planProbeWave,
+  retryAllAllowed,
   type HealthProbeResult
 } from '@shared/health-probe'
 import { tg } from './i18n'
@@ -29,6 +30,10 @@ export type CardSnap = {
   error: string | null
   code?: HealthProbeResult['code']
   via?: HealthProbeResult['via']
+  retryAt?: number | null
+  load?: HealthProbeResult['load']
+  inode?: HealthProbeResult['inode']
+  mounts?: HealthProbeResult['mounts']
 }
 
 type Opts = {
@@ -37,6 +42,8 @@ type Opts = {
   maxConcurrent: number
   active: boolean
   nonce: number
+  backoffCapMin?: number
+  retryAllNonce?: number
   onSample: (host: SampleHost) => Promise<HealthProbeResult>
   onSweep: (idleMs: number) => void
   onRelease: () => void
@@ -56,17 +63,27 @@ export function useHealthSampling(opts: Opts): {
   snaps: Record<string, CardSnap>
   lastOkAt: number | null
   retry: (profileId: string) => void
+  retryAll: () => boolean
+  coolUntil: number
 } {
   const optsRef = useRef(opts)
   optsRef.current = opts
   const [snaps, setSnaps] = useState<Record<string, CardSnap>>({})
   const [lastOkAt, setLastOkAt] = useState<number | null>(null)
   const [kick, setKick] = useState(0)
+  const [coolUntil, setCoolUntil] = useState(0)
   const retryRef = useRef<string | null>(null)
+  const retryAllRef = useRef(false)
   const nextAt = useRef(new Map<string, number>())
   const failures = useRef(new Map<string, number>())
+  const failed = useRef(new Set<string>())
   const toastAt = useRef(new Map<string, number>())
   const running = useRef(new Set<string>())
+  const nonceSeen = useRef<number | null>(null)
+  const allNonceSeen = useRef<number | null>(null)
+  const lastAll = useRef<number | null>(null)
+  const capRef = useRef(5)
+  capRef.current = opts.backoffCapMin ?? 5
 
   useEffect(() => {
     if (!opts.enabled) {
@@ -76,8 +93,33 @@ export function useHealthSampling(opts: Opts): {
     }
     let stop = false
     let timer = 0
-    for (const id of [...nextAt.current.keys()]) {
-      if (!running.current.has(id)) nextAt.current.delete(id)
+    const nonce = optsRef.current.nonce
+    if (nonceSeen.current == null) nonceSeen.current = nonce
+    else if (nonceSeen.current !== nonce) {
+      nonceSeen.current = nonce
+      for (const id of [...nextAt.current.keys()]) {
+        if (!running.current.has(id)) nextAt.current.delete(id)
+      }
+    }
+    const allNonce = optsRef.current.retryAllNonce ?? 0
+    const clearFailed = (now: number) => {
+      if (!retryAllAllowed(lastAll.current, now)) return false
+      lastAll.current = now
+      setCoolUntil(now + 10_000)
+      for (const id of failed.current) {
+        nextAt.current.delete(id)
+        failures.current.delete(id)
+      }
+      return true
+    }
+    if (allNonceSeen.current == null) allNonceSeen.current = allNonce
+    else if (allNonceSeen.current !== allNonce) {
+      allNonceSeen.current = allNonce
+      clearFailed(Date.now())
+    }
+    if (retryAllRef.current) {
+      retryAllRef.current = false
+      clearFailed(Date.now())
     }
     const tick = () => {
       if (stop) return
@@ -118,22 +160,38 @@ export function useHealthSampling(opts: Opts): {
             if (stop) return
             if (res.ok && (res.cpu != null || res.mem != null || res.disk != null)) {
               failures.current.delete(id)
+              failed.current.delete(id)
               nextAt.current.set(id, Date.now() + PROBE_INTERVAL_MS)
               setLastOkAt(res.at)
               setSnaps((prev) => ({
                 ...prev,
-                [id]: { phase: 'ok', cpu: res.cpu, mem: res.mem, disk: res.disk, at: res.at, error: null, via: res.via, code: undefined }
+                [id]: {
+                  phase: 'ok',
+                  cpu: res.cpu,
+                  mem: res.mem,
+                  disk: res.disk,
+                  at: res.at,
+                  error: null,
+                  via: res.via,
+                  code: undefined,
+                  retryAt: null,
+                  load: res.load,
+                  inode: res.inode,
+                  mounts: res.mounts
+                }
               }))
               return
             }
             const n = (failures.current.get(id) ?? 0) + 1
             failures.current.set(id, n)
-            nextAt.current.set(id, Date.now() + nextBackoffMs(n))
+            failed.current.add(id)
+            const retryAt = Date.now() + nextBackoffMs(n, capRef.current)
+            nextAt.current.set(id, retryAt)
             const code = res.code
             const error = code === 'key' ? tg('l7b.keyUntrusted') : res.error || tg('l7b.fail')
             setSnaps((prev) => ({
               ...prev,
-              [id]: { phase: 'fail', cpu: prev[id]?.cpu ?? null, mem: prev[id]?.mem ?? null, disk: prev[id]?.disk ?? null, at: prev[id]?.at ?? null, error, code, via: res.via }
+              [id]: { phase: 'fail', cpu: prev[id]?.cpu ?? null, mem: prev[id]?.mem ?? null, disk: prev[id]?.disk ?? null, at: prev[id]?.at ?? null, error, code, via: res.via, retryAt }
             }))
             const stamp = toastAt.current.get(id)
             const tnow = Date.now()
@@ -146,10 +204,12 @@ export function useHealthSampling(opts: Opts): {
             if (stop) return
             const n = (failures.current.get(id) ?? 0) + 1
             failures.current.set(id, n)
-            nextAt.current.set(id, Date.now() + nextBackoffMs(n))
+            failed.current.add(id)
+            const retryAt = Date.now() + nextBackoffMs(n, capRef.current)
+            nextAt.current.set(id, retryAt)
             setSnaps((prev) => ({
               ...prev,
-              [id]: { phase: 'fail', cpu: prev[id]?.cpu ?? null, mem: prev[id]?.mem ?? null, disk: prev[id]?.disk ?? null, at: prev[id]?.at ?? null, error: tg('l7b.fail'), code: 'other' }
+              [id]: { phase: 'fail', cpu: prev[id]?.cpu ?? null, mem: prev[id]?.mem ?? null, disk: prev[id]?.disk ?? null, at: prev[id]?.at ?? null, error: tg('l7b.fail'), code: 'other', retryAt }
             }))
           })
           .finally(() => {
@@ -172,7 +232,7 @@ export function useHealthSampling(opts: Opts): {
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVis)
     }
-  }, [opts.enabled, opts.active, opts.nonce, opts.maxConcurrent, opts.hosts, kick])
+  }, [opts.enabled, opts.active, opts.nonce, opts.maxConcurrent, opts.hosts, opts.retryAllNonce, kick])
 
   useEffect(() => () => optsRef.current.onRelease(), [])
 
@@ -181,7 +241,17 @@ export function useHealthSampling(opts: Opts): {
     lastOkAt,
     retry: (profileId: string) => {
       retryRef.current = profileId
+      failed.current.delete(profileId)
+      failures.current.delete(profileId)
+      nextAt.current.delete(profileId)
       setKick((n) => n + 1)
-    }
+    },
+    retryAll: () => {
+      if (!retryAllAllowed(lastAll.current, Date.now())) return false
+      retryAllRef.current = true
+      setKick((n) => n + 1)
+      return true
+    },
+    coolUntil
   }
 }

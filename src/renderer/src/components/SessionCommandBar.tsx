@@ -5,6 +5,7 @@ import { useI18n } from '../lib/i18n'
 import { notifyHistoryChanged } from '../lib/workspace-events'
 import CommandInput from './CommandInput'
 import { assessCommandRisk } from '../../../shared/command-risk'
+import { clearStagedCommands, currentReconnectEpoch, noteStagedCommand } from '@shared/reconnect-policy'
 import { explainCommand } from '../../../shared/command-explain'
 import { askConfirm } from '../lib/dialogs'
 import { COMMAND_BAR_AI_MODE_EVENT, COMMAND_BAR_FILL_EVENT, aiHasKey, flashAiConfig, noteSubmitted } from '../lib/ai-events'
@@ -12,6 +13,7 @@ import { confirmAndRunAiCommand } from '../lib/ai-run'
 import { loadSmartPrefs, recordSmartCommand, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
 import type { CommandSnippet } from '@shared/ipc'
+import Icon, { Twist } from './Icon'
 
 type Props = {
   sessionId: string
@@ -201,16 +203,27 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       return
     }
     const risk = assessCommandRisk(command)
+    const epoch = currentReconnectEpoch()
+    noteStagedCommand({ command, dangerous: Boolean(risk), confirmed: false })
     if (beforeSend) {
       const ok = await beforeSend(command, Boolean(risk))
-      if (!ok) return
-    } else if (risk) {
-      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${command}`, { danger: true, okLabel: t('risk.run') })
       if (!ok) {
+        clearStagedCommands()
+        return
+      }
+    } else if (risk) {
+      const ok = await askConfirm(t('risk.title'), `${t('risk.hint', { reason: t(risk.reasonKey) })}\n\n${command}`, { id: 'confirm.dangerCommand', danger: true, okLabel: t('risk.run') })
+      if (!ok) {
+        clearStagedCommands()
         setError(t('risk.blocked'))
         return
       }
     }
+    if (epoch !== currentReconnectEpoch()) {
+      clearStagedCommands()
+      return
+    }
+    noteStagedCommand({ command, dangerous: Boolean(risk), confirmed: true })
     setBusy(true)
     setError(null)
     try {
@@ -219,6 +232,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       notifyHistoryChanged()
       noteSubmitted(sessionId, command)
       const ok = await window.aiss.ssh.write(sessionId, `${command}\r`)
+      clearStagedCommands()
       if (!ok) setError(t('history.sendFailed'))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -253,15 +267,15 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
         aria-label={t('ux44.expand')}
         onClick={() => toggleOpen(true)}
       >
-        ✨
+        <Icon name="sparkles" size={16} />
       </button>
     )
   }
 
   return (
     <div className={`session-command-bar${inAi ? ' is-ai' : ''}`} data-testid="session-command-bar">
-      <button type="button" className="session-command-collapse" title={t('ux44.collapse')} onClick={() => toggleOpen(false)}>
-        ▾
+      <button type="button" className="session-command-collapse" title={t('ux44.collapse')} aria-label={t('ux44.collapse')} onClick={() => toggleOpen(false)}>
+        <Twist open size={12} />
       </button>
       <CommandInput
         submitOnEnter
@@ -290,7 +304,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
               setAiMode((v) => !v)
             }}
           >
-            {aiCard?.phase === 'loading' ? <span className="ai-spinner" aria-hidden /> : inAi ? '✨' : '>_'}
+            {aiCard?.phase === 'loading' ? <span className="ai-spinner" aria-hidden /> : inAi ? <Icon name="sparkles" size={14} /> : '>_'}
           </button>
         }
         interceptKey={(e) => {
@@ -389,7 +403,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
               ))}
             </span>
           ))}
-          {explain.risk ? <span className="cmd-explain-risk">⚠ {t(explain.risk)}</span> : null}
+          {explain.risk ? <span className="cmd-explain-risk"><Icon name="triangle-alert" size={14} /> {t(explain.risk)}</span> : null}
         </div>
       ) : null}
     </div>

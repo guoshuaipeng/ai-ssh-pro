@@ -10,8 +10,11 @@ import type {
   SavedSessionProfile
 } from '@shared/ipc'
 import { normalizeQuery, profileMatches } from '../lib/session-filter'
+import { dockerStatusTone, type DockerStatusTone } from '@shared/docker-toolbox'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 import { effectiveLevel } from '@shared/protection'
+import { stricterLevel } from '@shared/readonly-session'
+import Icon, { Twist } from './Icon'
 
 export type DockerTreeCache = {
   status: 'idle' | 'connecting' | 'loading' | 'ready' | 'error'
@@ -34,7 +37,8 @@ type Props = {
   /** H2: undefined = status hidden; null = not checked yet */
   hostStatus?: HostProbeResult | null
   onConnect: () => void
-  onContextMenu: (e: MouseEvent) => void
+  /** IX-5: ⋯ and right-click share one opener. The menu list lives in buildHostMenu. */
+  onOpenMenu: (e: MouseEvent, entry: 'overflow' | 'context') => void
   onToggleHost: () => void
   onToggleCompose: () => void
   onToggleSwarm: () => void
@@ -48,18 +52,14 @@ type Props = {
   inFolder?: boolean
   /** 侧栏搜索词：非空时只显示命中的容器，并自动展开 */
   searchQuery?: string
+  /** S4: session-level read-only, stricter than the profile. */
+  sessionReadonly?: boolean
 }
 
-type StatusTone = 'running' | 'healthy' | 'unhealthy' | 'starting' | 'exited' | 'other'
+type StatusTone = DockerStatusTone
 
 function toneFromStatus(shortStatus?: string, status?: string): StatusTone {
-  const s = `${shortStatus || ''} ${status || ''}`.toLowerCase()
-  if (/\bunhealthy\b/.test(s)) return 'unhealthy'
-  if (/\bhealthy\b/.test(s)) return 'healthy'
-  if (/\bstarting\b|\brestarting\b|\bcreated\b|\bhealth:\s*starting\b/.test(s)) return 'starting'
-  if (/\brunning\b/.test(s)) return 'running'
-  if (/\bexited\b|\bstopped\b|\bdead\b|\bpaused\b/.test(s)) return 'exited'
-  return 'other'
+  return dockerStatusTone(shortStatus, status)
 }
 
 function statusLabel(shortStatus?: string, status?: string): string {
@@ -92,7 +92,7 @@ export default function SessionDockerBranch({
   onSelect,
   hostStatus,
   onConnect,
-  onContextMenu,
+  onOpenMenu,
   onToggleHost,
   onToggleCompose,
   onToggleSwarm,
@@ -104,7 +104,8 @@ export default function SessionDockerBranch({
   onOpenCompose,
   onOpenSwarmService,
   inFolder,
-  searchQuery = ''
+  searchQuery = '',
+  sessionReadonly = false
 }: Props) {
   const label = profile.label?.trim() || profile.host || `${profile.username}@${profile.host}`
   const busy = tree?.status === 'connecting' || tree?.status === 'loading'
@@ -174,7 +175,7 @@ export default function SessionDockerBranch({
             disabled={svc.containers.length === 0}
             onClick={() => onToggleSwarmNode(`svc:${svc.name}`)}
           >
-            {svc.containers.length === 0 ? '·' : open ? '▼' : '▶'}
+            {svc.containers.length === 0 ? '·' : <Twist open={open} />}
           </button>
           <button
             type="button"
@@ -235,7 +236,7 @@ export default function SessionDockerBranch({
         title={`${tg('db.rowTitle', { target: `${profile.username}@${profile.host}:${profile.port}` })}${profile.tags?.length ? `\n${tg('tags.title', { tags: profile.tags.join(', ') })}` : ''}`}
         onClick={onSelect}
         onDoubleClick={onConnect}
-        onContextMenu={onContextMenu}
+        onContextMenu={(e) => onOpenMenu(e, 'context')}
       >
         <button
           type="button"
@@ -256,10 +257,8 @@ export default function SessionDockerBranch({
         >
           {busy && !hostExpanded ? (
             <span className="session-host-spinner" aria-hidden />
-          ) : hostExpanded ? (
-            '▼'
           ) : (
-            '▶'
+            <Twist open={hostExpanded} />
           )}
         </button>
         {hostStatus !== undefined
@@ -276,7 +275,7 @@ export default function SessionDockerBranch({
             })()
           : null}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: profile.demo ? 'nowrap' : undefined }}>
+          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {label}
             {profile.demo ? (
               <span className="demo-badge" data-testid="demo-badge">
@@ -285,14 +284,18 @@ export default function SessionDockerBranch({
             ) : null}
             {profile.jumpChain?.length || profile.jumpHost?.host ? (
               <span className="jump-badge" data-testid="jump-badge" title={tg('m2.via', { chain: (profile.jumpChain ?? []).map((h) => h.label || h.host).join(' → ') || profile.jumpHost?.host || '' })}>
-                ⤳
+                <Icon name="chevron-right" size={12} />
               </span>
             ) : null}
-            {effectiveLevel(profile) !== 'normal' ? (
-              <span className={`prot-badge prot-badge--${effectiveLevel(profile)}`} data-testid="prot-badge">
-                {tg(effectiveLevel(profile) === 'production' ? 'l4.production' : 'l4.readonly')}
-              </span>
-            ) : null}
+            {(() => {
+              const level = stricterLevel(effectiveLevel(profile), sessionReadonly)
+              if (level === 'normal') return null
+              return (
+                <span className={`prot-badge prot-badge--${level}`} data-testid="prot-badge">
+                  {tg(level === 'production' ? 'l4.production' : 's4.badge')}
+                </span>
+              )
+            })()}
           </div>
           {profile.tags?.length ? (
             <div className="profile-tags">
@@ -305,6 +308,19 @@ export default function SessionDockerBranch({
           ) : null}
         </div>
         {hostStatus?.latencyMs != null ? <span className="host-status-ms">{hostStatus.latencyMs} ms</span> : null}
+        <button
+          type="button"
+          className="host-row-more"
+          data-testid="host-row-more"
+          aria-label={tg('toolbar.more')}
+          title={tg('toolbar.more')}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenMenu(e, 'overflow')
+          }}
+        >
+          ⋯
+        </button>
         {hostExpanded ? (
           <button
             type="button"
@@ -331,10 +347,10 @@ export default function SessionDockerBranch({
               <div className="session-docker-group">
                 <button type="button" className="session-docker-group-row" onClick={onToggleCompose}>
                   <span className="session-docker-chevron" aria-hidden>
-                    {showCompose ? '▼' : '▶'}
+                    <Twist open={showCompose} />
                   </span>
                   <span className="session-docker-group-icon" aria-hidden>
-                    ▦
+                    <Icon name="table" size={12} />
                   </span>
                   <span className="session-docker-group-name">Docker-compose</span>
                   <span className="session-docker-count">{view.projects.length}</span>
@@ -358,7 +374,7 @@ export default function SessionDockerBranch({
                                 title={open ? tg('db.collapseContainers') : tg('db.expandContainers')}
                                 onClick={() => onToggleComposeProject(p.name)}
                               >
-                                {open ? '▼' : '▶'}
+                                <Twist open={open} />
                               </button>
                               <button
                                 type="button"
@@ -411,7 +427,7 @@ export default function SessionDockerBranch({
                 <div className="session-docker-group">
                   <button type="button" className="session-docker-group-row" onClick={onToggleSwarm}>
                     <span className="session-docker-chevron" aria-hidden>
-                      {showSwarm ? '▼' : '▶'}
+                      <Twist open={showSwarm} />
                     </span>
                     <span className="session-docker-group-icon" aria-hidden>
                       ⬢
@@ -446,11 +462,11 @@ export default function SessionDockerBranch({
                                   title={open ? tg('db.collapseService') : tg('db.expandService')}
                                   onClick={() => onToggleSwarmNode(`stack:${stack.name}`)}
                                 >
-                                  {open ? '▼' : '▶'}
+                                  <Twist open={open} />
                                 </button>
                                 <span className="session-docker-leaf session-docker-leaf--project">
                                   <span className="session-docker-group-icon" aria-hidden>
-                                    ▤
+                                    <Icon name="table" size={12} />
                                   </span>
                                   <span className="session-docker-leaf-name">{stack.name}</span>
                                   <span className="session-docker-count">{stack.services.length}</span>
@@ -471,10 +487,10 @@ export default function SessionDockerBranch({
               <div className="session-docker-group">
                 <button type="button" className="session-docker-group-row" onClick={onToggleContainers}>
                   <span className="session-docker-chevron" aria-hidden>
-                    {showContainers ? '▼' : '▶'}
+                    <Twist open={showContainers} />
                   </span>
                   <span className="session-docker-group-icon" aria-hidden>
-                    ▣
+                    <Icon name="table" size={12} />
                   </span>
                   <span className="session-docker-group-name">Containers</span>
                   <span className="session-docker-count">{standaloneCount}</span>

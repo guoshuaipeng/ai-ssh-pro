@@ -15,14 +15,18 @@ import { mt } from './main-i18n'
 import type { SshSessionManager } from './ssh-manager'
 import { chainFromProfile, probeHostKeyError } from '../shared/jump-chain'
 import { DEMO_HOST } from '../shared/demo-host'
-import { RESOURCE_PROBE_CMD, parseResourceSnapshot } from '../shared/resource-monitor'
 import {
   HEALTH_PROBE_KIND,
   PROBE_HARD_MAX,
+  buildProbeCommand,
   classifyProbeFailure,
+  demoExtras,
   demoHealthMetrics,
+  parseProbeOutput,
+  probeExtrasOf,
   sanitizeProbeReason,
   type HealthProbeResult,
+  type ProbeExtras,
   type ProbeFailureCode
 } from '../shared/health-probe'
 import type { SshConnectOptions } from '../shared/ipc'
@@ -30,6 +34,7 @@ import type { SshConnectOptions } from '../shared/ipc'
 export type HealthProbeRequest = SshConnectOptions & {
   profileId: string
   reuseSessionId?: string
+  extras?: Partial<ProbeExtras>
 }
 
 export type { HealthProbeResult }
@@ -113,15 +118,23 @@ function fail(profileId: string, code: ProbeFailureCode, error: string, at = Dat
   }
 }
 
-async function readMetrics(client: Client): Promise<{ cpu: number | null; mem: number | null; disk: number | null }> {
-  const r = await execBounded(client, RESOURCE_PROBE_CMD, 12_000, 256 * 1024)
+function extrasOf(req: HealthProbeRequest): ProbeExtras {
+  return probeExtrasOf({
+    extraLoad: req.extras?.load === true,
+    extraInode: req.extras?.inode === true,
+    extraMounts: (req.extras?.mounts?.length ?? 0) > 0,
+    mounts: req.extras?.mounts ?? ['/']
+  })
+}
+
+async function readMetrics(client: Client, extras: ProbeExtras): Promise<ReturnType<typeof parseProbeOutput>> {
+  const r = await execBounded(client, buildProbeCommand(extras), 12_000, 256 * 1024)
   if (r.timedOut) throw new Error('timeout')
-  const snap = parseResourceSnapshot(r.stdout)
-  if (snap.cpuPercent == null && !snap.mem && !snap.disks.length) {
+  const snap = parseProbeOutput(r.stdout, extras)
+  if (snap.cpu == null && snap.mem == null && snap.disk == null) {
     throw new Error(mt('无法读取资源信息', 'Could not read resource data'))
   }
-  const disk = snap.disks.length ? Math.max(...snap.disks.map((d) => d.percent)) : null
-  return { cpu: snap.cpuPercent, mem: snap.mem?.percent ?? null, disk }
+  return snap
 }
 
 function connectClient(client: Client, config: ConnectConfig, timeoutMs: number): Promise<void> {
@@ -234,9 +247,10 @@ export async function sampleHealth(sshManager: SshSessionManager, payload: unkno
   if (!req) return fail('', 'other', 'bad request', at)
   if (inflight >= PROBE_HARD_MAX) return fail(req.profileId, 'busy', 'busy', at)
 
+  const extras = extrasOf(req)
   if (req.demo || req.host === DEMO_HOST) {
     const m = demoHealthMetrics(req.profileId)
-    return { profileId: req.profileId, ok: true, ...m, latencyMs: 9, at, via: 'demo', kind: HEALTH_PROBE_KIND }
+    return { profileId: req.profileId, ok: true, ...m, ...demoExtras(req.profileId, extras), latencyMs: 9, at, via: 'demo', kind: HEALTH_PROBE_KIND }
   }
 
   inflight += 1
@@ -246,7 +260,7 @@ export async function sampleHealth(sshManager: SshSessionManager, payload: unkno
     if (live) {
       dropHeld(req.profileId)
       const started = Date.now()
-      const metrics = await readMetrics(live)
+      const metrics = await readMetrics(live, extras)
       return { profileId: req.profileId, ok: true, ...metrics, latencyMs: Date.now() - started, at: Date.now(), via: 'session', kind: HEALTH_PROBE_KIND }
     }
 
@@ -258,7 +272,7 @@ export async function sampleHealth(sshManager: SshSessionManager, payload: unkno
     }
     const started = Date.now()
     try {
-      const metrics = await readMetrics(row.client)
+      const metrics = await readMetrics(row.client, extras)
       row.lastUsed = Date.now()
       return { profileId: req.profileId, ok: true, ...metrics, latencyMs: Date.now() - started, at: row.lastUsed, via: 'probe', kind: HEALTH_PROBE_KIND }
     } catch (err) {

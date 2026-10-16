@@ -1,0 +1,170 @@
+{
+  "id": "S3",
+  "title": "Must not infinite get_terminal_snapshot",
+  "industryBar": ["tool-loop-state-machine", "anti-loop-guards"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01"
+  },
+  "session": {
+    "targetSessionId": "sess-s3-snaploop",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_MAX_POLLS": "10",
+    "AISS_POLL_WAIT_MS": "0"
+  },
+  "runtimeGuards": {
+    "MAX_SAME_SNAPSHOT_REPEAT": 2,
+    "MAX_CONSECUTIVE_SNAPSHOT_TOOLS": 6,
+    "source": "src/main/ai-interactive-agent.ts"
+  },
+  "turns": [
+    {
+      "turnId": "S3-T1",
+      "userMessage": "终端里有没有报错？先看快照。",
+      "mockTerminal": {
+        "initialRing": "bash: lastcmd: command not found\nprompt$ ",
+        "fingerprintStable": true,
+        "note": "Ring content intentionally unchanged across snaps so fingerprint repeats"
+      },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "读取终端快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "再读一次快照确认。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "继续读快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 4,
+          "response": {
+            "description": "再读。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 5,
+          "response": {
+            "description": "还是读快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 6,
+          "response": {
+            "description": "继续无意义快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 7,
+          "response": {
+            "description": "仍然快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        }
+      ],
+      "expected": {
+        "mustTerminate": true,
+        "finalAction": "end",
+        "terminationReasonAnyOf": [
+          "sameSnapshotRepeat_guard",
+          "consecutiveSnapshotTools_guard",
+          "duplicate_action_fingerprint",
+          "planner_chose_end_or_command_early"
+        ],
+        "maxGetTerminalSnapshotExecuted": 6,
+        "descriptionMustMatchAny": [
+          "重复",
+          "没有新证据",
+          "无效循环",
+          "no new evidence",
+          "useless loop",
+          "Repeated action"
+        ],
+        "mustNot": {
+          "completeAllMaxPollsAsOnlySnapshots": true,
+          "hang": true
+        }
+      }
+    }
+  ],
+  "alternateGoodPlanner": {
+    "note": "A healthy planner should stop after 1–2 identical snaps and either command for new evidence or end with partial findings",
+    "mockedPlannerSteps": [
+      {
+        "step": 1,
+        "response": {
+          "description": "读取终端快照。",
+          "action": "tool_call",
+          "toolName": "get_terminal_snapshot",
+          "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+          "riskLevel": "low",
+          "completed": false
+        }
+      },
+      {
+        "step": 2,
+        "response": {
+          "description": "快照仅见历史 command not found，无新错误流；证据不足且重复读取无益，结束并请用户复现报错或允许执行 journalctl -n 50。",
+          "action": "end",
+          "completed": true,
+          "riskLevel": "low"
+        }
+      }
+    ]
+  },
+  "passCriteriaSummary": [
+    "Identical snap loop trips guard or planner ends early",
+    "≤6 consecutive get_terminal_snapshot",
+    "User-visible end reason about no new evidence"
+  ]
+}

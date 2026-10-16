@@ -18,10 +18,43 @@ export function demoProfileLabel(locale: string): string {
   return locale === 'zh-CN' ? '演示主机 (demo)' : 'Demo host (demo)'
 }
 
+/** Unrenamed demo hosts follow the UI language. A user rename sets demoRenamed and wins. */
+export function isUnrenamedDemo(profile: { id?: string; demoRenamed?: boolean }): boolean {
+  return profile.id === DEMO_PROFILE_ID && !profile.demoRenamed
+}
+
+export function profileDisplayLabel(
+  profile: { id: string; label?: string; host?: string; username?: string; demoRenamed?: boolean },
+  locale: string
+): string {
+  if (isUnrenamedDemo(profile)) return demoProfileLabel(locale)
+  const label = profile.label?.trim()
+  if (label) return label
+  if (profile.username && profile.host) return `${profile.username}@${profile.host}`
+  return profile.host || '—'
+}
+
+/** Session export uses the current UI language for an unrenamed demo host. */
+export function labelForSessionExport(profile: { id: string; label: string; demoRenamed?: boolean }, locale: string): string {
+  return isUnrenamedDemo(profile) ? demoProfileLabel(locale) : profile.label
+}
+
+export const DEMO_WELCOME_ZH = '这是演示主机。你可以安全地试用终端、告警与剧本——不会连接真实服务器。'
+export const DEMO_WELCOME_EN = 'This is a demo host. Try the terminal, alerts, and playbooks safely — no real server is contacted.'
+export const DEMO_WELCOME_HINT_ZH = '在设置中可切换界面语言；欢迎语会随之更新。'
+export const DEMO_WELCOME_HINT_EN = 'Switch UI language in Settings; this welcome text follows it.'
+
+/** UX-41: demo banner follows the UI language. Other hosts get nothing from the client. */
 export function demoWelcome(locale: string): string {
-  return locale === 'zh-CN'
-    ? '欢迎使用演示主机：这里的命令输出都是模拟的，不会连接任何真实服务器。\r\n可以试试：ls · df -h · top · systemctl status nginx · cat /var/log/app.log · help\r\n'
-    : 'Welcome to the demo host: every output here is simulated, no real server is involved.\r\nTry: ls · df -h · top · systemctl status nginx · cat /var/log/app.log · help\r\n'
+  const zh = locale === 'zh-CN' || locale === 'zh'
+  const welcome = zh ? DEMO_WELCOME_ZH : DEMO_WELCOME_EN
+  const hint = zh ? DEMO_WELCOME_HINT_ZH : DEMO_WELCOME_HINT_EN
+  return `${welcome}\r\n${hint}\r\n`
+}
+
+export function demoWelcomeForProfile(profileId: string | undefined, locale: string): string | null {
+  if (profileId !== DEMO_PROFILE_ID) return null
+  return demoWelcome(locale)
 }
 
 export type DemoCommandResult = { output: string; code: number; clear?: boolean }

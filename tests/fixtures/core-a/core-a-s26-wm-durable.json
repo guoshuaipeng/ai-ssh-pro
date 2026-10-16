@@ -1,0 +1,735 @@
+{
+  "id": "S26",
+  "title": "Working memory survives observational-memory truncation and stays host-scoped",
+  "industryBar": [
+    "working-memory",
+    "observational-compression",
+    "host-scope",
+    "confirm-before-run"
+  ],
+  "hostProfile": {
+    "hostId": "host-s26-b",
+    "label": "host-b-s26",
+    "hostname": "host-b-s26.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s26-b",
+    "historyKey": "hist-s26-host-b"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_OM_BULLET_CAP": "4"
+  },
+  "seedInventory": {
+    "hostId": "host-s26-b",
+    "services": [
+      {
+        "name": "hostb-s26-web",
+        "kind": "systemd",
+        "ports": [
+          80
+        ],
+        "notes": "HOST_B_S26_ONLY"
+      }
+    ],
+    "notes": [
+      "HOST_B_S26_ONLY"
+    ]
+  },
+  "isolationPrelude": {
+    "hostProfile": {
+      "hostId": "host-s26-a",
+      "label": "host-a-s26",
+      "hostname": "host-a-s26.internal"
+    },
+    "session": {
+      "targetSessionId": "sess-s26-a",
+      "historyKey": "hist-s26-host-a"
+    },
+    "seedInventory": {
+      "hostId": "host-s26-a",
+      "services": [
+        {
+          "name": "hosta-s26-plain",
+          "kind": "systemd",
+          "ports": [
+            22
+          ],
+          "notes": "HOST_A_S26_PLAIN"
+        }
+      ],
+      "notes": [
+        "HOST_A_S26_PLAIN"
+      ]
+    },
+    "turns": [
+      {
+        "turnId": "S26-A1",
+        "userMessage": "当前目标是守住 WM_S26_GOAL。不要删除 WM_S26_CONSTRAINT。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "先到这里。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0,
+          "workingMemoryAfter": {
+            "goalMentions": [
+              "WM_S26_GOAL"
+            ]
+          },
+          "workingMemoryMustContain": [
+            "WM_S26_GOAL",
+            "WM_S26_CONSTRAINT",
+            "hostFacts:"
+          ]
+        }
+      },
+      {
+        "turnId": "S26-A2",
+        "userMessage": "继续记下稀有主机事实 WM_S26_RARE_FACT 只监听 127.0.0.1:18453，配置 /etc/s26/edge.conf。 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "已记下该监听约束，先到这里。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0,
+          "descriptionMustNotContain": [
+            "WM_S26_RARE_FACT",
+            "18453",
+            "/etc/s26/edge.conf"
+          ],
+          "workingMemoryMustContain": [
+            "WM_S26_GOAL",
+            "WM_S26_CONSTRAINT",
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf",
+            "hostFacts:"
+          ],
+          "workingMemoryAfter": {
+            "goalMentions": [
+              "WM_S26_GOAL"
+            ]
+          }
+        }
+      },
+      {
+        "turnId": "S26-A3",
+        "userMessage": "继续，请执行只读命令 echo S26_HOSTA_CMD，确认后再发。",
+        "mockTerminal": {
+          "initialRing": "",
+          "afterWrite": {
+            "echo S26_HOSTA_CMD": "S26_HOSTA_CMD\n"
+          }
+        },
+        "userConfirm": {
+          "policy": "approve-all-commands",
+          "assert": {
+            "stepHasRequestId": true,
+            "autoApproved": false,
+            "sshWriteBeforeApprove": false
+          }
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "建议执行 echo S26_HOSTA_CMD。",
+              "action": "command",
+              "command": "echo S26_HOSTA_CMD",
+              "riskLevel": "low",
+              "completed": false
+            }
+          },
+          {
+            "response": {
+              "description": "命令已确认后执行。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 1,
+          "commandsRequiringConfirm": [
+            "echo S26_HOSTA_CMD"
+          ],
+          "recentCommandsMustContain": [
+            "echo S26_HOSTA_CMD"
+          ],
+          "confirmGate": {
+            "required": true,
+            "riskLevel": "low",
+            "settingsAutoApproveLowRisk": false
+          },
+          "workingMemoryMustContain": [
+            "WM_S26_GOAL",
+            "WM_S26_CONSTRAINT",
+            "S26_HOSTA_CMD"
+          ]
+        }
+      },
+      {
+        "turnId": "S26-A4",
+        "userMessage": "继续无关叙述甲乙丙丁，没有新的监听。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "叙述甲乙丙丁结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A5",
+        "userMessage": "继续无关项 5。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 5 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A6",
+        "userMessage": "继续无关项 6。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 6 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A7",
+        "userMessage": "继续无关项 7。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 7 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A8",
+        "userMessage": "继续无关项 8。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 8 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A9",
+        "userMessage": "继续无关项 9。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 9 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A10",
+        "userMessage": "继续无关项 10。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 10 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A11",
+        "userMessage": "继续无关项 11。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 11 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A12",
+        "userMessage": "继续无关项 12。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 12 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A13",
+        "userMessage": "继续无关项 13。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 13 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A14",
+        "userMessage": "继续无关项 14。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 14 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A15",
+        "userMessage": "继续无关项 15。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 15 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0
+        }
+      },
+      {
+        "turnId": "S26-A16",
+        "userMessage": "继续无关项 16。",
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "无关项 16 结束。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "sshWriteCount": 0,
+          "workingMemoryAfter": {
+            "goalMentions": [
+              "WM_S26_GOAL"
+            ]
+          },
+          "workingMemoryMustContain": [
+            "WM_S26_GOAL",
+            "WM_S26_CONSTRAINT",
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf",
+            "hostFacts:"
+          ],
+          "observationalMemoryMustNotContain": [
+            "甲乙丙丁"
+          ],
+          "observationalMemoryMustContain": [
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf"
+          ],
+          "recentWindowMustNotContain": [
+            "WM_S26_GOAL",
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf",
+            "甲乙丙丁",
+            "S26_HOSTA_CMD"
+          ],
+          "recentCommandsMustContain": [
+            "echo S26_HOSTA_CMD"
+          ],
+          "omBudget": {
+            "truncated": true,
+            "nearBudget": true,
+            "minDroppedBullets": 1,
+            "minTruncatedBullets": 1,
+            "bulletCap": 4
+          }
+        }
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "S26-B1",
+      "userMessage": "先前的监听事实还在吗？不够就说明。不要执行命令。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {}
+      },
+      "userConfirm": {
+        "policy": "none"
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "当前主机没有这条记录，证据不足。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 0,
+        "mustNotEmitCommands": [
+          "echo",
+          "S26_HOSTA_CMD",
+          "WM_S26_RARE_FACT"
+        ],
+        "descriptionMustContain": [
+          "证据不足"
+        ],
+        "descriptionMustNotContain": [
+          "WM_S26_GOAL",
+          "WM_S26_CONSTRAINT",
+          "WM_S26_RARE_FACT",
+          "127.0.0.1:18453",
+          "/etc/s26/edge.conf",
+          "S26_HOSTA_CMD",
+          "HOST_A_S26_PLAIN"
+        ],
+        "plannerPromptMustNotContain": [
+          "WM_S26_GOAL",
+          "WM_S26_CONSTRAINT",
+          "WM_S26_RARE_FACT",
+          "127.0.0.1:18453",
+          "/etc/s26/edge.conf",
+          "S26_HOSTA_CMD",
+          "HOST_A_S26_PLAIN"
+        ],
+        "workingMemoryMustNotContain": [
+          "WM_S26_GOAL",
+          "WM_S26_CONSTRAINT",
+          "WM_S26_RARE_FACT",
+          "127.0.0.1:18453",
+          "/etc/s26/edge.conf",
+          "S26_HOSTA_CMD"
+        ],
+        "observationalMemoryMustNotContain": [
+          "WM_S26_RARE_FACT",
+          "127.0.0.1:18453",
+          "/etc/s26/edge.conf",
+          "S26_HOSTA_CMD",
+          "WM_S26_GOAL"
+        ],
+        "recentCommandEvidenceMustNotContain": [
+          "S26_HOSTA_CMD",
+          "WM_S26_RARE_FACT"
+        ],
+        "recentCommandsMustNotContain": [
+          "S26_HOSTA_CMD",
+          "WM_S26_RARE_FACT"
+        ],
+        "recentWindowMustNotContain": [
+          "WM_S26_RARE_FACT",
+          "S26_HOSTA_CMD",
+          "18453",
+          "WM_S26_GOAL"
+        ],
+        "omBudget": {
+          "truncated": false,
+          "nearBudget": false,
+          "bulletCap": 4
+        }
+      }
+    }
+  ],
+  "hostScopeReturn": {
+    "hostProfile": {
+      "hostId": "host-s26-a",
+      "label": "host-a-s26",
+      "hostname": "host-a-s26.internal"
+    },
+    "session": {
+      "targetSessionId": "sess-s26-a",
+      "historyKey": "hist-s26-host-a"
+    },
+    "seedInventory": {
+      "hostId": "host-s26-a",
+      "services": [
+        {
+          "name": "hosta-s26-plain",
+          "kind": "systemd",
+          "ports": [
+            22
+          ],
+          "notes": "HOST_A_S26_PLAIN"
+        }
+      ],
+      "notes": [
+        "HOST_A_S26_PLAIN"
+      ]
+    },
+    "turns": [
+      {
+        "turnId": "S26-A17",
+        "userMessage": "继续，先前的监听和配置路径还在吗？只回答当前主机。",
+        "mockTerminal": {
+          "initialRing": "",
+          "afterWrite": {}
+        },
+        "userConfirm": {
+          "policy": "none"
+        },
+        "mockedPlannerSteps": [
+          {
+            "response": {
+              "description": "先读终端缓冲。",
+              "action": "tool_call",
+              "toolName": "get_terminal_snapshot",
+              "toolInput": {
+                "maxLines": 200,
+                "fromCurrentCommand": true
+              },
+              "riskLevel": "low",
+              "completed": false
+            },
+            "expectToolResultContains": [
+              "暂无缓冲"
+            ]
+          },
+          {
+            "response": {
+              "description": "仍记得 WM_S26_RARE_FACT 只监听 127.0.0.1:18453，配置 /etc/s26/edge.conf。目标仍是 WM_S26_GOAL，约束仍是不要删除 WM_S26_CONSTRAINT。",
+              "action": "end",
+              "completed": true,
+              "riskLevel": "low"
+            }
+          }
+        ],
+        "expected": {
+          "finalAction": "end",
+          "completed": true,
+          "sshWriteCount": 0,
+          "mustNotEmitCommands": [
+            "echo",
+            "S26_HOSTA_CMD"
+          ],
+          "descriptionMustContain": [
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf",
+            "WM_S26_GOAL",
+            "WM_S26_CONSTRAINT"
+          ],
+          "descriptionMustNotContain": [
+            "证据不足",
+            "HOST_B_S26_ONLY"
+          ],
+          "workingMemoryMustContain": [
+            "WM_S26_GOAL",
+            "WM_S26_CONSTRAINT",
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf",
+            "hostFacts:"
+          ],
+          "workingMemoryAfter": {
+            "goalMentions": [
+              "WM_S26_GOAL"
+            ]
+          },
+          "observationalMemoryMustContain": [
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf"
+          ],
+          "observationalMemoryMustNotContain": [
+            "甲乙丙丁"
+          ],
+          "recentWindowMustNotContain": [
+            "WM_S26_GOAL",
+            "WM_S26_RARE_FACT",
+            "127.0.0.1:18453",
+            "/etc/s26/edge.conf",
+            "甲乙丙丁"
+          ],
+          "recentCommandsMustContain": [
+            "echo S26_HOSTA_CMD"
+          ],
+          "recentCommandEvidenceMustContain": [
+            "S26_HOSTA_CMD"
+          ],
+          "plannerPromptMustNotContain": [
+            "HOST_B_S26_ONLY",
+            "hostb-s26-web"
+          ],
+          "omBudget": {
+            "truncated": true,
+            "nearBudget": true,
+            "minDroppedBullets": 1,
+            "minTruncatedBullets": 1,
+            "bulletCap": 4
+          }
+        }
+      }
+    ]
+  },
+  "passCriteriaSummary": [
+    "Host A records a goal, a constraint, WM_S26_RARE_FACT, and a confirmed echo S26_HOSTA_CMD",
+    "A tightened observational-memory bullet cap drops the narrative token while the scratchpad still injects the goal, constraint, and host fact",
+    "Host B recall says 证据不足 and does not inherit host A working memory or observational bullets",
+    "The same host A thread still recalls the rare fact, and confirm-before-run stays on"
+  ]
+}

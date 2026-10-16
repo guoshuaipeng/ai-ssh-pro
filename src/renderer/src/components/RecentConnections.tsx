@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { RecentConnection } from '@shared/workspace-features'
 import { dedupeRecent, loadRecentExpanded, relativeWhen, saveRecentExpanded } from '@shared/recent-sidebar'
 import { DEMO_HOST, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
+import Icon, { Twist } from './Icon'
 import { useI18n } from '../lib/i18n'
 import { RECENT_CHANGED_EVENT } from '../lib/workspace-events'
 
@@ -14,6 +15,8 @@ type Props = {
   onQuickConnect: (row: RecentConnection) => void
   /** Saved host identities (`user@host:port`) so a recent row can say Saved instead of cloning the tree. */
   savedKeys?: string[]
+  /** UX-39b: a renamed demo host keeps its stored label. */
+  demoRenamed?: boolean
 }
 
 function formatWhen(ts: number, locale: string): string {
@@ -30,7 +33,7 @@ function formatWhen(ts: number, locale: string): string {
   }
 }
 
-export default function RecentConnections({ variant = 'sidebar', limit, hideWhenEmpty, onQuickConnect, savedKeys = [] }: Props) {
+export default function RecentConnections({ variant = 'sidebar', limit, hideWhenEmpty, onQuickConnect, savedKeys = [], demoRenamed = false }: Props) {
   const { t, locale } = useI18n()
   const [rows, setRows] = useState<RecentConnection[]>([])
   const [open, setOpen] = useState(() => (variant === 'sidebar' ? loadRecentExpanded() : true))
@@ -80,7 +83,7 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
               saveRecentExpanded(next)
             }}
           >
-            <span aria-hidden>{open ? '▾' : '▸'}</span>
+            <span aria-hidden><Twist open={open} size={12} /></span>
             <h3>
               {t('recent.title')} ({shown.length})
             </h3>
@@ -94,7 +97,7 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
       ) : (
         <ul className="recent-connections-list">
           {shown.map((row) => {
-            const title = row.host === DEMO_HOST && row.username === DEMO_USER
+            const title = row.host === DEMO_HOST && row.username === DEMO_USER && !demoRenamed
               ? demoProfileLabel(locale === 'en' ? 'en' : 'zh-CN')
               : row.label?.trim() || `${row.username}@${row.host}`
             const ident = `${row.username}@${row.host}:${row.port || 22}`.toLowerCase()
@@ -127,12 +130,12 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
                 </button>
                 <button
                   type="button"
-                  className="recent-connections-icon"
+                  className={`recent-connections-icon${row.pinned ? ' is-on' : ''}`}
                   title={row.pinned ? t('recent.unpin') : t('recent.pin')}
                   aria-label={row.pinned ? t('recent.unpin') : t('recent.pin')}
                   onClick={() => void pin(row)}
                 >
-                  {row.pinned ? '★' : '☆'}
+                  <Icon name="pin" size={14} />
                 </button>
                 <button
                   type="button"

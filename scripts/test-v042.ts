@@ -24,9 +24,9 @@ const blocks = read('src/renderer/src/components/TerminalBlocks.tsx')
 const editor = read('src/renderer/src/components/RemoteTextEditor.tsx')
 const runner = read('src/renderer/src/lib/folder-sync-run.ts')
 const pkg = JSON.parse(read('package.json')) as { version: string }
-const changelog = read('CHANGELOG.md')
+const changelog = read('CHANGELOG.md').replace(/\r\n/g, '\n')
 
-assert.equal(pkg.version, '0.4.2')
+assert.equal(pkg.version, '0.4.14')
 assert.ok(changelogFor('0.4.2').length >= 4)
 assert.ok(changelogFor('0.4.1').length >= 4)
 assert.ok(changelog.includes('## v0.4.2\n') && changelog.includes('## v0.4.1\n') && changelog.includes('## v0.4.0\n'))
@@ -162,9 +162,11 @@ assert.equal(loadAudit(store).length, 0)
 const ops = SHARED_MENUS.find((m) => m.id === 'ops')!
 const visible = visibleActionIds(ops)
 assert.ok(visible.length <= 12)
-assert.deepEqual(visible, ['opsHome', 'alertWorkbench', 'playbooks', 'runPlaybook', 'resourceMonitor', 'dashboard', 'serverTools', 'batchExec', 'snippets', 'inventory', 'alertRules', 'auditLog'])
+assert.deepEqual(visible, ['opsHome', 'alertWorkbench', 'playbooks', 'resourceMonitor', 'serverTools', 'batchExec', 'snippets', 'inventory'])
 assert.ok(ops.items.some((it) => it.type === 'item' && it.id === 'refreshDocker' && it.menuHidden))
 assert.ok(ops.items.some((it) => it.type === 'item' && it.id === 'alertHistory' && it.menuHidden))
+assert.ok(ops.items.some((it) => it.type === 'item' && it.id === 'dashboard' && it.menuHidden))
+assert.ok(ops.items.some((it) => it.type === 'item' && it.id === 'auditLog' && it.menuHidden))
 const palette = buildPaletteEntries(SHARED_MENUS, 'zh-CN').map((e) => e.id)
 assert.ok(palette.includes('refreshDocker') && palette.includes('alertHistory') && palette.includes('fixPlaybook'))
 assert.equal(ops.items.find((it) => it.type === 'item' && it.id === 'aiExplainError'), undefined)
@@ -235,7 +237,7 @@ function emojiCount(extra = ''): number {
   walk('src/renderer/src')
   return n
 }
-assert.equal(emojiCount(), 45)
-assert.ok(emojiCount('▶') > 45)
+assert.equal(emojiCount(), 0)
+assert.ok(emojiCount('▶') > 0)
 
 console.log('test-v042 ok')

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { tg } from '../lib/i18n'
 import type { TerminalPrefs } from '@shared/ipc'
+import { reduceSplitFocus, splitPaneClass, splitSideCurrent, type SplitSide } from '@shared/split-focus'
 import TerminalPane from './TerminalPane'
 
 type Peer = { sessionId: string; title: string }
@@ -15,11 +16,15 @@ type Props = {
   defaultOrientation?: 'horizontal' | 'vertical'
   /** Other connected sessions that can be shown in the second pane */
   peers?: Peer[]
+  /** Title of the primary session, shown on its split tab strip. */
+  primaryTitle?: string
   /** UX-10: tells the app which session the second pane shows ('' = mirror of the primary) */
   onSecondaryChange?: (sessionId: string) => void
   hostKey?: string
   inputBlocked?: boolean
   onInputBlocked?: () => void
+  onGateInput?: (sessionId: string, data: string) => void
+  onOpenSftp?: (sessionId: string) => void
 }
 
 const LS_RATIO = 'aiss.split.ratio'
@@ -31,11 +36,88 @@ function readRatio(): number {
   return Number.isFinite(v) && v > 0 ? clampRatio(v) : 0.5
 }
 
+type PaneModel = { id: string; mirror: boolean }
+
+type SlotProps = {
+  side: SplitSide
+  focused: SplitSide
+  title: string
+  pane: PaneModel
+  flex: string
+  active: boolean
+  prefs?: TerminalPrefs
+  hostKey?: string
+  inputBlocked?: boolean
+  onInputBlocked?: () => void
+  onOpenSftp?: (sessionId: string) => void
+  onGateInput?: (sessionId: string, data: string) => void
+  gate: boolean
+  onFocusSide: (side: SplitSide) => void
+}
+
+/** IX-6: the pane owns the pointer, so a click on the tab strip or the content focuses this side. */
+function SplitPaneSlot({
+  side,
+  focused,
+  title,
+  pane,
+  flex,
+  active,
+  prefs,
+  hostKey,
+  inputBlocked,
+  onInputBlocked,
+  onOpenSftp,
+  onGateInput,
+  gate,
+  onFocusSide
+}: SlotProps) {
+  const current = splitSideCurrent(side, focused)
+  return (
+    <div
+      className={splitPaneClass(side, focused)}
+      data-split-side={side}
+      data-testid={`split-pane-${side}`}
+      data-session-id={pane.id}
+      aria-current={current}
+      style={{ flex, minWidth: 0, minHeight: 0 }}
+      onMouseDownCapture={(e) => {
+        onFocusSide(side)
+        const target = e.target
+        if (target instanceof Element && target.closest('.split-pane-tab')) {
+          const area = e.currentTarget.querySelector('.xterm-helper-textarea')
+          if (area instanceof HTMLElement) area.focus()
+        }
+      }}
+      onFocusCapture={() => onFocusSide(side)}
+    >
+      <div className="split-pane-tab" data-testid={`split-tab-${side}`} aria-current={current}>
+        <span className="split-pane-tab-title">{title}</span>
+      </div>
+      <div className="split-pane-body">
+        <TerminalPane
+          key={`${side}-${pane.id}-${pane.mirror}`}
+          sessionId={pane.id}
+          active={active}
+          prefs={prefs}
+          mirrorOnly={pane.mirror}
+          hostKey={hostKey}
+          inputBlocked={inputBlocked}
+          onInputBlocked={onInputBlocked}
+          onOpenSftp={onOpenSftp}
+          onUserData={gate && onGateInput ? (data) => onGateInput(pane.id, data) : undefined}
+        />
+      </div>
+    </div>
+  )
+}
+
 /**
  * Split view.
  * - Second pane mirrors the same session (display-only unless broadcast), or shows another
  *   connected session with full input.
  * - Draggable divider (double-click resets to 50/50); swap panes; orientation and ratio are remembered.
+ * - IX-6: the focused side shows a 2px accent on its tab strip and aria-current. Clicking content switches focus.
  */
 export default function SplitTerminalView({
   sessionId,
@@ -44,10 +126,13 @@ export default function SplitTerminalView({
   broadcastEnabled = false,
   defaultOrientation = 'horizontal',
   peers = [],
+  primaryTitle,
   onSecondaryChange,
   hostKey,
   inputBlocked,
-  onInputBlocked
+  onInputBlocked,
+  onGateInput,
+  onOpenSftp
 }: Props) {
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>(() => {
     const v = localStorage.getItem(LS_ORIENT)
@@ -56,6 +141,7 @@ export default function SplitTerminalView({
   const [ratio, setRatio] = useState(readRatio)
   const [secondary, setSecondary] = useState('')
   const [swapped, setSwapped] = useState(false)
+  const [focused, setFocused] = useState<SplitSide>('left')
   const boxRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
 
@@ -93,10 +179,18 @@ export default function SplitTerminalView({
   }
   useEffect(() => stopDrag, [stopDrag])
 
+  const onFocusSide = (side: SplitSide) => {
+    setFocused((cur) => reduceSplitFocus(cur, side))
+  }
+
   const horizontal = orientation === 'horizontal'
   const first = { id: sessionId, mirror: false }
   const second = secondary ? { id: secondary, mirror: false } : { id: sessionId, mirror: !broadcastEnabled }
   const [a, b] = swapped && secondary ? [second, first] : [first, second]
+  const titleOf = (pane: PaneModel): string => {
+    if (pane.id === sessionId) return primaryTitle?.trim() || tg('split.title')
+    return peers.find((p) => p.sessionId === pane.id)?.title || pane.id
+  }
 
   return (
     <div className="split-view" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0 }}>
@@ -134,9 +228,22 @@ export default function SplitTerminalView({
         className={`split-body split-${orientation}`}
         style={{ display: 'flex', flexDirection: horizontal ? 'row' : 'column', flex: 1, minHeight: 0, minWidth: 0 }}
       >
-        <div className="split-pane" data-session-id={a.id} style={{ flex: `0 0 ${ratio * 100}%`, minWidth: 0, minHeight: 0 }}>
-          <TerminalPane key={`a-${a.id}-${a.mirror}`} sessionId={a.id} active={active} prefs={prefs} mirrorOnly={a.mirror} hostKey={hostKey} inputBlocked={inputBlocked} onInputBlocked={onInputBlocked} />
-        </div>
+        <SplitPaneSlot
+          side="left"
+          focused={focused}
+          title={titleOf(a)}
+          pane={a}
+          flex={`0 0 ${ratio * 100}%`}
+          active={active}
+          prefs={prefs}
+          hostKey={hostKey}
+          inputBlocked={inputBlocked}
+          onInputBlocked={onInputBlocked}
+          onOpenSftp={onOpenSftp}
+          onGateInput={onGateInput}
+          gate
+          onFocusSide={onFocusSide}
+        />
         <div
           className="split-divider"
           role="separator"
@@ -146,9 +253,20 @@ export default function SplitTerminalView({
           onPointerDown={startDrag}
           onDoubleClick={() => setRatio(0.5)}
         />
-        <div className="split-pane" data-session-id={b.id} style={{ flex: '1 1 0', minWidth: 0, minHeight: 0 }}>
-          <TerminalPane key={`b-${b.id}-${b.mirror}`} sessionId={b.id} active={active} prefs={prefs} mirrorOnly={b.mirror} hostKey={hostKey} />
-        </div>
+        <SplitPaneSlot
+          side="right"
+          focused={focused}
+          title={titleOf(b)}
+          pane={b}
+          flex="1 1 0"
+          active={active}
+          prefs={prefs}
+          hostKey={hostKey}
+          onOpenSftp={onOpenSftp}
+          onGateInput={onGateInput}
+          gate={!b.mirror}
+          onFocusSide={onFocusSide}
+        />
       </div>
     </div>
   )

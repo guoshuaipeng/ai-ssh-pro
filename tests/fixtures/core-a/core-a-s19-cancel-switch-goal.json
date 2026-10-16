@@ -1,0 +1,127 @@
+{
+  "id": "S19",
+  "title": "Mid-flight deny cancels the SSH write; the new goal becomes active",
+  "industryBar": ["langgraph-human-in-the-loop", "session-intent", "confirm-before-run"],
+  "hostProfile": {
+    "hostId": "host-s19-switch",
+    "label": "switch-lab"
+  },
+  "session": {
+    "targetSessionId": "sess-s19-switch",
+    "historyKey": "hist-s19-switch"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "turns": [
+    {
+      "turnId": "S19-T1",
+      "userMessage": "把 HALF_WRITE_MARKER 追加到 /etc/motd。先提议写入命令，等我确认。",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {
+          "printf HALF_WRITE_MARKER >> /etc/motd": "HALF_WRITE_MARKER\n"
+        }
+      },
+      "userConfirm": { "policy": "deny" },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先看终端，还没有写入。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 80, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "response": {
+            "description": "提议追加标记到 motd，高风险，必须确认。",
+            "action": "command",
+            "command": "printf HALF_WRITE_MARKER >> /etc/motd",
+            "riskLevel": "high",
+            "completed": false
+          }
+        },
+        {
+          "response": {
+            "description": "拒绝后不应再执行第二条写入。",
+            "action": "command",
+            "command": "tee -a /etc/motd",
+            "riskLevel": "high",
+            "completed": false
+          }
+        }
+      ],
+      "expected": {
+        "ipc": ["cancelled", "done"],
+        "sshWriteCount": 0,
+        "noFurtherPlannerStepsAfterDeny": true,
+        "mustNotEmitCommands": ["printf HALF_WRITE_MARKER >> /etc/motd", "tee -a /etc/motd"],
+        "hitl": {
+          "minInterrupts": 1,
+          "resume": "deny",
+          "interruptRisks": ["high"]
+        }
+      }
+    },
+    {
+      "turnId": "S19-T2",
+      "userMessage": "换个问题。先停掉刚才的写入。现在只看 uptime，不要改文件。",
+      "mockTerminal": {
+        "initialRing": "user@web:~$\n",
+        "afterWrite": {
+          "uptime": " 14:31:02 up 10 days, load average: 0.42\n"
+        }
+      },
+      "userConfirm": {
+        "policy": "assert-pending-then-approve",
+        "assert": {
+          "stepHasRequestId": true,
+          "autoApproved": false,
+          "sshWriteBeforeApprove": false,
+          "riskLevelMustBe": "low"
+        }
+      },
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "旧写入已取消。只读查看 uptime。",
+            "action": "command",
+            "command": "uptime",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "response": {
+            "description": "负载约 0.42。motd 没有被写入。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "sshWriteCount": 1,
+        "commandsRequiringConfirm": ["uptime"],
+        "mustNotEmitCommands": ["printf HALF_WRITE_MARKER >> /etc/motd", "tee -a /etc/motd", "HALF_WRITE_MARKER"],
+        "descriptionMustContain": ["0.42"],
+        "intentSwitch": {
+          "newGoalMentions": ["uptime"],
+          "archiveOldWorkingMemory": true
+        },
+        "activeGoalMustNotBe": ["HALF_WRITE_MARKER", "/etc/motd"]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Deny cancels the motd write with sshWriteCount 0 and no second command",
+    "The next turn archives the old goal and activates the uptime goal",
+    "Only the new uptime command is written, and it still waits for confirm"
+  ]
+}

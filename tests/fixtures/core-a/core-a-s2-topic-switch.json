@@ -1,0 +1,181 @@
+{
+  "id": "S2",
+  "title": "Topic switch then return — recall earlier host fact",
+  "industryBar": ["mastra-working-memory", "observational-compression", "hybrid-recall"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01",
+    "hostname": "prod-web-01.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s2-recall",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "seedInventory": {
+    "hostId": "host-prod-web-01",
+    "services": [
+      {
+        "name": "nginx",
+        "kind": "web",
+        "ports": [8080],
+        "notes": "listen 8080; upstream app on 3000"
+      }
+    ],
+    "notes": ["2026-10-01: root disk pressure watched; prefer cleanup under /var/log"]
+  },
+  "turns": [
+    {
+      "turnId": "S2-T1",
+      "userMessage": "这台机 nginx 监听哪个端口？记一下，后面排障要用。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {}
+      },
+      "userConfirm": { "policy": "approve-all-commands" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "从主机知识库读取 inventory。",
+            "action": "tool_call",
+            "toolName": "get_host_inventory",
+            "toolInput": { "hostId": "host-prod-web-01", "query": "nginx" },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "mockToolResult": "host-prod-web-01 services:\n- nginx (web) ports=[8080] notes=listen 8080; upstream app on 3000\nnotes:\n- 2026-10-01: root disk pressure watched; prefer cleanup under /var/log\n"
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "根据 inventory：nginx 监听 8080，upstream 在 3000。已确认可写入工作记忆。",
+            "action": "tool_call",
+            "toolName": "append_host_note",
+            "toolInput": {
+              "hostId": "host-prod-web-01",
+              "note": "Confirmed nginx listen :8080 (inventory)"
+            },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "nginx 监听端口为 8080（来自主机知识库）；upstream 应用 3000。已记入笔记。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "descriptionMustContain": ["8080"],
+        "memoryMustRetain": ["8080", "nginx"]
+      }
+    },
+    {
+      "turnId": "S2-T2",
+      "userMessage": "顺便问下，现在系统时区是什么？执行 timedatectl 看看。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {
+          "timedatectl | head -n 5": "               Local time: Thu 2026-10-15 14:30:00 CST\n           Universal time: Thu 2026-10-15 06:30:00 UTC\n                 RTC time: Thu 2026-10-15 06:30:00\n                Time zone: Asia/Shanghai (CST, +0800)\nSystem clock synchronized: yes\n"
+        }
+      },
+      "userConfirm": { "policy": "approve-all-commands" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "建议执行 timedatectl 查看时区（只读）。",
+            "action": "command",
+            "command": "timedatectl | head -n 5",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "读取 timedatectl 输出。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 800, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "时区为 Asia/Shanghai (CST, +0800)。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "descriptionMustContain": ["Asia/Shanghai"],
+        "memoryMustStillRetainFromT1": ["8080", "nginx"],
+        "intentNote": "If sessionIntent exists, T1 goal may be archived or paused; observations/working-memory must keep nginx:8080"
+      }
+    },
+    {
+      "turnId": "S2-T3",
+      "userMessage": "回到刚才：排障时应该打哪个端口连 nginx？不要重新瞎猜。",
+      "mockTerminal": {
+        "initialRing": "timedatectl leftover...\n",
+        "afterWrite": {}
+      },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "优先从工作记忆/笔记召回，而不是重复全量探测。",
+            "action": "tool_call",
+            "toolName": "get_host_inventory",
+            "toolInput": { "hostId": "host-prod-web-01", "query": "nginx port" },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "mockToolResult": "nginx ports=[8080]\n"
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "根据本会话更早确认的主机事实：nginx 监听 8080（非 80）。时区问题与此无关。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "descriptionMustContain": ["8080"],
+        "descriptionMustNotContain": [":80 ", "猜测"],
+        "recall": {
+          "source": "working-memory-or-inventory-or-observations",
+          "mustNotRequire": "fresh ss -lntp rediscovery as only path",
+          "industryBar": "observational compression + hybrid recall of earlier host fact"
+        },
+        "maxGetTerminalSnapshot": 1
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "T1 stores nginx:8080 in inventory/notes/working memory",
+    "T2 topic switch must not wipe T1 fact",
+    "T3 end cites 8080 from recall",
+    "compressed observations visible if raw window would have dropped T1"
+  ]
+}

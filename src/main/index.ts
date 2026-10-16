@@ -1,8 +1,10 @@
 import { mt, setMainLocaleGetter } from './main-i18n'
 import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
-import { app, BrowserWindow, ipcMain, nativeImage, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
+import { applyBrandPresence, applyProductAppName, destroyBrandTray } from './brand-presence'
+import { trayHoverTitle } from '../shared/product'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { homedir } from 'node:os'
@@ -31,6 +33,7 @@ import { registerSyncIpc } from './sync-ipc'
 import { registerSnapshotIpc } from './snapshot-ipc'
 import { registerServerToolsIpc } from './server-tools-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
+import { getWorkingMemoryGoal } from './core-a-memory'
 import { streamOpenAICompatibleChat } from './ai-stream'
 import { setDebugWindowWebContents } from './debug-window-broadcast'
 import { parseSshFormWithAi } from './ai-parse-ssh'
@@ -43,6 +46,7 @@ import * as localFs from './local-fs'
 import { loadSftpQueue, saveSftpQueue } from './sftp-queue-store'
 import * as dockerManager from './docker-manager'
 import { exportSessionsToJson, exportSessionsToOpenSsh } from './session-export'
+import { labelForSessionExport } from '../shared/demo-host'
 import { startRecording, stopRecording, stopAllRecordings } from './session-recorder'
 import { LocalShellManager, isLocalShellAvailable } from './local-shell'
 import { demoHostManager } from './demo-host'
@@ -252,7 +256,7 @@ function createWindow(): void {
       // ESM 预加载脚本与 sandbox 并存时，部分环境下 preload 不执行 → window.aiss 不存在
       sandbox: false
     },
-    title: 'AI-SSH-Pro',
+    title: trayHoverTitle(),
     ...(existsSync(iconFile) ? { icon: nativeImage.createFromPath(iconFile) } : {}),
     ...(isMac
       ? {
@@ -275,6 +279,7 @@ function createWindow(): void {
           })
   })
 
+  applyBrandPresence(win, appIconPath())
   attachShowFallback(win)
 
   attachWebContentsDiagnostics(win)
@@ -311,7 +316,7 @@ function openDebugWindow(): void {
     height: 700,
     minWidth: 720,
     minHeight: 440,
-    title: 'AI 调试',
+    title: trayHoverTitle(),
     show: false,
     webPreferences: {
       preload: resolvedPreload,
@@ -489,6 +494,20 @@ function registerIpc(): void {
     const { canceled, filePath } = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts)
     if (canceled || !filePath) return null
     writeFileSync(filePath, content, 'utf8')
+    return filePath
+  })
+  ipcMain.handle('fs:reveal', (_e, target: string) => {
+    const file = String(target ?? '')
+    if (!file) return false
+    shell.showItemInFolder(file)
+    return true
+  })
+  ipcMain.handle('fs:saveBytes', async (_e, defaultName: string, base64: string) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const opts = { title: '保存', defaultPath: defaultName || 'export.bin' }
+    const { canceled, filePath } = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts)
+    if (canceled || !filePath) return null
+    writeFileSync(filePath, Buffer.from(String(base64 ?? ''), 'base64'))
     return filePath
   })
 
@@ -710,6 +729,7 @@ function registerIpc(): void {
   ipcMain.handle('sftp:queueSave', (_e, tasks: unknown) => saveSftpQueue(tasks))
 
   ipcMain.handle('localFs:home', () => localFs.localHome())
+  ipcMain.handle('localFs:drives', () => localFs.listDrives())
   ipcMain.handle('localFs:list', (_e, dir: string) => localFs.listLocal(String(dir ?? '')))
   ipcMain.handle('localFs:stat', (_e, target: string) => localFs.statLocal(String(target ?? '')))
   ipcMain.handle('localFs:mkdir', (_e, target: string) => {
@@ -901,7 +921,12 @@ function registerIpc(): void {
   })
   ipcMain.handle('sessions:export', (_e, format: SessionExportFormat) => {
     const state = getSavedSessionsState()
-    return format === 'openssh' ? exportSessionsToOpenSsh(state) : exportSessionsToJson(state)
+    const locale = getMainLocale()
+    const named = {
+      ...state,
+      profiles: state.profiles.map((p) => ({ ...p, label: labelForSessionExport(p, locale) }))
+    }
+    return format === 'openssh' ? exportSessionsToOpenSsh(named) : exportSessionsToJson(named)
   })
 
   ipcMain.handle('snippets:list', () => getSnippets())
@@ -959,6 +984,7 @@ function registerIpc(): void {
   ipcMain.handle('ai:chatHistory:set', (_e, key: string, messages: AiChatMessage[]) => {
     setAiChatHistory(key, messages)
   })
+  ipcMain.handle('ai:workingMemory:get', (_e, key: string) => getWorkingMemoryGoal(String(key ?? '')))
 
   ipcMain.handle('debug:openWindow', () => {
     openDebugWindow()
@@ -977,6 +1003,7 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.exit(0)
 } else {
+  applyProductAppName()
   /** 无窗口空闲一段时间后再退出，避免关窗后立刻再点图标撞上「锁还在、进程已死」 */
   const IDLE_QUIT_MS = 120_000
   let idleQuitTimer: ReturnType<typeof setTimeout> | null = null
@@ -1055,6 +1082,7 @@ if (!gotSingleInstanceLock) {
   app.on('before-quit', () => {
     isQuitting = true
     clearIdleQuitTimer()
+    destroyBrandTray()
     cleanupSessions()
   })
 

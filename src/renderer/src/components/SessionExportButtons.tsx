@@ -100,7 +100,7 @@ export default function SessionExportButtons({ onExported }: Props) {
         <p style={{ margin: '0 0 6px', fontSize: 11, color: 'var(--muted)' }}>{message}</p>
       ) : null}
       {error ? (
-        <p style={{ margin: '0 0 6px', fontSize: 11, color: 'var(--danger, #f85149)' }}>{error}</p>
+        <p style={{ margin: '0 0 6px', fontSize: 11, color: 'var(--color-danger)' }}>{error}</p>
       ) : null}
       {preview ? (
         <textarea

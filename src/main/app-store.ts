@@ -24,6 +24,8 @@ import {
   setRecentPinned
 } from '../shared/workspace-features'
 import { decryptOptional, encryptOptional, encryptSecret, decryptSecret, isEncryptedSecret } from './secret-crypto'
+import { archiveAndClearThreadContext } from './core-a-memory'
+import { normalizeAllowHosts, normalizeSafetyTier, normalizeTierMap } from '../shared/safety-tier'
 
 type AiChatHistoryStore = Record<string, AiChatMessage[]>
 
@@ -68,7 +70,8 @@ export const AI_SETTINGS_DEFAULTS: AiSettings = {
   temperature: 0.1,
   sshParseInstructions: '',
   useOpenClaw: true,
-  autoApproveLowRisk: false
+  autoApproveLowRisk: false,
+  safetyTier: 'confirm'
 }
 
 function encryptJump(j: SshJumpHostOptions | undefined): SshJumpHostOptions | undefined {
@@ -301,10 +304,13 @@ function normalizeAi(merged: AiSettings): AiSettings {
     typeof anyMerged.useOpenClaw === 'boolean'
       ? anyMerged.useOpenClaw
       : (AI_SETTINGS_DEFAULTS.useOpenClaw ?? true)
-  const autoApproveLowRisk =
-    typeof anyMerged.autoApproveLowRisk === 'boolean'
-      ? anyMerged.autoApproveLowRisk
-      : (AI_SETTINGS_DEFAULTS.autoApproveLowRisk ?? false)
+  // UX-64: the old low-risk switch stays off. The safety tier is the policy that can skip Agree.
+  const autoApproveLowRisk = false
+  const safetyTier = normalizeSafetyTier(anyMerged.safetyTier)
+  const safetyTierHosts = normalizeTierMap(anyMerged.safetyTierHosts)
+  const safetyTierSessions = normalizeTierMap(anyMerged.safetyTierSessions)
+  const autopilotAllowHosts = normalizeAllowHosts(anyMerged.autopilotAllowHosts)
+  const autopilotAllowHighRisk = anyMerged.autopilotAllowHighRisk === true
 
   return {
     providers,
@@ -313,7 +319,12 @@ function normalizeAi(merged: AiSettings): AiSettings {
     temperature,
     sshParseInstructions,
     useOpenClaw,
-    autoApproveLowRisk
+    autoApproveLowRisk,
+    safetyTier,
+    ...(safetyTierHosts ? { safetyTierHosts } : {}),
+    ...(safetyTierSessions ? { safetyTierSessions } : {}),
+    ...(autopilotAllowHosts ? { autopilotAllowHosts } : {}),
+    ...(autopilotAllowHighRisk ? { autopilotAllowHighRisk } : {})
   }
 }
 
@@ -434,6 +445,7 @@ function normalizeSnippets(raw: unknown): CommandSnippet[] {
     const title = typeof o.title === 'string' && o.title.trim() ? o.title.trim() : null
     const body = typeof o.body === 'string' ? o.body : null
     if (!id || !title || body == null) continue
+    if (id.startsWith('builtin:snip:')) continue
     out.push({ id, title, body })
   }
   return out
@@ -528,8 +540,10 @@ export function setAiChatHistory(key: string, messages: AiChatMessage[]): void {
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({ role: m.role, content: String(m.content ?? '').slice(0, 20000) }))
     .slice(-200)
-  if (cleaned.length === 0) delete all[k]
-  else all[k] = cleaned
+  if (cleaned.length === 0) {
+    delete all[k]
+    archiveAndClearThreadContext(k)
+  } else all[k] = cleaned
   appStore.set('aiChatHistory', all)
 }
 

@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import ssh2 from 'ssh2'
 import { allowsPageScrollX, l2Actions, l2Filter, l2Mode, l7Mode } from '../src/shared/density'
 import { HOST_MENU_MULTI, HOST_MENU_SINGLE, menuSourceFollows } from '../src/shared/host-menu'
+import { buildHostMenu, menuItemIds, type HostMenuCtx } from '../src/shared/inline-menus'
 import { chainDiagram, MAX_HOPS } from '../src/shared/jump-chain'
 import { L7_RAIL, railCollapsed, railOverflow } from '../src/shared/l7-rail'
 import { layoutPalette, bumpUsage, pinnedIds, PALETTE_CATS } from '../src/shared/palette-rank'
@@ -28,7 +29,7 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 const css = readFileSync('src/renderer/src/features.css', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const home = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')
-const changelog = readFileSync('CHANGELOG.md', 'utf8')
+const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
 
 assert.equal(l7Mode(1366), 'three')
 assert.equal(l7Mode(1200), 'three')
@@ -58,10 +59,13 @@ const scrollRule = styles.slice(styles.indexOf('.tab-bar-scroll {'), styles.inde
 assert.ok(scrollRule.includes('scrollbar-width: none'))
 assert.match(styles, /\.tab-bar-scroll::-webkit-scrollbar\s*\{[^}]*display:\s*none/)
 assert.ok(styles.includes('height: 36px') && styles.includes('height: 30px'))
-assert.ok(styles.includes('min-width: 112px') && styles.includes('min-width: 96px'))
+assert.ok(styles.includes('min-width: 188px') && styles.includes('min-width: 96px'))
+assert.match(styles, /\.tab-bar-scroll > \.tab\s*\{[^}]*flex:\s*0\s*0\s*auto/)
+assert.doesNotMatch(styles, /@media \(max-width: 1024px\)\s*\{[^}]*\.tab-bar-scroll > \.tab/)
 assert.ok(styles.includes('border-top: 2px solid transparent'))
 assert.ok(styles.includes('mask-image:'))
-assert.ok(css.includes('border-top-color: #ef4444') && css.includes('border-top-color: #f97316'))
+assert.ok(css.includes('border-top-color: var(--color-danger)') && css.includes('border-top-color: var(--color-warn)'))
+assert.ok(!css.includes('border-top-color: #ef4444') && !css.includes('border-top-color: #f97316'))
 assert.ok(!css.includes('border-top: 2px solid #ef4444') && !css.includes('border-top: 2px solid #f97316'))
 assert.ok(styles.includes('flex-wrap: nowrap') && styles.includes('.tab-overflow-menu'))
 assert.ok(app.includes('data-testid="tab-bar-scroll"') && app.includes('data-testid="tab-overflow"'))
@@ -74,10 +78,11 @@ assert.equal(TAB_STRIP_NUDGE, 160)
 assert.ok(app.includes('scrollLeft += delta') && app.includes('capture: true, passive: false'))
 assert.ok(app.includes("e.key !== 'Escape'") && app.includes("addEventListener('mousedown', onPointer)"))
 const overflowBtn = app.slice(app.indexOf('data-testid="tab-overflow"'), app.indexOf('data-testid="tab-overflow-menu"'))
-assert.ok(overflowBtn.includes('⌄') && !overflowBtn.includes('⋯'))
+assert.ok(overflowBtn.includes('tabOverflowMark(tabHiddenCount)'))
+assert.equal(overflowBtn.includes('⋯'), false)
 const overflowMenu = app.slice(app.indexOf('data-testid="tab-overflow-menu"'), app.indexOf('data-testid="broadcast-bar"'))
 assert.ok(overflowMenu.includes('labelFor(t)') && overflowMenu.includes('aria-current'))
-assert.ok(overflowMenu.includes('✓') && !overflowMenu.includes('{t.title}'))
+assert.ok(overflowMenu.includes('name="check"') && !overflowMenu.includes('✓') && !overflowMenu.includes('{t.title}'))
 assert.ok(app.includes('className="tab-title">{labelFor(t)}'))
 const trStub = (key: string, vars?: Record<string, string | number>) => {
   const map: Record<string, string> = {
@@ -152,32 +157,41 @@ assert.equal(recent.length, 2)
 assert.equal(recent[0]?.id, 'c')
 assert.ok(app.includes('savedKeys={profiles.map'))
 
-const single = app.slice(app.indexOf('data-testid="host-menu"'))
+const singleCtx: HostMenuCtx = {
+  selection: 'single',
+  count: 1,
+  folders: [{ id: 'ops', name: 'Ops' }],
+  currentFolderId: 'ops'
+}
+const singleIds = menuItemIds(buildHostMenu(singleCtx))
 const singleKeys = ['connect', 'connectNew', 'sftp', 'monitor', 'toolbox', 'edit', 'profile', 'rename', 'copyAddr', 'delete']
-const itemOrder = (source: string, keys: string[]) => {
+const follows = (ids: string[], keys: string[]) => {
   let at = 0
   for (const key of keys) {
-    const token = `item('${key}'`
-    const i = source.indexOf(token, at)
+    const i = ids.indexOf(key, at)
     if (i < 0) return false
-    at = i + token.length
+    at = i + 1
   }
   return true
 }
-assert.equal(itemOrder(single, singleKeys), true)
-assert.equal(menuSourceFollows(app, ['move', 'setLevel']), true)
-assert.ok(single.indexOf('moveTo([p.id]') > single.indexOf("item('rename'"))
-assert.ok(single.indexOf('moveTo([p.id]') < single.indexOf("item('copyAddr'"))
-assert.ok(!single.includes('data-ctx="docker"') && !single.includes('data-ctx="tags"'))
+assert.equal(follows(singleIds, singleKeys), true)
+assert.equal(menuSourceFollows(singleIds.map((id) => `data-ctx="${id}"`).join(''), ['rename', 'move', 'copyAddr']), true)
+assert.ok(singleIds.indexOf('move') > singleIds.indexOf('rename'))
+assert.ok(singleIds.indexOf('move') < singleIds.indexOf('copyAddr'))
+assert.ok(!singleIds.includes('docker') && !singleIds.includes('tags'))
 assert.deepEqual([...HOST_MENU_SINGLE], ['connect', 'connectNew', 'sftp', 'monitor', 'toolbox', 'edit', 'profile', 'rename', 'move', 'copyAddr', 'delete'])
-const multi = app.slice(app.indexOf('data-testid="host-menu-multi"'), app.indexOf('data-testid="host-menu"'))
-assert.equal(itemOrder(multi, ['batch', 'monitorBoard', 'delete']), true)
-assert.equal(menuSourceFollows(multi, ['setLevel']), true)
-assert.ok(multi.indexOf('data-ctx="setLevel"') < multi.indexOf('moveTo(multi)'))
-assert.ok(multi.indexOf('moveTo(multi)') < multi.indexOf("item('delete'"))
-assert.deepEqual([...HOST_MENU_MULTI], ['batch', 'monitorBoard', 'setLevel', 'move', 'delete'])
-assert.ok(app.includes("opts?.danger ? ' danger' : ''"))
-assert.ok(single.slice(single.indexOf("item('delete'")).includes('danger: true'))
+const multiCtx: HostMenuCtx = { selection: 'multi', count: 2, folders: [{ id: 'ops', name: 'Ops' }] }
+const multiIds = menuItemIds(buildHostMenu(multiCtx))
+assert.equal(follows(multiIds, ['batch', 'monitorBoard', 'delete']), true)
+assert.equal(menuSourceFollows(multiIds.map((id) => `data-ctx="${id}"`).join(''), ['setLevel', 'move', 'delete']), true)
+assert.ok(multiIds.indexOf('setLevel') < multiIds.indexOf('move'))
+assert.ok(multiIds.indexOf('move') < multiIds.indexOf('delete'))
+assert.deepEqual([...HOST_MENU_MULTI], ['connectAll', 'batch', 'monitorBoard', 'setLevel', 'move', 'delete'])
+const builtMenu = readFileSync('src/renderer/src/components/BuiltMenu.tsx', 'utf8')
+assert.ok(builtMenu.includes("danger ? ' danger' : ''"))
+const deleteNode = buildHostMenu(singleCtx).find((node) => node.type === 'item' && node.id === 'delete')
+assert.equal(deleteNode && deleteNode.type === 'item' ? deleteNode.danger : false, true)
+assert.ok(app.includes("testId={multi ? 'host-menu-multi' : 'host-menu'}"))
 
 const restored = planRestore(
   [

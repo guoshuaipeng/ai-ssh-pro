@@ -12,6 +12,543 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.4.14': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'SFTP 中心在 1366 单行工具带；磁盘切换与打开会话目录更显眼，高级默认折起',
+        en: 'SFTP center keeps a single toolbar at 1366; drive switch and session cwd stay prominent; advanced folded'
+      },
+      where: { zh: 'SFTP', en: 'SFTP' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '安全档在设置与 AI 条说清「只读 / 需确认 / 全自动」，默认偏手动',
+        en: 'Safety tiers in Settings and the AI bar read as Read-only / Confirm / Autopilot; default leans manual'
+      },
+      where: { zh: '设置 → 代理安全档', en: 'Settings → Agent safety' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标签溢出有淡出与箭头示意，滚轮可横滚，标题不压缩',
+        en: 'Tab overflow shows fade and arrows; the wheel scrolls sideways; titles are not compressed'
+      },
+      where: { zh: '标签条', en: 'Tab strip' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '列表行高与悬停统一；运维首页卡片安静上限，次要进 ⋯',
+        en: 'List row height and hover unify; ops home cards stay under a quiet cap, secondary in ⋯'
+      },
+      where: { zh: '运维首页', en: 'Ops home' },
+      action: 'opsHome'
+    }
+  ],
+  '0.4.13': [
+    {
+      icon: '▷',
+      text: {
+        zh: '助手回复默认是暗色卡：风险徽章、等宽命令、紧凑工具条；解析失败仍是纯答卡',
+        en: 'Assistant replies default to dark cards: risk badge, monospace command, compact tool strip; parse failure stays a plain card'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '欢迎、关于、空错和 AI 未配置等文案统一术语与动作按钮',
+        en: 'Welcome, About, empty/error, and AI-unconfigured copy share terms and action verbs'
+      },
+      where: { zh: '帮助 → 关于', en: 'Help → About' },
+      action: 'about'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '主机档案在 1366 单列，主按钮不折行，高级默认折起',
+        en: 'Host profile stays one column at 1366, primary actions on one line, advanced folded'
+      },
+      where: { zh: '主机档案', en: 'Host profile' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'Toast 最多两条并可合并；导入成功后走价值条，不再叠同义提示',
+        en: 'Toasts cap at two and can merge; after import the value strip replaces a synonym toast'
+      },
+      where: { zh: '文件 → 导入会话', en: 'File → Import sessions' },
+      action: 'importSessions'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '连接中与信息横幅走 info 令牌，语气与断线重连一致',
+        en: 'Connecting and info banners use info tokens, matching disconnect/reconnect tone'
+      },
+      where: { zh: '会话横幅', en: 'Session banner' }
+    }
+  ],
+  '0.4.12': [
+    {
+      icon: '▷',
+      text: {
+        zh: '更新内容、欢迎和引导同一时间只留一层。Esc 只关最上面这一层',
+        en: 'What’s New, Welcome, and the tour take one layer. Esc closes only the top one'
+      },
+      where: { zh: '帮助 → 更新内容', en: 'Help → What’s new' },
+      action: 'whatsNew'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '导入后有一条不挡操作的提示，写明导入了几台，以及下一步。第一次连上只有一个主按钮',
+        en: 'After an import, a quiet strip says how many hosts came in and the next step. The first connection has one primary button'
+      },
+      where: { zh: '文件 → 导入会话', en: 'File → Import sessions' },
+      action: 'importSessions'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '底栏仍是一行。同步、录制、广播按优先级排，挤不下就收起较低的。断线可以点重连',
+        en: 'The status bar stays one line. Sync, recording, and broadcast follow priority and drop the quieter chip when the line is full. A dropped connection can reconnect'
+      },
+      where: { zh: '底栏', en: 'Status bar' },
+      action: 'reconnect'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '空列表是一枚图标加一句话，最多一个主按钮。设置按组排开，高级默认收起，可以搜索',
+        en: 'An empty list is an icon and one sentence, with at most one primary. Settings stay grouped, advanced starts collapsed, and search still works'
+      },
+      where: { zh: '设置', en: 'Settings' },
+      action: 'settings'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '加载不抢走焦点。断线和离线跟底栏同一句人话，不出现调用栈，可以重试或去设置',
+        en: 'Loading does not take focus. Offline and disconnect copy matches the status bar, with no stack trace, and offers retry or Settings'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    }
+  ],
+  '0.4.11': [
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏按钮、图标和三枚布局开关统一为 32×32，圆角用同一套',
+        en: 'Titlebar buttons, icons, and the three layout toggles share a 32×32 hit target and one radius'
+      },
+      where: { zh: '标题栏', en: 'Title bar' },
+      action: 'toggleSidebar'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '左右分割条平时是一条细缝，悬停或拖动时才亮起',
+        en: 'The layout seam stays a hairline until you hover or drag'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '底栏固定一行。空闲时写「就绪」，有会话时写已连接的数量',
+        en: 'The status bar stays one line: Ready when idle, and a connection count when sessions are up'
+      },
+      where: { zh: '底栏', en: 'Status bar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '选中用内描边或行底色。焦点环只在键盘聚焦时出现',
+        en: 'Selection is an inset ring or a row background. The focus ring appears only for keyboard focus'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'Ctrl+K 把连接、运维、设置、帮助分清楚。收进 ⋯ 的项仍能搜到',
+        en: 'Ctrl+K keeps Connection, Ops, Settings, and Help distinct. Items behind ⋯ stay searchable'
+      },
+      where: { zh: '命令面板', en: 'Command palette' },
+      action: 'commandPalette'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运维菜单仍只留日常入口。少用的项在命令面板里，1366 下菜单不画出屏幕',
+        en: 'The Ops menu stays a short daily list. Rare items stay in the command palette, and the menu stays on screen at 1366'
+      },
+      where: { zh: '运维', en: 'Ops' },
+      action: 'opsHome'
+    }
+  ],
+  '0.4.10': [
+    {
+      icon: '▷',
+      text: {
+        zh: '主按钮改为实心强调色。工具标签用线性图标区分，不再用彩色左边条',
+        en: 'Primary buttons are a solid accent. Tool tabs use a linear icon instead of a colored left bar'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '菜单、弹出层和对话框共用同一套阴影和抬升表面',
+        en: 'Menus, popovers, and dialogs share one shadow and one elevated surface'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '空列表是一枚图标加一句话。关于页显示版本、更新通道，以及 GitHub 和 Gitee',
+        en: 'An empty list is an icon and one sentence. About shows the version, update channel, GitHub, and Gitee'
+      },
+      where: { zh: '帮助 → 关于', en: 'Help → About' },
+      action: 'about'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏、状态和提示条改用主题色，不再写死一套深色',
+        en: 'The title bar, status, and banners follow the theme colors instead of a fixed dark palette'
+      },
+      where: { zh: '窗口', en: 'Window' }
+    }
+  ],
+  '0.4.9': [
+    {
+      icon: '▷',
+      text: {
+        zh: '设置里可以选代理安全档：观察、确认、信任、全自动。默认是确认',
+        en: 'Settings offer an agent safety tier: Observe, Confirm, Trusted, or Autopilot. Confirm is the default'
+      },
+      where: { zh: '设置 → AI', en: 'Settings → AI' },
+      action: 'ai'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '只读命令可以自动执行。写入仍要同意。高风险要同意后再确认一次，不会自动执行',
+        en: 'Read-only commands may auto-run. Writes still need Agree. High risk needs Agree and a second confirm, and does not auto-run'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '观察档对写入、删除和重启只给建议，不提供执行',
+        en: 'Observe only suggests writes, deletes, and reboots. There is no execute button'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'ncdu、top、vim、less 不会自动执行。同一条正在执行的命令不会再次询问同意',
+        en: 'ncdu, top, vim, and less never auto-run. An in-flight command is not asked to Agree again'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '会话标签不再挤成「服…」。放不下时标签条横向滚动，主机名和 IP 保持可读',
+        en: 'Session tabs no longer shrink to an unreadable stub. Extra tabs scroll sideways, and the host or IP stays readable'
+      },
+      where: { zh: '标签条', en: 'Tab strip' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏右侧恢复会话栏、终端区和 AI 面板三枚小图标，开着略亮',
+        en: 'The title bar again has three small icons for the sidebar, terminal, and AI panel'
+      },
+      where: { zh: '标题栏', en: 'Title bar' }
+    }
+  ],
+  '0.4.8': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 回复改成深色卡片，并标出低、中、高风险',
+        en: 'AI replies are dark cards, with a low, medium, or high risk badge'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '要执行的命令放在等宽条里，同意才写入终端，不同意不执行',
+        en: 'A command sits in a monospace block. Agree writes it; Decline does not run it'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '工具步骤收成一行，不再铺成一堵字',
+        en: 'Tool steps stay on one line instead of a wall of text'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '还没提问时只留一句提示，不再用灰色底板',
+        en: 'Before the first question there is one sentence, not a grey plate'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' }
+    }
+  ],
+  '0.4.7': [
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏不再放三枚布局方块，会话栏、终端区和 AI 面板改在查看菜单里',
+        en: 'The title bar no longer shows three layout squares. Sidebar, terminal, and AI panel live in the View menu'
+      },
+      where: { zh: '查看', en: 'View' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标签条右侧有一枚分屏按钮，默认仍是单窗格',
+        en: 'The tab strip has one split button. The default stays a single pane'
+      },
+      where: { zh: '中间标签条', en: 'Center tab strip' },
+      action: 'toggleSplit'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏溢出入口改成纯图标，只收少用操作',
+        en: 'The title bar overflow control is an icon for less-used actions'
+      },
+      where: { zh: '标题栏', en: 'Title bar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '文件到帮助的菜单都还在，字重和悬停跟产品名同一套',
+        en: 'File through Help stay on the menu bar, with type and hover aligned to the product name'
+      },
+      where: { zh: '标题栏菜单', en: 'Title bar menus' }
+    }
+  ],
+  '0.4.6': [
+    {
+      icon: '▷',
+      text: {
+        zh: '工具箱的 Docker 按 Compose、Swarm 和容器分组，带状态点、数量和端口',
+        en: 'Toolbox Docker groups Compose, Swarm, and containers, with status, counts, and ports'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' },
+      action: 'serverTools'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '可以刷新、打开详情，以及启动、停止、重启；Compose 可 up/down，Swarm 可更新',
+        en: 'Refresh, open details, and start, stop, or restart. Compose can go up or down, and Swarm can update'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' },
+      action: 'serverTools'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '没有 Docker 或还没有容器时，用一枚图标和一句话说明',
+        en: 'No Docker, or no containers yet, is an icon and one sentence'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '删除容器、Compose 启动或停止、Swarm 更新和任务重启之前会先确认',
+        en: 'Deleting a container, Compose up or down, a Swarm update, or a Swarm task restart asks first'
+      },
+      where: { zh: '服务器工具箱 → Docker', en: 'Server toolbox → Docker' }
+    }
+  ],
+  '0.4.5': [
+    {
+      icon: '▷',
+      text: {
+        zh: '关于、标题栏和托盘共用产品名和图标',
+        en: 'About, the title bar, and the tray share the product name and icon'
+      },
+      where: { zh: '帮助 → 关于', en: 'Help → About' },
+      action: 'about'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '侧栏、文件、片段、转发和告警为空时，用一句话说明，最多一个主按钮',
+        en: 'An empty sidebar, file list, snippet list, forward list, or alert list is one sentence and at most one primary'
+      },
+      where: { zh: '会话栏', en: 'Sidebar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标签用图标区分种类，不再用彩色左边条',
+        en: 'Tabs use an icon for each kind, not a colored left bar'
+      },
+      where: { zh: '中间标签条', en: 'Center tab strip' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '菜单和弹出层共用同一套阴影，主按钮仍是实心的',
+        en: 'Menus and popovers share one shadow, and primary buttons stay solid'
+      },
+      where: { zh: '标题栏菜单', en: 'Title bar menus' },
+      action: 'commandPalette'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '助手的诊断回复按条目分成卡片，建议执行的命令单独列出',
+        en: 'A diagnostic reply is split into cards, and a suggested command is listed on its own'
+      },
+      where: { zh: 'AI 助手', en: 'AI assistant' },
+      action: 'openAi'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '主机右键「移动到」会展开目标分组',
+        en: 'Move to on a host opens the list of groups'
+      },
+      where: { zh: '会话栏右键', en: 'Sidebar right-click' }
+    }
+  ],
+  '0.4.4': [
+    {
+      icon: '▷',
+      text: {
+        zh: '告警规则可以一键套用 CPU、磁盘和 sshd 模板，只写入本机规则',
+        en: 'Alert rules can apply CPU, disk, and sshd templates in one click. They only write local rules'
+      },
+      where: { zh: '命令面板 → 启用告警规则模板…', en: 'Command palette → Enable alert rule templates…' },
+      action: 'enableRuleTemplates'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '后台采样可以按标签、仅生产或排除只读来缩小范围。失败的主机会退避后重试',
+        en: 'Background sampling can filter by tag, production only, or exclude read-only. Failed hosts back off, then retry'
+      },
+      where: { zh: '设置 → 运维首页', en: 'Settings → Ops home' },
+      action: 'retryFailedProbes'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运维剧本可以导出加密分享包。口令、私钥和令牌不会写进包里',
+        en: 'Playbooks can export an encrypted share pack. Passwords, keys, and tokens stay out of the file'
+      },
+      where: { zh: '运维剧本 → 导出分享包…', en: 'Playbooks → Export share pack…' },
+      action: 'exportPlaybookPack'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '写闸门的决定会留在记录里。只读阻止可以回放，记录本身不能改保护级别',
+        en: 'Write-gate decisions stay in a log. A read-only block can be replayed, and the log cannot change protection'
+      },
+      where: { zh: '命令面板 → 查看写闸门记录', en: 'Command palette → View write-gate log' },
+      action: 'gateTimeline'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '新配置最多三步连上第一台主机。完整引导仍可在帮助里重看',
+        en: 'A new profile reaches the first host in at most three steps. The full tour stays under Help'
+      },
+      where: { zh: '帮助 → 快速上手（3 步）', en: 'Help → Quick start (3 steps)' },
+      action: 'quickStart'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '会话录像可以截一段导出 GIF 或带时间戳的 Markdown，不改原录像',
+        en: 'A session recording can export a clip as a GIF or timestamped Markdown without changing the original'
+      },
+      where: { zh: '运维 → 会话录制', en: 'Ops → Session recordings' },
+      action: 'sessionRecordings'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '运维首页收件箱的右键和 ⋯ 也能生成修复剧本，和告警工作台同一套判断',
+        en: 'The Ops home inbox context menu and ⋯ can create a fix playbook, using the same decision as the workbench'
+      },
+      where: { zh: '运维首页 → 告警收件箱', en: 'Ops home → Alert inbox' },
+      action: 'opsHome'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '跳板失败的那一跳会单独标出来。成功、探测中和尚未探测可以分开看',
+        en: 'A failed jump hop is marked on its own. Success, probing, and not-yet-probed stay distinct'
+      },
+      where: { zh: '连接设置 → 跳板机', en: 'Connection settings → Jump hosts' },
+      action: 'setJumpHosts'
+    }
+  ],
+  '0.4.3': [
+    {
+      icon: '▷',
+      text: {
+        zh: '运维首页可以在后台看 CPU、内存和磁盘，不必先开终端',
+        en: 'Ops home can sample CPU, memory, and disk in the background, without opening a terminal first'
+      },
+      where: { zh: '设置 → 运维首页', en: 'Settings → Ops home' },
+      action: 'opsHome'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '告警列表的 ⋯ 和右键可以生成修复剧本。未配置 AI 时会提示去配置',
+        en: 'An alert row’s ⋯ menu and right-click can create a fix playbook. Without AI it asks you to configure it'
+      },
+      where: { zh: '告警工作台 → 行菜单', en: 'Alert workbench → row menu' },
+      action: 'alertWorkbench'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '关掉全部标签后再开，不会把上次的旧标签找回来',
+        en: 'Closing every tab and reopening no longer brings the previous tabs back'
+      },
+      where: { zh: '设置 → 启动', en: 'Settings → Startup' },
+      action: 'settings'
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '演示主机的名字跟着界面语言变。空标签条不再写「未打开会话」',
+        en: 'The demo host name follows the UI language. An empty tab strip no longer says that no session is open'
+      },
+      where: { zh: '侧栏 → 演示主机', en: 'Sidebar → Demo host' },
+      action: 'opsHome'
+    }
+  ],
   '0.4.2': [
     {
       icon: '▷',

@@ -74,12 +74,20 @@ export function recordSmartCommand(hostKey: string, command: string): HistoryEnt
   return all
 }
 
-export function clearHostHistory(hostKey: string): { removed: number; left: HistoryEntry[] } {
+export function clearHostHistory(hostKey: string): { removed: number; left: HistoryEntry[]; dropped: HistoryEntry[] } {
   const all = loadSmartHistory()
+  const dropped = all.filter((e) => e.hostKey === hostKey)
   const left = all.filter((e) => e.hostKey !== hostKey)
-  const removed = all.length - left.length
   save(left)
-  return { removed, left }
+  return { removed: dropped.length, left, dropped }
+}
+
+export function restoreSmartEntries(entries: HistoryEntry[]): void {
+  if (!entries.length) return
+  const all = loadSmartHistory()
+  const key = (e: HistoryEntry) => `${e.hostKey}\0${e.command}`
+  const seen = new Set(all.map(key))
+  save([...entries.filter((e) => !seen.has(key(e))), ...all])
 }
 
 export function countHostHistory(hostKey: string): number {

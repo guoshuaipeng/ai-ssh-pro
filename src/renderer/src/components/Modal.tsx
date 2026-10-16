@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { tg } from '../lib/i18n'
 
 type Props = {
@@ -16,10 +17,17 @@ type Props = {
 }
 
 export default function Modal({ open, title, onClose, children, width = 520, footer, embedded, panelClassName, testId }: Props) {
+  const backdropRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open || embedded) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      if (isHigherChromeOpen(document)) return
+      const backs = document.querySelectorAll('.modal-backdrop')
+      if (backs.length && backs[backs.length - 1] !== backdropRef.current) return
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -37,7 +45,7 @@ export default function Modal({ open, title, onClose, children, width = 520, foo
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="modal modal-backdrop" role="presentation" ref={backdropRef} onClick={onClose}>
       <div
         className="modal-panel"
         style={{ width: `min(92vw, ${width}px)` }}

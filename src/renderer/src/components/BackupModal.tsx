@@ -43,7 +43,7 @@ export default function BackupModal({ open, onClose }: Props) {
   const doImport = async () => {
     setMsg(null)
     if (!importPw) return setMsg({ ok: false, text: t('bk.needPassword') })
-    if (!(await askConfirm(t('bk.importTitle'), t('bk.importConfirm'), { danger: true, okLabel: t('bk.importOk') }))) return
+    if (!(await askConfirm(t('bk.importTitle'), t('bk.importConfirm'), { id: 'confirm.overwriteImportSecrets', danger: true, okLabel: t('bk.importOk') }))) return
     setBusy(true)
     try {
       const r = await window.aiss.backup.import({ password: importPw })

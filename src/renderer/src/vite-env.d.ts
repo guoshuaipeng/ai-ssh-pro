@@ -124,6 +124,7 @@ export type AissPreload = {
   }
   localFs: {
     home: () => Promise<string>
+    drives: () => Promise<import('@shared/local-drives').LocalDriveListing>
     list: (dir: string) => Promise<SftpListResult>
     stat: (target: string) => Promise<{ size: number; mtime: number; isDirectory: boolean } | null>
     mkdir: (target: string) => Promise<boolean>
@@ -209,6 +210,7 @@ export type AissPreload = {
     parseSshForm: (rawText: string) => Promise<AiParsedSshForm>
     getChatHistory: (key: string) => Promise<AiChatMessage[]>
     setChatHistory: (key: string, messages: AiChatMessage[]) => Promise<void>
+    getWorkingMemory: (key: string) => Promise<string | null>
     onStream: (cb: (ev: AiStreamEvent) => void) => () => void
   }
   debug: {
@@ -249,7 +251,11 @@ export type AissPreload = {
     batchExec: (payload: BatchExecRequest) => Promise<BatchExecResult>
     resources: (sessionId: string) => Promise<import('../../shared/resource-monitor').ResourceSnapshot & { at: number }>
     healthProbe: (
-      req: import('../../shared/ipc').SshConnectOptions & { profileId: string; reuseSessionId?: string }
+      req: import('../../shared/ipc').SshConnectOptions & {
+        profileId: string
+        reuseSessionId?: string
+        extras?: import('../../shared/health-probe').ProbeExtras
+      }
     ) => Promise<import('../../shared/health-probe').HealthProbeResult>
     healthProbeSweep: (idleMs: number) => Promise<{ ok: boolean }>
     healthProbeRelease: () => Promise<{ ok: boolean }>
@@ -298,6 +304,8 @@ export type AissPreload = {
   }
   files: {
     saveText: (defaultName: string, content: string) => Promise<string | null>
+    saveBytes: (defaultName: string, base64: string) => Promise<string | null>
+    reveal: (target: string) => Promise<boolean>
   }
   snapshots: {
     list: (query?: { profileId?: string; path?: string }) => Promise<Array<Record<string, unknown>>>

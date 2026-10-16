@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useOverlayFocusRestore } from '../lib/focus-restore'
 import { menuLabel } from '@shared/menus'
 import { useI18n } from '../lib/i18n'
 import { loadSmartPrefs } from '../lib/smart-history'
@@ -7,7 +8,10 @@ import { MENUS, type TitlebarMenuAction } from './TitlebarMenus'
 import { loadSyncProfiles } from './SftpPanel'
 import { buildPaletteEntries, type PaletteEntry } from '../lib/palette'
 import { layoutPalette } from '@shared/palette-rank'
+import { paletteItemIndexes, paletteKeyStep, secondNavOrder } from '@shared/palette-nav'
 import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
+import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 type Props = {
   open: boolean
@@ -20,6 +24,9 @@ type Props = {
 }
 
 type Entry = PaletteEntry
+
+/** Ctrl+K second nav. These four groups stay visually distinct; the rest of the palette still lists under them. */
+const PRIMARY_NAV = new Set<string>(secondNavOrder(['connection', 'session', 'ops', 'file', 'ai', 'view', 'settings', 'help']))
 
 /** Ctrl+Shift+P / Ctrl+K: searchable list of every menu action (matches on the label, menu name and action id). */
 const CAT_KEY: Record<string, 'palette.pinned' | 'palette.cat.connection' | 'palette.cat.session' | 'palette.cat.ops' | 'palette.cat.file' | 'palette.cat.ai' | 'palette.cat.view' | 'palette.cat.settings' | 'palette.cat.help'> = {
@@ -40,6 +47,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  useOverlayFocusRestore(open)
 
   const entries = useMemo<Entry[]>(() => {
     const prefs = loadSmartPrefs()
@@ -54,7 +62,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
       }
       if (e.id === 'clearHostHistory') return { ...e, group: settingsGroup, hay: `${e.hay} ${settingsGroup}`.toLowerCase() }
       if (e.id === 'folderSync') return { ...e, group: fileGroup, hay: `${e.hay} ${fileGroup}`.toLowerCase() }
-      if (!aiReady && (e.id === 'aiExplainError' || e.id === 'aiCommand' || e.id === 'aiInspect')) {
+      if (!aiReady && (e.id === 'aiExplainError' || e.id === 'aiCommand' || e.id === 'aiInspect' || e.id === 'explainSelection')) {
         const note = t('ux37.notConfigured')
         return { ...e, note, hay: `${e.hay} ${note}`.toLowerCase() }
       }
@@ -81,6 +89,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
   const usage = useMemo(() => (open ? loadPaletteUsage() : {}), [open])
   const laid = useMemo(() => layoutPalette(entries, q, usage), [entries, q, usage])
   const filtered = laid.items
+  const indexes = paletteItemIndexes(laid.rows)
 
   useEffect(() => {
     if (!open) return
@@ -115,17 +124,13 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              setSel((s) => Math.min(filtered.length - 1, s + 1))
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              setSel((s) => Math.max(0, s - 1))
-            } else if (e.key === 'Enter') {
-              e.preventDefault()
-              run(filtered[sel])
-            } else if (e.key === 'Escape') {
-              e.preventDefault()
+            const step = paletteKeyStep(e.key, sel, filtered.length)
+            if (step.type === 'noop') return
+            e.preventDefault()
+            if (step.type === 'move') setSel(step.index)
+            else if (step.type === 'run') run(filtered[sel])
+            else if (step.type === 'clear') setQ('')
+            else if (step.type === 'close') {
               e.stopPropagation()
               onClose()
             }
@@ -133,25 +138,29 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
         />
         <div className="cmdp-list" role="listbox" ref={listRef}>
           {filtered.length === 0 ? (
-            <div className="cmdp-empty">
-              {t('cmdp.empty', { q })}
-              <div className="l7-muted">{t('cmdp.pinyinHint')}</div>
-            </div>
+            <EmptyState
+              compact
+              testId="palette-empty"
+              icon={<Icon name="search" size={32} strokeWidth={1.5} />}
+              title={t('pf4.paletteTitle', { q: q.trim().slice(0, 12) })}
+              desc={t('pf4.paletteDesc')}
+              primary={{ label: t('pf4.paletteClear'), onClick: () => setQ('') }}
+            />
           ) : null}
-          {laid.rows.map((row) => {
+          {laid.rows.map((row, rowAt) => {
             if (row.kind === 'header') {
               const key = CAT_KEY[row.id]
               return (
-                <div key={`h-${row.id}`} className="cmdp-head">
+                <div key={`h-${row.id}`} className={`cmdp-head${PRIMARY_NAV.has(row.id) ? ' cmdp-head--nav' : ''}`} data-palette-group={row.id}>
                   {key ? t(key) : row.id}
                 </div>
               )
             }
             const e = row.item
-            const i = filtered.indexOf(e)
+            const i = indexes[rowAt] ?? 0
             return (
               <button
-                key={e.syncId || `${e.id}-${e.order}`}
+                key={`${e.syncId ?? e.id}-${e.order}-${i}`}
                 type="button"
                 role="option"
                 aria-selected={i === sel}

@@ -68,6 +68,12 @@ export type SshConnectOptions = {
   forwards?: LocalPortForward[]
   /** G1: simulated read-only demo host (no network) */
   demo?: boolean
+  /** L9: null/0 disables TCP keep-alive. Omitted keeps the historical 15s interval. */
+  keepAliveSec?: number | null
+  /** L9: 1-based hop to resume from. Earlier hops are reused and skip host-key prompts. */
+  resumeFromHop?: number
+  /** L9: park successful hops when a later hop fails so the next attempt can resume. */
+  jumpRetryFromFailedHop?: boolean
 }
 
 export type SshConnectResult = {
@@ -390,6 +396,8 @@ export type SavedSessionProfile = {
   tags?: string[]
   /** G1: the built-in simulated demo host (read-only, cannot be edited) */
   demo?: boolean
+  /** UX-39b: user renamed the demo host, so the stored label wins over the locale name. */
+  demoRenamed?: boolean
   /** S2: client-side protection. Demo hosts default to production when unset. */
   protection?: 'normal' | 'production' | 'readonly'
   /** Multi-hop ProxyJump. jumpHost stays as the first hop for older readers. */
@@ -462,6 +470,11 @@ export type AiChatPayload = {
   hostInventoryId?: string
   /** 用于查找档案的连接信息 */
   inventoryLookup?: { host?: string; port?: number; profileId?: string }
+  /**
+   * Host context for the safety tier. Production hosts are not given autopilot
+   * unless they are on the allow list, and high risk still confirms.
+   */
+  safetyContext?: { production?: boolean; hostId?: string; hostName?: string; sessionId?: string }
 }
 
 export type AiStreamEvent =
@@ -472,10 +485,17 @@ export type AiStreamEvent =
       /**
        * 仅当 action=command 时由主进程生成：需用户确认后才执行。
        * tool_call(get_terminal_snapshot) 由系统自动执行，不会带 requestId。
-       * 低风险自动批准时也可能不带 requestId，并带 autoApproved。
+       * autoApproved 已废止：riskLevel=low 的 command 也不再自动注入。
        */
       requestId?: string
+      /** @deprecated UX-64：命令不再自动批准。保留字段以免旧事件类型断裂。 */
       autoApproved?: boolean
+      /**
+       * Safety-tier decision for this step. Absent means the legacy confirm path.
+       * `auto` already ran (or will) without Agree. `strong` still uses Agree, then a second confirm.
+       * `suggest` and `hold` do not offer Agree.
+       */
+      safetyMode?: 'auto' | 'agree' | 'strong' | 'suggest' | 'hold'
       structured: AiAssistantReply
     }
   | { type: 'done' }
@@ -515,8 +535,24 @@ export type AiSettings = {
    * 为 false 时仅用上方 Provider 直连模型。
    */
   useOpenClaw?: boolean
-  /** riskLevel=low 的 command 自动执行，无需确认 */
+  /**
+   * @deprecated UX-64：已忽略。命令一律需确认。保留字段以兼容已保存的设置。
+   * 安全档见 `safetyTier`。风险徽章不决定是否跳过同意。
+   */
   autoApproveLowRisk?: boolean
+  /**
+   * 代理安全档。默认 `confirm`。缺省字段表示旧的「一律确认」路径（评测夹具）。
+   * observe 只自动执行只读；trusted 自动执行中低风险；autopilot 须显式打开。
+   */
+  safetyTier?: 'observe' | 'confirm' | 'trusted' | 'autopilot'
+  /** 主机档案 id 或主机名 → 覆盖全局档。 */
+  safetyTierHosts?: Record<string, 'observe' | 'confirm' | 'trusted' | 'autopilot'>
+  /** 会话键 → 覆盖主机与全局。 */
+  safetyTierSessions?: Record<string, 'observe' | 'confirm' | 'trusted' | 'autopilot'>
+  /** 全自动允许的主机。空则仅非生产主机可走全自动。 */
+  autopilotAllowHosts?: string[]
+  /** 显式允许非生产主机在全自动下执行高风险。默认关闭。生产主机忽略。 */
+  autopilotAllowHighRisk?: boolean
 }
 
 export type AiAssistantAction = 'tool_call' | 'command' | 'end'
@@ -548,7 +584,7 @@ export type AiAssistantReply = {
   /**
    * 下一步要做什么：
    * - tool_call：读取终端快照 / 主机档案等（多数自动执行）
-   * - command：在终端执行命令（必须用户确认，除非低风险自动批准）
+   * - command：在终端执行命令（必须用户确认；riskLevel=low 也不自动执行）
    * - end：任务完成，无需再执行下一步
    */
   action: AiAssistantAction
@@ -578,6 +614,85 @@ export type AiDebugEntry =
       round: number
       label: string
       detail?: string
+    }
+  | {
+      /** Which context slices were placed in the planner request, with approximate sizes. */
+      kind: 'context'
+      round: number
+      slices: Array<{
+        name: 'working' | 'observations' | 'runningSummary' | 'recall' | 'recentWindow' | 'system'
+        chars: number
+        items?: number
+      }>
+      totalChars: number
+      /**
+       * Observational-memory budget. The harness asserts this; it is not a product-shell control.
+       * `truncated` is a drop or a cut. `nearBudget` is at least 80% of the bullet or summary cap.
+       */
+      omBudget: {
+        bulletCap: number
+        bulletCharCap: number
+        summaryCharCap: number
+        bullets: number
+        bulletChars: number
+        summaryChars: number
+        droppedBullets: number
+        truncatedBullets: number
+        summaryTruncated: boolean
+        nearBudget: boolean
+        truncated: boolean
+      }
+      /**
+       * Consecutive confirmed failures of the same command (Core-A S28).
+       * `count` is how many times that path has failed. `cap` is the budget.
+       * `exhausted` means another write of that command is refused.
+       * The harness asserts this; it is not a product-shell control.
+       */
+      retryBudget: {
+        count: number
+        cap: number
+        command: string
+        exhausted: boolean
+        nearBudget: boolean
+      }
+      /**
+       * Planner-visible stdout, stderr, or ring (Core-A S29).
+       * `truncated` means the original was over `cap`. `markers` are rare
+       * evidence tokens kept from the middle or the end. Not a product-shell control.
+       */
+      outputView: {
+        truncated: boolean
+        originalChars: number
+        shownChars: number
+        cap: number
+        markers: string[]
+        tipSuggest: string
+        rollback: string
+        /**
+         * Cite window of this stdout, stderr, or ring (Core-A S30).
+         * `outsideHeadTail` are scarce markers a naive head/tail cut would lose.
+         * `droppedFiller` must not be cited. `stable` means the kept text matches that.
+         */
+        citeWindow: {
+          head: number
+          tail: number
+          outsideHeadTail: string[]
+          droppedFiller: string[]
+          stable: boolean
+        }
+        /**
+         * The same window after observational compression, including a later
+         * re-compression on this thread. Host-scoped. Empty and stable when
+         * this thread has not compressed a long output.
+         */
+        citeHold: {
+          head: number
+          tail: number
+          outsideHeadTail: string[]
+          droppedFiller: string[]
+          stable: boolean
+        }
+      }
     }
 
 export type AiDebugStreamPayload = {
@@ -729,15 +844,17 @@ export type BackupExportResult =
   | { ok: false; canceled?: boolean; error: string }
 export type BackupImportResult = { ok: true; counts: BackupCounts } | { ok: false; canceled?: boolean; error: string }
 
-/** A1 / A2 / A4: one-shot AI helpers (explain an error, an alert, natural language → command) */
+/** A1 / A2 / A4 / A6: one-shot AI helpers (explain an error, an alert, a selection, natural language → command) */
 export type AiAssistRequest =
   | { requestId: string; kind: 'explainError'; text: string; host?: string; locale: string }
   | { requestId: string; kind: 'explainAlert'; text: string; host?: string; locale: string }
+  | { requestId: string; kind: 'explainSelection'; text: string; host?: string; locale: string }
   | { requestId: string; kind: 'nlCommand'; text: string; host?: string; locale: string }
 
 export type AiAssistFix = { command: string; note?: string }
 
 export type AiAssistResult =
   | { ok: true; kind: 'explainError' | 'explainAlert'; cause: string; fixes: AiAssistFix[]; notes?: string }
+  | { ok: true; kind: 'explainSelection'; summary: string; command?: string; riskLevel: 'low' | 'medium' | 'high'; notes?: string }
   | { ok: true; kind: 'nlCommand'; command: string; explanation: string; risk: 'safe' | 'caution' | 'danger' }
   | { ok: false; code: 'not-configured' | 'aborted' | 'error'; message?: string }

@@ -1,4 +1,4 @@
-/** v0.4.3 soft-start: L7b sampling, UX-55b tab list, UX-57 first-week chip. Version stays 0.4.2. */
+/** v0.4.3 soft-start: L7b sampling, UX-55b tab list, UX-57 first-week chip. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
@@ -22,7 +22,7 @@ import { buildPaletteEntries } from '../src/renderer/src/lib/palette'
 import { SHARED_MENUS } from '../src/shared/menus'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.2')
+assert.equal(pkg.version, '0.4.14')
 
 const mem = () => {
   const bag = new Map<string, string>()
@@ -45,7 +45,20 @@ assert.equal(clampProbeMax(0), 1)
 assert.deepEqual(loadProbePrefs(mem()), DEFAULT_PROBE_PREFS)
 const store = mem()
 saveProbePrefs({ enabled: false, scope: 'all', maxConcurrent: 40 }, store)
-assert.deepEqual(loadProbePrefs(store), { enabled: false, scope: 'all', maxConcurrent: 30 })
+assert.deepEqual(loadProbePrefs(store), {
+  enabled: false,
+  scope: 'all',
+  maxConcurrent: 30,
+  filterTags: false,
+  tags: [],
+  prodOnly: false,
+  excludeReadonly: true,
+  backoffCapMin: 5,
+  extraLoad: false,
+  extraInode: false,
+  extraMounts: false,
+  mounts: ['/']
+})
 
 const hosts: ProbeCandidate[] = Array.from({ length: 50 }, (_, i) => ({
   profileId: `h${i}`,
@@ -76,9 +89,10 @@ const backed = selectProbeTargets(hosts.slice(0, 4), DEFAULT_PROBE_PREFS, {
 })
 assert.ok(backed.findIndex((h) => h.profileId === 'h1') > backed.findIndex((h) => h.profileId === 'h0'))
 
-assert.equal(nextBackoffMs(1), 15_000)
-assert.equal(nextBackoffMs(2), 30_000)
-assert.equal(nextBackoffMs(5), 60_000)
+assert.equal(nextBackoffMs(1), 30_000)
+assert.equal(nextBackoffMs(2), 60_000)
+assert.equal(nextBackoffMs(3), 120_000)
+assert.equal(nextBackoffMs(5), 300_000)
 assert.deepEqual(planProbeWave(['a', 'b', 'c', 'd'], 1, 3), { start: ['a', 'b'], queued: ['c', 'd'] })
 assert.equal(planProbeWave(['a'], 8, 8).start.length, 0)
 

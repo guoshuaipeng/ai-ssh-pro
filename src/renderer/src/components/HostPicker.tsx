@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SavedSessionProfile } from '@shared/ipc'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
+import { useOverlayFocusRestore } from '../lib/focus-restore'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
 
@@ -29,6 +30,7 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
   const [busyId, setBusyId] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const inputRef = useRef<HTMLInputElement>(null)
+  useOverlayFocusRestore(open)
 
   useEffect(() => {
     if (!open) return
@@ -85,10 +87,11 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
         {profiles.length === 0 ? (
           <EmptyState
             compact
-            icon="🖥"
+            icon="host"
             title={t('ux08.sidebarTitle')}
+            desc={t('pf4.hostsDesc')}
             primary={{
-              label: t('ux08.newConnection'),
+              label: t('pf1.new'),
               onClick: () => {
                 onClose()
                 onNewConnection()

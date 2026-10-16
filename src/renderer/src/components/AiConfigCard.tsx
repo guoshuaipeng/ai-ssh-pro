@@ -1,4 +1,5 @@
 import { tg } from '../lib/i18n'
+import Icon from './Icon'
 
 type Props = {
   context?: string | null
@@ -16,7 +17,7 @@ export default function AiConfigCard({ context, flash, onConfigure }: Props) {
         </div>
       ) : null}
       <div className="ai-config-mark" aria-hidden>
-        ✨
+        <Icon name="sparkles" size={16} />
       </div>
       <div className="ai-config-title">{tg('ux37.can')}</div>
       <ul className="ai-config-list">

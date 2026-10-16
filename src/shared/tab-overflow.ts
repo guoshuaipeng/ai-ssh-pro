@@ -1,4 +1,4 @@
-/** UX-55: the center tab strip stays one row. Extra tabs scroll or sit in the ⌄ list. UX-55b adds search. */
+/** UX-55 / Polish-3: the center tab strip stays one row. Extra tabs scroll; ⋯ lists them. UX-55b adds search. */
 
 /** Initials for titles the product itself uses. Unknown characters stay searchable as themselves. */
 const PINYIN_INITIAL: Record<string, string> = {
@@ -92,15 +92,98 @@ export function tabStripOverflow(opts: {
   return { visibleCount: visible, overflow: hidden > 0, hidden, wraps: false }
 }
 
-/** Pixels a ← / → click moves the strip. */
+/** Minimum pixels a ← / → click moves the strip. A wide strip steps about one viewport. */
 export const TAB_STRIP_NUDGE = 160
+
+/** Pixels for one DOM_DELTA_LINE notch. Pixel wheels (deltaMode 0) are unchanged. */
+export const TAB_WHEEL_LINE_PX = 48
+
+/**
+ * Floor for one session tab. 188px fits an IPv4 host ("172.19.161.123") plus the
+ * kind icon, the hover ⋯, and the close control at the 13px UI face, so the label
+ * stays recognizable. Tabs do not shrink below this; the strip scrolls.
+ */
+export const TAB_MIN_WIDTH_PX = 188
+
+/** Cap so one very long title does not eat the row. Past this, only that title ellipsizes. */
+export const TAB_MAX_WIDTH_PX = 280
+
+/** `flex` for a tab in the strip: grow 0, shrink 0, basis auto. */
+export function tabItemFlex(): '0 0 auto' {
+  return '0 0 auto'
+}
+
+/** A laid-out tab still wide enough for a host or IP to stay recognizable. */
+export function tabWidthKeepsLabel(widthPx: number): boolean {
+  return Number.isFinite(widthPx) && widthPx + 0.01 >= TAB_MIN_WIDTH_PX
+}
+
+/** About one screen of tabs, and never less than the named nudge (or 120px). */
+export function tabStripNudgePx(clientWidth: number, floor = TAB_STRIP_NUDGE): number {
+  const page = clientWidth > 48 ? Math.round(clientWidth * 0.85) : 0
+  return Math.max(120, floor, page)
+}
+
+/**
+ * Visible overflow control. ⌄ plus the hidden count — not the toolbar ⋯ (“更多”).
+ * The button’s accessible name stays “所有标签”.
+ */
+export function tabOverflowMark(hidden: number): string {
+  const n = Number.isFinite(hidden) ? Math.max(0, Math.floor(hidden)) : 0
+  return n > 0 ? `⌄ ${n}` : '⌄'
+}
+
+/** How far to add to scrollLeft so a tab rect (relative to the visible box) sits in view. */
+export function tabStripRevealDelta(opts: {
+  tabLeft: number
+  tabRight: number
+  clientWidth: number
+  pad?: number
+}): number {
+  const pad = opts.pad ?? 8
+  const width = opts.clientWidth
+  if (!(width > 0)) return 0
+  const left = opts.tabLeft
+  const right = opts.tabRight
+  if (right - left >= width) return left - pad
+  if (left < pad) return left - pad
+  if (right > width - pad) return right - (width - pad)
+  return 0
+}
+
+/** Arrows and the ⌄ list show together, and only while tabs overflow. */
+export function tabStripChrome(overflowing: boolean): { arrows: boolean; menu: boolean } {
+  return { arrows: overflowing, menu: overflowing }
+}
 
 /**
  * Map a wheel gesture onto the tab strip.
  * A vertical wheel (the common mouse wheel) scrolls sideways.
  * A mostly-horizontal trackpad gesture keeps deltaX.
+ * Line and page modes are scaled so a notch moves more than a pixel.
  */
-export function tabStripWheelDelta(deltaX: number, deltaY: number): number {
-  if (Math.abs(deltaY) >= Math.abs(deltaX)) return deltaY
-  return deltaX
+export function tabStripWheelDelta(deltaX: number, deltaY: number, deltaMode = 0, pagePx = 320): number {
+  const raw = Math.abs(deltaY) >= Math.abs(deltaX) ? deltaY : deltaX
+  if (!raw) return 0
+  if (deltaMode === 1) return raw * TAB_WHEEL_LINE_PX
+  if (deltaMode === 2) return raw * (pagePx > 0 ? pagePx : 320)
+  return raw
+}
+
+/** P13-3: overflow fade width so the strip shows there is more to scroll. */
+export const TAB_FADE_PX = 40
+
+/** Arrow / fade cues when the strip can scroll. Titles stay full width (no compress). */
+export function tabOverflowCues(fade: { left: boolean; right: boolean }): {
+  showLeftArrow: boolean
+  showRightArrow: boolean
+  fadeLeft: boolean
+  fadeRight: boolean
+} {
+  return {
+    showLeftArrow: fade.left,
+    showRightArrow: fade.right,
+    fadeLeft: fade.left,
+    fadeRight: fade.right
+  }
 }

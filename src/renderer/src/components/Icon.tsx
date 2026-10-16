@@ -4,10 +4,12 @@ type Props = {
   name: IconName
   size?: number
   title?: string
+  /** Empty states use 1.5; chrome may stay at the default. */
+  strokeWidth?: number
 }
 
 /** Linear icon. Color follows currentColor; do not set a fill. */
-export default function Icon({ name, size = 16, title }: Props) {
+export default function Icon({ name, size = 16, title, strokeWidth = 1.75 }: Props) {
   return (
     <svg
       className="aiss-icon"
@@ -16,7 +18,7 @@ export default function Icon({ name, size = 16, title }: Props) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.75"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden={title ? undefined : true}
@@ -26,4 +28,9 @@ export default function Icon({ name, size = 16, title }: Props) {
       <path d={ICON_PATHS[name]} />
     </svg>
   )
+}
+
+/** Disclosure triangle. Same glyph for folders, trees, and overflow rows. */
+export function Twist({ open, size = 12 }: { open: boolean; size?: number }) {
+  return <Icon name={open ? 'chevron-down' : 'chevron-right'} size={size} />
 }

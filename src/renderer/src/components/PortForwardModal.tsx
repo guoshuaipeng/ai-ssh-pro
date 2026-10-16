@@ -13,6 +13,8 @@ type Props = {
   /** UX-14: render inside a center tab */
   embedded?: boolean
   onClose: () => void
+  /** PF-4: no live session — open the host picker instead of a native error. */
+  onPickHost?: () => void
 }
 
 function fmtBytes(n: number): string {
@@ -22,7 +24,7 @@ function fmtBytes(n: number): string {
 }
 
 /** Lists live local port forwards of connected SSH sessions; add / stop at runtime. */
-export default function PortForwardModal({ open, sessions, activeSessionId, onClose, embedded }: Props) {
+export default function PortForwardModal({ open, sessions, activeSessionId, onClose, embedded, onPickHost }: Props) {
   const { t } = useI18n()
   const [rows, setRows] = useState<ActiveForward[]>([])
   const [sessionId, setSessionId] = useState('')
@@ -99,7 +101,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
     <Modal open={open || !!embedded} title={t('pf.title')} onClose={onClose} width={760} embedded={embedded} testId="port-forward-panel">
       <div className="pf-panel">
         <p className="pf-hint">{t('pf.hint')}</p>
-        {sessions.length === 0 ? <p className="pf-empty">{t('pf.noSessions')}</p> : null}
+        {sessions.length === 0 && rows.length > 0 ? <p className="pf-empty">{t('pf.noSessions')}</p> : null}
         <div className="pf-form">
           <label>
             {t('pf.session')}
@@ -132,12 +134,15 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
           <EmptyState
             compact
             testId="pf-empty"
-            icon="🔀"
-            title={t('ux08.fwdTitle')}
-            desc={t('pf.none')}
+            icon="forward"
+            title={t('pf4.fwdTitle')}
+            desc={t('pf4.fwdDesc')}
             primary={{
-              label: t('ux08.fwdNew'),
-              onClick: () => document.querySelector<HTMLInputElement>('.pf-form input')?.focus()
+              label: sessions.length ? t('pf.add') : t('pf4.pickHost'),
+              onClick: () => {
+                if (!sessions.length) onPickHost?.()
+                else document.querySelector<HTMLInputElement>('.pf-form input')?.focus()
+              }
             }}
           />
         ) : (

@@ -5,6 +5,7 @@ import type { ResourceSnapshot } from '../../../shared/resource-monitor'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 
@@ -26,6 +27,7 @@ type Props = {
   onOpenWorkbench?: (alert: FiredAlert) => void
   visibleSession?: (sessionId: string) => boolean
   scopeSlot?: ReactNode
+  onHide?: (sessionId: string) => void
 }
 
 type CardState = {
@@ -77,7 +79,7 @@ function Bar({ label, percent }: { label: string; percent: number | null }) {
 }
 
 /** O1: multi-host resource dashboard as a center tab. */
-export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal, alertSessionIds, onOpenAlertRules, onOpenInspect, sortAlertsFirst, alerts, onLocate, onInterpret, onOpenWorkbench, visibleSession, scopeSlot }: Props) {
+export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, onOpenToolbox, onConnectTerminal, alertSessionIds, onOpenAlertRules, onOpenInspect, sortAlertsFirst, alerts, onLocate, onInterpret, onOpenWorkbench, visibleSession, scopeSlot, onHide }: Props) {
   const { t } = useI18n()
   const [sort, setSort] = useState<'name' | 'cpu' | 'mem' | 'disk' | 'alert'>('name')
   const alertSet = alertSessionIds instanceof Set ? alertSessionIds : new Set(alertSessionIds ?? [])
@@ -200,7 +202,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
         {targets.length === 0 ? (
           <EmptyState
             testId="o1-empty"
-            icon="📊"
+            icon={<Icon name="activity" size={32} />}
             title={t('o1.emptyTitle')}
             desc={t('o1.emptyDesc')}
           />
@@ -264,6 +266,18 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
                       >
                         {t('menu.resourceMonitor')}
                       </button>
+                      {onHide ? (
+                        <button
+                          type="button"
+                          data-testid="dash-remove"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onHide(c.sessionId)
+                          }}
+                        >
+                          {t('dash.remove')}
+                        </button>
+                      ) : null}
                       {onOpenToolbox ? (
                         <button
                           type="button"

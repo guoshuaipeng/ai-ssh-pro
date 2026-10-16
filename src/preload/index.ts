@@ -50,6 +50,7 @@ import type {
   HostInventoryUpsertInput,
   HostService
 } from '../shared/inventory'
+import type { LocalDriveListing } from '../shared/local-drives'
 
 console.log('[preload] preload script starting')
 
@@ -175,6 +176,7 @@ const api = {
   },
   localFs: {
     home: (): Promise<string> => ipcRenderer.invoke('localFs:home'),
+    drives: (): Promise<LocalDriveListing> => ipcRenderer.invoke('localFs:drives'),
     list: (dir: string): Promise<SftpListResult> => ipcRenderer.invoke('localFs:list', dir),
     stat: (target: string) => ipcRenderer.invoke('localFs:stat', target),
     mkdir: (target: string): Promise<boolean> => ipcRenderer.invoke('localFs:mkdir', target),
@@ -291,6 +293,7 @@ const api = {
     getChatHistory: (key: string): Promise<AiChatMessage[]> => ipcRenderer.invoke('ai:chatHistory:get', key),
     setChatHistory: (key: string, messages: AiChatMessage[]): Promise<void> =>
       ipcRenderer.invoke('ai:chatHistory:set', key, messages),
+    getWorkingMemory: (key: string): Promise<string | null> => ipcRenderer.invoke('ai:workingMemory:get', key),
     onStream: (cb: (ev: AiStreamEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiStreamEvent)
       ipcRenderer.on('ai:stream', fn)
@@ -329,8 +332,13 @@ const api = {
     batchExec: (payload: BatchExecRequest): Promise<BatchExecResult> =>
       ipcRenderer.invoke('workspace:batchExec', payload),
     resources: (sessionId: string): Promise<ResourceSnapshot & { at: number }> => ipcRenderer.invoke('workspace:resources', sessionId),
-    healthProbe: (req: import('../shared/ipc').SshConnectOptions & { profileId: string; reuseSessionId?: string }): Promise<import('../shared/health-probe').HealthProbeResult> =>
-      ipcRenderer.invoke('workspace:healthProbe', req),
+    healthProbe: (
+      req: import('../shared/ipc').SshConnectOptions & {
+        profileId: string
+        reuseSessionId?: string
+        extras?: import('../shared/health-probe').ProbeExtras
+      }
+    ): Promise<import('../shared/health-probe').HealthProbeResult> => ipcRenderer.invoke('workspace:healthProbe', req),
     healthProbeSweep: (idleMs: number): Promise<{ ok: boolean }> => ipcRenderer.invoke('workspace:healthProbeSweep', idleMs),
     healthProbeRelease: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('workspace:healthProbeRelease'),
     forwards: {
@@ -370,7 +378,9 @@ const api = {
     backupLocal: (payload: unknown): Promise<{ ok: boolean; file?: string }> => ipcRenderer.invoke('sync:backupLocal', payload)
   },
   files: {
-    saveText: (defaultName: string, content: string): Promise<string | null> => ipcRenderer.invoke('fs:saveText', defaultName, content)
+    saveText: (defaultName: string, content: string): Promise<string | null> => ipcRenderer.invoke('fs:saveText', defaultName, content),
+    saveBytes: (defaultName: string, base64: string): Promise<string | null> => ipcRenderer.invoke('fs:saveBytes', defaultName, base64),
+    reveal: (target: string): Promise<boolean> => ipcRenderer.invoke('fs:reveal', target)
   },
   snapshots: {
     list: (query?: { profileId?: string; path?: string }): Promise<Array<Record<string, unknown>>> => ipcRenderer.invoke('snapshots:list', query),

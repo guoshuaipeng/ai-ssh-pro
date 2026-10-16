@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FiredAlert } from '@shared/alert-rules'
+import type { AlertRulesState, FiredAlert } from '@shared/alert-rules'
 import { filterAlerts, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
 import { locateTargetFor } from '@shared/alert-locate'
 import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
 import { loadAudit } from '@shared/audit-log'
+import { activeWindows, loadMaintenance, silenceUntil, type MaintSubject } from '@shared/maintenance'
+import { isEmptyTimeline } from '@shared/postmortem-ai'
+import { markLoop } from '@shared/alert-loop'
+import LoopNav from './LoopNav'
 import { useI18n } from '../lib/i18n'
+import { showToast } from '../lib/toast'
 import { fixesFor } from '../lib/ai-fix-memory'
 import AiAssistCard, { type AiExplainRequest } from './AiAssistCard'
 import AiConfigCard from './AiConfigCard'
 import { AlertLine } from './AlertLine'
+import AlertRulesModal from './AlertRulesModal'
 import EmptyState from './EmptyState'
+import Icon from './Icon'
 
 const TARGET_KEY = {
   df: 'st.tab.df',
@@ -29,6 +36,7 @@ export default function AlertWorkbenchTab({
   prefs,
   onPrefs,
   onRules,
+  onTemplates,
   onMute,
   onUnmute,
   onDismiss,
@@ -38,13 +46,23 @@ export default function AlertWorkbenchTab({
   onOpenMonitor,
   onOpenToolbox,
   onOpenDashboard,
+  onOpenHome,
   onInsert,
   onRun,
   buildContext,
   onOpenSettings,
   autoExplain,
   onCreatePlaybook,
-  onExportPostmortem
+  onExportPostmortem,
+  onNeedAi,
+  onOpenMaintenance,
+  onAiPostmortem,
+  onOpenSftp,
+  catalog = [],
+  rulesDock = null,
+  ruleState,
+  onSaveRules,
+  onClearHistory
 }: {
   alerts: FiredAlert[]
   focusId?: string
@@ -56,6 +74,7 @@ export default function AlertWorkbenchTab({
   prefs: BellPrefs
   onPrefs: (p: BellPrefs) => void
   onRules: () => void
+  onTemplates?: () => void
   onMute: () => void
   onUnmute: () => void
   onDismiss: (a: FiredAlert) => void
@@ -65,6 +84,7 @@ export default function AlertWorkbenchTab({
   onOpenMonitor: (a: FiredAlert) => void
   onOpenToolbox: (a: FiredAlert) => void
   onOpenDashboard: () => void
+  onOpenHome?: () => void
   onInsert: (sessionId: string, command: string) => void
   onRun: (alert: FiredAlert, command: string) => void
   buildContext: (alert: FiredAlert, includeLogs: boolean) => Promise<string>
@@ -72,6 +92,17 @@ export default function AlertWorkbenchTab({
   autoExplain?: boolean
   onCreatePlaybook?: (alert: FiredAlert, fixes: Array<{ command: string; note?: string }>) => void
   onExportPostmortem?: (alert: FiredAlert) => void
+  /** W1b: AI is not configured. Toast only — do not start an interpret. */
+  onNeedAi?: () => void
+  onOpenMaintenance?: (hostKeys?: string[]) => void
+  onAiPostmortem?: (alert: FiredAlert) => void
+  onOpenSftp?: (alert: FiredAlert) => void
+  catalog?: Array<{ id: string; title: string; tags?: string[]; sessionId?: string }>
+  /** IX-7: bump nonce to dock the rules editor beside the list. */
+  rulesDock?: { nonce: number; tab: 'rules' | 'history' } | null
+  ruleState: AlertRulesState
+  onSaveRules: (next: AlertRulesState) => void
+  onClearHistory: () => void
 }) {
   const { t } = useI18n()
   const [filter, setFilter] = useState<AlertFilter>(initialFilter ?? 'active')
@@ -89,9 +120,35 @@ export default function AlertWorkbenchTab({
   const [explain, setExplain] = useState<AiExplainRequest | null>(null)
   const [explainAlertId, setExplainAlertId] = useState<string | null>(null)
   const [pane, setPane] = useState<'detail' | 'timeline'>('detail')
+  const [showGates, setShowGates] = useState(true)
   const [showConcurrent, setShowConcurrent] = useState(true)
   const [note, setNote] = useState('')
+  const [maintOnly, setMaintOnly] = useState(false)
+  const [maintTick, setMaintTick] = useState(0)
+  useEffect(() => {
+    const sync = () => setMaintTick((n) => n + 1)
+    window.addEventListener('aiss-maintenance-change', sync)
+    const id = window.setInterval(sync, 30_000)
+    return () => {
+      window.removeEventListener('aiss-maintenance-change', sync)
+      window.clearInterval(id)
+    }
+  }, [])
+  const subjectFor = (alert: FiredAlert): MaintSubject => {
+    const host = catalog.find((h) => h.id === alert.hostKey || h.sessionId === alert.hostKey || h.title === alert.hostTitle)
+    const keys = [alert.hostKey, alert.hostTitle, host?.id, host?.title].filter((k): k is string => Boolean(k))
+    return { keys, tags: host?.tags ?? [] }
+  }
+  const untilFor = (alert: FiredAlert) => silenceUntil(loadMaintenance(), subjectFor(alert), now)
+  void maintTick
   const [highlightCreate, setHighlightCreate] = useState(false)
+  const [rulesOpen, setRulesOpen] = useState(false)
+  const [rulesTab, setRulesTab] = useState<'rules' | 'history'>(rulesDock?.tab ?? 'rules')
+  useEffect(() => {
+    if (!rulesDock?.nonce) return
+    setRulesTab(rulesDock.tab)
+    setRulesOpen(true)
+  }, [rulesDock?.nonce, rulesDock?.tab])
 
   useEffect(() => {
     if (initialFilter) setFilter(initialFilter)
@@ -109,7 +166,11 @@ export default function AlertWorkbenchTab({
     return () => window.clearInterval(id)
   }, [])
 
-  const rows = useMemo(() => filterAlerts(alerts, { status: filter, host: host || undefined, rule: rule || undefined, q }), [alerts, filter, host, rule, q])
+  const rows = useMemo(() => {
+    const base = filterAlerts(alerts, { status: filter, host: host || undefined, rule: rule || undefined, q })
+    if (!maintOnly) return base
+    return base.filter((a) => untilFor(a) != null)
+  }, [alerts, filter, host, rule, q, maintOnly, now, maintTick, catalog])
   const hosts = useMemo(() => [...new Set(alerts.map((a) => a.hostTitle))], [alerts])
   const rules = useMemo(() => [...new Set(alerts.map((a) => a.ruleId))], [alerts])
   const selected = rows.find((a) => a.id === selectedId) ?? rows[0] ?? null
@@ -128,11 +189,18 @@ export default function AlertWorkbenchTab({
     const text = await buildContext(alert, includeLogs && online)
     setExplainAlertId(alert.id)
     setExplain({ id: Date.now(), sessionId: alert.hostKey, text, host: alert.hostTitle, kind: 'explainAlert', alertId: alert.id })
+    appendTimeline({ alertId: alert.id, kind: 'ai.explain', hostKey: alert.hostKey, summary: 'explain' })
+    markLoop(alert.id, 'ai')
+    window.dispatchEvent(new Event('aiss-loop-mark'))
   }
 
   const requestFix = (alert: FiredAlert) => {
     setSelectedId(alert.id)
     setNarrowDetail(true)
+    if (!aiConfigured) {
+      onNeedAi?.()
+      return
+    }
     const fixes = fixesFor(`explainAlert:${alert.id}`)
     if (fixes && fixes.length > 0) {
       setHighlightCreate(false)
@@ -158,7 +226,7 @@ export default function AlertWorkbenchTab({
       window.removeEventListener('aiss-fix-playbook', onFix)
       window.removeEventListener('aiss-export-postmortem', onExport)
     }
-  }, [selected, onCreatePlaybook, onExportPostmortem])
+  }, [selected, onCreatePlaybook, onExportPostmortem, aiConfigured, onNeedAi])
 
   useEffect(() => {
     if (!autoExplain || !focusId) return
@@ -192,6 +260,8 @@ export default function AlertWorkbenchTab({
         setLocateError(t('l2.offlineHost'))
       }
       onLocate(alert)
+      markLoop(alert.id, 'locate')
+      window.dispatchEvent(new Event('aiss-loop-mark'))
       setLocated((prev) => ({ ...prev, [alert.id]: label }))
     } catch (e) {
       setLocateError(e instanceof Error ? e.message : String(e))
@@ -201,13 +271,16 @@ export default function AlertWorkbenchTab({
   }
 
   return (
-    <div className="workspace-panel l2-root" data-testid="alert-workbench">
+    <div className="workspace-panel l2-root" data-testid="alert-workbench" data-rules-open={rulesOpen ? 'true' : 'false'}>
       <div className="workspace-panel-toolbar l2-head">
         <h2 className="workspace-panel-title">
           {t('l2.title')}
           <span className="l7-meta">{t('l2.activeN', { n: activeN })}</span>
         </h2>
         <div className="workspace-panel-actions">
+          <button type="button" data-testid="l2d-open" onClick={() => onOpenMaintenance?.()}>
+            {activeWindows(loadMaintenance(), now).length ? t('l2d.badgeN', { n: activeWindows(loadMaintenance(), now).length }) : t('l2d.open')}
+          </button>
           <button type="button" onClick={onRules}>
             {t('menu.alertRules')}
           </button>
@@ -253,6 +326,7 @@ export default function AlertWorkbenchTab({
                 />
                 {t('l2.mirrorAi')}
               </label>
+              <button type="button" onClick={() => { setMore(false); onOpenMaintenance?.() }}>{t('l2d.open')}</button>
             </div>
           ) : null}
         </div>
@@ -285,9 +359,12 @@ export default function AlertWorkbenchTab({
           ))}
         </select>
         <input className="l2-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('l2.search')} aria-label={t('l2.search')} />
+        <button type="button" data-testid="l2d-filter" className={maintOnly ? 'is-on' : ''} onClick={() => setMaintOnly((v) => !v)}>
+          {t('l2d.filter')}
+        </button>
       </div>
       <div className={`l2-body${narrowDetail ? ' is-detail' : ''}`}>
-        <div className="l2-list" role="listbox" aria-label={t('l2.title')} tabIndex={0}
+        <div className="l2-list" data-testid="l2-list" role="listbox" aria-label={t('l2.title')} tabIndex={0}
           onKeyDown={(e) => {
             if (!rows.length) return
             const idx = Math.max(0, rows.findIndex((r) => r.id === (selected?.id ?? '')))
@@ -308,15 +385,12 @@ export default function AlertWorkbenchTab({
         >
           {rows.length === 0 ? (
             <EmptyState
-              compact
               testId="l2-empty"
-              icon="🔔"
-              title={t('l2.empty')}
-              primary={{ label: t('l2.viewHistory'), onClick: () => setFilter('all') }}
-              secondary={[
-                { label: t('l7.openDashboard'), onClick: onOpenDashboard },
-                { label: t('menu.alertRules'), onClick: onRules }
-              ]}
+              icon="alert"
+              title={t('pf4.alertTitle')}
+              desc={t('pf4.alertDesc')}
+              primary={{ label: t('pf4.alertHome'), onClick: () => (onOpenHome ?? onOpenDashboard)() }}
+              secondary={[{ label: t('pf4.alertRules'), onClick: onRules }]}
             />
           ) : (
             rows.map((a) => (
@@ -331,7 +405,18 @@ export default function AlertWorkbenchTab({
                   setLocateError(null)
                 }}
                 onOpen={() => doLocate(a)}
+                onLocate={() => doLocate(a)}
+                onExplain={() => void explainThis(a)}
+                explainDisabled={!aiConfigured}
+                explainTitle={aiConfigured ? t('a4.interpret') : t('w1.needAi')}
                 onFixPlaybook={() => requestFix(a)}
+                fixDisabled={!aiConfigured}
+                fixTitle={aiConfigured ? t('w1.create') : t('w1.needAi')}
+                onMarkDone={() => onHandled(a)}
+                onIgnore={() => onDismiss(a)}
+                onBoard={onOpenDashboard}
+                maintenanceUntil={untilFor(a)}
+                onMaintenance={() => onOpenMaintenance?.([a.hostKey])}
               />
             ))
           )}
@@ -347,23 +432,57 @@ export default function AlertWorkbenchTab({
               <div className="w4-seg">
                 <button type="button" className={pane === 'detail' ? 'is-on' : ''} onClick={() => setPane('detail')}>{t('w4.seg.detail')}</button>
                 <button type="button" data-testid="w4-timeline-tab" className={pane === 'timeline' ? 'is-on' : ''} onClick={() => setPane('timeline')}>
-                  {t('w4.seg.timeline', { n: viewTimeline(selected, ensureFired(selected), loadAudit(), { concurrent: showConcurrent }).length })}
+                  {t('w4.seg.timeline', { n: viewTimeline(selected, ensureFired(selected), loadAudit(), { concurrent: showConcurrent, gates: showGates }).length })}
                 </button>
                 {pane === 'timeline' ? (
-                  <button type="button" className="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</button>
+                  <>
+                    <button type="button" className="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</button>
+                    <button
+                      type="button"
+                      data-testid="a5-open"
+                      onClick={() => {
+                        const events = eventsFor(selected.id)
+                        if (!aiConfigured) onAiPostmortem?.(selected)
+                        else if (isEmptyTimeline(events)) showToast(t('a5.emptyTl'))
+                        else onAiPostmortem?.(selected)
+                      }}
+                    >
+                      <Icon name="sparkles" size={14} /> {t('a5.action')}
+                    </button>
+                  </>
                 ) : null}
               </div>
+              <LoopNav
+                alertId={selected.id}
+                aiConfigured={aiConfigured}
+                onFocusAlert={() => setSelectedId(selected.id)}
+                onLocate={() => doLocate(selected)}
+                onAi={() => void explainThis(selected)}
+                onNeedAi={() => onNeedAi?.()}
+                onPlaybook={() => onCreatePlaybook?.(selected, [])}
+                onGenerate={() => {
+                  const fixes = fixesFor(`explainAlert:${selected.id}`)
+                  if (fixes?.length) onCreatePlaybook?.(selected, fixes)
+                  else void explainThis(selected)
+                }}
+                onOpenSftp={() => onOpenSftp?.(selected)}
+              />
               {pane === 'timeline' ? (
                 <div data-testid="w4-timeline">
                   <label className="l4-check">
                     <input type="checkbox" checked={showConcurrent} onChange={(e) => setShowConcurrent(e.target.checked)} />
                     {t('w4.showConcurrent')}
                   </label>
-                  {viewTimeline(selected, eventsFor(selected.id), loadAudit(), { concurrent: showConcurrent }).map((e) => (
-                    <div key={e.id} className={`w4-row${e.concurrent ? ' is-concurrent' : ''}`}>
-                      <span>{new Date(e.at).toLocaleTimeString()}</span>
-                      <span>{e.kind}</span>
-                      <span title={e.summary}>{e.summary}</span>
+                  <label className="l4-check">
+                    <input type="checkbox" data-testid="s2b-filter" checked={showGates} onChange={(e) => setShowGates(e.target.checked)} />
+                    {t('s2b.filter')}
+                  </label>
+                  {viewTimeline(selected, eventsFor(selected.id), loadAudit(), { concurrent: showConcurrent, gates: showGates }).map((e) => (
+                    <div key={e.id} className={`w4-row${e.concurrent ? ' is-concurrent' : ''}${e.kind === 'gate' ? ' is-gate' : ''}`} data-testid={e.kind === 'gate' ? 'w4-gate-row' : undefined}>
+                      <span className="s2b-time">{new Date(e.at).toLocaleTimeString()}</span>
+                      <span className="s2b-kind">{e.kind === 'gate' ? t('s2b.k.gate') : e.kind}</span>
+                      {e.kind === 'gate' && e.gateResult ? <span className={`s2b-chip is-${e.gateResult}`}>{e.gateResult}</span> : null}
+                      <span className="s2b-sum" title={e.summary}>{e.summary}</span>
                     </div>
                   ))}
                   <input
@@ -430,19 +549,19 @@ export default function AlertWorkbenchTab({
                   {locating ? t('l2.connecting', { host: selected.hostTitle }) : t('l2.locate')}
                 </button>
                 <button type="button" title={t('l2.openTerminal')} onClick={() => onOpenTerminal(selected)}>
-                  <span className="l2-ico" aria-hidden>⌨</span>
+                  <Icon name="keyboard" size={14} />
                   <span className="l2-lbl">{t('l2.openTerminal')}</span>
                 </button>
                 <button type="button" title={t('menu.resourceMonitor')} onClick={() => onOpenMonitor(selected)}>
-                  <span className="l2-ico" aria-hidden>▤</span>
+                  <Icon name="activity" size={14} />
                   <span className="l2-lbl">{t('menu.resourceMonitor')}</span>
                 </button>
                 <button type="button" title={t('tab.toolbox')} onClick={() => onOpenToolbox(selected)}>
-                  <span className="l2-ico" aria-hidden>⚙</span>
+                  <Icon name="wrench" size={14} />
                   <span className="l2-lbl">{t('tab.toolbox')}</span>
                 </button>
-                <button type="button" data-testid="l2-explain" onClick={() => void explainThis(selected)}>
-                  ✨ {t('a4.interpret')}
+                <button type="button" data-testid="l2-explain" title={aiConfigured ? t('a4.interpret') : t('w1.needAi')} disabled={!aiConfigured} onClick={() => void explainThis(selected)}>
+                  <Icon name="sparkles" size={14} /> {t('a4.interpret')}
                 </button>
               </div>
               {located[selected.id] ? (
@@ -488,6 +607,21 @@ export default function AlertWorkbenchTab({
             </>
           )}
         </div>
+        {rulesOpen ? (
+          <AlertRulesModal
+            open
+            initial={ruleState}
+            history={alerts}
+            initialTab={rulesTab}
+            onClose={() => setRulesOpen(false)}
+            onSave={onSaveRules}
+            onClearHistory={onClearHistory}
+            onMute1h={onMute}
+            onLocate={onLocate}
+            onInterpret={(alert) => void explainThis(alert)}
+            onIgnore={onDismiss}
+          />
+        ) : null}
       </div>
     </div>
   )

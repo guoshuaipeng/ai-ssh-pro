@@ -1,0 +1,173 @@
+{
+  "id": "S16",
+  "title": "Rare host fact survives 12 filler turns in observational memory",
+  "industryBar": ["observational-compression", "mastra-working-memory"],
+  "hostProfile": {
+    "hostId": "host-s16-om",
+    "label": "om-long-lab"
+  },
+  "session": {
+    "targetSessionId": "sess-s16-om",
+    "historyKey": "host-s16-om"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "turns": [
+    {
+      "turnId": "S16-T1",
+      "userMessage": "查看这台机器，不要删除文件。",
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "先看机器，本步结束。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T2",
+      "userMessage": "继续：请记下稀有主机事实 OM_S16_RARE_FACT 只监听 127.0.0.1:18447。",
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "已记下该监听约束，先到这里。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "descriptionMustNotContain": ["OM_S16_RARE_FACT", "18447"]
+      }
+    },
+    {
+      "turnId": "S16-T3",
+      "userMessage": "继续看无关噪声 01，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 01 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T4",
+      "userMessage": "继续看无关噪声 02，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 02 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T5",
+      "userMessage": "继续看无关噪声 03，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 03 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T6",
+      "userMessage": "继续看无关噪声 04，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 04 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T7",
+      "userMessage": "继续看无关噪声 05，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 05 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T8",
+      "userMessage": "继续看无关噪声 06，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 06 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T9",
+      "userMessage": "继续看无关噪声 07，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 07 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T10",
+      "userMessage": "继续看无关噪声 08，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 08 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T11",
+      "userMessage": "继续看无关噪声 09，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 09 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T12",
+      "userMessage": "继续看无关噪声 10，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 10 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T13",
+      "userMessage": "继续看无关噪声 11，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 11 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T14",
+      "userMessage": "继续看无关噪声 12，不要查端口。",
+      "mockedPlannerSteps": [
+        { "response": { "description": "噪声 12 结束。", "action": "end", "completed": true, "riskLevel": "low" } }
+      ],
+      "expected": { "finalAction": "end" }
+    },
+    {
+      "turnId": "S16-T15",
+      "userMessage": "先前记下的稀有监听事实还在吗？请只根据记忆回答。",
+      "mockedPlannerSteps": [
+        {
+          "response": {
+            "description": "仍记得该监听事实，无需再查端口。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "memoryMustRetain": ["OM_S16_RARE_FACT", "127.0.0.1:18447"],
+        "observationalMemoryMustContain": ["OM_S16_RARE_FACT", "127.0.0.1:18447"],
+        "recentWindowMustNotContain": ["OM_S16_RARE_FACT", "127.0.0.1:18447"]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Twelve filler turns follow the rare host fact",
+    "The fact leaves the raw window",
+    "The planner system prompt still contains it as an observational bullet"
+  ]
+}

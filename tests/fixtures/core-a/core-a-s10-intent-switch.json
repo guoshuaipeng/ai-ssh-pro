@@ -1,0 +1,176 @@
+{
+  "id": "S10",
+  "title": "User says 换个问题 mid-flight — archive old WM, new goal, no cross-contaminate commands",
+  "industryBar": ["mastra-working-memory", "session-intent", "hybrid-recall", "tool-loop-state-machine"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01",
+    "hostname": "prod-web-01.internal"
+  },
+  "session": {
+    "targetSessionId": "sess-s10-switch",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_MAX_POLLS": "10",
+    "AISS_POLL_WAIT_MS": "0"
+  },
+  "turns": [
+    {
+      "turnId": "S10-T1",
+      "userMessage": "磁盘好像满了，帮我查 df -h。",
+      "mockTerminal": {
+        "initialRing": "",
+        "afterWrite": {
+          "df -h": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        40G   37G  1.2G  97% /\n"
+        }
+      },
+      "userConfirm": { "policy": "approve-all-commands" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "快照。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 400, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "执行只读 df -h。",
+            "action": "command",
+            "command": "df -h",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "读取 df -h。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 400, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["97%", "/dev/sda1"]
+        },
+        {
+          "step": 4,
+          "response": {
+            "description": "根分区 Use%≈97%。磁盘排障意图进行中；可继续查大目录（需确认）。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "descriptionMustContain": ["97%"],
+        "workingMemoryAfter": {
+          "goalMentions": ["磁盘", "df"],
+          "shouldRecordFacts": ["root Use% 97%"]
+        },
+        "sessionIntent": {
+          "goalContainsAnyOf": ["磁盘", "disk", "df"]
+        }
+      }
+    },
+    {
+      "turnId": "S10-T2",
+      "userMessage": "换个问题。别查磁盘了——现在帮我看一下 nginx 是否在跑（systemctl status）。",
+      "mockTerminal": {
+        "initialRing": "df leftover 97%...\n",
+        "afterWrite": {
+          "systemctl is-active nginx": "active\n"
+        }
+      },
+      "userConfirm": { "policy": "approve-all-commands" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "用户明确换题：归档旧磁盘意图，开新 goal=nginx 状态；不继续 du/find 大目录。",
+            "action": "tool_call",
+            "toolName": "append_host_note",
+            "toolInput": {
+              "hostId": "host-prod-web-01",
+              "note": "Archived intent: disk 97% (user switched topic). New intent: nginx status."
+            },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "只读检查 nginx 是否 active。",
+            "action": "command",
+            "command": "systemctl is-active nginx",
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 3,
+          "response": {
+            "description": "读取 is-active 输出。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          },
+          "expectToolResultContains": ["active"]
+        },
+        {
+          "step": 4,
+          "response": {
+            "description": "nginx 当前 is-active=active。旧磁盘 97% 事实已归档，本轮未再执行 df/du。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "finalAction": "end",
+        "completed": true,
+        "descriptionMustContain": ["active", "nginx"],
+        "mustNotEmitCommands": [
+          "df -h",
+          "du -sh",
+          "find / -xdev",
+          "ncdu"
+        ],
+        "commandsRequiringConfirm": ["systemctl is-active nginx"],
+        "intentSwitch": {
+          "userPhrase": "换个问题",
+          "archiveOldWorkingMemory": true,
+          "newGoalMentions": ["nginx"],
+          "oldGoalArchivedNotDeletedHostFacts": true,
+          "noCrossContaminateCommands": true
+        },
+        "hostFactsMayRetain": ["root Use% 97%"],
+        "activeGoalMustNotBe": ["磁盘清理", "继续 df"]
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "T1 establishes disk intent + 97% fact",
+    "T2 on 换个问题 archives old WM / sessionIntent and sets nginx goal",
+    "No df/du/find commands after switch",
+    "Host fact 97% may remain in observations but must not drive mid-flight disk cmds",
+    "confirm still required on nginx check"
+  ]
+}

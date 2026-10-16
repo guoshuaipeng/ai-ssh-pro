@@ -13,9 +13,61 @@ import {
 import type { SshSessionManager } from './ssh-manager'
 import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
 import { buildBootstrapPrompt } from './core-a-bootstrap'
-import { loadPersistedCoreSession, savePersistedCoreSession } from './core-a-memory'
+import {
+  appendStoredArchive,
+  currentThreadEpoch,
+  loadPersistedCoreSession,
+  loadThreadContext,
+  onThreadContextCleared,
+  savePersistedCoreSession,
+  saveThreadContext
+} from './core-a-memory'
+import {
+  absorbUserTurn,
+  actionNeedsHumanInterrupt,
+  buildMemoryPromptBlocks,
+  compactTranscript,
+  confirmBypassAllowed,
+  contextBudget,
+  observeOmBudget,
+  cancelHitl,
+  createHitlLoop,
+  formatArchivedGoal,
+  appendEpisode,
+  hitlIsPlannable,
+  interruptForProposal,
+  markHitlExecuting,
+  markHitlObserving,
+  markWorkingStatus,
+  recallEpisodes,
+  resolveThreadId,
+  resumeHitl,
+  sideEffectExecutionPermitted,
+  summarizePlannerStep,
+  type HitlLoopState,
+  type TranscriptTurn
+} from './core-a-context'
+import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTierEngaged, effectiveSafetyTier, type SafetyMode } from '../shared/safety-tier'
 import { getInventoryStore } from './inventory-store'
 import type { HostServiceKind } from '../shared/inventory'
+import {
+  classifyCommandFailure,
+  explainFailedCommand,
+  explainRetryBudgetStop,
+  observeRetryBudget,
+  readConfirmedCommandOutcome,
+  retryWritePermitted,
+  type CommandFailureEvidence,
+  type RetryBudgetSignal
+} from './core-a-command-failure'
+import {
+  citeHeldPatchDraft,
+  emptyCiteWindow,
+  emptyOutputView,
+  explainCiteableOutput,
+  truncateCiteableOutput,
+  type OutputView
+} from './core-a-output-truncate'
 
 function send(wc: WebContents, ev: AiStreamEvent): void {
   if (!wc.isDestroyed()) wc.send('ai:stream', ev)
@@ -62,10 +114,21 @@ function truncate(s: string, max: number): string {
   return `${t.slice(0, max)}...`
 }
 
-const confirmWaiters = new Map<string, { resolve: (ok: boolean) => void; timer: NodeJS.Timeout }>()
+type ConfirmOutcome = 'approve' | 'deny' | 'cancel'
+
+const confirmWaiters = new Map<string, { resolve: (outcome: ConfirmOutcome) => void; timer: NodeJS.Timeout }>()
 
 type ActiveAiChat = { ac: AbortController; ctx: { userAborted: boolean } }
 let activeAiChat: ActiveAiChat | null = null
+
+function settleConfirm(requestId: string, outcome: ConfirmOutcome): boolean {
+  const rec = confirmWaiters.get(requestId)
+  if (!rec) return false
+  confirmWaiters.delete(requestId)
+  clearTimeout(rec.timer)
+  rec.resolve(outcome)
+  return true
+}
 
 /** 停止当前一轮 AI 助手（中断模型请求、解除等待中的命令确认） */
 export function abortAiChat(): void {
@@ -73,11 +136,12 @@ export function abortAiChat(): void {
   if (!cur) return
   cur.ctx.userAborted = true
   cur.ac.abort()
-  for (const [, rec] of [...confirmWaiters.entries()]) {
-    clearTimeout(rec.timer)
-    rec.resolve(false)
-  }
-  confirmWaiters.clear()
+  for (const [requestId] of [...confirmWaiters.entries()]) settleConfirm(requestId, 'cancel')
+}
+
+/** Waiting confirms. A cancel or abort must leave this at 0 so the next turn is not stuck. */
+export function pendingAiConfirmCount(): number {
+  return confirmWaiters.size
 }
 
 function isAbortError(e: unknown): boolean {
@@ -93,20 +157,20 @@ function confirmTimeoutMs(): number {
 }
 
 export function resolveAiConfirmStep(requestId: string, ok: boolean): boolean {
-  const rec = confirmWaiters.get(requestId)
-  if (!rec) return false
-  confirmWaiters.delete(requestId)
-  clearTimeout(rec.timer)
-  rec.resolve(ok)
-  return true
+  return settleConfirm(requestId, ok ? 'approve' : 'deny')
 }
 
-async function waitForAiConfirm(requestId: string): Promise<boolean> {
+/** Drop a waiting interrupt without recording a deny. The step must not run. */
+export function cancelAiConfirmStep(requestId: string): boolean {
+  return settleConfirm(requestId, 'cancel')
+}
+
+async function waitForAiConfirm(requestId: string): Promise<ConfirmOutcome> {
   const timeout = confirmTimeoutMs()
-  return await new Promise<boolean>((resolve) => {
+  return await new Promise<ConfirmOutcome>((resolve) => {
     const timer = setTimeout(() => {
       confirmWaiters.delete(requestId)
-      resolve(false)
+      resolve('deny')
     }, timeout)
     confirmWaiters.set(requestId, { resolve, timer })
   })
@@ -152,11 +216,18 @@ type ToolScore = {
 }
 
 const coreStateBySession = new Map<string, CoreSessionState>()
+const sessionEpochAtLoad = new Map<string, number>()
+
+onThreadContextCleared((key) => {
+  coreStateBySession.delete(key)
+  sessionEpochAtLoad.delete(key)
+})
 
 function getSessionState(targetSessionId?: string): CoreSessionState {
   const key = targetSessionId?.trim() || 'global'
   const existing = coreStateBySession.get(key)
   if (existing) return existing
+  sessionEpochAtLoad.set(key, currentThreadEpoch(key))
 
   const persisted = loadPersistedCoreSession(key)
   const created: CoreSessionState = {
@@ -191,12 +262,32 @@ function getSessionState(targetSessionId?: string): CoreSessionState {
 }
 
 function persistSessionState(targetSessionId: string | undefined, state: CoreSessionState): void {
-  savePersistedCoreSession(targetSessionId?.trim() || 'global', {
-    notes: state.notes,
-    recentCommands: state.recentCommands,
-    observations: state.observations,
-    taskGraph: state.taskGraph.map((t) => ({ title: t.title, status: t.status }))
+  const key = targetSessionId?.trim() || 'global'
+  savePersistedCoreSession(
+    key,
+    {
+      notes: state.notes,
+      recentCommands: state.recentCommands,
+      observations: state.observations,
+      taskGraph: state.taskGraph.map((t) => ({ title: t.title, status: t.status }))
+    },
+    sessionEpochAtLoad.get(key) ?? 0
+  )
+}
+
+function rememberArchivedGoal(state: CoreSessionState, goal: string): void {
+  const archived = formatArchivedGoal(goal)
+  rememberNote(state, archived.note)
+  const title = truncate(goal, 120)
+  if (!title || state.taskGraph.some((task) => task.title === title)) return
+  state.taskGraph.push({
+    id: `T${state.nextTaskId++}`,
+    title,
+    status: 'done',
+    confidence: 0.5,
+    updatedAt: Date.now()
   })
+  if (state.taskGraph.length > 10) state.taskGraph = state.taskGraph.slice(-10)
 }
 
 function lastUserQuestion(messages: { role: string; content: string }[]): string {
@@ -206,21 +297,19 @@ function lastUserQuestion(messages: { role: string; content: string }[]): string
   return ''
 }
 
-type PlannerTurn = { role: 'user' | 'assistant' | 'system'; content: string }
-
-function compactConversation(conv: PlannerTurn[], maxTurns = 8): PlannerTurn[] {
-  const maxMessages = maxTurns * 2
-  if (conv.length <= maxMessages) return conv
-  return conv.slice(-maxMessages)
-}
+type PlannerTurn = TranscriptTurn
 
 function appendObservation(state: CoreSessionState, snapshot: string, command?: string | null): void {
   const raw = snapshot.trim()
   if (!raw || raw.includes('暂无缓冲') || raw.includes('No buffered output') || raw.includes('无法读取')) return
   const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const tail = lines.slice(-4).join(' | ')
+  const view = truncateCiteableOutput(raw)
+  const scarce = view.citeWindow.outsideHeadTail.filter((marker) => !tail.includes(marker))
+  let body = [scarce.join(' '), tail].filter(Boolean).join(' ')
+  for (const filler of view.citeWindow.droppedFiller) body = body.split(filler).join('')
   const head = command ? `cmd=${command}: ` : ''
-  const obs = truncate(`${head}${tail}`, 240)
+  const obs = truncate(`${head}${body}`, 240)
   if (!obs) return
   state.observations.push(obs)
   if (state.observations.length > 10) state.observations = state.observations.slice(-10)
@@ -286,6 +375,34 @@ function rememberCommand(state: CoreSessionState, command: string): void {
   if (!cmd) return
   state.recentCommands.push(cmd)
   if (state.recentCommands.length > 6) state.recentCommands = state.recentCommands.slice(-6)
+}
+
+/**
+ * The cancelled proposal was recorded before the human answered. Drop that
+ * bookkeeping so it is not an executed command, a note, or an open task.
+ * Earlier approved steps stay.
+ */
+function releaseCancelledProposal(
+  state: CoreSessionState,
+  parsed: AiAssistantReply,
+  mark: { tasks: TaskNode[] }
+): void {
+  const note = truncate(parsed.description.replace(/\s+/g, ' '), 280)
+  if (note && state.notes[state.notes.length - 1] === note) state.notes.pop()
+  if (state.recentActions[state.recentActions.length - 1] === parsed.action) state.recentActions.pop()
+  const title = truncate(parsed.description, 90)
+  const last = state.taskGraph[state.taskGraph.length - 1]
+  if (title && last && last.title === title && last.status === 'open') state.taskGraph.pop()
+  for (const saved of mark.tasks) {
+    const live = state.taskGraph.find((task) => task.id === saved.id)
+    if (!live) continue
+    live.status = saved.status
+    live.confidence = saved.confidence
+    live.updatedAt = saved.updatedAt
+  }
+  const cmd = (parsed.command ?? '').replace(/[\r\n]+/g, ' ').trim()
+  if (!cmd) return
+  state.recentCommands = state.recentCommands.filter((item) => item !== cmd)
 }
 
 function summarizeTaskGraph(state: CoreSessionState): string {
@@ -367,7 +484,11 @@ function scoreToolSnapshot(snapshot: string, lastCommand: string | null): ToolSc
 
 const assistantStepSchema = z
   .object({
-    description: z.string().describe('结论、步骤或原因；当 action 为 tool_call/command 时说明为何需要以及风险等级'),
+    description: z
+      .string()
+      .describe(
+        '结论、步骤或原因。多条列举必须使用真实换行分隔，例如 1) …\\n2) …\\n3) …。当 action 为 tool_call/command 时说明为何需要以及风险等级。不要用 Markdown 围栏。'
+      ),
     action: z.enum(['tool_call', 'command', 'end']).describe('下一步动作：tool_call/command/end'),
     completed: z.boolean().optional().describe('任务是否已完成；若 action=end 通常为 true'),
     toolName: z.string().optional().describe(
@@ -522,6 +643,13 @@ function buildCoreSystemPrompt(
     lastCommand?: string | null
     lastWriteOk?: boolean | null
     plannerHint?: string | null
+    memoryBlocks?: string | null
+    /** Structured failure of the last confirmed command. Empty when that command did not fail. */
+    commandFailure?: string | null
+    /** Consecutive failures of that command. Present on every step; the prompt cites it after a failure. */
+    retryBudget?: RetryBudgetSignal | null
+    /** The snapshot above is a capped view of a longer stdout, stderr, or ring. */
+    outputTruncated?: boolean
   }
 ): string {
   const memorySection = state.notes.length > 0 ? state.notes.map((n, i) => `${i + 1}. ${n}`).join('\n') : mt('（暂无）', "(none)")
@@ -535,10 +663,15 @@ function buildCoreSystemPrompt(
 
   const parts: string[] = [
     buildBootstrapPrompt(ctx.userQuestion),
+    ...(ctx.memoryBlocks?.trim() ? [ctx.memoryBlocks.trim()] : []),
     '---',
     mt('你必须输出单个 JSON 对象；禁止 Markdown、代码围栏以及 JSON 外文字。', "Output a single JSON object; no Markdown, no code fences, no text outside the JSON."),
+    mt(
+      'description 中的列举必须使用真实换行，例如 1) …\\n2) …\\n3) …。仍禁止 Markdown 围栏，禁止 JSON 以外的文字。',
+      'In description, separate list items with a real newline, for example 1) …\\n2) …\\n3) …. Still no Markdown fences and no text outside the JSON.'
+    ),
     mt('action（必填）：tool_call | command | end。', "action (required): tool_call | command | end."),
-    mt('command 需要用户确认后才执行（低风险可自动批准）；tool_call 会被系统立即执行。', "command runs only after user confirmation (low risk may be auto-approved); tool_call is executed by the system immediately."),
+    mt('command 一律需要用户确认后才执行，包括 riskLevel=low，不会自动写入终端；get_terminal_snapshot 由系统自动执行。', "Every command, including riskLevel=low, runs only after user confirmation and is never written to the terminal automatically; get_terminal_snapshot is executed by the system automatically."),
     mt('可用 toolName：get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note。', "Available toolName: get_terminal_snapshot | get_host_inventory | upsert_host_service | append_host_note."),
     mt('若上一轮刚执行过命令，系统可能已自动附带终端观测结果，请优先阅读后再决策。', "If a command just ran in the previous round, terminal observations may be attached automatically; read them before deciding."),
     mt(`当前轮次：${ctx.step}`, `Current round: ${ctx.step}`),
@@ -587,10 +720,38 @@ function buildCoreSystemPrompt(
 
   if (ctx.lastToolResult != null) {
     parts.push(mt('最近一次终端快照：\n```\n', "Latest terminal snapshot:\n```") + (ctx.lastToolResult.trim() ? ctx.lastToolResult.trim() : mt('（空）', "(empty)")) + '\n```')
+    if (ctx.outputTruncated) {
+      parts.push(
+        mt(
+          '终端输出已截断。只能引用上面保留的证据记号，不要编造被截掉的行。',
+          'Terminal output was truncated. Cite only the evidence tokens that remain above. Do not invent a line that was cut.'
+        )
+      )
+    }
   }
 
   if (ctx.lastCommand) {
     parts.push(mt(`上一条命令已发送（writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}）：\n\`\`\`\n${ctx.lastCommand}\n\`\`\``, `Previous command sent (writeOk=${ctx.lastWriteOk === true ? 'true' : 'false'}):\n\`\`\`\n${ctx.lastCommand}\n\`\`\``))
+  }
+
+  if (ctx.commandFailure?.trim()) {
+    const budget = ctx.retryBudget
+    const budgetLine =
+      budget && budget.count > 0
+        ? mt(
+            `\n重试预算 count=${budget.count} cap=${budget.cap} exhausted=${budget.exhausted ? 'true' : 'false'} nearBudget=${budget.nearBudget ? 'true' : 'false'}`,
+            `\nretryBudget count=${budget.count} cap=${budget.cap} exhausted=${budget.exhausted ? 'true' : 'false'} nearBudget=${budget.nearBudget ? 'true' : 'false'}`
+          )
+        : ''
+    const exhaustedLine = budget?.exhausted
+      ? mt('\n超限停：不要再写这条命令。', '\nOver budget: do not write this command again.')
+      : ''
+    parts.push(
+      mt(
+        `上一条已确认命令失败（禁止自动重跑，重试须新的确认）：\n${ctx.commandFailure.trim()}${budgetLine}${exhaustedLine}`,
+        `The last confirmed command failed (do not run it again; a retry needs a new confirmation):\n${ctx.commandFailure.trim()}${budgetLine}${exhaustedLine}`
+      )
+    )
   }
 
   return parts.join('\n')
@@ -711,9 +872,24 @@ export async function runOpenClawCoreAgentChat(
     content: m.content
   }))
   const userQuestion = lastUserQuestion(conversation)
+  const sessionKey = payload.targetSessionId?.trim() || 'global'
   const sessionState = getSessionState(payload.targetSessionId)
   ensureSeedTask(sessionState, userQuestion || lastUserQuestionForDebug(payload.messages))
-  logAi('ai:engine core-a', { session: payload.targetSessionId ?? 'global' })
+  const threadId = resolveThreadId({
+    historyKey: payload.historyKey,
+    targetSessionId: payload.targetSessionId
+  })
+  let { ctx: thread, epoch: threadEpoch } = loadThreadContext(threadId)
+  const absorbed = absorbUserTurn(thread, conversation)
+  thread = absorbed.ctx
+  if (absorbed.switchedFrom) {
+    rememberArchivedGoal(sessionState, absorbed.switchedFrom.goal)
+    if (threadId !== sessionKey) {
+      const archived = formatArchivedGoal(absorbed.switchedFrom.goal)
+      appendStoredArchive(threadId, archived.note, archived.taskSummary, threadEpoch)
+    }
+  }
+  logAi('ai:engine core-a', { session: payload.targetSessionId ?? 'global', thread: threadId })
   const debugTurnId = payload.debugTurnId?.trim() ?? ''
   const debugUserQuestion = lastUserQuestionForDebug(payload.messages)
   const emitDebug = (entry: AiDebugEntry): void => {
@@ -724,8 +900,9 @@ export async function runOpenClawCoreAgentChat(
   let lastToolResult: string | null = null
   let lastCommand: string | null = null
   let lastWriteOk: boolean | null = null
-
-  const MAX_TOOL_RESULT_CHARS = 6000
+  let lastFailure: (CommandFailureEvidence & { requestId: string; count: number }) | null = null
+  const writtenRequestIds = new Set<string>()
+  const inFlight = createInFlightBook()
 
   if (activeAiChat) {
     abortAiChat()
@@ -741,10 +918,16 @@ export async function runOpenClawCoreAgentChat(
   const MAX_SAME_SNAPSHOT_REPEAT = 2
   const MAX_CONSECUTIVE_SNAPSHOT_TOOLS = 6
 
+  const persistAll = (): void => {
+    persistSessionState(payload.targetSessionId, sessionState)
+    saveThreadContext(threadId, thread, threadEpoch)
+  }
+
   if (targetSessionId && !payload.terminalExcerpt?.trim()) {
     const bootSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
     if (bootSnap) {
       lastToolResult = bootSnap
+      prevSnapFingerprint = bootSnap
       sessionState.lastToolScore = scoreToolSnapshot(bootSnap, null)
       appendObservation(sessionState, bootSnap, null)
       rememberNote(sessionState, mt('会话启动时已自动读取终端上下文', "Terminal context was read automatically at session start"))
@@ -753,7 +936,9 @@ export async function runOpenClawCoreAgentChat(
 
   try {
     for (let step = 1; step <= maxSteps; step++) {
-      conversation = compactConversation(conversation)
+      const compacted = compactTranscript(conversation, thread)
+      conversation = compacted.recent
+      thread = compacted.ctx
       if (runCtx.userAborted) {
         send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
         send(wc, { type: 'done' })
@@ -765,8 +950,19 @@ export async function runOpenClawCoreAgentChat(
         rememberNote(sessionState, mt('检测到连续失败，下一步应优先选择低风险证据命令或直接结束并说明缺失信息。', "Repeated failures detected; next prefer a low-risk evidence command or end and explain what is missing."))
       }
 
+      const retryBudget = observeRetryBudget(lastFailure?.count ?? 0, lastFailure?.command ?? '')
       let plannerHint: string | null = null
-      if (!lastToolResult && targetSessionId && step <= 2) {
+      if (lastFailure && retryBudget.exhausted) {
+        plannerHint = mt(
+          '同一命令的重试预算已用尽。禁止再写这条命令，不要自动重跑。请结束，并说明失败证据；证据不足，需要人工处理。',
+          'The retry budget for this command is exhausted. Do not write it again and do not run it automatically. End, cite the failure evidence, and say evidence is insufficient so a person needs to decide.'
+        )
+      } else if (lastFailure) {
+        plannerHint = mt(
+          '上一条已确认命令失败。说明里要引用失败证据，禁止自动重跑。同一命令只有在新的确认之后才能再写。',
+          'The last confirmed command failed. Cite the failure evidence. Do not run it again. The same command can be written only after a new confirmation.'
+        )
+      } else if (!lastToolResult && targetSessionId && step <= 2) {
         plannerHint = mt('尚无终端证据，本轮应优先 tool_call(get_terminal_snapshot)，不要直接 command。', "No terminal evidence yet; this round should prefer tool_call(get_terminal_snapshot) rather than a command.")
       } else if (lastCommand && lastToolResult) {
         plannerHint = mt('上一条命令已执行且已有自动观测，请基于快照给出结论或下一步；证据充分时请 end。', "The previous command ran and was observed automatically; give a conclusion or next step from the snapshot, and end when evidence is sufficient.")
@@ -774,13 +970,32 @@ export async function runOpenClawCoreAgentChat(
         plannerHint = mt('连续失败：优先只读快照或低风险 command，避免重复相同动作。', "Consecutive failures: prefer a read-only snapshot or low-risk command and avoid repeating the same action.")
       }
 
+      const recalled = recallEpisodes(userQuestion, thread.episodes, { topK: 5 })
+      const memory = buildMemoryPromptBlocks({
+        working: thread.workingMemory,
+        observations: thread.observationalMemory,
+        runningSummary: thread.runningSummary,
+        hits: recalled,
+        headings: {
+          working: mt('工作记忆（当前目标）：', 'Working memory (current goal):'),
+          observations: mt('观测记忆（较早对话压缩）：', 'Observational memory (compressed older turns):'),
+          summary: mt('较早对话摘要：', 'Earlier transcript summary:'),
+          recall: mt('相关历史回忆：', 'Recalled history:')
+        }
+      })
+      const outputView: OutputView = lastToolResult != null ? truncateCiteableOutput(lastToolResult) : emptyOutputView()
+      const failureView = lastFailure ? truncateCiteableOutput(lastFailure.evidence) : null
       const sysPrompt = buildCoreSystemPrompt(payload, sessionState, {
         step,
         userQuestion,
-        lastToolResult: lastToolResult ? lastToolResult.slice(0, MAX_TOOL_RESULT_CHARS) : null,
+        lastToolResult: lastToolResult != null ? outputView.text : null,
         lastCommand,
         lastWriteOk,
-        plannerHint
+        plannerHint,
+        memoryBlocks: memory.text,
+        commandFailure: failureView ? failureView.text : null,
+        retryBudget,
+        outputTruncated: outputView.truncated
       })
 
       const messages: Array<{ role: string; content: string }> = [
@@ -788,6 +1003,50 @@ export async function runOpenClawCoreAgentChat(
         { role: 'system', content: sysPrompt },
         ...conversation
       ]
+      const recentChars = conversation.reduce((sum, turn) => sum + turn.content.length, 0)
+      const budget = contextBudget({
+        workingChars: memory.sections.working.length,
+        workingItems: thread.workingMemory ? 1 : 0,
+        observationChars: memory.sections.observations.length,
+        observationItems: thread.observationalMemory.length,
+        summaryChars: memory.sections.runningSummary.length,
+        recallChars: memory.sections.recall.length,
+        recallItems: recalled.length,
+        recentChars,
+        recentItems: conversation.length,
+        systemChars: sysPrompt.length
+      })
+      const omBudget = observeOmBudget(thread)
+      emitDebug({
+        kind: 'context',
+        round: step,
+        slices: budget.slices,
+        totalChars: budget.totalChars,
+        omBudget,
+        retryBudget,
+        outputView: {
+          truncated: outputView.truncated,
+          originalChars: outputView.originalChars,
+          shownChars: outputView.shownChars,
+          cap: outputView.cap,
+          markers: outputView.markers,
+          tipSuggest: outputView.tipSuggest,
+          rollback: outputView.rollback,
+          citeWindow: outputView.citeWindow,
+          citeHold: thread.citeHold ?? emptyCiteWindow()
+        }
+      })
+      logAi('ai:om-budget', {
+        bullets: omBudget.bullets,
+        bulletCap: omBudget.bulletCap,
+        bulletChars: omBudget.bulletChars,
+        summaryChars: omBudget.summaryChars,
+        droppedBullets: omBudget.droppedBullets,
+        truncatedBullets: omBudget.truncatedBullets,
+        summaryTruncated: omBudget.summaryTruncated,
+        nearBudget: omBudget.nearBudget,
+        truncated: omBudget.truncated
+      })
 
       logAi('ai:step start', {
         step,
@@ -813,6 +1072,8 @@ export async function runOpenClawCoreAgentChat(
       }
 
       let parsed = structured
+      const proposedCommand =
+        parsed.action === 'command' ? (parsed.command ?? '').replace(/[\r\n]+/g, ' ').trim() : ''
       const actionFingerprint = `${parsed.action}|${parsed.toolName ?? ''}|${(parsed.command ?? '').replace(/\s+/g, ' ').trim()}`
       if (sessionState.lastActionFingerprint === actionFingerprint) {
         sessionState.repeatActionCount += 1
@@ -830,7 +1091,29 @@ export async function runOpenClawCoreAgentChat(
         }
       }
 
+      let blockedByRetryBudget = false
+      if (proposedCommand && lastFailure && proposedCommand === lastFailure.command) {
+        const blocked = observeRetryBudget(lastFailure.count, lastFailure.command)
+        if (blocked.exhausted) {
+          blockedByRetryBudget = true
+          parsed = {
+            description: explainRetryBudgetStop(lastFailure, blocked),
+            action: 'end',
+            completed: true,
+            riskLevel: 'low',
+            notes: mt('同一失败路径已超过重试预算，未再写入。', 'The retry budget for this failed command is spent, so it was not written again.')
+          }
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: mt('重试预算已用尽', 'Retry budget exhausted'),
+            detail: `blockedWrite=true retryBudget count=${blocked.count} cap=${blocked.cap} exhausted=true nearBudget=${String(blocked.nearBudget)} autoRetry=false\n${lastFailure.evidence}`
+          })
+        }
+      }
+
       if (
+        !blockedByRetryBudget &&
         parsed.action === 'end' &&
         !evidenceGateUsed &&
         targetSessionId &&
@@ -844,7 +1127,7 @@ export async function runOpenClawCoreAgentChat(
           appendObservation(sessionState, gateSnap, lastCommand)
           rememberNote(sessionState, mt('结束前轮询：证据不足，已自动补充终端观测', "Pre-end check: evidence insufficient, terminal observation added automatically"))
           send(wc, { type: 'status', text: mt('证据不足，已自动读取终端后继续分析…', "Evidence insufficient; read the terminal automatically and continuing…") })
-          persistSessionState(targetSessionId, sessionState)
+          persistAll()
           await new Promise<void>((r) => setTimeout(r, 300))
           continue
         }
@@ -861,67 +1144,206 @@ export async function runOpenClawCoreAgentChat(
         parseError
       })
 
-      // Only `command` steps require user confirmation (unless low-risk auto-approve).
-      const autoApproveLowRiskCommand =
-        parsed.action === 'command' &&
-        settings.autoApproveLowRisk === true &&
-        String(parsed.riskLevel ?? '').toLowerCase() === 'low'
+      // Explicit HITL phases: planning → interrupted → resumed|cancelled → executing → observing.
+      // Cancel (not deny) drops the proposal and returns to planning.
+      // Read-only tools skip the interrupt. riskLevel and autoApproveLowRisk never skip it.
+      // confirmBypassAllowed is always false; a future true would still fail closed below.
+      void confirmBypassAllowed(settings.autoApproveLowRisk)
+      const needsInterrupt = actionNeedsHumanInterrupt(parsed.action, parsed.toolName)
+      let requestId = needsInterrupt ? randomUUID() : undefined
+      let hitl: HitlLoopState = interruptForProposal(createHitlLoop(), {
+        action: parsed.action,
+        toolName: parsed.toolName,
+        command: parsed.command,
+        riskLevel: parsed.riskLevel,
+        requestId,
+        autoApproveLowRisk: settings.autoApproveLowRisk
+      })
+      if (needsInterrupt && sideEffectExecutionPermitted(hitl)) {
+        send(wc, { type: 'error', message: mt('内部错误：命令在确认前进入了执行态', 'Internal error: command entered executing before confirm') })
+        return
+      }
+      let safetyMode: SafetyMode | undefined
+      let skipCommandWrite = false
+      if (safetyTierEngaged(settings) && parsed.action === 'command') {
+        const hostId =
+          payload.safetyContext?.hostId ||
+          payload.inventoryLookup?.profileId ||
+          payload.historyKey ||
+          payload.hostInventoryId
+        const decision = planCommandConfirm({
+          tier: effectiveSafetyTier(settings, {
+            hostId,
+            sessionId: payload.safetyContext?.sessionId || payload.historyKey
+          }),
+          command: parsed.command ?? '',
+          riskLevel: parsed.riskLevel,
+          production: payload.safetyContext?.production === true,
+          hostId,
+          hostName: payload.safetyContext?.hostName || payload.inventoryLookup?.host,
+          allowHosts: settings.autopilotAllowHosts,
+          allowHighRisk: settings.autopilotAllowHighRisk === true,
+          book: inFlight
+        })
+        safetyMode = decision.mode
+        if (decision.alternative) {
+          const note = parsed.notes?.includes(decision.alternative)
+            ? parsed.notes
+            : [parsed.notes, decision.alternative].filter(Boolean).join('\n')
+          parsed = { ...parsed, notes: note }
+        }
+        if (decision.mode === 'suggest' || decision.mode === 'hold') skipCommandWrite = true
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: 'safety tier',
+          detail: `mode=${decision.mode} tier=${decision.tier} applied=${decision.appliedTier} kind=${decision.kind} warn=${String(decision.warn)} write=${String(decision.write)}`
+        })
+      }
+      if (needsInterrupt && safetyMode !== 'auto' && safetyMode !== 'suggest' && safetyMode !== 'hold') {
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: 'HITL interrupt',
+          detail: `phase=${hitl.phase} action=${parsed.action} risk=${parsed.riskLevel} safety=${safetyMode ?? 'legacy'}`
+        })
+      }
 
-      const requestId =
-        parsed.action === 'command' && !autoApproveLowRiskCommand ? randomUUID() : undefined
+      if (parsed.action === 'end' && lastFailure) {
+        const alreadyStopped =
+          parsed.description.includes('重试预算已用尽') || parsed.description.includes('retry budget is exhausted')
+        const failureForEnd = truncateCiteableOutput(lastFailure.evidence)
+        parsed = {
+          ...parsed,
+          description: explainFailedCommand(
+            parsed.description,
+            failureForEnd.truncated ? { ...lastFailure, evidence: failureForEnd.text } : lastFailure,
+            alreadyStopped
+              ? ''
+              : mt('不会自动重跑。若要再执行，需要新的确认。', 'This will not run again on its own. Another run needs a new confirmation.')
+          )
+        }
+      }
 
+      if (parsed.action === 'end' && (lastToolResult != null || thread.citeHold)) {
+        const cited = lastToolResult != null ? truncateCiteableOutput(lastToolResult) : emptyOutputView()
+        if (cited.truncated || thread.citeHold) {
+          parsed = { ...parsed, description: explainCiteableOutput(parsed.description, cited, thread.citeHold) }
+        }
+      }
+      if (parsed.action === 'end' && thread.citeHold) {
+        parsed = { ...parsed, description: citeHeldPatchDraft(parsed.description, thread.citeHold) }
+      }
+
+      const emitRequestId =
+        safetyMode === 'auto' || safetyMode === 'suggest' || safetyMode === 'hold' ? undefined : requestId
       send(wc, {
         type: 'step',
-        requestId,
-        autoApproved: autoApproveLowRiskCommand ? true : undefined,
+        requestId: emitRequestId,
+        safetyMode,
         structured: parsed
       })
 
       // 让下一轮请求带上本步助手 JSON，避免模型「失忆」而在每步重复同一段 description。
+      const proposalTasks = sessionState.taskGraph.map((task) => ({ ...task }))
+      const proposalEpisodes = thread.episodes.length
       conversation.push({ role: 'assistant' as const, content: content.trim() })
+      thread = appendEpisode(
+        thread,
+        summarizePlannerStep({
+          step,
+          action: parsed.action,
+          description: parsed.description,
+          command: parsed.command
+        })
+      )
       rememberNote(sessionState, parsed.description)
       rememberAction(sessionState, parsed.action)
       updateTaskGraphOnAction(sessionState, parsed)
 
       if (parsed.action === 'end') {
-        persistSessionState(targetSessionId, sessionState)
+        thread = markWorkingStatus(thread, 'done')
+        persistAll()
         send(wc, { type: 'done' })
         return
       }
 
-      // For command steps, wait for user confirmation before executing (skip when auto-approved).
-      if (parsed.action === 'command') {
+      // Interrupted steps wait here. Nothing is written until resume → executing.
+      // auto skips Agree and moves straight to executing. suggest / hold do not write.
+      // A missing safety tier keeps the legacy confirm path, including read-only commands.
+      if (needsInterrupt && safetyMode === 'auto') {
         consecutiveSnapshotTools = 0
-        if (autoApproveLowRiskCommand) {
+        hitl = markHitlExecuting(resumeHitl(hitl, true))
+        if (!sideEffectExecutionPermitted(hitl)) {
+          send(wc, { type: 'error', message: mt('内部错误：安全档自动执行未进入执行态', 'Internal error: safety-tier auto-run did not enter executing') })
+          return
+        }
+      } else if (needsInterrupt && skipCommandWrite) {
+        consecutiveSnapshotTools = 0
+        rememberNote(
+          sessionState,
+          safetyMode === 'hold'
+            ? mt('交互命令已在执行，未再次询问同意，也未再次写入。', 'The interactive command is already running. Agree was not asked again, and it was not written again.')
+            : mt('当前安全档只建议这条命令，未写入终端。', 'The safety tier only suggested this command. It was not written to the terminal.')
+        )
+      } else if (needsInterrupt) {
+        consecutiveSnapshotTools = 0
+        if (!requestId || hitl.phase !== 'interrupted') {
+          send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
+          return
+        }
+
+        const decision = await waitForAiConfirm(requestId)
+        if (decision === 'cancel' || runCtx.userAborted) {
+          // Cancel drops the proposal and returns to planning. Deny stays cancelled.
+          hitl = cancelHitl(hitl)
+          releaseCancelledProposal(sessionState, parsed, { tasks: proposalTasks })
+          if (thread.episodes.length > proposalEpisodes) {
+            thread = { ...thread, episodes: thread.episodes.slice(0, proposalEpisodes) }
+          }
+          const plannable = hitlIsPlannable(hitl) && !sideEffectExecutionPermitted(hitl)
           emitDebug({
             kind: 'execution',
             round: step,
-            label: mt('低风险命令已自动批准', "Low-risk command auto-approved"),
+            label: 'HITL cancel',
+            detail: `phase=${hitl.phase} decision=cancel plannable=${String(plannable)}`
+          })
+          if (!plannable) {
+            send(wc, {
+              type: 'error',
+              message: mt('内部错误：取消后中断仍未释放', 'Internal error: the interrupt was still held after cancel')
+            })
+            return
+          }
+          send(wc, {
+            type: 'cancelled',
+            message: runCtx.userAborted
+              ? mt('已停止生成', 'Generation stopped')
+              : mt('已取消：这一步未执行，可以重新规划', 'Cancelled: this step did not run, and a new plan can start')
+          })
+          send(wc, { type: 'done' })
+          return
+        }
+        hitl = resumeHitl(hitl, decision === 'approve')
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: 'HITL resume',
+          detail: `phase=${hitl.phase} decision=${hitl.resume ?? 'deny'}`
+        })
+        if (hitl.phase !== 'resumed') {
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: mt('用户未同意执行命令', "User declined to run the command"),
             detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
           })
-        } else {
-          if (!requestId) {
-            send(wc, { type: 'error', message: mt('内部错误：command 缺少 requestId', "Internal error: command is missing requestId") })
-            return
-          }
-
-          const ok = await waitForAiConfirm(requestId)
-          if (runCtx.userAborted) {
-            send(wc, { type: 'cancelled', message: mt('已停止生成', "Generation stopped") })
-            send(wc, { type: 'done' })
-            return
-          }
-          if (!ok) {
-            emitDebug({
-              kind: 'execution',
-              round: step,
-              label: mt('用户未同意执行命令', "User declined to run the command"),
-              detail: parsed.command?.trim() ? capDebugDetail(parsed.command.trim()) : undefined
-            })
-            send(wc, { type: 'cancelled', message: mt('已取消：你未同意执行该命令', "Cancelled: you declined to run this command") })
-            return
-          }
+          send(wc, { type: 'cancelled', message: mt('已取消：你未同意执行该命令', "Cancelled: you declined to run this command") })
+          send(wc, { type: 'done' })
+          return
         }
+        hitl = markHitlExecuting(hitl)
+        if (isInteractiveCommand(parsed.command ?? '')) inFlight.note(parsed.command ?? '')
       }
 
       if (parsed.action === 'tool_call') {
@@ -1118,8 +1540,23 @@ export async function runOpenClawCoreAgentChat(
           send(wc, { type: 'done' })
           return
         }
+      } else if (parsed.action === 'command' && skipCommandWrite) {
+        emitDebug({
+          kind: 'execution',
+          round: step,
+          label: safetyMode === 'hold' ? 'safety hold' : 'safety suggest',
+          detail: `write=false mode=${safetyMode ?? ''}\n${(parsed.command ?? '').trim()}`
+        })
       } else if (parsed.action === 'command') {
-        // command requires user confirmation (handled below).
+        // Write only after interrupt → approve → executing, or a safety-tier auto decision.
+        // Bypass via autoApproveLowRisk is fail-closed. High risk is not auto.
+        if (!sideEffectExecutionPermitted(hitl) || confirmBypassAllowed(settings.autoApproveLowRisk)) {
+          send(wc, {
+            type: 'error',
+            message: mt('命令仍在确认中，未写入终端。', 'Command is still awaiting confirmation and was not written to the terminal.')
+          })
+          return
+        }
         const cmdRaw = parsed.command ?? ''
         const oneLineCmd = cmdRaw.replace(/[\r\n]+/g, ' ').trim()
         if (!oneLineCmd) {
@@ -1132,6 +1569,49 @@ export async function runOpenClawCoreAgentChat(
           return
         }
 
+        if (requestId && writtenRequestIds.has(requestId)) {
+          send(wc, {
+            type: 'error',
+            message: mt('同一确认不会再次写入终端。', 'The same confirmation does not write to the terminal again.')
+          })
+          return
+        }
+        const writeBudget =
+          lastFailure && lastFailure.command === oneLineCmd
+            ? observeRetryBudget(lastFailure.count, lastFailure.command)
+            : null
+        if (
+          !retryWritePermitted({
+            command: oneLineCmd,
+            failedCommand: lastFailure?.command ?? null,
+            requestId: requestId ?? null,
+            priorRequestId: lastFailure?.requestId ?? null,
+            approved: true,
+            failureCount: lastFailure && lastFailure.command === oneLineCmd ? lastFailure.count : 0
+          })
+        ) {
+          if (writeBudget?.exhausted && lastFailure) {
+            send(wc, {
+              type: 'step',
+              structured: {
+                description: explainRetryBudgetStop(lastFailure, writeBudget),
+                action: 'end',
+                completed: true,
+                riskLevel: 'low',
+                notes: mt('同一失败路径已超过重试预算，未再写入。', 'The retry budget for this failed command is spent, so it was not written again.')
+              }
+            })
+            send(wc, { type: 'done' })
+            return
+          }
+          send(wc, {
+            type: 'error',
+            message: mt('失败的命令不会自动重跑。若要再执行，需要新的确认。', 'A failed command does not run again on its own. Another run needs a new confirmation.')
+          })
+          return
+        }
+        if (requestId) writtenRequestIds.add(requestId)
+
         logAi('ssh:write exec', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
         lastWriteOk = ssh.write(targetSessionId, `${oneLineCmd}\n`)
         lastCommand = oneLineCmd
@@ -1141,11 +1621,12 @@ export async function runOpenClawCoreAgentChat(
           sessionState.failureStreak += 1
           rememberNote(sessionState, mt(`命令发送失败：${oneLineCmd}`, `Failed to send command: ${oneLineCmd}`))
         }
+        hitl = markHitlObserving(hitl)
         emitDebug({
           kind: 'execution',
           round: step,
           label: mt('命令已发送到 SSH（含换行）', "Command sent to SSH (with newline)"),
-          detail: `writeOk=${String(lastWriteOk)}\n${oneLineCmd}`
+          detail: `phase=${hitl.phase}\nwriteOk=${String(lastWriteOk)}\n${oneLineCmd}`
         })
 
         if (lastWriteOk && targetSessionId) {
@@ -1166,9 +1647,37 @@ export async function runOpenClawCoreAgentChat(
             })
           }
         }
+
+        const reported = readConfirmedCommandOutcome(ssh, targetSessionId, oneLineCmd)
+        const failure =
+          reported || lastWriteOk === false
+            ? classifyCommandFailure(oneLineCmd, {
+                exitCode: reported?.exitCode,
+                stderr: reported?.stderr,
+                timedOut: reported?.timedOut,
+                timeoutMark: reported?.timeoutMark,
+                writeOk: lastWriteOk === true
+              })
+            : null
+        if (failure && requestId) {
+          if (lastWriteOk) sessionState.failureStreak += 1
+          const nextCount: number = lastFailure && lastFailure.command === failure.command ? lastFailure.count + 1 : 1
+          lastFailure = { ...failure, requestId, count: nextCount }
+          const failedBudget = observeRetryBudget(nextCount, failure.command)
+          lastToolResult = lastToolResult?.trim() ? `${lastToolResult.trim()}\n${failure.evidence}` : failure.evidence
+          rememberNote(sessionState, failure.evidence)
+          emitDebug({
+            kind: 'execution',
+            round: step,
+            label: mt('命令失败', 'Command failed'),
+            detail: `failed=true kind=${failure.kind} autoRetry=false retryBudget count=${failedBudget.count} cap=${failedBudget.cap} exhausted=${String(failedBudget.exhausted)} nearBudget=${String(failedBudget.nearBudget)}\n${failure.evidence}`
+          })
+        } else if (lastWriteOk && lastFailure && lastFailure.command === oneLineCmd) {
+          lastFailure = null
+        }
       }
 
-      persistSessionState(targetSessionId, sessionState)
+      persistAll()
       await new Promise<void>((resolve) => setTimeout(resolve, pollWaitMs))
     }
 
@@ -1195,6 +1704,11 @@ export async function runOpenClawCoreAgentChat(
     send(wc, { type: 'error', message: msg })
     send(wc, { type: 'done' })
   } finally {
+    try {
+      persistAll()
+    } catch {
+      /* persistence must not hide the original chat error */
+    }
     if (activeAiChat?.ac === ac) activeAiChat = null
   }
 }

@@ -1,0 +1,82 @@
+{
+  "id": "S8",
+  "title": "User pastes large terminal log — use facts, do not re-ask blindly",
+  "industryBar": ["observational-compression", "mastra-working-memory", "anti-over-ask"],
+  "hostProfile": {
+    "hostId": "host-prod-web-01",
+    "label": "prod-web-01"
+  },
+  "session": {
+    "targetSessionId": "sess-s8-paste",
+    "historyKey": "host-prod-web-01"
+  },
+  "settings": {
+    "autoApproveLowRisk": false,
+    "useOpenClaw": true
+  },
+  "env": {
+    "AISS_MAX_POLLS": "10",
+    "AISS_POLL_WAIT_MS": "0"
+  },
+  "turns": [
+    {
+      "turnId": "S8-T1",
+      "userMessage": "我把终端里这段贴给你了，帮我判断是不是连接池打满：\n\n2026-10-15T13:40:01Z WARN  HikariPool-1 - Connection is not available, request timed out after 30000ms.\n2026-10-15T13:40:01Z ERROR com.app.db.DbClient - Failed to obtain JDBC connection from pool\n2026-10-15T13:40:02Z WARN  HikariPool-1 - soft eviction count=12\n2026-10-15T13:41:15Z INFO  HikariPool-1 - Pool stats (total=20, active=20, idle=0, waiting=47)\n2026-10-15T13:41:16Z ERROR com.app.api.OrderController - GET /api/orders timed out\n2026-10-15T13:42:00Z WARN  HikariPool-1 - Connection is not available, request timed out after 30000ms.\n... (用户粘贴约 80 行同类 WARN/ERROR，active=20 idle=0 waiting>40) ...\n2026-10-15T13:55:00Z INFO  HikariPool-1 - Pool stats (total=20, active=20, idle=0, waiting=63)\n",
+      "mockTerminal": {
+        "initialRing": "prompt$ ",
+        "afterWrite": {},
+        "note": "User already pasted evidence in the message; agent should NOT need to re-run the same journal blindly first"
+      },
+      "userConfirm": { "policy": "none" },
+      "mockedPlannerSteps": [
+        {
+          "step": 1,
+          "response": {
+            "description": "用户消息已含充分 Hikari 池日志；可选轻量快照确认终端无更新，但不重复索要同一段日志。",
+            "action": "tool_call",
+            "toolName": "get_terminal_snapshot",
+            "toolInput": { "maxLines": 200, "fromCurrentCommand": true },
+            "riskLevel": "low",
+            "completed": false
+          }
+        },
+        {
+          "step": 2,
+          "response": {
+            "description": "根据你粘贴的日志：HikariPool-1 total=20 且 active=20 idle=0，waiting 从 47 升到 63；多次 Connection is not available / request timed out after 30000ms；/api/orders 超时。判断为连接池打满（非臆测）。建议后续只读查慢 SQL / 连接泄漏，需另开确认。",
+            "action": "end",
+            "completed": true,
+            "riskLevel": "low"
+          }
+        }
+      ],
+      "expected": {
+        "maxPlannerSteps": 3,
+        "finalAction": "end",
+        "completed": true,
+        "descriptionMustContain": ["active=20", "idle=0", "30000ms"],
+        "descriptionMustNotContain": ["请再贴一次", "把日志再发一遍", "我看不到日志"],
+        "mustNotEmitCommands": [
+          "journalctl",
+          "cat /var/log",
+          "tail -n 1000"
+        ],
+        "maxGetTerminalSnapshot": 1,
+        "usesPastedFacts": true,
+        "workingMemoryAfter": {
+          "shouldRecordFacts": ["HikariPool-1 saturated total=20", "waiting>=47"]
+        },
+        "antiOverAsk": {
+          "mustNotReRequestSameLog": true
+        }
+      }
+    }
+  ],
+  "passCriteriaSummary": [
+    "Ends using facts from pasted log (pool stats / timeouts)",
+    "Does not ask user to re-paste the same log",
+    "Does not blindly re-run journal/tail for identical evidence first",
+    "≤1 snap; end ≤3 steps",
+    "working memory records pool-saturation fact"
+  ]
+}
