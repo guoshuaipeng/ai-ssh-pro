@@ -31,7 +31,7 @@ import type { TimelineEvent } from '../src/shared/timeline'
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: Record<string, unknown> } }
 assert.equal(pkg.version, '0.4.6')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
-const changelog = readFileSync('CHANGELOG.md', 'utf8')
+const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
 assert.ok(changelog.startsWith('# Changelog\n\n## Unreleased'))
 for (const id of ['L2d', 'W6', 'A5', 'W7', 'L7d', 'L8b', 'UX-41', 'UX-59']) assert.ok(changelog.includes(id), id)
 assert.ok(changelog.includes('v0.4.5 soft-start'))

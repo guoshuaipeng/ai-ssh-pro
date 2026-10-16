@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
-const features = readFileSync('src/renderer/src/features.css', 'utf8')
-const m2 = readFileSync('src/renderer/src/styles-m2.css', 'utf8')
+const styles = readFileSync('src/renderer/src/styles.css', 'utf8').replace(/\r\n/g, '\n')
+const features = readFileSync('src/renderer/src/features.css', 'utf8').replace(/\r\n/g, '\n')
+const m2 = readFileSync('src/renderer/src/styles-m2.css', 'utf8').replace(/\r\n/g, '\n')
 const css = `${styles}\n${features}\n${m2}`
 
 function rule(source: string, selector: string): string {
@@ -169,7 +169,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: strin
 assert.equal(pkg.version, '0.4.6')
 assert.match(pkg.scripts.test, /scripts\/test-ui-n2\.ts/)
 
-const changelog = readFileSync('CHANGELOG.md', 'utf8')
+const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 const n2 = unreleased.indexOf('UI-N2')
 const n7 = unreleased.indexOf('UI-N7')

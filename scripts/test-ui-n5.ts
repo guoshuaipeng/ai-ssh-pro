@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
-const features = readFileSync('src/renderer/src/features.css', 'utf8')
+const styles = readFileSync('src/renderer/src/styles.css', 'utf8').replace(/\r\n/g, '\n')
+const features = readFileSync('src/renderer/src/features.css', 'utf8').replace(/\r\n/g, '\n')
 const css = `${styles}\n${features}`
 
 function ruleBody(source: string, selector: string): string {

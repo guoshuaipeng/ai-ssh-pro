@@ -29,7 +29,7 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 const css = readFileSync('src/renderer/src/features.css', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const home = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')
-const changelog = readFileSync('CHANGELOG.md', 'utf8')
+const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
 
 assert.equal(l7Mode(1366), 'three')
 assert.equal(l7Mode(1200), 'three')
