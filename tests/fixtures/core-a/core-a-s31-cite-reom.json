@@ -115,8 +115,8 @@
             "S31_RARE_MARKER",
             "s31-dropped-filler-token"
           ],
-          "tipSuggest": "0.4.8-polish6",
-          "rollback": "0.4.8-polish5",
+          "tipSuggest": "0.4.8-polish7",
+          "rollback": "0.4.8-polish6",
           "citeWindow": {
             "stable": true,
             "outsideHeadTail": [

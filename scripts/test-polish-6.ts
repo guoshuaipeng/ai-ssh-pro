@@ -1,4 +1,4 @@
-/** Polish-6: titlebar chrome. Package is 0.4.7. No win.fileVersion. */
+/** Polish-6: titlebar chrome. Current package follows later bumps. No win.fileVersion. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { changelogFor } from '../src/shared/changelog'
@@ -16,15 +16,14 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.7')
+assert.equal(pkg.version, '0.4.8')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal(pkg.scripts.test.includes('scripts/test-polish-6.ts'), true)
-assert.equal(tipSuggest, '0.4.8-polish6')
-assert.equal(rollback, '0.4.8-polish5')
+assert.equal(tipSuggest, '0.4.8-polish7')
+assert.equal(rollback, '0.4.8-polish6')
 assert.equal(rawPkg.includes(tipSuggest), false)
-assert.equal(rawPkg.includes('0.4.8'), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const note = changelog.slice(changelog.indexOf('## v0.4.7'), changelog.indexOf('## v0.4.6'))

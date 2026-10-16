@@ -2492,31 +2492,81 @@ body.layout-resizing {
 
 .msg.assistant.ai-structured {
   white-space: normal;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   container-type: inline-size;
 }
 
+/* Polish-7 / UX-64: assistant replies sit on a raised dark surface, not a grey text wall. */
+.msg.assistant.ai-dark-card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
 .msg.assistant.ai-card-error {
-  border-color: var(--danger);
-  background: rgba(248, 81, 73, 0.08);
+  border-color: var(--color-danger);
+  background: var(--color-danger-muted);
 }
 
 .msg.assistant.ai-tool-strip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
   padding: 6px 10px;
-  font-size: 12px;
-  color: var(--muted);
+  min-height: 28px;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ai-tool-step {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .msg.assistant.ai-tool-strip code {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
-  color: var(--text);
-  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--color-text-primary);
+}
+
+.ai-card-head {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.ai-card-head .ai-risk-badge {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.ai-card-body {
+  min-width: 0;
+}
+
+.ai-reply-empty {
+  margin: auto;
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  background: transparent;
+  border: none;
+}
+
+.ai-reply-empty p {
+  margin: 0;
 }
 
 .ai-reply-desc {
@@ -2546,7 +2596,7 @@ body.layout-resizing {
   padding: 8px 10px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-default);
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-code);
 }
 
 .ai-ops-conclusion {
@@ -2591,8 +2641,8 @@ body.layout-resizing {
 
 .ai-hl-num {
   background: transparent;
-  color: #e3b341;
-  font-weight: 700;
+  color: var(--color-warn);
+  font-weight: var(--fw-bold);
   padding: 0 1px;
 }
 
@@ -2617,26 +2667,28 @@ body.layout-resizing {
 
 .ai-risk-badge {
   display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   margin-bottom: 8px;
+  white-space: nowrap;
 }
 
 .ai-risk-low {
-  background: rgba(46, 160, 67, 0.2);
-  color: #3fb950;
+  background: var(--color-ok-muted);
+  color: var(--color-ok);
 }
 
 .ai-risk-medium {
-  background: rgba(210, 153, 34, 0.2);
-  color: #d29922;
+  background: var(--color-warn-muted);
+  color: var(--color-warn);
 }
 
 .ai-risk-high {
-  background: rgba(248, 81, 73, 0.2);
-  color: var(--danger);
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
 }
 
 .ai-reply-notes {
@@ -2658,12 +2710,12 @@ body.layout-resizing {
 .ai-reply-cmd-code {
   display: block;
   padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--term-chrome);
-  color: var(--text);
-  border: 1px solid var(--border);
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-code);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-default);
+  font-family: var(--font-mono);
+  font-size: var(--fs-code);
   white-space: pre;
   word-break: normal;
   overflow-x: auto;
@@ -2676,6 +2728,7 @@ body.layout-resizing {
   gap: 8px;
   align-items: center;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .ai-btn-wrap {
@@ -2706,13 +2759,16 @@ body.layout-resizing {
 
 .ai-fill-cmd-btn {
   align-self: flex-start;
+  flex: 0 0 auto;
   padding: 6px 10px;
-  font-size: 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .ai-fill-cmd-btn:hover:not(:disabled) {
@@ -2735,8 +2791,7 @@ body.layout-resizing {
 }
 
 .ai-btn-decline {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   position: relative;
 }
 

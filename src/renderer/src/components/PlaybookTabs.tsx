@@ -251,7 +251,7 @@ export function PlaybookList({
         open={exportOpen}
         playbooks={exportIds ? list.filter((p) => exportIds.includes(p.id)) : list}
         hosts={profiles.map((p) => ({ title: p.label || p.host, tags: p.tags }))}
-        appVersion="0.4.7"
+        appVersion="0.4.8"
         onClose={() => setExportOpen(false)}
       />
     </div>

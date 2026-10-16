@@ -66,7 +66,11 @@ function HighlightedText({ text }: { text: string }): ReactNode {
 
 function RiskBadge({ level }: { level: string }) {
   const n = (level || 'medium').toLowerCase()
-  return <div className={`ai-risk-badge ${riskClass(n)}`}>{tg('ux64.risk', { level: n })}</div>
+  return (
+    <div className={`ai-risk-badge ${riskClass(n)}`} data-risk={n}>
+      {tg('ux64.risk', { level: n })}
+    </div>
+  )
 }
 
 function OpsReply({
@@ -114,7 +118,9 @@ function OpsReply({
                 <HighlightedText text={block.text} />
               </div>
               {block.risk ? (
-                <span className={`ai-risk-badge ai-finding-risk ${riskClass(block.risk)}`}>{tg('ux64.risk', { level: block.risk })}</span>
+                <span className={`ai-risk-badge ai-finding-risk ${riskClass(block.risk)}`} data-risk={block.risk}>
+                  {tg('ux64.risk', { level: block.risk })}
+                </span>
               ) : null}
             </div>
           )
@@ -684,8 +690,8 @@ export default function AIPanel({
 
 <div className="ai-messages">
         {lines.length === 0 && (
-          <div className="msg assistant ai-structured ai-card-plain" data-testid="ai-reply-card" data-card="plain" style={{ opacity: 0.85 }}>
-            {tg('ux64.emptyHint')}
+          <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">
+            <p>{tg('ux64.emptyHint')}</p>
           </div>
         )}
         {lines.map((l, i) => {
@@ -698,14 +704,14 @@ export default function AIPanel({
           }
           if (l.streaming) {
             return (
-              <div key={i} className="msg assistant ai-structured ai-card-streaming" data-testid="ai-reply-card" data-card="streaming">
+              <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-streaming" data-testid="ai-reply-card" data-card="streaming">
                 {tg('ux64.streaming')}
               </div>
             )
           }
           if (l.variant === 'error') {
             return (
-              <div key={i} className="msg assistant ai-structured ai-card-error" data-testid="ai-reply-card" data-card="error">
+              <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-error" data-testid="ai-reply-card" data-card="error">
                 <div className="ai-reply-desc">{l.content}</div>
                 {l.detail && l.detail !== l.content ? (
                   <details className="pf5-details">
@@ -730,24 +736,30 @@ export default function AIPanel({
             const isSnapshot = !s.toolName || s.toolName === 'get_terminal_snapshot'
             if (s.action === 'tool_call' && !l.requestId) {
               return (
-                <div key={i} className="msg assistant ai-structured ai-tool-strip" data-testid="ai-reply-card" data-card="tool">
-                  {isSnapshot ? (
-                    <span>
-                      {tg('ux64.toolAutoSnapshot')}
-                      {s.toolName ? (
-                        <>
-                          : <code>{s.toolName}</code>
-                        </>
-                      ) : null}
-                    </span>
-                  ) : (
-                    <>
-                      <span>
+                <div key={i} className="msg assistant ai-structured ai-dark-card ai-tool-strip" data-testid="ai-reply-card" data-card="tool">
+                  <span className="ai-tool-step">
+                    {isSnapshot ? (
+                      <>
+                        {tg('ux64.toolAutoSnapshot')}
+                        {s.toolName ? (
+                          <>
+                            {' '}
+                            <code>{s.toolName}</code>
+                          </>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
                         <HighlightedText text={s.description} />
-                      </span>
-                      <code>{s.toolName}</code>
-                    </>
-                  )}
+                        {s.toolName ? (
+                          <>
+                            {' '}
+                            <code>{s.toolName}</code>
+                          </>
+                        ) : null}
+                      </>
+                    )}
+                  </span>
                 </div>
               )
             }
@@ -755,11 +767,15 @@ export default function AIPanel({
               s.action === 'command' ? 'command' : s.action === 'tool_call' ? 'tool' : 'conclusion'
             const showRisk = s.action === 'end' || s.action === 'command' || Boolean(l.requestId)
             return (
-              <div key={i} className="msg assistant ai-structured" data-testid="ai-reply-card" data-card={card}>
-                <div className="ai-reply-desc">
+              <div key={i} className="msg assistant ai-structured ai-dark-card" data-testid="ai-reply-card" data-card={card}>
+                {showRisk ? (
+                  <div className="ai-card-head">
+                    <RiskBadge level={s.riskLevel} />
+                  </div>
+                ) : null}
+                <div className="ai-card-body">
                   <OpsReply text={s.description} confirm={false} />
                 </div>
-                {showRisk ? <RiskBadge level={s.riskLevel} /> : null}
                 {s.notes ? (
                   <div className="ai-reply-notes">
                     <OpsReply text={s.notes} confirm={false} />
@@ -864,7 +880,7 @@ export default function AIPanel({
             )
           }
           return (
-            <div key={i} className="msg assistant ai-structured ai-card-plain" data-testid="ai-reply-card" data-card="plain">
+            <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-plain" data-testid="ai-reply-card" data-card="plain">
               <OpsReply
                 text={l.content}
                 badge
