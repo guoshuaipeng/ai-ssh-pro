@@ -23,6 +23,7 @@ import Modal from './Modal'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
 import { EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
+import Button from './ui/Button'
 
 type Props = {
   open: boolean
@@ -259,9 +260,9 @@ export default function FolderSyncModal({
             <button type="button" onClick={onClose}>
               {tg('dlg.cancel')}
             </button>
-            <button type="button" className="primary" onClick={() => void runCompare()}>
+            <Button variant="primary" onClick={() => void runCompare()}>
               {tg('d2.preview')}
-            </button>
+            </Button>
           </>
         ) : step === 2 ? (
           <>
@@ -287,9 +288,9 @@ export default function FolderSyncModal({
             <button type="button" onClick={() => void saveProfile()}>
               {tg('d2.saveAs')}
             </button>
-            <button type="button" className="primary" onClick={onClose}>
+            <Button variant="primary" onClick={onClose}>
               {tg('d2.background')}
-            </button>
+            </Button>
           </>
         )
       }

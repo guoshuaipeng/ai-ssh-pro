@@ -3,6 +3,8 @@ import { auditWindowBounds, setAuditExportContext, type AuditExportSeed } from '
 import { filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 export default function AuditLogPanel({
   events,
@@ -42,25 +44,27 @@ export default function AuditLogPanel({
   }, [events, host, type, text, since, until])
   return (
     <div className="workspace-panel" data-testid="audit-log">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">
-          {t('l4.auditTitle')}
-          {host ? <span className="l7-meta">{host}</span> : null}
-        </h2>
-        <div className="workspace-panel-actions">
-          <button
-            type="button"
-            className="primary"
-            data-testid="s1b-open"
-            onClick={() => onExport({ host: host || '', type, range: since || until ? 'custom' : '7d', since, until })}
-          >
-            {t('s1b.open')}
-          </button>
-          <button type="button" onClick={onClose}>
-            {t('common.close')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={
+          <>
+            {t('l4.auditTitle')}
+            {host ? <span className="l7-meta">{host}</span> : null}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="primary"
+              data-testid="s1b-open"
+              onClick={() => onExport({ host: host || '', type, range: since || until ? 'custom' : '7d', since, until })}
+            >
+              {t('s1b.open')}
+            </Button>
+            <button type="button" onClick={onClose}>
+              {t('common.close')}
+            </button>
+          </>
+        }
+      />
       {!enabled ? (
         <div className="l7-mute" data-testid="audit-off">
           <span>{t('l4.auditOff')}</span>

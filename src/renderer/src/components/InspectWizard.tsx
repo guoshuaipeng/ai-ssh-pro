@@ -5,6 +5,7 @@ import { INSPECT_CHECKS, DEMO_INSPECT_OUTPUT, type InspectCheckId } from '@share
 import { useI18n } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import { showToast } from '../lib/toast'
+import Button from './ui/Button'
 
 export type InspectHost = { sessionId: string; title: string; demo?: boolean }
 
@@ -232,9 +233,9 @@ export default function InspectWizard({
           <button type="button" disabled={running} onClick={onClose}>
             {t('dlg.cancel')}
           </button>
-          <button type="button" className="primary" disabled={running || n < 1 || activeChecks.length < 1} onClick={() => void run()}>
+          <Button variant="primary" disabled={running || n < 1 || activeChecks.length < 1} onClick={() => void run()}>
             {running ? t('a3.running') : t('a3.start', { n })}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

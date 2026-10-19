@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { McpGuideInfo } from '@shared/ipc'
 import { tg, type MessageKey } from '../lib/i18n'
 import { toast } from '../lib/dialogs'
+import PanelHeader from './ui/PanelHeader'
 
 /** Steps hold message keys (ui.*) or literal text such as "command: node". */
 const stepText = (s: string): string => (s.startsWith('ui.') ? tg(s as MessageKey) : s)
@@ -174,14 +175,16 @@ export default function McpGuidePanel({ onClose }: Props) {
 
   return (
     <div className="workspace-panel workspace-panel--settings">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('ui.231')}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" onClick={onClose}>
-            {tg('ui.27')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('ui.231')}
+        actions={
+          <>
+            <button type="button" onClick={onClose}>
+              {tg('ui.27')}
+            </button>
+          </>
+        }
+      />
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--mcp-guide">
           <p className="mcp-guide-lead">

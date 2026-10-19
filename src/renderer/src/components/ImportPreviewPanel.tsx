@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { ImportPolicy, ImportPreviewModel } from '@shared/import-preview'
 import { publicRows } from '@shared/import-preview'
 import { useI18n } from '../lib/i18n'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Props = {
   model: ImportPreviewModel
@@ -16,14 +18,16 @@ export default function ImportPreviewPanel({ model, onClose, onApply }: Props) {
   const rows = publicRows(model)
   return (
     <div className="workspace-panel" data-testid="import-preview">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{t('n2.title')}</h2>
-        <div className="workspace-panel-actions">
-          <span className="n2-stat">{t('n2.hosts', { n: model.hostCount })}</span>
-          <span className="n2-stat">{t('n2.groups', { n: model.groups.length })}</span>
-          <span className="n2-stat">{t('n2.conflicts', { n: model.conflictCount })}</span>
-        </div>
-      </div>
+      <PanelHeader
+        title={t('n2.title')}
+        actions={
+          <>
+            <span className="n2-stat">{t('n2.hosts', { n: model.hostCount })}</span>
+            <span className="n2-stat">{t('n2.groups', { n: model.groups.length })}</span>
+            <span className="n2-stat">{t('n2.conflicts', { n: model.conflictCount })}</span>
+          </>
+        }
+      />
       <div className="workspace-panel-body">
         <div className="n2-policy" role="radiogroup" aria-label={t('n2.title')}>
           {(
@@ -76,9 +80,9 @@ export default function ImportPreviewPanel({ model, onClose, onApply }: Props) {
           <button type="button" onClick={onClose}>
             {t('dlg.cancel')}
           </button>
-          <button type="button" className="primary" disabled={!rows.length} onClick={() => onApply(policy)} data-testid="import-apply">
+          <Button variant="primary" disabled={!rows.length} onClick={() => onApply(policy)} data-testid="import-apply">
             {t('n2.apply')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

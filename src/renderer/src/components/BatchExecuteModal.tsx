@@ -7,6 +7,7 @@ import Modal from './Modal'
 import CommandInput from './CommandInput'
 import { assessCommandRisk } from '../../../shared/command-risk'
 import { askConfirm } from '../lib/dialogs'
+import Button from './ui/Button'
 
 export type BatchSessionOption = {
   sessionId: string
@@ -164,9 +165,9 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
               {t('batch.close')}
             </button>
           ) : null}
-          <button type="button" className="primary" disabled={running || sessions.length === 0} onClick={() => void run()}>
+          <Button variant="primary" disabled={running || sessions.length === 0} onClick={() => void run()}>
             {running ? t('batch.running') : t('batch.run')}
-          </button>
+          </Button>
         </>
       }
     >

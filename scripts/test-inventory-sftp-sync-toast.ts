@@ -22,6 +22,6 @@ assert.ok(i18n.includes("menu.folderSync': '同步文件夹…'"))
 assert.ok(i18n.includes("m2.cloudSync': '云同步'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-inventory-sftp-sync-toast/)
 console.log('test-inventory-sftp-sync-toast ok')

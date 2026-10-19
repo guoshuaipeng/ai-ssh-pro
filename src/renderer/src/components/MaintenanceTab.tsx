@@ -18,6 +18,8 @@ import { confirmDialog } from '../lib/dialogs'
 import { useI18n } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import Modal from './Modal'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 export type MaintHostOption = { id: string; title: string; tags: string[]; sessionId?: string }
 
@@ -111,17 +113,21 @@ export default function MaintenanceTab({ hosts, presetHostKeys, alerts = [], onC
 
   return (
     <div className="workspace-panel l2d-panel" data-testid="l2d-panel">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">
-          {t('l2d.panelTitle')}
-          {active.length ? <span className="l2d-badge" data-testid="l2d-badge-n">{t('l2d.badgeN', { n: active.length })}</span> : null}
-        </h2>
-        <div className="workspace-panel-actions">
-          <button type="button" className="primary" data-testid="l2d-new" onClick={() => setOpen(true)}>
-            {t('l2d.new')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={
+          <>
+            {t('l2d.panelTitle')}
+            {active.length ? <span className="l2d-badge" data-testid="l2d-badge-n">{t('l2d.badgeN', { n: active.length })}</span> : null}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="primary" data-testid="l2d-new" onClick={() => setOpen(true)}>
+              {t('l2d.new')}
+            </Button>
+          </>
+        }
+      />
       <div className="workspace-panel-body">
         {active.length === 0 ? <p data-testid="l2d-empty">{t('l2d.empty')}</p> : null}
         {active.map((row) => {
@@ -153,9 +159,9 @@ export default function MaintenanceTab({ hosts, presetHostKeys, alerts = [], onC
         footer={
           <>
             <button type="button" onClick={() => setOpen(false)}>{t('dlg.cancel')}</button>
-            <button type="button" className="primary" data-testid="l2d-start" disabled={!ready} onClick={start}>
+            <Button variant="primary" data-testid="l2d-start" disabled={!ready} onClick={start}>
               {t('l2d.start')}
-            </button>
+            </Button>
           </>
         }
       >

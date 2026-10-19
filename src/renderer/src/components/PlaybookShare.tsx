@@ -14,6 +14,8 @@ import { loadPlaybooks, savePlaybooks, type Playbook } from '@shared/playbook'
 import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import Modal from './Modal'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 let staged: { name: string; raw: string } | null = null
 
@@ -102,9 +104,9 @@ export function ShareExportModal({
         {noPass ? <p className="w5-warn" data-testid="w5-nopass">{tg('w5.noPassWarn')}</p> : null}
         <div className="modal-actions">
           <button type="button" onClick={onClose}>{tg('dlg.cancel')}</button>
-          <button type="button" className="primary" disabled={disabled} onClick={() => void save()}>
+          <Button variant="primary" disabled={disabled} onClick={() => void save()}>
             {selected.length ? tg('w5.exportBtn') : tg('w5.pickFirst')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -159,15 +161,21 @@ export function PlaybookImportTab({ appVersion: _version, onClose }: { appVersio
 
   return (
     <div className="workspace-panel" data-testid="playbook-import">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('w5.importTitle', { name: name || tg('w5.import') })}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" className="primary" disabled={!plain || writable === 0} onClick={apply}>
-            {tg('w5.importBtn', { n: writable })}
-          </button>
-          <button type="button" onClick={onClose}>{tg('common.close')}</button>
-        </div>
-      </div>
+      <PanelHeader
+        title={
+          <>
+            {tg('w5.importTitle', { name: name || tg('w5.import') })}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="primary" disabled={!plain || writable === 0} onClick={apply}>
+              {tg('w5.importBtn', { n: writable })}
+            </Button>
+            <button type="button" onClick={onClose}>{tg('common.close')}</button>
+          </>
+        }
+      />
       <div className="workspace-panel-body w5-import">
         <label className="l2c-enable">
           {tg('w5.chooseFile')}

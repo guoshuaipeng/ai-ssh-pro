@@ -18,6 +18,8 @@ import {
 import { tg } from '../lib/i18n'
 import { askConfirm, askText } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type PublicCfg = {
   provider: 'gist' | 'webdav'
@@ -149,15 +151,17 @@ export function SyncSettings({
   }
   return (
     <div className="workspace-panel" data-testid="sync-settings">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('m2.cloudSync')}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" onClick={() => void test()}>{tg('m2.test')}</button>
-          <button type="button" onClick={() => void pull()}>{tg('m2.pull')}</button>
-          <button type="button" className="primary" onClick={() => void push()}>{tg('m2.push')}</button>
-          <button type="button" onClick={onClose}>{tg('common.close')}</button>
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('m2.cloudSync')}
+        actions={
+          <>
+            <button type="button" onClick={() => void test()}>{tg('m2.test')}</button>
+            <button type="button" onClick={() => void pull()}>{tg('m2.pull')}</button>
+            <Button variant="primary" onClick={() => void push()}>{tg('m2.push')}</Button>
+            <button type="button" onClick={onClose}>{tg('common.close')}</button>
+          </>
+        }
+      />
       <div className="workspace-panel-body m2-form">
         <div className="l2-filters">
           <label className="l4-check"><input type="radio" checked={provider === 'gist'} onChange={() => setProvider('gist')} />Gist</label>

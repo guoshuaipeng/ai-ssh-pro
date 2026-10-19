@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { placeTourCard, type Box } from '@shared/tour-place'
+import Button from './ui/Button'
 
 export const TOUR_DONE_KEY = 'aiss.tourDone'
 
@@ -212,9 +213,9 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
               {t('g2.back')}
             </button>
           )}
-          <button type="button" className="primary" data-testid="tour-next" onClick={() => (last ? finish() : go(1))}>
+          <Button variant="primary" data-testid="tour-next" onClick={() => (last ? finish() : go(1))}>
             {last ? t('g2.start') : t('g2.next')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -51,6 +51,7 @@ import { sftpCenterComfortLayout } from '@shared/sftp-center-layout'
 import { cwdFromPwd, PWD_TIMEOUT_MS } from '@shared/sftp-host'
 import { listedPathMatchesRequest, selectedDriveId, type LocalDrive } from '@shared/local-drives'
 import { SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
+import Button from './ui/Button'
 
 type Props = {
   /** D8: close confirm and queue belong to this tab only. */
@@ -1800,9 +1801,9 @@ export default function SftpPanel({
           <div className="sftp-conflict-card">
             <div className="sftp-conflict-title">{tg('d1.exists', { name: conflict.name })}</div>
             <div className="sftp-conflict-actions">
-              <button type="button" className="primary" onClick={() => conflict.resolve('overwrite', conflict.applyRest)}>
+              <Button variant="primary" onClick={() => conflict.resolve('overwrite', conflict.applyRest)}>
                 {tg('d1.overwrite')}
-              </button>
+              </Button>
               <button type="button" onClick={() => conflict.resolve('skip', conflict.applyRest)}>
                 {tg('d1.skip')}
               </button>
@@ -1832,9 +1833,9 @@ export default function SftpPanel({
           <div className="sftp-conflict-card">
             <div className="sftp-conflict-title">{tg('d1.busyClose', { n: closeAsk })}</div>
             <div className="sftp-conflict-actions">
-              <button type="button" className="primary" onClick={() => answerClose('close')}>
+              <Button variant="primary" onClick={() => answerClose('close')}>
                 {tg('d1.keepBackground')}
-              </button>
+              </Button>
               <button type="button" className="danger" onClick={() => answerClose('cancel-close')}>
                 {tg('d1.cancelAndClose')}
               </button>

@@ -21,6 +21,7 @@ import EmptyState from './EmptyState'
 import { QUIET_LOAD_ATTRS } from '@shared/quiet-load'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import DockerToolboxTab, { type DockerToolboxOpen } from './DockerToolboxTab'
+import Button from './ui/Button'
 
 export type ServerToolsTab = 'processes' | 'services' | 'ports' | 'logs' | 'df' | 'docker'
 
@@ -568,9 +569,9 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
             ))}
           </select>
         </label>
-        <button type="button" className="primary" onClick={() => void load()} disabled={busy}>
+        <Button variant="primary" onClick={() => void load()} disabled={busy}>
           {t('st.loadLog')}
-        </button>
+        </Button>
         <label className="st-follow">
           <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> {t('st.follow')}
         </label>

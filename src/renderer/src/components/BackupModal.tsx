@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { askConfirm } from '../lib/dialogs'
 import Modal from './Modal'
+import Button from './ui/Button'
 
 type Props = { open: boolean; onClose: () => void }
 
@@ -73,9 +74,9 @@ export default function BackupModal({ open, onClose }: Props) {
           <label className="bk-check">
             <input type="checkbox" checked={includeAi} onChange={(e) => setIncludeAi(e.target.checked)} /> {t('bk.includeAi')}
           </label>
-          <button type="button" className="primary" disabled={busy} onClick={() => void doExport()}>
+          <Button variant="primary" disabled={busy} onClick={() => void doExport()}>
             {t('bk.exportBtn')}
-          </button>
+          </Button>
         </section>
         <section className="bk-section">
           <h4>{t('bk.import')}</h4>

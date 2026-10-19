@@ -1,6 +1,7 @@
 import type { ProtectionLevel } from '@shared/protection'
 import { PROTECTION_LEVELS } from '@shared/protection'
 import { useI18n, type MessageKey } from '../lib/i18n'
+import Button from './ui/Button'
 
 const LEVEL_KEY: Record<ProtectionLevel, MessageKey> = {
   normal: 'l4.normal',
@@ -72,9 +73,9 @@ export default function ProtectionSection({
         {suggestProd ? (
           <div className="l4-suggest" data-testid="l4-suggest">
             <span>{t('l4.suggest')}</span>
-            <button type="button" className="primary" onClick={() => onLevel('production')}>
+            <Button variant="primary" onClick={() => onLevel('production')}>
               {t('l4.turnOn')}
-            </button>
+            </Button>
           </div>
         ) : null}
         <div className="l4-row">

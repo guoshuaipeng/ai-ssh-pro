@@ -11,6 +11,6 @@ assert.match(chunk, /showToast\(tg\('x3\.needTwo'\)\)/)
 assert.match(chunk, /menu\.broadcastTargets/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-broadcast-targets-need-two-toast/)
 console.log('test-broadcast-targets-need-two-toast ok')

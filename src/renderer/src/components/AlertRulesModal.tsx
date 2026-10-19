@@ -244,16 +244,14 @@ export default function AlertRulesModal({
             <button type="button" data-testid="alert-rules-cancel" onClick={onClose}>
               {t('dlg.cancel')}
             </button>
-            <button
-              type="button"
-              className="primary"
+            <Button variant="primary"
               onClick={() => {
                 onSave({ rules, notify, mutedUntil: initial.mutedUntil, packRules: initial.packRules ?? [] })
                 onClose()
               }}
             >
               {t('ui.25')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -306,9 +304,9 @@ export default function AlertRulesModal({
               {t('o2.clearHistory')}
             </button>
             <span style={{ flex: 1 }} />
-            <button type="button" className="primary" onClick={onClose}>
+            <Button variant="primary" onClick={onClose}>
               {t('common.close')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

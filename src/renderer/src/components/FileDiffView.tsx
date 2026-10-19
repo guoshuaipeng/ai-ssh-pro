@@ -8,6 +8,7 @@ import { showToast } from '../lib/toast'
 import AiConfigCard from './AiConfigCard'
 import { openContextMenu } from './ContextMenu'
 import Icon from './Icon'
+import PanelHeader from './ui/PanelHeader'
 
 type Props = {
   leftName: string
@@ -149,33 +150,38 @@ export default function FileDiffView({
 
   return (
     <div className="workspace-panel d5-diff" data-testid="file-diff">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">
-          {t('d5.title')} · {leftName} <Icon name="arrow-left-right" size={12} /> {rightName}
-        </h2>
-        <div className="workspace-panel-actions l8b-actions">
-          <button type="button" data-testid="l8b-explain" data-ai={aiConfigured ? '1' : '0'} title={aiConfigured ? t('l8b.explain') : t('l8b.needAi')} onClick={() => void runExplain()} disabled={tooLarge || busy}>
-            <Icon name="sparkles" size={14} /> {t('l8b.explain')}
-          </button>
-          <button type="button" data-testid="l8b-create" className={pulse ? 'is-highlight' : ''} data-ai={aiConfigured ? '1' : '0'} title={aiConfigured ? t('l8b.create') : t('l8b.needAi')} onClick={create} disabled={tooLarge}>
-            {t('l8b.create')}
-          </button>
-          <button type="button" className={mode === 'side' ? 'is-on' : ''} onClick={() => setMode('side')} disabled={tooLarge}>
-            {t('d5.side')}
-          </button>
-          <button type="button" className={mode === 'unified' ? 'is-on' : ''} onClick={() => setMode('unified')} disabled={tooLarge}>
-            {t('d5.unified')}
-          </button>
-          {onOpenRemote ? (
-            <button type="button" onClick={onOpenRemote}>
-              {t('d5.openEditor')}
+      <PanelHeader
+        title={
+          <>
+            {t('d5.title')} · {leftName} <Icon name="arrow-left-right" size={12} /> {rightName}
+          </>
+        }
+        actionsClassName="l8b-actions"
+        actions={
+          <>
+            <button type="button" data-testid="l8b-explain" data-ai={aiConfigured ? '1' : '0'} title={aiConfigured ? t('l8b.explain') : t('l8b.needAi')} onClick={() => void runExplain()} disabled={tooLarge || busy}>
+              <Icon name="sparkles" size={14} /> {t('l8b.explain')}
             </button>
-          ) : null}
-          <button type="button" onClick={onClose}>
-            {t('common.close')}
-          </button>
-        </div>
-      </div>
+            <button type="button" data-testid="l8b-create" className={pulse ? 'is-highlight' : ''} data-ai={aiConfigured ? '1' : '0'} title={aiConfigured ? t('l8b.create') : t('l8b.needAi')} onClick={create} disabled={tooLarge}>
+              {t('l8b.create')}
+            </button>
+            <button type="button" className={mode === 'side' ? 'is-on' : ''} onClick={() => setMode('side')} disabled={tooLarge}>
+              {t('d5.side')}
+            </button>
+            <button type="button" className={mode === 'unified' ? 'is-on' : ''} onClick={() => setMode('unified')} disabled={tooLarge}>
+              {t('d5.unified')}
+            </button>
+            {onOpenRemote ? (
+              <button type="button" onClick={onOpenRemote}>
+                {t('d5.openEditor')}
+              </button>
+            ) : null}
+            <button type="button" onClick={onClose}>
+              {t('common.close')}
+            </button>
+          </>
+        }
+      />
       <div className="workspace-panel-body d5-body" onContextMenu={menu}>
         {!aiConfigured ? <AiConfigCard context={t('l8b.needAi')} onConfigure={() => onOpenSettings?.()} /> : null}
         {explain ? (

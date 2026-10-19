@@ -113,7 +113,7 @@ ok(bench.includes('data-testid="alert-workbench"') && !bench.includes('l2-privac
 const successIdx = assist.indexOf("r.kind === 'explainAlert'")
 const privacyIdx = assist.lastIndexOf("t('a4.privacy')")
 ok(successIdx >= 0 && privacyIdx > successIdx, 'UX-51 privacy footnote stays on the successful explain card')
-const actionsIdx = bench.indexOf('className="workspace-panel-actions"')
+const actionsIdx = Math.max(bench.indexOf('className="workspace-panel-actions"'), bench.indexOf('actions={'))
 const prefsIdx = bench.indexOf('data-testid="l2-prefs"')
 const filtersIdx = bench.indexOf('className="l2-filters"')
 ok(actionsIdx >= 0 && actionsIdx < prefsIdx && prefsIdx < filtersIdx, 'UX-51b prefs overlay sits inside panel actions')

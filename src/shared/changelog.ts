@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.48': [
+    {
+      icon: '▷',
+      text: {
+        zh: '面板头与弹窗按钮统一为共享原语，样式更一致',
+        en: 'Panel headers and modal buttons use shared primitives'
+      },
+      where: { zh: '工作区面板与弹窗', en: 'Workspace panels and dialogs' }
+    }
+  ],
   '0.6.47': [
     {
       icon: '▷',

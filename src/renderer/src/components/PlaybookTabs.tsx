@@ -49,6 +49,8 @@ import { askConfirm, askText } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
 import Icon from './Icon'
 import EmptyState from './EmptyState'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 function persist(list: Playbook[]) {
   savePlaybooks(list)
@@ -155,27 +157,29 @@ export function PlaybookList({
   }
   return (
     <div className="workspace-panel" data-testid="playbook-list">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('m2.playbooks')}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" onClick={() => void doImport()}>{tg('m2.import')}</button>
-          <button type="button" data-testid="w6-filter" className={dueOnly ? 'is-on' : ''} onClick={() => setDueOnly((v) => !v)}>{tg('w6.filter')}</button>
-          <button type="button" className="primary" onClick={add}>{tg('m2.new')}</button>
-          <button type="button" aria-label={tg('l7.more')} onClick={() => setMore((v) => !v)}>⋯</button>
-          {more ? (
-            <div className="l7-more" role="menu">
-              <button type="button" onClick={() => { setMore(false); setExportIds(picked.length ? picked : null); setExportOpen(true) }}>
-                {picked.length ? tg('w5.exportSelected') : tg('w5.export')}
-              </button>
-              <button type="button" onClick={() => { setMore(false); window.dispatchEvent(new Event('aiss-import-share')) }}>{tg('w5.import')}</button>
-            </div>
-          ) : null}
-          <button type="button" onClick={onClose}>{tg('common.close')}</button>
-          {list.some((p) => isStaleDraft(p)) ? (
-            <button type="button" onClick={() => setList((cur) => cur.filter((p) => !isStaleDraft(p)))}>{tg('w1.cleanStale')}</button>
-          ) : null}
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('m2.playbooks')}
+        actions={
+          <>
+            <button type="button" onClick={() => void doImport()}>{tg('m2.import')}</button>
+            <button type="button" data-testid="w6-filter" className={dueOnly ? 'is-on' : ''} onClick={() => setDueOnly((v) => !v)}>{tg('w6.filter')}</button>
+            <Button variant="primary" onClick={add}>{tg('m2.new')}</Button>
+            <button type="button" aria-label={tg('l7.more')} onClick={() => setMore((v) => !v)}>⋯</button>
+            {more ? (
+              <div className="l7-more" role="menu">
+                <button type="button" onClick={() => { setMore(false); setExportIds(picked.length ? picked : null); setExportOpen(true) }}>
+                  {picked.length ? tg('w5.exportSelected') : tg('w5.export')}
+                </button>
+                <button type="button" onClick={() => { setMore(false); window.dispatchEvent(new Event('aiss-import-share')) }}>{tg('w5.import')}</button>
+              </div>
+            ) : null}
+            <button type="button" onClick={onClose}>{tg('common.close')}</button>
+            {list.some((p) => isStaleDraft(p)) ? (
+              <button type="button" onClick={() => setList((cur) => cur.filter((p) => !isStaleDraft(p)))}>{tg('w1.cleanStale')}</button>
+            ) : null}
+          </>
+        }
+      />
       <div className="workspace-panel-body">
         <div className="w9-seg" data-testid="w9-playbook-seg" role="tablist">
           {(['all', 'builtin', 'mine'] as const).map((id) => (
@@ -241,7 +245,7 @@ export function PlaybookList({
             </div>
             <div className="workspace-panel-actions">
               <button type="button" onClick={() => onEdit(p.id)}>{tg('ctx.edit')}</button>
-              <button type="button" className="primary" onClick={() => onRun(p.id)} disabled={!profiles.length}>{tg('m2.run')}</button>
+              <Button variant="primary" onClick={() => onRun(p.id)} disabled={!profiles.length}>{tg('m2.run')}</Button>
               <button type="button" onClick={() => { setExportIds([p.id]); setExportOpen(true) }}>{tg('w5.exportOne')}</button>
             </div>
           </div>
@@ -310,58 +314,56 @@ export function PlaybookEditor({
   }
   return (
     <div className="workspace-panel" data-testid="playbook-edit" data-builtin={locked ? 'true' : 'false'}>
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('m2.edit')}</h2>
-        <div className="workspace-panel-actions">
-          {locked ? (
-            <button
-              type="button"
-              className="primary"
-              data-testid="w9-pb-save-as"
-              onClick={() => {
-                const copy = saveAsPlaybook(pb)
-                persist(upsertPlaybook(loadPlaybooks(), copy))
-                showToast(tg('w9.savedAs', { name: copy.name }))
-              }}
-            >
-              {tg('w9.saveAs')}
-            </button>
-          ) : pb.draft ? (
-            <button
-              type="button"
-              className="primary"
-              data-testid="w1-save-as"
-              onClick={() => {
-                const next = promoteDraft({ ...pb, vars: discoverVars(pb) })
-                setPb(next)
-                persist(upsertPlaybook(loadPlaybooks(), next))
-                showToast(tg('w1.saved'))
-              }}
-            >
-              {tg('w1.saveAs')}
-            </button>
-          ) : (
-            <button type="button" className="primary" onClick={() => onRun(pb.id)}>{tg('m2.run')}</button>
-          )}
-          {locked ? (
-            <button type="button" onClick={() => onRun(pb.id)}>{tg('m2.run')}</button>
-          ) : null}
-          <button type="button" onClick={() => void navigator.clipboard.writeText(exportPlaybook(pb))}>{tg('m2.export')}</button>
-          {pb.draft ? (
-            <button
-              type="button"
-              onClick={() => {
-                const next = loadPlaybooks().filter((p) => p.id !== pb.id)
-                persist(next)
-                showToast(tg('w1.discarded'))
-                onClose()
-              }}
-            >
-              {tg('w1.discard')}
-            </button>
-          ) : null}
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('m2.edit')}
+        actions={
+          <>
+            {locked ? (
+              <Button variant="primary"
+                data-testid="w9-pb-save-as"
+                onClick={() => {
+                  const copy = saveAsPlaybook(pb)
+                  persist(upsertPlaybook(loadPlaybooks(), copy))
+                  showToast(tg('w9.savedAs', { name: copy.name }))
+                }}
+              >
+                {tg('w9.saveAs')}
+              </Button>
+            ) : pb.draft ? (
+              <Button variant="primary"
+                data-testid="w1-save-as"
+                onClick={() => {
+                  const next = promoteDraft({ ...pb, vars: discoverVars(pb) })
+                  setPb(next)
+                  persist(upsertPlaybook(loadPlaybooks(), next))
+                  showToast(tg('w1.saved'))
+                }}
+              >
+                {tg('w1.saveAs')}
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={() => onRun(pb.id)}>{tg('m2.run')}</Button>
+            )}
+            {locked ? (
+              <button type="button" onClick={() => onRun(pb.id)}>{tg('m2.run')}</button>
+            ) : null}
+            <button type="button" onClick={() => void navigator.clipboard.writeText(exportPlaybook(pb))}>{tg('m2.export')}</button>
+            {pb.draft ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = loadPlaybooks().filter((p) => p.id !== pb.id)
+                  persist(next)
+                  showToast(tg('w1.discarded'))
+                  onClose()
+                }}
+              >
+                {tg('w1.discard')}
+              </button>
+            ) : null}
+          </>
+        }
+      />
       <div className="workspace-panel-body m2-form">
         {locked ? (
           <div className="w1-banner" data-testid="w9-playbook-locked">
@@ -654,29 +656,31 @@ export function PlaybookRun({
   }
   return (
     <div className="workspace-panel" data-testid="playbook-run" data-auto-run="false" data-builtin={isBuiltinPlaybookId(playbook.id) ? 'true' : 'false'} ref={rootRef}>
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{playbook.name}</h2>
-        <div className="workspace-panel-actions">
-          {playbookRunDisabled(selected.map((h) => h.level)) ? (
-            <>
-              <button type="button" data-testid="w2-dry" disabled={running || !selected.length || !playbook.steps.length} onClick={runDry}>
+      <PanelHeader
+        title={playbook.name}
+        actions={
+          <>
+            {playbookRunDisabled(selected.map((h) => h.level)) ? (
+              <>
+                <button type="button" data-testid="w2-dry" disabled={running || !selected.length || !playbook.steps.length} onClick={runDry}>
+                  {tg('w2.dryRun')}
+                </button>
+                <Button variant="primary" data-testid="w2-start" disabled title={tg('s4.runDisabled')}>
+                  {tg('w2.start')}
+                </Button>
+              </>
+            ) : fresh && dry?.okToStart ? (
+              <Button variant="primary" data-testid="w2-start" disabled={running} onClick={() => void start()}>
+                {prodCount ? tg('w2.startProd', { k: prodCount }) : tg('w2.start')}
+              </Button>
+            ) : (
+              <Button variant="primary" data-testid="w2-dry" disabled={running || !selected.length || !playbook.steps.length} title={!selected.length ? tg('w2.needHosts') : undefined} onClick={runDry}>
                 {tg('w2.dryRun')}
-              </button>
-              <button type="button" className="primary" data-testid="w2-start" disabled title={tg('s4.runDisabled')}>
-                {tg('w2.start')}
-              </button>
-            </>
-          ) : fresh && dry?.okToStart ? (
-            <button type="button" className="primary" data-testid="w2-start" disabled={running} onClick={() => void start()}>
-              {prodCount ? tg('w2.startProd', { k: prodCount }) : tg('w2.start')}
-            </button>
-          ) : (
-            <button type="button" className="primary" data-testid="w2-dry" disabled={running || !selected.length || !playbook.steps.length} title={!selected.length ? tg('w2.needHosts') : undefined} onClick={runDry}>
-              {tg('w2.dryRun')}
-            </button>
-          )}
-        </div>
-      </div>
+              </Button>
+            )}
+          </>
+        }
+      />
       <div className="workspace-panel-body m2-form">
         {isBuiltinPlaybookId(playbook.id) ? (
           <div className="w1-banner" data-testid="w9-run-note">
@@ -750,12 +754,14 @@ export function PlaybookResult({ onClose }: { onClose: () => void }) {
   const md = resultToMarkdown(result, hosts, steps)
   return (
     <div className="workspace-panel" data-testid="playbook-result">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{result.name}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" onClick={() => void window.aiss.files.saveText(`${result.name}.md`, md)}>{tg('m2.export')}</button>
-        </div>
-      </div>
+      <PanelHeader
+        title={result.name}
+        actions={
+          <>
+            <button type="button" onClick={() => void window.aiss.files.saveText(`${result.name}.md`, md)}>{tg('m2.export')}</button>
+          </>
+        }
+      />
       <div className="workspace-panel-body">
         <table className="audit-table">
           <tbody>

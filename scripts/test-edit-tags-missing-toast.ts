@@ -9,6 +9,6 @@ const chunk = app.slice(start, start + 320)
 assert.match(chunk, /if \(!cur\) \{\s*showToast\(tg\('l10\.missing'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-edit-tags-missing-toast/)
 console.log('test-edit-tags-missing-toast ok')

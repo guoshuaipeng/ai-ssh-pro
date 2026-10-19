@@ -8,6 +8,7 @@ import Modal from './Modal'
 import Icon from './Icon'
 import { CHROME_ICON_SIZE, CHROME_ICON_STROKE } from './emptyIcons'
 import type { BatchSessionOption } from './BatchExecuteModal'
+import Button from './ui/Button'
 
 type Props = {
   open: boolean
@@ -154,9 +155,9 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
               <input type="checkbox" checked={!paused} onChange={(e) => setPaused(!e.target.checked)} /> {t('rm.auto')}
             </label>
             {onOpenTools && sessionId ? (
-              <button type="button" className="primary" onClick={() => onOpenTools(sessionId)}>
+              <Button variant="primary" onClick={() => onOpenTools(sessionId)}>
                 {t('rm.openToolbox')}
-              </button>
+              </Button>
             ) : null}
             {snap ? <span className="rm-time">{t('rm.updated', { time: new Date(snap.at).toLocaleTimeString() })}</span> : null}
           </div>

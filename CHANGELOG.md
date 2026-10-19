@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.48
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-10（原语接入）.** 30 处工作区面板头改用 `PanelHeader`（告警工作台、主机清单、审计、设置、Docker、片段、剧本、录制等），83 个主/次按钮改用 `ui/Button`（含 ServerTools/资源监控/known_hosts/目录同步/批量执行/更新说明等弹窗底栏）；testid 与 aria 不变。删除 35 条已无引用的 chrome 样式。tipSuggest 不变。版本 0.6.48。 / Panels and modal footers now use the shared PanelHeader / Button primitives; dead chrome CSS removed.
+
 ## v0.6.47
 
 Released 2026-10-19 (CST).

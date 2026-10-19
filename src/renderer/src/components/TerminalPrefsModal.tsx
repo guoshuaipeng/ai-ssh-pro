@@ -5,6 +5,8 @@ import { TERMINAL_THEME_OPTIONS } from '../lib/terminal-themes'
 import { tg } from '../lib/i18n'
 import { loadSmartHistory, loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import type { SmartPrefs } from '@shared/smart-complete'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Props = {
   onClose: () => void
@@ -73,17 +75,19 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
   return (
     <div className={embedded ? 'settings-embed' : 'workspace-panel workspace-panel--settings'} data-testid="terminal-prefs">
       {embedded ? null : (
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('ui.275')}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" onClick={onClose} disabled={busy}>
-            {tg('ui.27')}
-          </button>
-          <button type="button" className="primary" onClick={() => void save()} disabled={busy}>
-            {busy ? tg('ui.185') : tg('ui.25')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('ui.275')}
+        actions={
+          <>
+            <button type="button" onClick={onClose} disabled={busy}>
+              {tg('ui.27')}
+            </button>
+            <Button variant="primary" onClick={() => void save()} disabled={busy}>
+              {busy ? tg('ui.185') : tg('ui.25')}
+            </Button>
+          </>
+        }
+      />
       )}
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings">

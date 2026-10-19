@@ -14,6 +14,6 @@ assert.ok(i18n.includes("sess.recordingStopped': '已停止录制 {host}'"))
 assert.ok(i18n.includes("sess.recordingStopped': 'Recording stopped · {host}'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-recording-toast/)
 console.log('test-recording-toast ok')

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { DEFAULT_POSTMORTEM, renderPostmortem, type PostmortemOptions, type TimelineAlert, type TimelineEvent } from '@shared/timeline'
 import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Props = {
   alert: TimelineAlert
@@ -25,13 +27,19 @@ export default function PostmortemTab({ alert, events, version }: Props) {
   }
   return (
     <div className="workspace-panel w4-post" data-testid="postmortem">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('w4.tab', { host: alert.hostTitle, rule: alert.ruleId })}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" className="primary" data-testid="w4-save" onClick={() => void save()}>{tg('w4.save')}</button>
-          <button type="button" onClick={() => void navigator.clipboard.writeText(rendered.markdown)}>{tg('w4.copy')}</button>
-        </div>
-      </div>
+      <PanelHeader
+        title={
+          <>
+            {tg('w4.tab', { host: alert.hostTitle, rule: alert.ruleId })}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="primary" data-testid="w4-save" onClick={() => void save()}>{tg('w4.save')}</Button>
+            <button type="button" onClick={() => void navigator.clipboard.writeText(rendered.markdown)}>{tg('w4.copy')}</button>
+          </>
+        }
+      />
       <div className="w4-split">
         <div className="w4-opts" data-testid="w4-options">
           <p className="l7-meta">{tg('w4.opt.secrets')}</p>

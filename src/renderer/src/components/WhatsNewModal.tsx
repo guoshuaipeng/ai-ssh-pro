@@ -3,6 +3,7 @@ import { useI18n } from '../lib/i18n'
 import Modal from './Modal'
 import type { TitlebarMenuAction } from './TitlebarMenus'
 import { changelogFor } from '@shared/changelog'
+import Button from './ui/Button'
 
 type Props = {
   open: boolean
@@ -38,9 +39,9 @@ export default function WhatsNewModal({ open, version, onClose, onAction }: Prop
             />
             {t('wn.noAuto')}
           </label>
-          <button type="button" className="primary" onClick={onClose}>
+          <Button variant="primary" onClick={onClose}>
             {t('wn.ok')}
-          </button>
+          </Button>
         </div>
       }
     >

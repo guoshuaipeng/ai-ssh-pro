@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiProvider, AiSettings } from '@shared/ipc'
 import { tg, useI18n } from '../lib/i18n'
+import Button from './ui/Button'
 
 const MASK = '••••••••'
 
@@ -336,9 +337,9 @@ export default function AiConfigForm() {
         />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <button type="button" className="primary" onClick={() => void save()}>
+        <Button variant="primary" onClick={() => void save()}>
           {tg('ui.25')}
-        </button>
+        </Button>
         <button
           type="button"
           data-testid="ai-provider-test"

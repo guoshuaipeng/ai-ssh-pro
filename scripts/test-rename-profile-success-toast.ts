@@ -17,6 +17,6 @@ assert.ok('ctx.renamed' in Object.fromEntries(
 assert.ok(i18n.includes('Renamed to'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-rename-profile-success-toast/)
 console.log('test-rename-profile-success-toast ok')

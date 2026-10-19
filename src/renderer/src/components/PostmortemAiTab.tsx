@@ -15,6 +15,8 @@ import { useI18n } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import AiConfigCard from './AiConfigCard'
 import Icon from './Icon'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Props = {
   alert: TimelineAlert
@@ -115,19 +117,25 @@ export default function PostmortemAiTab({ alert, events, aiConfigured, onOpenSet
 
   return (
     <div className="workspace-panel a5-tab" data-testid="a5-tab">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{t('a5.tabTitle', { title: `${alert.hostTitle} ${alert.ruleId}` })}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" className="primary" data-testid="a5-export" disabled={phase !== 'ready'} onClick={() => void save()}>
-            {t('a5.export')}
-          </button>
-          <button type="button" data-testid="a5-regen" onClick={() => void regen()}>{t('a5.regen')}</button>
-          {onOpenTimeline ? <button type="button" onClick={onOpenTimeline}>{t('w4.seg.timeline', { n: events.length })}</button> : null}
-          <button type="button" onClick={() => void navigator.clipboard.writeText(exportPostmortemMarkdown(draft, locale === 'en' ? 'en' : 'zh'))}>
-            {t('a5.copyAll')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={
+          <>
+            {t('a5.tabTitle', { title: `${alert.hostTitle} ${alert.ruleId}` })}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="primary" data-testid="a5-export" disabled={phase !== 'ready'} onClick={() => void save()}>
+              {t('a5.export')}
+            </Button>
+            <button type="button" data-testid="a5-regen" onClick={() => void regen()}>{t('a5.regen')}</button>
+            {onOpenTimeline ? <button type="button" onClick={onOpenTimeline}>{t('w4.seg.timeline', { n: events.length })}</button> : null}
+            <button type="button" onClick={() => void navigator.clipboard.writeText(exportPostmortemMarkdown(draft, locale === 'en' ? 'en' : 'zh'))}>
+              {t('a5.copyAll')}
+            </button>
+          </>
+        }
+      />
       <div className="workspace-panel-body">
         <p className="l7-muted">{t('a5.hint')}</p>
         {phase === 'loading' ? <p data-testid="a5-loading">{t('a5.loading')}</p> : null}

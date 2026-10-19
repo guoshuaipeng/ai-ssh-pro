@@ -17,6 +17,8 @@ import { AlertLine } from './AlertLine'
 import AlertRulesModal from './AlertRulesModal'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
+import Button from './ui/Button'
+import PanelHeader from './ui/PanelHeader'
 
 const TARGET_KEY = {
   df: 'st.tab.df',
@@ -272,65 +274,70 @@ export default function AlertWorkbenchTab({
 
   return (
     <div className="workspace-panel l2-root" data-testid="alert-workbench" data-rules-open={rulesOpen ? 'true' : 'false'}>
-      <div className="workspace-panel-toolbar l2-head">
-        <h2 className="workspace-panel-title">
-          {t('l2.title')}
-          <span className="l7-meta">{t('l2.activeN', { n: activeN })}</span>
-        </h2>
-        <div className="workspace-panel-actions">
-          <button type="button" data-testid="l2d-open" onClick={() => onOpenMaintenance?.()}>
-            {activeWindows(loadMaintenance(), now).length ? t('l2d.badgeN', { n: activeWindows(loadMaintenance(), now).length }) : t('l2d.open')}
-          </button>
-          <button type="button" onClick={onRules}>
-            {t('menu.alertRules')}
-          </button>
-          <button type="button" onClick={muted ? onUnmute : onMute}>
-            {muted ? t('l7.unmute') : t('l2.mute1h')}
-          </button>
-          <button
-            type="button"
-            aria-label={t('l7.more')}
-            aria-expanded={more}
-            onClick={(e) => {
-              e.stopPropagation()
-              setMore((v) => !v)
-            }}
-          >
-            ⋯
-          </button>
-          {more ? (
-            <div className="l2-prefs" data-testid="l2-prefs" onClick={(e) => e.stopPropagation()}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={prefs.autoLocate}
-                  onChange={(e) => onPrefs({ ...prefs, autoLocate: e.target.checked })}
-                />
-                {t('l2.autoLocate')}
-              </label>
-              <label>
-                {t('l2.bellOpens')}
-                <select
-                  value={prefs.mode}
-                  onChange={(e) => onPrefs({ ...prefs, mode: e.target.value as BellPrefs['mode'] })}
-                >
-                  <option value="workbench">{t('l2.title')}</option>
-                  <option value="drawer">{t('l2.historyDrawer')}</option>
-                </select>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={prefs.mirrorAi}
-                  onChange={(e) => onPrefs({ ...prefs, mirrorAi: e.target.checked })}
-                />
-                {t('l2.mirrorAi')}
-              </label>
-              <button type="button" onClick={() => { setMore(false); onOpenMaintenance?.() }}>{t('l2d.open')}</button>
-            </div>
-          ) : null}
-        </div>
-      </div>
+      <PanelHeader
+        className="l2-head"
+        title={
+          <>
+            {t('l2.title')}
+            <span className="l7-meta">{t('l2.activeN', { n: activeN })}</span>
+          </>
+        }
+        actions={
+          <>
+            <button type="button" data-testid="l2d-open" onClick={() => onOpenMaintenance?.()}>
+              {activeWindows(loadMaintenance(), now).length ? t('l2d.badgeN', { n: activeWindows(loadMaintenance(), now).length }) : t('l2d.open')}
+            </button>
+            <button type="button" onClick={onRules}>
+              {t('menu.alertRules')}
+            </button>
+            <button type="button" onClick={muted ? onUnmute : onMute}>
+              {muted ? t('l7.unmute') : t('l2.mute1h')}
+            </button>
+            <button
+              type="button"
+              aria-label={t('l7.more')}
+              aria-expanded={more}
+              onClick={(e) => {
+                e.stopPropagation()
+                setMore((v) => !v)
+              }}
+            >
+              ⋯
+            </button>
+            {more ? (
+              <div className="l2-prefs" data-testid="l2-prefs" onClick={(e) => e.stopPropagation()}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={prefs.autoLocate}
+                    onChange={(e) => onPrefs({ ...prefs, autoLocate: e.target.checked })}
+                  />
+                  {t('l2.autoLocate')}
+                </label>
+                <label>
+                  {t('l2.bellOpens')}
+                  <select
+                    value={prefs.mode}
+                    onChange={(e) => onPrefs({ ...prefs, mode: e.target.value as BellPrefs['mode'] })}
+                  >
+                    <option value="workbench">{t('l2.title')}</option>
+                    <option value="drawer">{t('l2.historyDrawer')}</option>
+                  </select>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={prefs.mirrorAi}
+                    onChange={(e) => onPrefs({ ...prefs, mirrorAi: e.target.checked })}
+                  />
+                  {t('l2.mirrorAi')}
+                </label>
+                <button type="button" onClick={() => { setMore(false); onOpenMaintenance?.() }}>{t('l2d.open')}</button>
+              </div>
+            ) : null}
+          </>
+        }
+      />
       {muted ? (
         <div className="l7-mute">
           {t('l7.mutedUntil', { time: new Date(mutedUntil!).toLocaleTimeString() })}
@@ -436,7 +443,7 @@ export default function AlertWorkbenchTab({
                 </button>
                 {pane === 'timeline' ? (
                   <>
-                    <button type="button" className="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</button>
+                    <Button variant="primary" data-testid="w4-export" onClick={() => onExportPostmortem?.(selected)}>{t('w4.export')}</Button>
                     <button
                       type="button"
                       data-testid="a5-open"
@@ -539,15 +546,13 @@ export default function AlertWorkbenchTab({
                 ) : null}
               </div>
               <div className="l2-actions">
-                <button
-                  type="button"
-                  className="primary"
+                <Button variant="primary"
                   data-testid="l2-locate"
                   disabled={locating}
                   onClick={() => doLocate(selected)}
                 >
                   {locating ? t('l2.connecting', { host: selected.hostTitle }) : t('l2.locate')}
-                </button>
+                </Button>
                 <button type="button" title={t('l2.openTerminal')} onClick={() => onOpenTerminal(selected)}>
                   <Icon name="keyboard" size={14} />
                   <span className="l2-lbl">{t('l2.openTerminal')}</span>

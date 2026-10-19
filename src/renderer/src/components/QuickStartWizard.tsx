@@ -1,5 +1,6 @@
 import { QUICK_STEPS } from '@shared/onboarding'
 import { useI18n } from '../lib/i18n'
+import Button from './ui/Button'
 
 export default function QuickStartWizard({
   open,
@@ -49,9 +50,9 @@ export default function QuickStartWizard({
             <p>{t('ux60.s1.body')}</p>
             <div className="ux60-actions">
               {resume ? (
-                <button type="button" className="primary" onClick={onConnect}>{t('ux60.continue')}</button>
+                <Button variant="primary" onClick={onConnect}>{t('ux60.continue')}</Button>
               ) : (
-                <button type="button" className="primary" data-testid="ux60-new" onClick={onNew}>{t('ux60.s1.new')}</button>
+                <Button variant="primary" data-testid="ux60-new" onClick={onNew}>{t('ux60.s1.new')}</Button>
               )}
               <button type="button" data-testid="ux60-demo" onClick={onDemo}>{t('ux60.s1.demo')}</button>
             </div>
@@ -73,7 +74,7 @@ export default function QuickStartWizard({
               </p>
             ) : null}
             <div className="ux60-actions">
-              <button type="button" className="primary" data-testid="ux60-connect" onClick={onConnect}>{t('ux60.s2.connect')}</button>
+              <Button variant="primary" data-testid="ux60-connect" onClick={onConnect}>{t('ux60.s2.connect')}</Button>
               <button type="button" onClick={onLater}>{t('ux60.s2.later')}</button>
             </div>
             <div className="ux60-actions is-secondary">
@@ -86,7 +87,7 @@ export default function QuickStartWizard({
             <h3>{t('ux60.s3.title')}</h3>
             <p>{t('ux60.s3.body')}</p>
             <div className="ux60-actions">
-              <button type="button" className="primary" data-testid="ux60-home" onClick={onHome}>{t('ux60.s3.home')}</button>
+              <Button variant="primary" data-testid="ux60-home" onClick={onHome}>{t('ux60.s3.home')}</Button>
               <button type="button" onClick={onTerm}>{t('ux60.s3.term')}</button>
             </div>
             <div className="ux60-actions is-secondary">

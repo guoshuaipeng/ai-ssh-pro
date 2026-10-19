@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { auditEnabled, gateToCsv, loadGateEvents, type AuditEvent, type GateResult, type GateRule } from '@shared/audit-log'
 import { tg, type MessageKey } from '../lib/i18n'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 const RESULT_KEY: Record<GateResult, MessageKey> = {
   allowed: 's2b.r.allowed',
@@ -95,19 +97,19 @@ export default function GateTimelineTab({
   const opened = rows.find((e) => e.id === openId) ?? events.find((e) => e.id === openId)
   return (
     <div className="workspace-panel s2b-panel" data-testid="gate-timeline" onMouseEnter={() => setNarrow(window.innerWidth <= 1024)}>
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('s2b.tab')}</h2>
-        <div className="workspace-panel-actions">
-          <button
-            type="button"
-            className="primary"
-            onClick={() => void window.aiss.files.saveText('gate-log.csv', gateToCsv(rows))}
-          >
-            {tg('s2b.exportCsv')}
-          </button>
-          <button type="button" onClick={onOpenAudit}>{tg('s2b.openAudit')}</button>
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('s2b.tab')}
+        actions={
+          <>
+            <Button variant="primary"
+              onClick={() => void window.aiss.files.saveText('gate-log.csv', gateToCsv(rows))}
+            >
+              {tg('s2b.exportCsv')}
+            </Button>
+            <button type="button" onClick={onOpenAudit}>{tg('s2b.openAudit')}</button>
+          </>
+        }
+      />
       {!auditEnabled() ? <p className="l7-muted" data-testid="s2b-audit-off">{tg('s2b.auditOffNote')}</p> : null}
       <div className="s2b-filters">
         <select aria-label={tg('s2b.colResult')} value={result} onChange={(e) => setResult(e.target.value as GateResult | '')}>

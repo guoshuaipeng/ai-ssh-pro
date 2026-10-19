@@ -33,6 +33,7 @@ import ReconnectPolicySection from './ReconnectPolicySection'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
 import { EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
+import PanelHeader from './ui/PanelHeader'
 
 const SECTION_KEY: Record<SettingsSection, MessageKey> = {
   general: 'settings.general',
@@ -157,9 +158,9 @@ export default function SettingsPanel({
 
   return (
     <div className="workspace-panel settings-root" data-testid="settings-panel" data-settings-layout="column">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{t('settings.title')}</h2>
-      </div>
+      <PanelHeader
+        title={t('settings.title')}
+      />
       <div className="settings-shell">
         <nav className="settings-nav" aria-label={t('settings.title')}>
           <input

@@ -14,6 +14,8 @@ import Icon, { Twist } from './Icon'
 import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, TREE_CHEVRON_SIZE } from './emptyIcons'
 import { confirmDialog, toastUndo } from '../lib/dialogs'
 import { hostProfileComfortLayout } from '@shared/host-profile-layout'
+import Button from './ui/Button'
+import PanelHeader from './ui/PanelHeader'
 export type HostInventoryLink = {
   profileId?: string
   host?: string
@@ -617,31 +619,33 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
 
   return (
     <div className="workspace-panel workspace-panel--inventory">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{panelTitle}</h2>
-        {!focused ? (
-        <div className="workspace-panel-actions">
-          {rootHint ? (
-            <span className="workspace-panel-hint" title={rootHint}>
-              {tg('ui.184')}{rootHint}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            disabled={saving || !(form.id || selectedId)}
-            onClick={() => void onDelete()}
-          >
-            {tg('ui.8')}
-          </button>
-          <button type="button" className="primary" disabled={saving || loading} onClick={() => void onSave()}>
-            {saving ? tg('ui.185') : tg('ui.25')}
-          </button>
-          <button type="button" onClick={onClose} disabled={saving}>
-            {tg('ui.27')}
-          </button>
-        </div>
-        ) : null}
-      </div>
+      <PanelHeader
+        title={panelTitle}
+        actions={
+          !focused ? (
+            <>
+              {rootHint ? (
+                <span className="workspace-panel-hint" title={rootHint}>
+                  {tg('ui.184')}{rootHint}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                disabled={saving || !(form.id || selectedId)}
+                onClick={() => void onDelete()}
+              >
+                {tg('ui.8')}
+              </button>
+              <Button variant="primary" disabled={saving || loading} onClick={() => void onSave()}>
+                {saving ? tg('ui.185') : tg('ui.25')}
+              </Button>
+              <button type="button" onClick={onClose} disabled={saving}>
+                {tg('ui.27')}
+              </button>
+            </>
+          ) : null
+        }
+      />
 
       <div
         className={`workspace-panel-body workspace-panel-body--inventory${focused ? ' workspace-panel-body--focused' : ''}`}
@@ -676,9 +680,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                 </div>
               </div>
               <div className="inv20-head-actions">
-                <button
-                  type="button"
-                  className="primary"
+                <Button variant="primary"
                   onClick={() => {
                     window.dispatchEvent(
                       new CustomEvent('aiss:inventory-connect', {
@@ -694,7 +696,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                   }}
                 >
                   <Icon name="play" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> {tg('ux20.connect')}
-                </button>
+                </Button>
                 <button type="button" onClick={() => onOpenTool?.('sftp', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.sftp')}</button>
                 <button type="button" onClick={() => onOpenTool?.('monitor', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.monitor')}</button>
                 <button type="button" onClick={() => onOpenTool?.('toolbox', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.toolbox')}</button>
@@ -787,7 +789,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     ) : (
                       <span className="inv20-card-actions">
                         <button type="button" onClick={() => { setEditingMeta(false); setMetaDirty(false); if (form.id) void loadRecord(form.id) }}>{tg('dlg.cancel')}</button>
-                        <button type="button" className="primary" disabled={saving} onClick={() => { void (async () => { await onSave(); setEditingMeta(false); setMetaDirty(false) })() }}>{tg('ui.25')}</button>
+                        <Button variant="primary" disabled={saving} onClick={() => { void (async () => { await onSave(); setEditingMeta(false); setMetaDirty(false) })() }}>{tg('ui.25')}</Button>
                       </span>
                     )}
                   </div>
@@ -870,7 +872,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                             {SERVICE_KINDS.map((k) => (<option key={k} value={k}>{k}</option>))}
                           </select>
                           <input value={svcDraft.notes} onChange={(e) => setSvcDraft((p) => ({ ...p, notes: e.target.value }))} placeholder={tg('ui.174')} />
-                          <button type="button" className="primary" onClick={commitService}>{editingSvcIdx != null && editingSvcIdx >= 0 ? tg('ui.175') : tg('ui.176')}</button>
+                          <Button variant="primary" onClick={commitService}>{editingSvcIdx != null && editingSvcIdx >= 0 ? tg('ui.175') : tg('ui.176')}</Button>
                           <button type="button" onClick={() => { setEditingSvcIdx(null); setSvcDraft({ name: '', kind: 'unknown', notes: '' }) }}>{tg('dlg.cancel')}</button>
                         </div>
                       ) : null}
@@ -901,9 +903,9 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                 </button>
               </div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                <button type="button" className="primary" onClick={onNew} disabled={saving}>
+                <Button variant="primary" onClick={onNew} disabled={saving}>
                   New
-                </button>
+                </Button>
               </div>
               {!loading && entries.length === 0 ? (
                 <EmptyState

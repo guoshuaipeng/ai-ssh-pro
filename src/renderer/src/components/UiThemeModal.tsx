@@ -10,6 +10,8 @@ import {
 } from '../lib/ui-themes'
 import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Props = {
   onClose: () => void
@@ -51,22 +53,24 @@ export default function UiThemeModal({ onClose, onTerminalTheme }: Props) {
 
   return (
     <div className="workspace-panel workspace-panel--settings" data-testid="ui-theme-modal">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('ui.280')}</h2>
-        <div className="workspace-panel-actions">
-          <button
-            type="button"
-            data-testid="ui-theme-toggle-ld"
-            title={tg('theme.toggleTip')}
-            onClick={onToggle}
-          >
-            {light ? tg('theme.toDark') : tg('theme.toLight')}
-          </button>
-          <button type="button" className="primary" onClick={onClose}>
-            {tg('ui.281')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('ui.280')}
+        actions={
+          <>
+            <button
+              type="button"
+              data-testid="ui-theme-toggle-ld"
+              title={tg('theme.toggleTip')}
+              onClick={onToggle}
+            >
+              {light ? tg('theme.toDark') : tg('theme.toLight')}
+            </button>
+            <Button variant="primary" onClick={onClose}>
+              {tg('ui.281')}
+            </Button>
+          </>
+        }
+      />
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings">
           <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>

@@ -3,6 +3,7 @@ import { shareDisconnectCopy } from '@shared/status-bar'
 import { quietFailureCopy } from '@shared/quiet-load'
 import { tg, useI18n } from '../lib/i18n'
 import Icon from './Icon'
+import Button from './ui/Button'
 
 export type DisconnectBannerModel = {
   phase: 'off' | 'countdown' | 'stopped' | 'exhausted'
@@ -68,10 +69,10 @@ export default function DisconnectBanner({ model, onNow, onStop, onHop, onFull, 
           </button>
         ) : null}
         {countdown && !jump ? (
-          <button type="button" className="primary" data-testid="l9-now" disabled={model.busy} title={tg('l9.now')} onClick={onNow}>
+          <Button variant="primary" data-testid="l9-now" disabled={model.busy} title={tg('l9.now')} onClick={onNow}>
             <Icon name="history" size={14} />
             <span className="l9-btn-label">{tg('l9.now')}</span>
-          </button>
+          </Button>
         ) : null}
         {jump && !exhausted ? (
           <>
@@ -93,10 +94,10 @@ export default function DisconnectBanner({ model, onNow, onStop, onHop, onFull, 
           </button>
         ) : null}
         {!countdown ? (
-          <button type="button" className="primary" data-testid="l9-reconnect" disabled={model.busy} title={tg('l9.reconnect')} onClick={onFull}>
+          <Button variant="primary" data-testid="l9-reconnect" disabled={model.busy} title={tg('l9.reconnect')} onClick={onFull}>
             <Icon name="history" size={14} />
             <span className="l9-btn-label">{tg('l9.reconnect')}</span>
-          </button>
+          </Button>
         ) : null}
         {exhausted && model.showEdit ? (
           <button type="button" data-testid="l9-edit" onClick={onEdit}>

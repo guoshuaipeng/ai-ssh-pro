@@ -6,6 +6,7 @@ import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import EmptyState from './EmptyState'
 import ErrorNotice from './ErrorNotice'
+import Button from './ui/Button'
 
 type Props = {
   open: boolean
@@ -126,9 +127,9 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
             {t('pf.remotePort')}
             <input value={remotePort} onChange={(e) => setRemotePort(e.target.value)} inputMode="numeric" />
           </label>
-          <button type="button" className="primary" disabled={busy || !sessions.length} onClick={() => void add()}>
+          <Button variant="primary" disabled={busy || !sessions.length} onClick={() => void add()}>
             {t('pf.add')}
-          </button>
+          </Button>
         </div>
         {error ? (
           <ErrorNotice

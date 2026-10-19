@@ -3,6 +3,8 @@ import { tg } from '../lib/i18n'
 import { ProtectionLevelField } from './ProtectionSection'
 import JumpChainEditor from './JumpChainEditor'
 import CertCard from './CertCard'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 export type ConnectionConfigModalProps = {
   /** 默认「新建连接」；编辑已保存会话时可传入更明确的标题 */
@@ -176,9 +178,9 @@ export default function ConnectionConfigModal({
 
   return (
     <div className="workspace-panel workspace-panel--editor conn-form-ux25">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{title}</h2>
-      </div>
+      <PanelHeader
+        title={title}
+      />
 
       <div className="workspace-panel-body workspace-panel-body--editor conn-form-body">
         {notice ?? (error ? <div className="ws-error">{error}</div> : null)}
@@ -194,14 +196,12 @@ export default function ConnectionConfigModal({
               className="ws-textarea-compact"
             />
             <div className="ws-collapse-actions" style={{ marginTop: 8 }}>
-              <button
-                type="button"
-                className="primary"
+              <Button variant="primary"
                 disabled={aiParsing || !smartPaste.trim()}
                 onClick={() => void onParseAndFill()}
               >
                 {aiParsing ? tg('ui.36') : tg('ui.37')}
-              </button>
+              </Button>
             </div>
             {parseNotes ? <div className="ws-parse-notes">{tg('ui.38')}{parseNotes}</div> : null}
           </section>
@@ -471,9 +471,9 @@ export default function ConnectionConfigModal({
         <button type="button" onClick={onSaveProfile}>
           {saveProfileButtonLabel}
         </button>
-        <button type="button" className="primary" disabled={connecting} onClick={() => void onConnect()}>
+        <Button variant="primary" disabled={connecting} onClick={() => void onConnect()}>
           {connecting ? tg('ui.32') : tg('conn.saveConnect')}
-        </button>
+        </Button>
       </div>
     </div>
   )

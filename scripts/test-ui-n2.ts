@@ -127,11 +127,11 @@ assert.match(aboutActions, /data-testid="about-github"[\s\S]*className="secondar
 const dialogs = readFileSync('src/renderer/src/lib/dialogs.tsx', 'utf8')
 assert.match(dialogs, /className=\{danger \? 'primary danger' : 'primary'\}/)
 const importer = readFileSync('src/renderer/src/components/ImportPreviewPanel.tsx', 'utf8')
-assert.match(importer, /className="primary"[^]*data-testid="import-apply"/)
+assert.match(importer, /(className|variant)="primary"[^]*data-testid="import-apply"/)
 const save = readFileSync('src/renderer/src/components/AuditExportModal.tsx', 'utf8')
-assert.match(save, /className="primary"[^]*data-testid="s1b-save"/)
+assert.match(save, /(className|variant)="primary"[^]*data-testid="s1b-save"/)
 const hostSave = readFileSync('src/renderer/src/components/HostInventoryModal.tsx', 'utf8')
-assert.match(hostSave, /className="primary"/)
+assert.match(hostSave, /(className|variant)="primary"/)
 
 assert.match(styles, /\.modal-footer\s*\{[^}]*flex-wrap:\s*nowrap/)
 assert.match(styles, /\.modal-footer > button,\s*\.workspace-panel-actions > button\s*\{[^}]*white-space:\s*nowrap/)
@@ -166,7 +166,7 @@ assert.deepEqual(
 )
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ui-n2\.ts/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')

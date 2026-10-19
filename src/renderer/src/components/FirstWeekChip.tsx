@@ -4,6 +4,7 @@ import type { TaskId, TaskState } from '@shared/retention-tasks'
 import { pendingTasks, TASK_IDS } from '@shared/retention-tasks'
 import { chipPlacement } from '@shared/first-week'
 import { useI18n, type MessageKey } from '../lib/i18n'
+import Button from './ui/Button'
 
 const COPY: Record<TaskId, { title: MessageKey; desc: MessageKey }> = {
   connect: { title: 'g3.connect', desc: 'g3.connectDesc' },
@@ -86,9 +87,9 @@ export default function FirstWeekChip({ state, mode, onGotIt, onNever, onGo, onD
                 <p>{t(COPY[id].desc)}</p>
               </div>
               <div className="g3-actions">
-                <button type="button" className="primary" onClick={() => onGo?.(id)}>
+                <Button variant="primary" onClick={() => onGo?.(id)}>
                   {t('g3.go')}
-                </button>
+                </Button>
                 <button type="button" onClick={() => onDismiss?.(id)}>
                   {t('g3.dismiss')}
                 </button>

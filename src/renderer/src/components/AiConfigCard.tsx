@@ -1,6 +1,7 @@
 import { tg } from '../lib/i18n'
 import Icon from './Icon'
 import { CHROME_ICON_SIZE, CHROME_ICON_STROKE } from './emptyIcons'
+import Button from './ui/Button'
 
 type Props = {
   context?: string | null
@@ -26,9 +27,9 @@ export default function AiConfigCard({ context, flash, onConfigure }: Props) {
         <li>{tg('ux37.generate')}</li>
       </ul>
       <div className="ai-config-actions">
-        <button type="button" className="primary" data-testid="ai-config-setup" onClick={onConfigure}>
+        <Button variant="primary" data-testid="ai-config-setup" onClick={onConfigure}>
           {tg('ux37.setup')}
-        </button>
+        </Button>
         <button
           type="button"
           className="link-btn"

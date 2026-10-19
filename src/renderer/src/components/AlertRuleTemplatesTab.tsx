@@ -14,6 +14,8 @@ import type { AlertRulesState, AlertScope } from '@shared/alert-rules'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import Modal from './Modal'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 const PACK_NAME: Record<AlertPackId, MessageKey> = {
   'pack.cpu-high': 'l2c.pack.cpu',
@@ -108,14 +110,16 @@ export default function AlertRuleTemplatesTab({
 
   return (
     <div className="workspace-panel l2c-panel" data-testid="alert-rule-templates">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{t('o2.rulesTitle')}</h2>
-        <div className="workspace-panel-actions">
-          <button type="button" className="primary" onClick={() => setSegment('templates')}>
-            {t('l2c.seg.templates')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={t('o2.rulesTitle')}
+        actions={
+          <>
+            <Button variant="primary" onClick={() => setSegment('templates')}>
+              {t('l2c.seg.templates')}
+            </Button>
+          </>
+        }
+      />
       <div className="l2c-seg" role="tablist">
         <button type="button" className={segment === 'mine' ? 'is-on' : ''} onClick={() => setSegment('mine')}>
           {t('l2c.seg.mine')} {mineRows.length || ''}
@@ -251,9 +255,9 @@ export default function AlertRuleTemplatesTab({
             {!masterOn ? <p className="l7-muted">{t('l2c.masterOff')}</p> : null}
             <div className="modal-actions">
               <button type="button" onClick={() => setPending(null)}>{t('dlg.cancel')}</button>
-              <button type="button" className="primary" data-testid="l2c-confirm" disabled={scope === 'hosts' && hostIds.length === 0} onClick={commit}>
+              <Button variant="primary" data-testid="l2c-confirm" disabled={scope === 'hosts' && hostIds.length === 0} onClick={commit}>
                 {t('l2c.confirmEnable')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}

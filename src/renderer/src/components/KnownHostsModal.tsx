@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Modal from './Modal'
 import EmptyState from './EmptyState'
 import { tg, type MessageKey } from '../lib/i18n'
+import Button from './ui/Button'
 
 const ACTION_LABEL: Record<'add' | 'update' | 'unchanged', MessageKey> = {
   add: 'kh.action.add',
@@ -274,9 +275,9 @@ export default function KnownHostsModal({ open, onClose, onUseKey }: Props) {
                 <button type="button" disabled={busy} onClick={() => setPreview(null)}>
                   {tg('kh.cancelPreview')}
                 </button>
-                <button type="button" className="primary" disabled={busy || selected.size === 0} data-testid="kh-apply-import" onClick={() => void applyImport()}>
+                <Button variant="primary" disabled={busy || selected.size === 0} data-testid="kh-apply-import" onClick={() => void applyImport()}>
                   {tg('kh.applyImport', { n: selected.size })}
-                </button>
+                </Button>
               </>
             ) : (
               <button type="button" onClick={onClose}>
@@ -300,9 +301,9 @@ export default function KnownHostsModal({ open, onClose, onUseKey }: Props) {
         <div className="kh-panel" data-testid="kh-hosts-panel">
           <div className="kh-toolbar">
             <p className="kh-lead">{tg('kh.lead')}</p>
-            <button type="button" className="primary" data-testid="kh-import" disabled={busy} onClick={() => void startImport()}>
+            <Button variant="primary" data-testid="kh-import" disabled={busy} onClick={() => void startImport()}>
               {tg('kh.import')}
-            </button>
+            </Button>
           </div>
           <div className="kh-lookup" data-testid="kh-lookup">
             <p className="kh-muted" style={{ margin: '0 0 6px' }}>{tg('kh.lookupLead')}</p>
@@ -491,14 +492,12 @@ export default function KnownHostsModal({ open, onClose, onUseKey }: Props) {
                     <span className="kh-muted">{k.path}</span>
                   </div>
                   {onUseKey ? (
-                    <button
-                      type="button"
-                      className="primary"
+                    <Button variant="primary"
                       data-testid="kh-use-key"
                       onClick={() => onUseKey(k.path)}
                     >
                       {tg('kh.useKey')}
-                    </button>
+                    </Button>
                   ) : null}
                 </li>
               ))}

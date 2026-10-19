@@ -14,6 +14,6 @@ assert.match(app, /action === 'openProdGuard'/)
 assert.match(app, /openInventoryEditor/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-open-prod-guard-cmdk/)
 console.log('test-open-prod-guard-cmdk ok')

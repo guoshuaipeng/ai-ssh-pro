@@ -446,23 +446,6 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   background: var(--border);
 }
 
-.app-titlebar-menu-hint {
-  font-size: 11px;
-  color: var(--muted);
-  opacity: 0.85;
-}
-
-.app-titlebar-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
 .titlebar-btn {
   display: inline-flex;
   align-items: center;
@@ -530,18 +513,6 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   color: var(--color-text-primary);
 }
 
-.app-toolbar-actions {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: nowrap;
-}
-
-.app-toolbar-hint {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--muted);
-}
-
 .app-titlebar-corner {
   display: flex;
   align-items: center;
@@ -605,17 +576,6 @@ button.layout-toggle-btn:active:not(:disabled) {
   width: var(--icon-size-chrome);
   height: var(--icon-size-chrome);
   flex-shrink: 0;
-}
-
-@media (max-width: 900px) {
-  .app-toolbar-hint {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .app-titlebar-menu-hint {
-    display: none;
-  }
 }
 
 /* macOS traffic lights 左侧留白 */
@@ -725,54 +685,6 @@ body.platform-darwin .app-titlebar {
   font-size: var(--fs-base);
   font-weight: var(--fw-semibold);
   color: var(--muted);
-}
-
-.about-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 4px 2px 2px;
-}
-
-.about-modal-brand {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--text);
-}
-
-.about-modal-desc {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-.about-modal-version {
-  margin: 4px 0 0;
-  font-size: 14px;
-  color: var(--text);
-}
-
-.about-modal-version strong {
-  font-weight: 600;
-}
-
-.about-modal-link {
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 13px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.about-modal-link:hover {
-  opacity: 0.85;
 }
 
 button,
@@ -925,26 +837,6 @@ label {
 
 .workspace-panel-body--focused .workspace-panel-inner {
   max-width: none;
-}
-
-.inventory-focus-split {
-  display: grid;
-  grid-template-columns: minmax(260px, 320px) 1fr;
-  gap: 0;
-  min-height: 0;
-  flex: 1;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bg);
-}
-
-.inventory-meta-col {
-  padding: 12px;
-  overflow: auto;
-  border-right: 1px solid var(--border);
-  background: var(--bg-panel);
-  min-height: 0;
 }
 
 .ui-theme-grid {
@@ -1270,15 +1162,6 @@ label {
 }
 
 @media (max-width: 900px) {
-  .inventory-focus-split {
-    grid-template-columns: 1fr;
-  }
-
-  .inventory-meta-col {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    max-height: 38vh;
-  }
 
   .notes-stage--split {
     grid-template-columns: 1fr;
@@ -2572,21 +2455,6 @@ button.statusbar-slot:focus-visible {
   font-size: 12px;
 }
 
-.conn-layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 1.1fr) minmax(260px, 0.9fr);
-  gap: 12px;
-  align-items: start;
-  max-width: 980px;
-}
-
-.conn-side {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
 .conn-card {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2634,13 +2502,6 @@ button.statusbar-slot:focus-visible {
 .field-grid .field input {
   padding: 6px 8px;
   font-size: 12px;
-}
-
-@media (max-width: 860px) {
-  .conn-layout {
-    grid-template-columns: 1fr;
-    max-width: none;
-  }
 }
 
 .ai-header {
@@ -3209,17 +3070,6 @@ button.statusbar-slot:focus-visible {
   background: var(--color-info-muted);
 }
 
-.session-sidebar-toolbar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-}
-
-.session-sidebar-export {
-  margin-bottom: 8px;
-}
-
 .session-toolbar-btn {
   flex: 1;
   min-width: 0;
@@ -3235,13 +3085,6 @@ button.statusbar-slot:focus-visible {
 .session-toolbar-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.session-sidebar-hint {
-  margin: 0 0 10px;
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1.45;
 }
 
 .session-folder-block {
@@ -3459,22 +3302,6 @@ button.statusbar-slot:focus-visible {
   right: calc(100% - 2px);
 }
 
-.session-context-submenu-empty {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.session-context-menu--wide {
-  min-width: 168px;
-}
-
-.session-context-menu-sub {
-  font-size: 10px;
-  color: var(--muted);
-  padding: 6px 10px 2px;
-}
-
 .session-context-menu-scroll {
   max-height: 200px;
   overflow-y: auto;
@@ -3641,13 +3468,6 @@ body:has(.debug-window-root) #root {
   font-weight: 400;
 }
 
-.ai-debug-header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  flex-shrink: 0;
-}
-
 .ai-debug-empty {
   font-size: 12px;
   color: var(--muted);
@@ -3686,14 +3506,6 @@ body:has(.debug-window-root) #root {
   font-size: 12px;
   pointer-events: none;
   opacity: 0.95;
-}
-
-.workspace-panel-body--sftp {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow: hidden;
-  padding: 10px 12px 12px;
 }
 
 .sftp-pathbar {
@@ -3802,20 +3614,6 @@ body:has(.debug-window-root) #root {
   font-size: 12px;
 }
 
-.sftp-hint {
-  margin: 0;
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.sftp-hint code {
-  font-size: 11px;
-  background: var(--bg);
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-
 .sftp-error { color: var(--danger); font-size: 12px; }
 .sftp-ok { color: var(--accent); font-size: 12px; }
 .sftp-empty { padding: var(--space-5); text-align: center; color: var(--color-text-muted); font-size: var(--fs-sm); }
@@ -3870,35 +3668,6 @@ body:has(.debug-window-root) #root {
   line-height: 32px; height: 32px; vertical-align: middle;
 }
 .sftp-name-btn.is-dir { color: var(--accent); cursor: pointer; }
-.sftp-row-actions {
-  display: inline-flex;
-  gap: 2px;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-  width: 100%;
-  height: 32px;
-  opacity: 0;
-}
-.sftp-table tbody tr:hover .sftp-row-actions,
-.sftp-table tbody tr.is-selected .sftp-row-actions,
-.sftp-table tbody tr:focus-within .sftp-row-actions {
-  opacity: 1;
-}
-.sftp-row-actions .sftp-icon-btn {
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  font-size: 12px;
-  line-height: 1;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
 .sftp-toolbar-actions { justify-content: flex-start; flex-wrap: nowrap; }
 .sftp-toolbar-actions button { flex-shrink: 0; white-space: nowrap; }
 
@@ -4922,9 +4691,6 @@ button.danger {
   touch-action: none;
   transition: background var(--duration-fast) var(--easing-standard);
 }
-.split-vertical .split-divider {
-  cursor: row-resize;
-}
 .split-divider:hover,
 .split-divider:focus-visible {
   background: var(--color-accent);
@@ -5387,8 +5153,7 @@ body.split-resizing {
   font-size: 11px;
   opacity: 0.6;
 }
-.cmdp-kbd,
-.wn-kbd {
+.cmdp-kbd {
   font-size: 11px;
   padding: 1px 5px;
   border: 1px solid var(--border);
@@ -5526,7 +5291,6 @@ button.app-toolbar-version:hover:not(:disabled) {
 .layout-toggle-btn.layout-toggle-ai {
   flex-shrink: 0;
 }
-.layout-toggle-ai-icon { display: block; object-fit: contain; flex-shrink: 0; }
 button.layout-toggle-btn {
   display: inline-flex;
   align-items: center;

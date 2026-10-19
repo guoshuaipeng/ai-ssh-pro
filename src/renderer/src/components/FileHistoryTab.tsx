@@ -4,6 +4,8 @@ import { tg, type MessageKey } from '../lib/i18n'
 import { confirmDialog, askText } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
 import Icon from './Icon'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Row = {
   id: string
@@ -163,9 +165,13 @@ export default function FileHistoryTab({ profileId, hostLabel, path, level, sess
   if (hostMode) {
     return (
       <div className="workspace-panel" data-testid="file-history-host">
-        <div className="workspace-panel-toolbar">
-          <h2 className="workspace-panel-title">{tg('w3.tabHost', { host: hostLabel })}</h2>
-        </div>
+        <PanelHeader
+          title={
+            <>
+              {tg('w3.tabHost', { host: hostLabel })}
+            </>
+          }
+        />
         <div className="workspace-panel-body">
           <p className="l7-meta">{tg('w3.filesN', { n: groups.length, size: `${Math.ceil(rows.reduce((n, r) => n + r.bytes, 0) / 1024)} KB` })}</p>
           {groups.map(([file, row]) => (
@@ -184,9 +190,9 @@ export default function FileHistoryTab({ profileId, hostLabel, path, level, sess
       <div className="workspace-panel-toolbar">
         <h2 className="workspace-panel-title" title={path}>{tg('w3.tabFile', { name: path.split('/').pop() || path })}</h2>
         <div className="workspace-panel-actions">
-          <button type="button" className="primary" data-testid="w3-rollback" disabled={!canRollback || busy} title={!selected ? tg('w3.pickSnapshot') : !rollbackAllowed(level) ? tg('s4.rollbackDisabled') : undefined} onClick={() => void rollback()}>
+          <Button variant="primary" data-testid="w3-rollback" disabled={!canRollback || busy} title={!selected ? tg('w3.pickSnapshot') : !rollbackAllowed(level) ? tg('s4.rollbackDisabled') : undefined} onClick={() => void rollback()}>
             {busy ? tg('w3.rollingBack') : currentState === 'missing' ? tg('w3.restore') : tg('w3.rollback')}
-          </button>
+          </Button>
           <button type="button" title={tg('w3.openDir')} onClick={() => void window.aiss.snapshots.openDir()}>
             <Icon name="history" size={16} />
           </button>

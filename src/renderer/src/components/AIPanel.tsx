@@ -19,6 +19,7 @@ import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import { SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
+import Button from './ui/Button'
 
 export type AiPendingInfo = {
   requestId: string
@@ -1566,9 +1567,9 @@ export default function AIPanel({
             }
           }}
         />
-        <button type="button" className="primary" data-testid="ai-send" disabled={busy || !input.trim()} onClick={() => void send()}>
+        <Button variant="primary" data-testid="ai-send" disabled={busy || !input.trim()} onClick={() => void send()}>
           {busy ? tg('ai.busy') : tg('ai.send')}
-        </button>
+        </Button>
       </div>
       {inputMenu ? (
         <div

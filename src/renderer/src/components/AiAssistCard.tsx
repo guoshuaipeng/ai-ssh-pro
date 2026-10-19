@@ -4,6 +4,7 @@ import { useI18n } from '../lib/i18n'
 import { rememberAiFixes } from '../lib/ai-fix-memory'
 import AiConfigCard from './AiConfigCard'
 import Icon from './Icon'
+import Button from './ui/Button'
 
 export type AiExplainRequest = { id: number; sessionId: string; text: string; host?: string; kind?: 'explainError' | 'explainAlert'; alertId?: string }
 
@@ -131,9 +132,9 @@ export default function AiAssistCard({ request, onClose, onOpenSettings, onInser
                       <button type="button" onClick={() => onInsert(request.sessionId, f.command)}>
                         {t('a1.insert')}
                       </button>
-                      <button type="button" className="primary" onClick={() => onRun(request.sessionId, f.command)}>
+                      <Button variant="primary" onClick={() => onRun(request.sessionId, f.command)}>
                         {t('a1.run')}
-                      </button>
+                      </Button>
                     </div>
                   </li>
                 ))}

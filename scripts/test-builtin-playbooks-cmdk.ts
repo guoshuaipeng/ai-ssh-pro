@@ -13,6 +13,6 @@ assert.match(app, /action === 'builtinPlaybooks'/)
 assert.match(app, /aiss-builtin-playbooks/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-builtin-playbooks-cmdk/)
 console.log('test-builtin-playbooks-cmdk ok')

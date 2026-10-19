@@ -7,6 +7,8 @@ import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
+import Button from './ui/Button'
+import PanelHeader from './ui/PanelHeader'
 
 function bytesToBase64(bytes: Uint8Array): string {
   let bin = ''
@@ -37,10 +39,10 @@ export function RecordingsList({
   useEffect(reload, [])
   return (
     <div className="workspace-panel" data-testid="recordings">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('m2.recordings')}</h2>
-        <button type="button" onClick={onClose}>{tg('common.close')}</button>
-      </div>
+      <PanelHeader
+        title={tg('m2.recordings')}
+        actions={<button type="button" onClick={onClose}>{tg('common.close')}</button>}
+      />
       <div className="workspace-panel-body">
         {rows.length === 0 ? (
           <EmptyState
@@ -170,14 +172,12 @@ export function RecordingPlayer({ file, onClose }: { file: string; onClose: () =
   }, [duration, playing])
   return (
     <div className="workspace-panel" data-testid="recording-play">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('m2.play')}</h2>
-        <button type="button" onClick={onClose}>{tg('common.close')}</button>
-      </div>
+      <PanelHeader
+        title={tg('m2.play')}
+        actions={<button type="button" onClick={onClose}>{tg('common.close')}</button>}
+      />
       <div className="cast-bar" data-testid="cast-bar">
-        <button
-          type="button"
-          className="primary"
+        <Button variant="primary"
           onClick={() => {
             if (playing) {
               setPlaying(false)
@@ -188,7 +188,7 @@ export function RecordingPlayer({ file, onClose }: { file: string; onClose: () =
           }}
         >
           {playing ? '❚❚' : tg('m2.play')}
-        </button>
+        </Button>
         <input
           type="range"
           min={0}

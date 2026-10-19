@@ -30,6 +30,8 @@ import { showToast } from '../lib/toast'
 import { toastUndo } from '../lib/dialogs'
 import EmptyState from './EmptyState'
 import Modal from './Modal'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Props = {
   activeSessionId: string | null
@@ -397,7 +399,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
       {error ? <p className="l2-error">{error}</p> : null}
       <div className="workspace-panel-actions">
         <button type="button" disabled={saving} onClick={resetForm}>{t('snip.cancel')}</button>
-        <button type="button" className="primary" disabled={saving} onClick={() => void onSaveForm()}>{t('snip.save')}</button>
+        <Button variant="primary" disabled={saving} onClick={() => void onSaveForm()}>{t('snip.save')}</Button>
       </div>
     </div>
   ) : null
@@ -405,29 +407,35 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
   const rail = variant === 'rail'
   return (
     <div className={`workspace-panel workspace-panel--settings${rail ? ' snippets-rail' : ''}`} data-testid="snippets-panel" data-variant={variant}>
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{t('snip.titleN', { n: items.length })}</h2>
-        <div className="workspace-panel-actions">
-          {rail ? null : <button type="button" className="primary" data-testid="snip-new" onClick={openNew}>{t('snip.newBtn')}</button>}
-          <button type="button" aria-label={t('w2.more')} onClick={() => setMore((v) => !v)}>⋯</button>
-          {more ? (
-            <span className="snip-more">
-              <button type="button" onClick={() => fileRef.current?.click()}>{t('snip.import')}</button>
-              <button type="button" disabled={items.length === 0} title={items.length === 0 ? t('snip.exportEmpty') : undefined} onClick={onExport}>{t('snip.export')}</button>
-            </span>
-          ) : null}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              void onImportFile(e.target.files?.[0])
-              e.target.value = ''
-            }}
-          />
-        </div>
-      </div>
+      <PanelHeader
+        title={
+          <>
+            {t('snip.titleN', { n: items.length })}
+          </>
+        }
+        actions={
+          <>
+            {rail ? null : <Button variant="primary" data-testid="snip-new" onClick={openNew}>{t('snip.newBtn')}</Button>}
+            <button type="button" aria-label={t('w2.more')} onClick={() => setMore((v) => !v)}>⋯</button>
+            {more ? (
+              <span className="snip-more">
+                <button type="button" onClick={() => fileRef.current?.click()}>{t('snip.import')}</button>
+                <button type="button" disabled={items.length === 0} title={items.length === 0 ? t('snip.exportEmpty') : undefined} onClick={onExport}>{t('snip.export')}</button>
+              </span>
+            ) : null}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                void onImportFile(e.target.files?.[0])
+                e.target.value = ''
+              }}
+            />
+          </>
+        }
+      />
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings workspace-panel-inner--snippets">
           {notice ? <p className="l7-meta">{notice}</p> : null}
@@ -466,9 +474,9 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
               pending ? (
                 <>
                   <button type="button" onClick={() => setPending(null)}>{t('snip.cancel')}</button>
-                  <button type="button" className="primary" onClick={confirmVars}>
+                  <Button variant="primary" onClick={confirmVars}>
                     {pending.execute ? t('snip.injectRun') : t('snip.inject')}
-                  </button>
+                  </Button>
                 </>
               ) : null
             }
@@ -577,15 +585,13 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
                   {s.body}
                 </pre>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="primary"
+                  <Button variant="primary"
                     disabled={!activeSessionId}
                     title={activeSessionId ? t('snip.injectTip') : t('snip.noTerminal')}
                     onClick={() => onInject(s, false)}
                   >
                     {t('snip.inject')}
-                  </button>
+                  </Button>
                   <button
                     type="button"
                     disabled={!activeSessionId}
@@ -608,7 +614,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
       </div>
       {rail && items.length > 0 ? (
         <div className="snippets-rail-foot">
-          <button type="button" className="secondary" data-testid="snip-new" onClick={openNew}>{t('ux08.snipNew')}</button>
+          <Button variant="secondary" data-testid="snip-new" onClick={openNew}>{t('ux08.snipNew')}</Button>
         </div>
       ) : null}
     </div>

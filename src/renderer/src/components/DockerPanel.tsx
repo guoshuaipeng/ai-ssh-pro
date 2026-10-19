@@ -16,6 +16,8 @@ import EmptyState from './EmptyState'
 import { Twist } from './Icon'
 import { TREE_CHEVRON_SIZE } from './emptyIcons'
 import { confirmDialog, promptDialog } from '../lib/dialogs'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 
 type Props = {
   sessionId: string
@@ -545,84 +547,86 @@ export default function DockerPanel({
 
   return (
     <div className="workspace-panel workspace-panel--docker">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">
-          {kind === 'container' ? tg('ui.96') : kind === 'swarm' ? tg('ui.97') : 'Compose'} ·{' '}
-          {resourceName}
-        </h2>
-        <div className="workspace-panel-actions">
-          <button type="button" onClick={() => void refresh()} disabled={busy}>
-            {tg('ui.98')}
-          </button>
-          {kind === 'container' ? (
-            <>
-              <button type="button" className="primary" disabled={busy} onClick={() => onOpenShell?.()}>
-                {tg('ui.99')}
-              </button>
-              <button
-                type="button"
-                disabled={busy || Boolean(container?.swarmService)}
-                title={container?.swarmService ? tg('ui.100') : undefined}
-                onClick={() => void runContainerAction('start')}
-              >
-                {tg('ui.101')}
-              </button>
-              <button
-                type="button"
-                disabled={busy || Boolean(container?.swarmService)}
-                title={container?.swarmService ? tg('ui.102') : undefined}
-                onClick={() => void runContainerAction('stop')}
-              >
-                {tg('ui.103')}
-              </button>
-              <button type="button" disabled={busy} onClick={() => void runContainerAction('restart')}>
-                {tg('ui.104')}
-              </button>
-              <button
-                type="button"
-                className="danger"
-                disabled={busy || Boolean(container?.swarmService)}
-                title={container?.swarmService ? tg('ui.105') : undefined}
-                onClick={() => void runContainerAction('rm')}
-              >
-                {tg('ui.8')}
-              </button>
-            </>
-          ) : kind === 'swarm' ? (
-            <>
-              <button
-                type="button"
-                className="primary"
-                disabled={busy}
-                title={tg('ui.106')}
-                onClick={() => void runSwarmRestart()}
-              >
-                {tg('ui.107')}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                title={tg('ui.108')}
-                onClick={() => void runSwarmScale()}
-              >
-                {tg('ui.109')}
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="primary" disabled={busy} onClick={() => void runComposeAction('up')}>
-                up -d
-              </button>
-              <button type="button" className="danger" disabled={busy} onClick={() => void runComposeAction('down')}>
-                down
-              </button>
-            </>
-          )}
-          <button type="button" onClick={onClose} disabled={busy}>
-            {tg('ui.27')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={
+          <>
+            {kind === 'container' ? tg('ui.96') : kind === 'swarm' ? tg('ui.97') : 'Compose'} ·{' '}
+            {resourceName}
+          </>
+        }
+        actions={
+          <>
+            <button type="button" onClick={() => void refresh()} disabled={busy}>
+              {tg('ui.98')}
+            </button>
+            {kind === 'container' ? (
+              <>
+                <Button variant="primary" disabled={busy} onClick={() => onOpenShell?.()}>
+                  {tg('ui.99')}
+                </Button>
+                <button
+                  type="button"
+                  disabled={busy || Boolean(container?.swarmService)}
+                  title={container?.swarmService ? tg('ui.100') : undefined}
+                  onClick={() => void runContainerAction('start')}
+                >
+                  {tg('ui.101')}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || Boolean(container?.swarmService)}
+                  title={container?.swarmService ? tg('ui.102') : undefined}
+                  onClick={() => void runContainerAction('stop')}
+                >
+                  {tg('ui.103')}
+                </button>
+                <button type="button" disabled={busy} onClick={() => void runContainerAction('restart')}>
+                  {tg('ui.104')}
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={busy || Boolean(container?.swarmService)}
+                  title={container?.swarmService ? tg('ui.105') : undefined}
+                  onClick={() => void runContainerAction('rm')}
+                >
+                  {tg('ui.8')}
+                </button>
+              </>
+            ) : kind === 'swarm' ? (
+              <>
+                <Button variant="primary"
+                  disabled={busy}
+                  title={tg('ui.106')}
+                  onClick={() => void runSwarmRestart()}
+                >
+                  {tg('ui.107')}
+                </Button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={tg('ui.108')}
+                  onClick={() => void runSwarmScale()}
+                >
+                  {tg('ui.109')}
+                </button>
+              </>
+            ) : (
+              <>
+                <Button variant="primary" disabled={busy} onClick={() => void runComposeAction('up')}>
+                  up -d
+                </Button>
+                <button type="button" className="danger" disabled={busy} onClick={() => void runComposeAction('down')}>
+                  down
+                </button>
+              </>
+            )}
+            <button type="button" onClick={onClose} disabled={busy}>
+              {tg('ui.27')}
+            </button>
+          </>
+        }
+      />
       <div
         className={`workspace-panel-body workspace-panel-body--docker${
           kind === 'compose' ? '' : ' workspace-panel-body--docker-logs'

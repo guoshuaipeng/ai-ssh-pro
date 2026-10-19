@@ -14,6 +14,7 @@ import type { AuditEvent } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import Modal from './Modal'
+import Button from './ui/Button'
 
 const RANGES: AuditExportRange[] = ['today', '7d', '30d', 'custom']
 
@@ -146,9 +147,9 @@ export default function AuditExportModal({
           <button type="button" onClick={onClose}>
             {t('dlg.cancel')}
           </button>
-          <button type="button" className="primary" data-testid="s1b-save" disabled={!canSave} onClick={() => void save()}>
+          <Button variant="primary" data-testid="s1b-save" disabled={!canSave} onClick={() => void save()}>
             {t('s1b.exportN', { n: count })}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

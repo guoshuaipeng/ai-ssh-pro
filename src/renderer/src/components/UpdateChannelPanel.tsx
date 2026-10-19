@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useI18n } from '../lib/i18n'
 import { showToast } from '../lib/toast'
+import PanelHeader from './ui/PanelHeader'
+import Button from './ui/Button'
 import {
   isHttpUrl,
   loadUpdateChannelPrefs,
@@ -32,9 +34,9 @@ export default function UpdateChannelPanel({ onClose }: Props) {
 
   return (
     <div className="workspace-panel workspace-panel--settings" data-testid="update-channel">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{t('n1.title')}</h2>
-      </div>
+      <PanelHeader
+        title={t('n1.title')}
+      />
       <div className="workspace-panel-body workspace-panel-body--settings">
         <div className="workspace-panel-inner workspace-panel-inner--settings">
           <p className="workspace-panel-hint">{t('n1.hint')}</p>
@@ -71,9 +73,9 @@ export default function UpdateChannelPanel({ onClose }: Props) {
             <button type="button" onClick={onClose}>
               {t('dlg.cancel')}
             </button>
-            <button type="button" className="primary" onClick={save} data-testid="update-channel-save">
+            <Button variant="primary" onClick={save} data-testid="update-channel-save">
               {t('ui.25')}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

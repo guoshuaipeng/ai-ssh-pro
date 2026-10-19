@@ -8,6 +8,7 @@ import { friendlyErrorMessage } from '../lib/friendly-error'
 import { snapshotsEnabled } from '@shared/snapshots'
 import { showToast } from '../lib/toast'
 import Icon from './Icon'
+import Button from './ui/Button'
 
 type Props = {
   tabId: string
@@ -257,15 +258,13 @@ export default function RemoteTextEditor({
               <button type="button" disabled={loading || saving} onClick={() => void load()}>
                 {tg('ui.264')}
               </button>
-              <button
-                type="button"
-                className="primary"
+              <Button variant="primary"
                 disabled={loading || saving || !dirty || Boolean(meta?.truncated) || remoteWritesBlocked}
                 title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
                 onClick={() => requestSave()}
               >
                 {saving ? tg('ui.185') : tg('ui.265')}
-              </button>
+              </Button>
             </>
           ) : (
             <>
@@ -275,15 +274,13 @@ export default function RemoteTextEditor({
               <button type="button" onClick={() => setMode('edit')}>
                 {tg('d4.backEdit')}
               </button>
-              <button
-                type="button"
-                className="primary"
+              <Button variant="primary"
                 disabled={saving || remoteWritesBlocked}
                 title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
                 onClick={() => void doSave()}
               >
                 {saving ? tg('ui.185') : tg('d4.saveServer')}
-              </button>
+              </Button>
             </>
           )}
           <button type="button" onClick={() => void requestClose()} disabled={saving}>

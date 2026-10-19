@@ -13,6 +13,6 @@ assert.ok(i18n.includes("s2b.timelineOpen': '打开闸门时间线'"))
 assert.ok(i18n.includes("s2b.timelineOpen': 'Opening gate timeline'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.47')
+assert.equal(pkg.version, '0.6.48')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-gate-timeline-toast/)
 console.log('test-gate-timeline-toast ok')

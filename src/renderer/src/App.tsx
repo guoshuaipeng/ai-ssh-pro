@@ -238,6 +238,7 @@ import type { RecentConnection } from '@shared/workspace-features'
 import { normalizeTags } from '@shared/workspace-features'
 import { filterProfiles, folderMatches } from './lib/session-filter'
 import { clearRemoteFileDirty, isRemoteFileDirty } from './lib/remote-file-dirty'
+import PanelHeader from './components/ui/PanelHeader'
 import {
   clampAiWidth,
   clampSidebarWidth,
@@ -8626,24 +8627,26 @@ export default function App() {
                   />
                 ) : t.view === 'inspect-report' ? (
                   <div className="workspace-panel" data-testid="inspect-report">
-                    <div className="workspace-panel-toolbar">
-                      <h2 className="workspace-panel-title">{t.title}</h2>
-                      <div className="workspace-panel-actions">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const md = (t as { inspectMarkdown?: string }).inspectMarkdown || ''
-                            void navigator.clipboard.writeText(md)
-                            showToast(tg('a3.copied'), { kind: 'info' })
-                          }}
-                        >
-                          {tg('a3.copyMd')}
-                        </button>
-                        <button type="button" onClick={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}>
-                          {tg('common.close')}
-                        </button>
-                      </div>
-                    </div>
+                    <PanelHeader
+                      title={t.title}
+                      actions={
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const md = (t as { inspectMarkdown?: string }).inspectMarkdown || ''
+                              void navigator.clipboard.writeText(md)
+                              showToast(tg('a3.copied'), { kind: 'info' })
+                            }}
+                          >
+                            {tg('a3.copyMd')}
+                          </button>
+                          <button type="button" onClick={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}>
+                            {tg('common.close')}
+                          </button>
+                        </>
+                      }
+                    />
                     <div className="workspace-panel-body a3-report-body">
                       <pre className="a3-report-pre">{(t as { inspectMarkdown?: string }).inspectMarkdown || ''}</pre>
                     </div>
