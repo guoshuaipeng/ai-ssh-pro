@@ -3,6 +3,7 @@ import { SHARED_MENUS, menuLabel, visibleMenuItems, type MenuAction } from '@sha
 import { placeMenuDropdown } from '@shared/menu-fit'
 import { useI18n } from '../lib/i18n'
 import Icon from './Icon'
+import { CHROME_ICON_SIZE, CHROME_ICON_STROKE } from './emptyIcons'
 
 export type TitlebarMenuAction = MenuAction
 
@@ -107,7 +108,7 @@ export default function TitlebarMenus({ onAction, toggles, disabled, hints }: Pr
                       }}
                     >
                       <span className="titlebar-menu-check" aria-hidden>
-                        {item.toggle && toggles?.[item.id] ? <Icon name="check" size={14} /> : null}
+                        {item.toggle && toggles?.[item.id] ? <Icon name="check" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> : null}
                       </span>
                       <span className="titlebar-menu-label">{menuLabel(item.label, locale)}</span>
                       {item.shortcut ? <span className="titlebar-menu-shortcut">{item.shortcut}</span> : <span />}

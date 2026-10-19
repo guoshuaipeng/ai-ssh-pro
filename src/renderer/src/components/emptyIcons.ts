@@ -8,6 +8,11 @@ export const CHROME_ICON_SIZE = 16
 /** Same visual weight as empty-state stroke. */
 export const CHROME_ICON_STROKE = EMPTY_ICON_STROKE
 
+/** Sidebar / tree disclosure; stroke still matches chrome. */
+export const TREE_CHEVRON_SIZE = 12
+/** Status bar shares chrome size so weight matches the titlebar. */
+export const STATUS_ICON_SIZE = CHROME_ICON_SIZE
+
 /** Default icon slot. Compact slot is 32. CSS maps these to --space-7 / --space-6. */
 export const EMPTY_ICON_SIZE = 48
 export const EMPTY_ICON_SIZE_COMPACT = 32

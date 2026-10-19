@@ -206,6 +206,7 @@
   --text-muted: var(--color-text-muted);
   --bg-elevated: var(--color-bg-elevated);
   --duration-fast: 150ms;
+  --duration-press: 90ms;
   --duration-normal: 200ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --icon-size-chrome: 16px;
@@ -402,8 +403,8 @@ button.titlebar-menu-trigger:hover:not(:disabled),
 
 .titlebar-menu-item {
   display: grid;
-  grid-template-columns: 20px 1fr auto;
-  column-gap: 8px;
+  grid-template-columns: var(--icon-size-chrome) 1fr auto;
+  column-gap: var(--space-2);
   align-items: center;
   white-space: nowrap;
   width: 100%;
@@ -483,6 +484,7 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   transition: background var(--duration-fast) var(--easing-standard),
     border-color var(--duration-fast) var(--easing-standard),
     color var(--duration-fast) var(--easing-standard);
+  will-change: transform;
 }
 
 .titlebar-btn:hover:not(:disabled) {
@@ -574,6 +576,7 @@ button.titlebar-menu-trigger:hover:not(:disabled),
     border-color var(--duration-fast) var(--easing-standard),
     color var(--duration-fast) var(--easing-standard),
     opacity var(--duration-fast) var(--easing-standard);
+  will-change: transform;
 }
 
 .titlebar-icon-btn:hover:not(:disabled) {
@@ -584,6 +587,17 @@ button.titlebar-menu-trigger:hover:not(:disabled),
 .titlebar-icon-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+.titlebar-icon-btn:active:not(:disabled),
+.titlebar-btn:active:not(:disabled),
+button.layout-toggle-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  opacity: 0.88;
+  transition: transform var(--duration-press) var(--easing-standard),
+    opacity var(--duration-press) var(--easing-standard),
+    background var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
 }
 
 .titlebar-icon-btn svg,
@@ -1439,7 +1453,7 @@ body.layout-resizing {
 .statusbar-slot {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   max-width: 100%;
   min-width: 0;
   height: 22px;
@@ -1450,7 +1464,21 @@ body.layout-resizing {
   color: inherit;
   font: inherit;
 }
-.statusbar-glyph { flex: none; }
+.statusbar-glyph {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-chrome);
+  height: var(--icon-size-chrome);
+  line-height: 0;
+  font-size: var(--fs-sm);
+}
+.statusbar-glyph .aiss-icon,
+.statusbar-glyph svg {
+  width: var(--icon-size-chrome);
+  height: var(--icon-size-chrome);
+}
 .statusbar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statusbar-quiet {
   flex: 0 1 auto;
@@ -3170,10 +3198,18 @@ body.layout-resizing {
 
 .session-folder-chevron {
   flex-shrink: 0;
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
   color: var(--muted);
-  width: 14px;
-  text-align: center;
+  line-height: 0;
+}
+.session-folder-chevron .aiss-icon,
+.session-folder-chevron svg {
+  width: 12px;
+  height: 12px;
 }
 
 .session-folder-name {
@@ -3190,7 +3226,7 @@ body.layout-resizing {
 }
 
 .profile-row--in-folder {
-  margin-left: 10px;
+  margin-left: var(--space-3);
   margin-bottom: 1px;
 }
 
@@ -3916,22 +3952,34 @@ body:has(.debug-window-root) #root {
 .profile-row--host {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .session-host-chevron,
 .session-host-refresh {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 9px;
-  line-height: 1;
-  border-radius: 4px;
+  line-height: 0;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--easing-standard), color var(--duration-fast) var(--easing-standard);
+}
+.session-host-chevron .aiss-icon,
+.session-host-chevron svg,
+.session-host-refresh .aiss-icon,
+.session-host-refresh svg {
+  width: 12px;
+  height: 12px;
 }
 
 .session-host-chevron:hover:not(:disabled),
@@ -3948,17 +3996,22 @@ body:has(.debug-window-root) #root {
 
 .host-row-more {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
+  line-height: 0;
   opacity: 0;
+  transition: opacity var(--duration-fast) var(--easing-standard), background var(--duration-fast) var(--easing-standard);
 }
 
 .profile-row--host:hover .host-row-more,
@@ -4025,19 +4078,35 @@ body:has(.debug-window-root) #root {
 }
 
 .session-docker-chevron {
-  width: 12px;
   flex-shrink: 0;
-  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
   color: var(--muted);
+  line-height: 0;
+}
+.session-docker-chevron .aiss-icon,
+.session-docker-chevron svg {
+  width: 12px;
+  height: 12px;
 }
 
 .session-docker-group-icon {
   flex-shrink: 0;
-  width: 14px;
-  text-align: center;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
   color: var(--muted);
-  line-height: 1;
+  line-height: 0;
+}
+.session-docker-group-icon .aiss-icon,
+.session-docker-group-icon svg {
+  width: 12px;
+  height: 12px;
 }
 
 .session-docker-group-name {
@@ -4052,8 +4121,8 @@ body:has(.debug-window-root) #root {
 }
 
 .session-docker-children {
-  margin: 0 0 2px 10px;
-  padding: 2px 0 2px 10px;
+  margin: 0 0 var(--space-1) var(--space-3);
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
   border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
@@ -4064,14 +4133,19 @@ body:has(.debug-window-root) #root {
 .session-docker-project-row {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .session-docker-chevron-btn {
   flex-shrink: 0;
-  width: 18px;
-  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
   border: none;
   background: transparent;
@@ -5459,7 +5533,20 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
 @media (max-width: 1100px) {
   .app-titlebar-corner .tb-label { display: none; }
 }
-.titlebar-menu-check { display: inline-block; width: 16px; opacity: 0.85; }
+.titlebar-menu-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-chrome);
+  height: var(--icon-size-chrome);
+  opacity: 0.9;
+  line-height: 0;
+}
+.titlebar-menu-check .aiss-icon,
+.titlebar-menu-check svg {
+  width: var(--icon-size-chrome);
+  height: var(--icon-size-chrome);
+}
 
 /* toast (non-blocking notifications) */
 .toast-stack {

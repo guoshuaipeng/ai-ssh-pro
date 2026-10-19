@@ -104,6 +104,8 @@ import SessionCommandBar from './components/SessionCommandBar'
 import EmptyState from './components/EmptyState'
 import WelcomePanel from './components/WelcomePanel'
 import Icon, { Twist } from './components/Icon'
+import { CHROME_ICON_STROKE, STATUS_ICON_SIZE, TREE_CHEVRON_SIZE } from './components/emptyIcons'
+import { statusSlotIconName } from './lib/status-icons'
 import HostPicker from './components/HostPicker'
 import WelcomeTour, { TOUR_DONE_KEY } from './components/WelcomeTour'
 import AiAssistCard from './components/AiAssistCard'
@@ -7176,7 +7178,7 @@ export default function App() {
                         }}
                       >
                         <span className="session-folder-chevron" aria-hidden>
-                          <Twist open={expanded} />
+                          <Twist open={expanded} size={TREE_CHEVRON_SIZE} />
                         </span>
                         <span className="session-folder-name">{f.name}</span>
                         <span className="session-folder-count">{inFolder.length}</span>
@@ -9248,7 +9250,9 @@ export default function App() {
                   title={aiPending.preview || tg('sb.aiPending')}
                   onClick={() => openAiPendingConfirm()}
                 >
-                  <span className="statusbar-glyph" aria-hidden>●</span>
+                  <span className="statusbar-glyph" aria-hidden>
+                    <Icon name="sparkles" size={STATUS_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
+                  </span>
                   <span className="statusbar-label">{tg('sb.aiPending')}</span>
                 </button>
               ) : null}
@@ -9289,7 +9293,13 @@ export default function App() {
                       title={tg('ux10.broadcastEdit')}
                       onClick={() => setBroadcastPickerOpen(true)}
                     >
-                      <span className="statusbar-glyph" aria-hidden>{slot.glyph}</span>
+                      <span className="statusbar-glyph" aria-hidden>
+                        {statusSlotIconName(slot) ? (
+                          <Icon name={statusSlotIconName(slot)!} size={STATUS_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
+                        ) : (
+                          slot.glyph
+                        )}
+                      </span>
                       <span className="statusbar-label">{tg('sb.broadcast', { n: slot.count ?? 0 })}</span>
                     </button>
                   )
@@ -9304,7 +9314,13 @@ export default function App() {
                       title={tg('ux10.recFor', { time: formatDuration(Date.now() - (recordingStartedAt ?? Date.now())) })}
                       onClick={() => openM2('recordings', tg('m2.recordings'))}
                     >
-                      <span className="statusbar-glyph" aria-hidden>{slot.glyph}</span>
+                      <span className="statusbar-glyph" aria-hidden>
+                        {statusSlotIconName(slot) ? (
+                          <Icon name={statusSlotIconName(slot)!} size={STATUS_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
+                        ) : (
+                          slot.glyph
+                        )}
+                      </span>
                       <span className="statusbar-label">{tg('sb.recording')}</span>
                     </button>
                   )
@@ -9319,7 +9335,13 @@ export default function App() {
                     title={tg(syncPhaseKey(phase))}
                     onClick={() => openM2(syncMeta.phase === 'conflict' ? 'sync-conflicts' : 'sync-settings', tg('m2.cloudSync'))}
                   >
-                    <span className="statusbar-glyph" aria-hidden>{slot.glyph}</span>
+                    <span className="statusbar-glyph" aria-hidden>
+                        {statusSlotIconName(slot) ? (
+                          <Icon name={statusSlotIconName(slot)!} size={STATUS_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
+                        ) : (
+                          slot.glyph
+                        )}
+                      </span>
                     <span className="statusbar-label">{tg(syncPhaseKey(phase))}</span>
                   </button>
                 )

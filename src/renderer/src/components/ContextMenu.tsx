@@ -1,13 +1,14 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { placeMenu } from '@shared/menu-place'
 import { Twist } from './Icon'
+import { TREE_CHEVRON_SIZE } from './emptyIcons'
 
 export type ContextMenuItem =
   | {
       id: string
       label: string
-      icon?: string
+      icon?: ReactNode
       shortcut?: string
       disabled?: boolean
       danger?: boolean
@@ -64,7 +65,7 @@ function MenuList({
               <button type="button" role="menuitem" disabled={it.disabled} className={it.danger ? 'danger' : undefined}>
                 {it.icon ? <span className="ctx-icon">{it.icon}</span> : null}
                 <span className="ctx-label">{it.label}</span>
-                <span className="ctx-sub-arrow"><Twist open={false} size={12} /></span>
+                <span className="ctx-sub-arrow"><Twist open={false} size={TREE_CHEVRON_SIZE} /></span>
               </button>
               <div className="ctx-submenu">
                 <MenuList items={it.submenu} onClose={onClose} submenu />

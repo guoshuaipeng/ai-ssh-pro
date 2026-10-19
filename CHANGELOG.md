@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.39
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-3（状态栏/菜单/侧栏树 + 轻按压）.** 状态栏广播/录制/同步/AI 待确认改线性图标（16px / 描边 1.5）；菜单勾选与右键箭头同权；侧栏文件夹/主机/Docker 树 chevron 垂直对齐、间距走 `--space-*`，展开钮命中约 28px。标题栏按钮 `:active` 轻缩放（90ms）。tipSuggest 不变。版本 0.6.39。 / **Feel track M-polish-3 (status bar / menus / sidebar tree + light press).** Status bar broadcast / record / sync / AI-pending use linear icons (16px / stroke 1.5). Menu checks and context chevrons match chrome weight. Sidebar folder / host / Docker tree chevrons align with row text; gaps use `--space-*`; expand hit ~28px. Titlebar `:active` scales lightly (90ms). tipSuggest unchanged. Package 0.6.39.
+
 ## v0.6.38
 
 Released 2026-10-19 (CST).

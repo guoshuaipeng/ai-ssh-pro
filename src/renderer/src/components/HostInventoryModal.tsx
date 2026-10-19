@@ -11,6 +11,7 @@ import NotesMarkdownPreview from './NotesMarkdownPreview'
 import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
 import Icon, { Twist } from './Icon'
+import { TREE_CHEVRON_SIZE } from './emptyIcons'
 import { confirmDialog, toastUndo } from '../lib/dialogs'
 import { hostProfileComfortLayout } from '@shared/host-profile-layout'
 export type HostInventoryLink = {
@@ -823,7 +824,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                 ) : null}
                 <section className="inv20-card">
                   <div className="inv20-card-head">
-                    <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}><Twist open={!svcCollapsed} size={12} /> {tg('ux20.services')} ({form.services.length})</button>
+                    <button type="button" className="inv20-fold" onClick={() => setSvcCollapsed((v) => !v)}><Twist open={!svcCollapsed} size={TREE_CHEVRON_SIZE} /> {tg('ux20.services')} ({form.services.length})</button>
                     <span className="inv20-card-actions">
                       <input className="inv20-svc-filter" placeholder={tg('ux20.filter')} value={svcFilter} onChange={(e) => setSvcFilter(e.target.value)} aria-label={tg('ux20.filter')} />
                       <button type="button" onClick={() => { setEditingSvcIdx(-1); setSvcDraft({ name: '', kind: 'unknown', notes: '' }) }}>+ {tg('ux20.add')}</button>

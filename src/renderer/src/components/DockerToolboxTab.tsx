@@ -13,6 +13,7 @@ import { confirmDialog } from '../lib/dialogs'
 import EmptyState from './EmptyState'
 import { QUIET_LOAD_ATTRS } from '@shared/quiet-load'
 import Icon, { Twist } from './Icon'
+import { CHROME_ICON_STROKE, TREE_CHEVRON_SIZE } from './emptyIcons'
 
 type TFn = ReturnType<typeof useI18n>['t']
 
@@ -278,7 +279,7 @@ function GroupRows({
       <tr className="st-docker-group">
         <td colSpan={4}>
           <button type="button" className="st-docker-toggle" aria-expanded={open} onClick={() => onToggle(groupKey)}>
-            <Twist open={open} />
+            <Twist open={open} size={TREE_CHEVRON_SIZE} />
             <span className="st-docker-label">{t(GROUP_LABEL[group.id])}</span>
             <span className="session-docker-count">{group.count}</span>
           </button>
@@ -295,7 +296,7 @@ function GroupRows({
         <tr>
           <td colSpan={4} className="st-docker-group-empty">
             <span className="st-docker-group-empty-line">
-              <Icon name="list-tree" size={16} strokeWidth={1.5} />
+              <Icon name="list-tree" size={16} strokeWidth={CHROME_ICON_STROKE} />
               {emptyLabel}
             </span>
           </td>
@@ -349,7 +350,7 @@ function DockerRow({
               aria-expanded={!closed[row.key]}
               onClick={() => onToggle(row.key)}
             >
-              <Twist open={!closed[row.key]} />
+              <Twist open={!closed[row.key]} size={TREE_CHEVRON_SIZE} />
             </button>
           ) : (
             <span className="session-docker-chevron" aria-hidden />

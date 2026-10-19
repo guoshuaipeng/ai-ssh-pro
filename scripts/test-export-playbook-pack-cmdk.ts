@@ -13,6 +13,6 @@ assert.match(app, /action === 'exportPlaybookPack'/)
 assert.match(app, /aiss-export-share/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.38')
+assert.equal(pkg.version, '0.6.39')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-export-playbook-pack-cmdk/)
 console.log('test-export-playbook-pack-cmdk ok')

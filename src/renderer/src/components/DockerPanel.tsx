@@ -14,6 +14,7 @@ import { loadDockerPrefs, saveDockerPrefs } from '../lib/docker-prefs'
 import { tg } from '../lib/i18n'
 import EmptyState from './EmptyState'
 import { Twist } from './Icon'
+import { TREE_CHEVRON_SIZE } from './emptyIcons'
 import { confirmDialog, promptDialog } from '../lib/dialogs'
 
 type Props = {
@@ -535,7 +536,7 @@ export default function DockerPanel({
       onClick={() => toggleShowConfig(!showConfig)}
     >
       <span className="docker-config-bar-chevron" aria-hidden>
-        <Twist open={showConfig} />
+        <Twist open={showConfig} size={TREE_CHEVRON_SIZE} />
       </span>
       <span className="docker-config-bar-title">{tg('ui.93')}</span>
       <span className="docker-config-bar-hint">{showConfig ? tg('ui.94') : tg('ui.95')}</span>

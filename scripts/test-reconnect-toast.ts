@@ -12,6 +12,6 @@ assert.ok(i18n.includes("sess.reconnectStarted': '正在重连 {host}"))
 assert.ok(i18n.includes("sess.reconnectStarted': 'Reconnecting {host}"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.38')
+assert.equal(pkg.version, '0.6.39')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-reconnect-toast/)
 console.log('test-reconnect-toast ok')

@@ -9,6 +9,6 @@ const chunk = app.slice(start, start + 280)
 assert.match(chunk, /if \(!ids\.length\) \{\s*showToast\(tg\('l10\.none'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.38')
+assert.equal(pkg.version, '0.6.39')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-delete-profiles-empty-toast/)
 console.log('test-delete-profiles-empty-toast ok')

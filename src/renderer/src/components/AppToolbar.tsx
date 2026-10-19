@@ -16,7 +16,7 @@ import type { IconName } from '@shared/icon-registry'
 import aiSparkleUrl from '../assets/ai-sparkle.png'
 import Icon, { Twist } from './Icon'
 import BrandMark from './BrandMark'
-import { CHROME_ICON_SIZE, CHROME_ICON_STROKE } from './emptyIcons'
+import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, TREE_CHEVRON_SIZE } from './emptyIcons'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -251,7 +251,7 @@ export default function AppToolbar({
                 aria-expanded={recentOpen}
                 onClick={() => setRecentOpen((v) => !v)}
               >
-                <Icon name="history" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={12} /></span>
+                <Icon name="history" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={TREE_CHEVRON_SIZE} /></span>
               </button>
               {recentOpen ? (
                 <div className="titlebar-popover">

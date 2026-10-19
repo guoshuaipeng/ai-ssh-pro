@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.39': [
+    {
+      icon: '▷',
+      text: {
+        zh: '状态栏图标与标题栏同权；侧栏树箭头对齐行高',
+        en: 'Status bar icons match titlebar weight; sidebar tree chevrons align with rows'
+      },
+      where: { zh: '底栏 / 侧栏', en: 'Status bar / Sidebar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '菜单勾选与右键箭头统一；标题栏按钮有轻按压反馈',
+        en: 'Menu checks and context chevrons unify; titlebar buttons get a light press'
+      },
+      where: { zh: '菜单 / 标题栏', en: 'Menus / Title bar' }
+    }
+  ],
   '0.6.38': [
     {
       icon: '▷',

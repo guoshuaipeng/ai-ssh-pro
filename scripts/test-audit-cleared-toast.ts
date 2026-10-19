@@ -12,6 +12,6 @@ assert.ok(i18n.includes("audit.cleared': '已清空审计日志'"))
 assert.ok(i18n.includes("audit.cleared': 'Audit log cleared'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.38')
+assert.equal(pkg.version, '0.6.39')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-audit-cleared-toast/)
 console.log('test-audit-cleared-toast ok')

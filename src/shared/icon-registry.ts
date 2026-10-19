@@ -1,4 +1,4 @@
-/** UX-12a: one linear icon per action. Built-in 24px grid, stroke 1.75, currentColor. */
+/** UX-12a: one linear icon per action. Built-in 24px grid, stroke 1.5, currentColor. */
 
 export const ICON_NAMES = [
   'sparkles',

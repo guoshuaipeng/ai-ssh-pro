@@ -1,4 +1,4 @@
-/** Polish-15 / M-polish-2: icon stroke, toolbar density, light motion. Package 0.6.38. tipSuggest unchanged. */
+/** Polish-15 / M-polish-2: icon stroke, toolbar density, light motion. Package tracks current soft-start. tipSuggest unchanged. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { changelogFor } from '../src/shared/changelog'
@@ -11,7 +11,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.38')
+assert.equal(pkg.version, '0.6.39')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -48,7 +48,7 @@ assert.match(css, /button\.layout-toggle-btn\s*\{[^}]*min-height:\s*32px/)
 assert.match(css, /button\.layout-toggle-btn\s*\{[^}]*transition:/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.38'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.39'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.38'), changelog.indexOf('## v0.6.37'))
 assert.ok(note.includes('M-polish-2') || note.includes('质感专项'))

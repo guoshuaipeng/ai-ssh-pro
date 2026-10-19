@@ -16,6 +16,7 @@ import { effectiveLevel } from '@shared/protection'
 import { stricterLevel } from '@shared/readonly-session'
 import { sessionNotePreview } from '@shared/session-note'
 import Icon, { Twist } from './Icon'
+import { CHROME_ICON_STROKE, TREE_CHEVRON_SIZE } from './emptyIcons'
 
 export type DockerTreeCache = {
   status: 'idle' | 'connecting' | 'loading' | 'ready' | 'error'
@@ -176,7 +177,7 @@ export default function SessionDockerBranch({
             disabled={svc.containers.length === 0}
             onClick={() => onToggleSwarmNode(`svc:${svc.name}`)}
           >
-            {svc.containers.length === 0 ? '·' : <Twist open={open} />}
+            {svc.containers.length === 0 ? '·' : <Twist open={open} size={TREE_CHEVRON_SIZE} />}
           </button>
           <button
             type="button"
@@ -259,7 +260,7 @@ export default function SessionDockerBranch({
           {busy && !hostExpanded ? (
             <span className="session-host-spinner" aria-hidden />
           ) : (
-            <Twist open={hostExpanded} />
+            <Twist open={hostExpanded} size={TREE_CHEVRON_SIZE} />
           )}
         </button>
         {hostStatus !== undefined
@@ -285,7 +286,7 @@ export default function SessionDockerBranch({
             ) : null}
             {profile.jumpChain?.length || profile.jumpHost?.host ? (
               <span className="jump-badge" data-testid="jump-badge" title={tg('m2.via', { chain: (profile.jumpChain ?? []).map((h) => h.label || h.host).join(' → ') || profile.jumpHost?.host || '' })}>
-                <Icon name="chevron-right" size={12} />
+                <Icon name="chevron-right" size={TREE_CHEVRON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
               </span>
             ) : null}
             {(() => {
@@ -353,10 +354,10 @@ export default function SessionDockerBranch({
               <div className="session-docker-group">
                 <button type="button" className="session-docker-group-row" onClick={onToggleCompose}>
                   <span className="session-docker-chevron" aria-hidden>
-                    <Twist open={showCompose} />
+                    <Twist open={showCompose} size={TREE_CHEVRON_SIZE} />
                   </span>
                   <span className="session-docker-group-icon" aria-hidden>
-                    <Icon name="table" size={12} />
+                    <Icon name="table" size={TREE_CHEVRON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                   </span>
                   <span className="session-docker-group-name">Docker-compose</span>
                   <span className="session-docker-count">{view.projects.length}</span>
@@ -380,7 +381,7 @@ export default function SessionDockerBranch({
                                 title={open ? tg('db.collapseContainers') : tg('db.expandContainers')}
                                 onClick={() => onToggleComposeProject(p.name)}
                               >
-                                <Twist open={open} />
+                                <Twist open={open} size={TREE_CHEVRON_SIZE} />
                               </button>
                               <button
                                 type="button"
@@ -433,7 +434,7 @@ export default function SessionDockerBranch({
                 <div className="session-docker-group">
                   <button type="button" className="session-docker-group-row" onClick={onToggleSwarm}>
                     <span className="session-docker-chevron" aria-hidden>
-                      <Twist open={showSwarm} />
+                      <Twist open={showSwarm} size={TREE_CHEVRON_SIZE} />
                     </span>
                     <span className="session-docker-group-icon" aria-hidden>
                       ⬢
@@ -468,11 +469,11 @@ export default function SessionDockerBranch({
                                   title={open ? tg('db.collapseService') : tg('db.expandService')}
                                   onClick={() => onToggleSwarmNode(`stack:${stack.name}`)}
                                 >
-                                  <Twist open={open} />
+                                  <Twist open={open} size={TREE_CHEVRON_SIZE} />
                                 </button>
                                 <span className="session-docker-leaf session-docker-leaf--project">
                                   <span className="session-docker-group-icon" aria-hidden>
-                                    <Icon name="table" size={12} />
+                                    <Icon name="table" size={TREE_CHEVRON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                                   </span>
                                   <span className="session-docker-leaf-name">{stack.name}</span>
                                   <span className="session-docker-count">{stack.services.length}</span>
@@ -493,10 +494,10 @@ export default function SessionDockerBranch({
               <div className="session-docker-group">
                 <button type="button" className="session-docker-group-row" onClick={onToggleContainers}>
                   <span className="session-docker-chevron" aria-hidden>
-                    <Twist open={showContainers} />
+                    <Twist open={showContainers} size={TREE_CHEVRON_SIZE} />
                   </span>
                   <span className="session-docker-group-icon" aria-hidden>
-                    <Icon name="table" size={12} />
+                    <Icon name="table" size={TREE_CHEVRON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                   </span>
                   <span className="session-docker-group-name">Containers</span>
                   <span className="session-docker-count">{standaloneCount}</span>
