@@ -329,7 +329,7 @@ const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog
 assert.ok(unreleased.includes('（PNG-1）'))
 assert.ok(unreleased.includes('Public HOLD'))
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.36')
+assert.equal(pkg.version, '0.6.37')
 
 console.log('test-png1-overlay ok')
 

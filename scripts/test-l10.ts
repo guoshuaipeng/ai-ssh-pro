@@ -26,7 +26,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.36')
+assert.equal(pkg.version, '0.6.37')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-l10\.ts/)
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-polish-3\.ts/)
 

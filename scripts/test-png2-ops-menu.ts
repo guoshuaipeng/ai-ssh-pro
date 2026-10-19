@@ -166,6 +166,6 @@ assert.ok(unreleased.includes('刷新 Docker'))
 assert.ok(unreleased.includes('告警历史'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.36')
+assert.equal(pkg.version, '0.6.37')
 
 console.log('test-png2-ops-menu ok')

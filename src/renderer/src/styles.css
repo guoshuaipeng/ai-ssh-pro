@@ -16,7 +16,7 @@
   --row-hover-border: rgba(88, 166, 255, 0.4);
   --row-selected-bg: rgba(88, 166, 255, 0.22);
   --color-ai: #a371f7;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 13px;
   color: var(--text);
   background: var(--bg);
@@ -146,8 +146,10 @@
   --color-row-selected-bg: var(--row-selected-bg);
   --color-scroll-thumb: var(--scroll-thumb);
   --color-scroll-thumb-hover: var(--scroll-thumb-hover);
-  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-sans: 'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+  --font-ui: var(--font-sans);
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, Consolas, monospace;
+  --mono: var(--font-mono);
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-base: 13px;
@@ -195,6 +197,9 @@
   --surface-1: var(--color-bg-surface);
   --surface-2: var(--color-bg-elevated);
   --fg: var(--color-text-primary);
+  --mut: var(--color-text-muted);
+  --line: var(--color-border-default);
+  --ac: var(--color-accent);
   --panel: var(--color-bg-surface);
   --panel-2: var(--color-bg-code);
   --panel-bg: var(--color-bg-surface);
@@ -272,6 +277,10 @@ body {
   height: 100%;
   min-height: 100vh;
   overflow: hidden;
+  font-family: var(--font-ui);
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
@@ -489,8 +498,8 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 8px 16px;
-  padding: 8px 12px;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   min-height: 44px;
@@ -604,7 +613,7 @@ body.platform-darwin .app-titlebar {
 .modal-panel {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -615,16 +624,16 @@ body.platform-darwin .app-titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .modal-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
 }
 
 .modal-close {
@@ -642,14 +651,14 @@ body.platform-darwin .app-titlebar {
 }
 
 .modal-body {
-  padding: 16px;
+  padding: var(--space-4);
   overflow-y: auto;
   min-height: 0;
   flex: 1;
 }
 
 .modal-footer {
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   display: flex;
@@ -667,9 +676,9 @@ body.platform-darwin .app-titlebar {
 }
 
 .modal-section-title {
-  margin: 0 0 8px;
-  font-size: 13px;
-  font-weight: 600;
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
   color: var(--muted);
 }
 
@@ -754,7 +763,7 @@ button.primary {
   border-color: var(--color-accent);
   color: var(--color-text-on-accent);
   min-height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   border-radius: var(--radius-md);
   white-space: nowrap;
   font-weight: var(--fw-semibold);
@@ -934,7 +943,7 @@ label {
   border: none;
   border-radius: 0;
   padding: 14px 16px;
-  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.55;
   background: var(--term-chrome);
@@ -1093,7 +1102,7 @@ label {
 }
 
 .md-body code {
-  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 0.92em;
   background: var(--tab-active);
   padding: 0.1em 0.35em;
@@ -1343,19 +1352,19 @@ label {
 
 .sidebar-header {
   flex-shrink: 0;
-  padding: 12px 12px 8px;
+  padding: var(--space-3) var(--space-3) var(--space-2);
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
 }
 
 .sidebar-header h3 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
 }
 
 .sidebar-scroll {
   flex: 1;
   overflow: auto;
-  padding: 12px;
+  padding: var(--space-3);
 }
 
 .layout-resizer {
@@ -2340,7 +2349,7 @@ body.layout-resizing {
   overflow: auto;
   white-space: pre;
   color: var(--text);
-  font-family: Cascadia Code, Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
 }
 
 .mcp-guide-tools {
@@ -2551,7 +2560,7 @@ body.layout-resizing {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .ai-stale-actions {
   flex-wrap: wrap;
@@ -2917,7 +2926,7 @@ body.layout-resizing {
 }
 
 .ai-tool-need code {
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -3020,7 +3029,7 @@ body.layout-resizing {
 }
 .ai-pending-confirm-preview {
   display: block;
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.35;
   color: var(--color-text-secondary);
@@ -3115,8 +3124,8 @@ body.layout-resizing {
 .session-folder-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 6px;
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
   min-height: var(--list-row-height);
   height: var(--list-row-height);
   border-radius: var(--radius-sm);
@@ -3168,8 +3177,8 @@ body.layout-resizing {
 .profile-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 6px;
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
   min-height: var(--list-row-height);
   height: var(--list-row-height);
   border: 1px solid transparent;
@@ -3650,7 +3659,7 @@ body:has(.debug-window-root) #root {
 .sftp-pathbar input {
   flex: 1;
   min-width: 0;
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -3812,7 +3821,7 @@ body:has(.debug-window-root) #root {
 .remote-file-path {
   font-size: 11px;
   color: var(--muted);
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3875,7 +3884,7 @@ body:has(.debug-window-root) #root {
   border: none;
   outline: none;
   padding: 14px 16px;
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.55;
   background: var(--color-bg-code);
@@ -4161,7 +4170,7 @@ body:has(.debug-window-root) #root {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent);
   font-size: 10px;
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .session-docker-chevron-btn:disabled {
@@ -4256,7 +4265,7 @@ body:has(.debug-window-root) #root {
 }
 
 .docker-meta-value.is-mono {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .docker-logs-header {
@@ -4496,7 +4505,7 @@ body:has(.debug-window-root) #root {
 .docker-kv-row dd {
   margin: 0;
   word-break: break-all;
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .docker-kv-row dd.is-masked {
@@ -4574,7 +4583,7 @@ body:has(.debug-window-root) #root {
   white-space: pre-wrap;
   word-break: break-word;
   overflow: auto;
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .docker-table {
@@ -4697,7 +4706,7 @@ button.danger {
   border-bottom: 1px solid var(--border);
 }
 .pf-addr {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 .pf-badge {
   margin-left: 6px;
@@ -4985,7 +4994,7 @@ body.split-resizing {
 .st-path {
   flex: 1 1 260px;
   min-width: 200px;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
 }
 .st-count,
 .st-hint {
@@ -5049,7 +5058,7 @@ body.split-resizing {
   max-width: 340px;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
 }
 .st-actions {
   display: flex;
@@ -5090,7 +5099,7 @@ body.split-resizing {
   margin: 0;
   max-height: 46vh;
   overflow: auto;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;

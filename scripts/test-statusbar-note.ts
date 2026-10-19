@@ -17,6 +17,6 @@ assert.ok(i18n.includes("'sb.noteTip'"))
 assert.ok((i18n.match(/'sb\.note'/g) || []).length >= 2)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.36')
+assert.equal(pkg.version, '0.6.37')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-statusbar-note/)
 console.log('test-statusbar-note ok')

@@ -13,6 +13,6 @@ assert.match(app, /action === 'importPlaybookPack'/)
 assert.match(app, /playbook-import/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.36')
+assert.equal(pkg.version, '0.6.37')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-import-playbook-pack-cmdk/)
 console.log('test-import-playbook-pack-cmdk ok')

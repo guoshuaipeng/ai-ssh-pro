@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.37': [
+    {
+      icon: '▷',
+      text: {
+        zh: '界面字体换成 Inter + 思源黑体简体，代码与终端优先 JetBrains Mono',
+        en: 'UI fonts: Inter + Noto Sans SC; code and terminal prefer JetBrains Mono'
+      },
+      where: { zh: '全局界面', en: 'App chrome' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '侧栏、标题栏工具与对话框间距/圆角统一走设计 token，空态更安静',
+        en: 'Sidebar, titlebar tools, and dialogs share spacing/radius tokens; empty states stay calm'
+      },
+      where: { zh: '侧栏 / 对话框', en: 'Sidebar / Dialogs' }
+    }
+  ],
   '0.6.36': [
     {
       icon: '▷',

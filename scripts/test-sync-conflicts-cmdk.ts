@@ -16,6 +16,6 @@ const pal = readFileSync('src/renderer/src/lib/palette.ts', 'utf8')
 assert.match(pal, /syncConflicts/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.36')
+assert.equal(pkg.version, '0.6.37')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-sync-conflicts-cmdk/)
 console.log('test-sync-conflicts-cmdk ok')

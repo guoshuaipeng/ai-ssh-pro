@@ -812,7 +812,7 @@ export type AiParsedSshForm = {
 
 export const TERMINAL_PREFS_DEFAULTS: TerminalPrefs = {
   themeId: 'github-dark',
-  fontFamily: 'Cascadia Code, Consolas, "Courier New", monospace',
+  fontFamily: 'JetBrains Mono, Cascadia Code, Consolas, monospace',
   fontSize: 14,
   scrollback: 4000,
   osc52Clipboard: true,

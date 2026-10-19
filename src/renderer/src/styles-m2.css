@@ -65,7 +65,7 @@
   margin: 0;
   padding: 8px 12px;
   white-space: pre-wrap;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 .term-blocks {

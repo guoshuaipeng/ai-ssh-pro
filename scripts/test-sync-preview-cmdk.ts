@@ -12,6 +12,6 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(app, /action === 'syncPreview'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.36')
+assert.equal(pkg.version, '0.6.37')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-sync-preview-cmdk/)
 console.log('test-sync-preview-cmdk ok')

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.37
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-1（字体 + chrome token）.** 渲染进程接入 Inter / Noto Sans SC / JetBrains Mono（@fontsource，中文用简体子集）；`--font-ui` / `--font-sans` / `--font-mono` 与 `--mut` / `--line` / `--ac` 别名写入 `:root`。侧栏、工具栏、对话框与空态改走 `--space-*` / `--radius-*`；终端默认等宽优先 JetBrains Mono。不新增工具栏主按钮。tipSuggest 仍为 `0.4.14-polish13`（本批非 Core-A）。版本号升到 0.6.37，不另写 FileVersion。 / **Feel track M-polish-1 (fonts + chrome tokens).** Renderer loads Inter / Noto Sans SC / JetBrains Mono via @fontsource (Simplified Chinese subset). `--font-ui` / `--font-sans` / `--font-mono` plus `--mut` / `--line` / `--ac` aliases land in `:root`. Sidebar, toolbar, dialogs, and empty states use `--space-*` / `--radius-*`. Terminal default mono prefers JetBrains Mono. No new toolbar primary. tipSuggest stays `0.4.14-polish13` (not a Core-A batch). Package bumps to 0.6.37; no separate FileVersion.
+
 ## v0.6.36
 
 Released 2026-10-19 (CST).
