@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import {
   acceptPrimaryAction,
   connectionTechnicalDetail,
+  jumpTroubleDetail,
   orderedActions,
   primaryAction,
   troubleshootConnection,
@@ -38,7 +39,17 @@ export default function ConnectTrouble({ raw, host = '', busy = false, onEdit, o
   const actions = orderedActions(item)
   const primary = primaryAction(item)
   const loc = locale === 'en' ? 'en' : 'zh-CN'
-  const cause = item.id === 'dropped' ? disconnectStatusSentence(host, loc) : t(PNG5_CAUSE[item.id])
+  const jump = item.id === 'jump' ? jumpTroubleDetail(raw) : null
+  const cause =
+    item.id === 'dropped'
+      ? disconnectStatusSentence(host, loc)
+      : jump
+        ? t(`png5.cause.jump.${jump.reasonKind}` as MessageKey, {
+            hop: jump.hop,
+            total: jump.total,
+            name: jump.name
+          })
+        : t(PNG5_CAUSE[item.id])
   const detail = connectionTechnicalDetail(raw)
   const showDetail = Boolean(detail) && detail !== cause
   const lock = useRef(false)
@@ -63,6 +74,7 @@ export default function ConnectTrouble({ raw, host = '', busy = false, onEdit, o
       role="alert"
       data-testid="connect-trouble"
       data-kind={item.id}
+      data-hop-kind={jump?.reasonKind ?? undefined}
       data-primary={item.primary}
       data-actions={actions.length}
       data-busy={busy ? '1' : '0'}

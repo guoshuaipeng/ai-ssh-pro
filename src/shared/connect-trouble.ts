@@ -1,6 +1,6 @@
 /** PNG-5: one human cause and at most three clickable checks for a failed SSH connect. */
 
-import { parseHopFailure } from './jump-chain'
+import { classifyHopReason, parseHopFailure, type HopReasonKind } from './jump-chain'
 import { noticeKind } from './product-error'
 
 export type TroubleId =
@@ -40,7 +40,13 @@ function plan(
 
 export function troubleshootConnection(raw: string): TroublePlan {
   const text = String(raw ?? '')
-  if (parseHopFailure(text)) return plan('jump', ['jump', 'host', 'key', 'retry'], ['edit', 'retry'], 'jump')
+  const hop = parseHopFailure(text)
+  if (hop) {
+    const kind = classifyHopReason(hop.reason)
+    if (kind === 'auth') return plan('jump', ['jump', 'key', 'user', 'retry'], ['keys', 'edit', 'retry'], 'keys')
+    if (kind === 'timeout') return plan('jump', ['jump', 'net', 'retry'], ['retry', 'edit'], 'retry')
+    return plan('jump', ['jump', 'host', 'key', 'retry'], ['edit', 'retry'], 'jump')
+  }
   if (/ECONNREFUSED|Connection refused|没有在监听|连接被拒绝/i.test(text)) {
     return plan('refused', ['host', 'port', 'net', 'retry'], ['edit', 'retry'], 'edit')
   }
@@ -90,6 +96,30 @@ export function connectionTechnicalDetail(raw: string): string {
     s = next
   }
   return s
+}
+
+
+export type JumpTroubleDetail = {
+  hop: number
+  total: number
+  name: string
+  addr: string
+  reasonKind: HopReasonKind
+  rawReason: string
+}
+
+/** Parsed hop failure for ConnectTrouble copy. */
+export function jumpTroubleDetail(raw: string): JumpTroubleDetail | null {
+  const hop = parseHopFailure(raw)
+  if (!hop) return null
+  return {
+    hop: hop.hop,
+    total: hop.total,
+    name: hop.name,
+    addr: hop.addr,
+    reasonKind: classifyHopReason(hop.reason),
+    rawReason: hop.reason
+  }
 }
 
 /** Sidebar / connection-page card for SSH connect failures, not import or permission noise. */

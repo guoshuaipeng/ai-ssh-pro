@@ -7,6 +7,8 @@ import {
   pickProductOverlay,
   productBackdropCount,
   shouldOfferTourAfterWelcome,
+  suppressParkableProduct,
+  isParkableProduct,
   type ProductOverlay
 } from '../src/shared/overlay-stack'
 import { shouldShowWelcome } from '../src/shared/welcome-prefs'
@@ -327,6 +329,25 @@ const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog
 assert.ok(unreleased.includes('（PNG-1）'))
 assert.ok(unreleased.includes('Public HOLD'))
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 console.log('test-png1-overlay ok')
+
+
+assert.equal(isParkableProduct('quickStart'), true)
+assert.equal(isParkableProduct('tour'), true)
+assert.equal(isParkableProduct('systemUpdate'), false)
+assert.equal(suppressParkableProduct('quickStart', { higherChrome: true }), null)
+assert.equal(suppressParkableProduct('tour', { higherChrome: true }), null)
+assert.equal(suppressParkableProduct('welcome', { higherChrome: true }), null)
+assert.equal(suppressParkableProduct('releaseNotes', { higherChrome: true }), 'releaseNotes')
+assert.equal(suppressParkableProduct('quickStart', { workspaceEditor: true }), null)
+assert.equal(suppressParkableProduct('tour', { workspaceEditor: true }), null)
+assert.equal(suppressParkableProduct('quickStart', { higherChrome: false, workspaceEditor: false }), 'quickStart')
+assert.equal(suppressParkableProduct(null, { higherChrome: true }), null)
+
+const featuresCss = readFileSync('src/renderer/src/features.css', 'utf8')
+assert.match(featuresCss, /\.tour-root\s*\{[^}]*z-index:\s*90/)
+assert.match(readFileSync('src/renderer/src/App.tsx', 'utf8'), /suppressParkableProduct/)
+assert.match(readFileSync('src/renderer/src/styles.css', 'utf8'), /\.cmdp-backdrop\s*\{[^}]*z-index:\s*1500/)
+console.log('test-png1-overlay: park chrome + tour z-index ok')

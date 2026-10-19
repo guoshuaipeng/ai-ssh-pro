@@ -16,7 +16,7 @@ import {
 } from '@shared/update-channel'
 import { setSnapshotKeep, setSnapshotsEnabled, snapshotKeep, snapshotsEnabled, SNAPSHOT_KEEP_OPTIONS } from '@shared/snapshots'
 import { useI18n, type MessageKey } from '../lib/i18n'
-import { applyUiTheme, loadUiThemeId, UI_THEME_OPTIONS, type UiThemeId } from '../lib/ui-themes'
+import { applyUiTheme, loadUiThemeId, suggestedTerminalTheme, UI_THEME_OPTIONS, type UiThemeId } from '../lib/ui-themes'
 import { loadAutoUpdate, saveAutoUpdate } from '../lib/update-check'
 import { TOUR_DONE_KEY } from './WelcomeTour'
 import type { TerminalPrefs } from '@shared/ipc'
@@ -74,6 +74,7 @@ type Props = {
   tagOptions?: string[]
   onOpenTemplates?: () => void
   onOpenGate?: () => void
+  onOpenKnownHosts?: () => void
   settingsAnchor?: string | null
 }
 
@@ -103,6 +104,7 @@ export default function SettingsPanel({
   tagOptions,
   onOpenTemplates,
   onOpenGate,
+  onOpenKnownHosts,
   settingsAnchor
 }: Props) {
   const { t, locale, setLocale } = useI18n()
@@ -272,6 +274,8 @@ export default function SettingsPanel({
                     onClick={() => {
                       setTheme(opt.id)
                       applyUiTheme(opt.id)
+                      const themeId = suggestedTerminalTheme(opt.id)
+                      void window.aiss.terminal.setPrefs({ themeId }).then((p) => onTerminalSaved?.(p)).catch(() => {})
                       saved()
                     }}
                   >
@@ -373,11 +377,18 @@ export default function SettingsPanel({
                 {t('settings.audit')}
               </label>
               <p className="l7-muted">{t('settings.dangerHint')}</p>
-              {onOpenGate ? (
-                <button type="button" data-testid="s2b-settings" onClick={onOpenGate}>
-                  {t('s2b.tab')}
-                </button>
-              ) : null}
+              <div className="settings-btn-row">
+                {onOpenKnownHosts ? (
+                  <button type="button" data-testid="settings-known-hosts" onClick={onOpenKnownHosts}>
+                    {t('kh.openFromSettings')}
+                  </button>
+                ) : null}
+                {onOpenGate ? (
+                  <button type="button" data-testid="s2b-settings" onClick={onOpenGate}>
+                    {t('s2b.tab')}
+                  </button>
+                ) : null}
+              </div>
             </section>
           ) : null}
           {active === 'files' ? (

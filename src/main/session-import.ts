@@ -3,6 +3,9 @@ import { basename, extname } from 'node:path'
 import { looksLikeFinalShell, looksLikeMobaXterm, looksLikeSecureCrt, parseFinalShell, parseMobaXtermSessions, parseSecureCrtSession } from './session-import-extra'
 import { redactSecrets } from '../shared/import-preview'
 import { parseProxyJump } from '../shared/jump-chain'
+import { parseOpenSshConfig } from '../shared/ssh-config-import'
+import { loadAndParseSshConfigFile } from './ssh-config-load'
+import { homedir } from 'node:os'
 import type { ImportedSessionDraft, SessionImportPickResult } from '../shared/ipc'
 
 function decodeTextFile(buf: Buffer): string {
@@ -72,75 +75,57 @@ function parseXshFile(filePath: string, text: string): ImportedSessionDraft | nu
 
 type SshConfigBlock = { patterns: string[]; lines: string[] }
 
-function parseSshConfigBlocks(text: string): SshConfigBlock[] {
-  const blocks: SshConfigBlock[] = []
-  let cur: SshConfigBlock | null = null
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.split('#')[0]?.trim() ?? ''
-    if (!line) continue
-    const hostM = line.match(/^Host\s+(.+)$/i)
-    if (hostM) {
-      const patterns = hostM[1]!.trim().split(/\s+/).filter(Boolean)
-      cur = { patterns, lines: [] }
-      blocks.push(cur)
-      continue
-    }
-    if (cur) cur.lines.push(line)
-  }
-  return blocks
-}
-
-function looksLikeHostname(s: string): boolean {
-  if (!s || s === '*') return false
-  if (s.includes('*') || s.includes('?')) return false
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(s)) return true
-  if (s.includes('.')) return true
-  if (/^[a-zA-Z0-9-]+$/.test(s) && s.length > 2) return true
-  return false
-}
-
-function parseSshConfig(text: string): ImportedSessionDraft[] {
-  const out: ImportedSessionDraft[] = []
-  for (const block of parseSshConfigBlocks(text)) {
-    const patterns = block.patterns
-    if (patterns.length === 0) continue
-    if (patterns.every((p) => p === '*' || p === '!*')) continue
-    const kv: Record<string, string> = {}
-    for (const ln of block.lines) {
-      const m = ln.match(/^(\S+)\s+(.+)$/)
-      if (!m) continue
-      const k = m[1]!.toLowerCase()
-      let v = m[2]!.trim()
-      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-        v = v.slice(1, -1)
-      }
-      kv[k] = v
-    }
-    const hostName = kv.hostname || kv.host || ''
-    const label = patterns[0]!.trim()
-    const hostCandidate = hostName.trim() || patterns.find((p) => looksLikeHostname(p)) || ''
-    if (!hostCandidate) continue
-    const username = (kv.user || '').trim() || 'root'
-    const port = parsePort(kv.port)
-    const privateKeyPath = (kv.identityfile || '').trim()
+function parseSshConfig(text: string): { drafts: ImportedSessionDraft[]; notes: string[] } {
+  const home = homedir()
+  const parsed = parseOpenSshConfig(text, { homeDir: home, group: 'OpenSSH' })
+  const drafts: ImportedSessionDraft[] = []
+  for (const d of parsed.drafts) {
     const draft: ImportedSessionDraft = {
-      label,
-      host: hostCandidate,
-      port,
-      username
+      label: d.label,
+      host: d.host,
+      port: d.port,
+      username: d.username,
+      group: d.group
     }
-    if (privateKeyPath) draft.privateKeyPath = privateKeyPath.replace(/^~(?=\/|\\)/, process.env.HOME ?? process.env.USERPROFILE ?? '~')
-    const proxy = (kv.proxyjump || '').trim()
-    if (proxy) {
-      const parsed = parseProxyJump(proxy)
-      if (parsed.hops.length) {
-        draft.jumpChain = parsed.hops
-        draft.jumpHost = { host: parsed.hops[0]!.host, port: parsed.hops[0]!.port, username: parsed.hops[0]!.username }
+    if (d.privateKeyPath) {
+      draft.privateKeyPath = d.privateKeyPath
+      draft.authMode = 'key'
+    }
+    if (d.forwards?.length) draft.forwards = d.forwards
+    if (d.jumpChain?.length) {
+      const rebuilt = d.jumpChain
+        .map((h) => `${h.username ? h.username + '@' : ''}${h.host}${h.port && h.port !== 22 ? ':' + h.port : ''}`)
+        .join(',')
+      const hops = parseProxyJump(rebuilt).hops
+      if (hops.length) {
+        draft.jumpChain = hops
+        draft.jumpHost = {
+          host: hops[0]!.host,
+          port: hops[0]!.port,
+          username: hops[0]!.username
+        }
+      } else {
+        draft.jumpChain = d.jumpChain as ImportedSessionDraft['jumpChain']
+        draft.jumpHost = d.jumpHost
       }
     }
-    out.push(draft)
+    drafts.push(draft)
   }
-  return out
+  const notes: string[] = [...parsed.notes]
+  const proxyN = parsed.drafts.filter((d) => d.proxyCommand).length
+  if (proxyN && !notes.some((n) => /ProxyCommand/i.test(n))) {
+    notes.push(`OpenSSH ProxyCommand×${proxyN}（未应用连接；请改用 ProxyJump / 跳板）`)
+  }
+  if (parsed.includeCount && !notes.some((n) => /Include/i.test(n))) {
+    notes.push(`OpenSSH Include×${parsed.includeCount}`)
+  }
+  if (parsed.matchCount && !notes.some((n) => /Match/i.test(n))) {
+    notes.push(`OpenSSH Match×${parsed.matchCount}（暂不导入）`)
+  }
+  if (parsed.skippedWildcard && !notes.some((n) => /通配|Host\*/.test(n))) {
+    notes.push(`跳过 ${parsed.skippedWildcard} 个通配 Host`)
+  }
+  return { drafts, notes }
 }
 
 function mergeDraftsUnique(drafts: ImportedSessionDraft[]): ImportedSessionDraft[] {
@@ -409,10 +394,41 @@ export async function importSessionFilesFromPaths(filePaths: string[]): Promise<
         }
       }
 
-      const fromSsh = parseSshConfig(text)
-      if (fromSsh.length > 0) {
-        items.push(...fromSsh)
-        notes.push(`${base}：自 OpenSSH 配置解析 ${fromSsh.length} 条`)
+      // Prefer path-based load so Include can resolve relative to the file.
+      const fromSsh = loadAndParseSshConfigFile(fp)
+      if (fromSsh.drafts.length > 0) {
+        items.push(...fromSsh.drafts.map((d) => {
+          const draft: ImportedSessionDraft = {
+            label: d.label,
+            host: d.host,
+            port: d.port,
+            username: d.username,
+            group: d.group
+          }
+          if (d.privateKeyPath) {
+            draft.privateKeyPath = d.privateKeyPath
+            draft.authMode = 'key'
+          }
+          if (d.forwards?.length) draft.forwards = d.forwards
+          if (d.jumpChain?.length) {
+            const rebuilt = d.jumpChain
+              .map((h) => `${h.username ? h.username + '@' : ''}${h.host}${h.port && h.port !== 22 ? ':' + h.port : ''}`)
+              .join(',')
+            const hops = parseProxyJump(rebuilt).hops
+            if (hops.length) {
+              draft.jumpChain = hops
+              draft.jumpHost = { host: hops[0]!.host, port: hops[0]!.port, username: hops[0]!.username }
+            } else {
+              draft.jumpChain = d.jumpChain as ImportedSessionDraft['jumpChain']
+              draft.jumpHost = d.jumpHost
+            }
+          }
+          return draft
+        }))
+        notes.push(`${base}：自 OpenSSH 配置解析 ${fromSsh.drafts.length} 条`)
+        notes.push(...fromSsh.expandNotes)
+        if (fromSsh.matchCount) notes.push(`OpenSSH Match×${fromSsh.matchCount}（暂不导入）`)
+        if (fromSsh.skippedWildcard) notes.push(`跳过 ${fromSsh.skippedWildcard} 个通配 Host`)
         continue
       }
       if (ext === '.config' || base.toLowerCase() === 'config') {

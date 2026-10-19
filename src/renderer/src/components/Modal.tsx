@@ -45,13 +45,20 @@ export default function Modal({ open, title, onClose, children, width = 520, foo
   }
 
   return (
-    <div className="modal modal-backdrop" role="presentation" ref={backdropRef} onClick={onClose}>
+    <div
+      className="modal modal-backdrop"
+      role="presentation"
+      ref={backdropRef}
+      onClick={onClose}
+      data-testid={testId ? testId + '-backdrop' : undefined}
+    >
       <div
         className="modal-panel"
         style={{ width: `min(92vw, ${width}px)` }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
+        data-testid={testId}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">

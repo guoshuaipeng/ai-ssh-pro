@@ -14,6 +14,7 @@ import { dockerStatusTone, type DockerStatusTone } from '@shared/docker-toolbox'
 import { hostStatusLevel, type HostProbeResult } from '@shared/host-status'
 import { effectiveLevel } from '@shared/protection'
 import { stricterLevel } from '@shared/readonly-session'
+import { sessionNotePreview } from '@shared/session-note'
 import Icon, { Twist } from './Icon'
 
 export type DockerTreeCache = {
@@ -233,7 +234,7 @@ export default function SessionDockerBranch({
     <div className={`session-host-block${inFolder ? ' session-host-block--in-folder' : ''}`}>
       <div
         className={`profile-row profile-row--host${selected ? ' is-selected' : ''}${inFolder ? ' profile-row--in-folder' : ''}${busy && !hostExpanded ? ' is-docker-loading' : ''}`}
-        title={`${tg('db.rowTitle', { target: `${profile.username}@${profile.host}:${profile.port}` })}${profile.tags?.length ? `\n${tg('tags.title', { tags: profile.tags.join(', ') })}` : ''}`}
+        title={`${tg('db.rowTitle', { target: `${profile.username}@${profile.host}:${profile.port}` })}${profile.tags?.length ? `\n${tg('tags.title', { tags: profile.tags.join(', ') })}` : ''}${profile.note?.trim() ? `\n${tg('conn.note')}: ${profile.note.trim()}` : ''}`}
         onClick={onSelect}
         onDoubleClick={onConnect}
         onContextMenu={(e) => onOpenMenu(e, 'context')}
@@ -304,6 +305,11 @@ export default function SessionDockerBranch({
                   #{tag}
                 </span>
               ))}
+            </div>
+          ) : null}
+          {sessionNotePreview(profile.note) ? (
+            <div className="profile-note" data-testid="profile-session-note" title={profile.note}>
+              {sessionNotePreview(profile.note)}
             </div>
           ) : null}
         </div>

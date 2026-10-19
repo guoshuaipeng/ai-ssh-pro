@@ -18,7 +18,12 @@ type Toast = {
 }
 
 const listeners = new Set<(t: Toast) => void>()
+const clearListeners = new Set<() => void>()
 let seq = 0
+
+export function clearToasts(): void {
+  for (const fn of clearListeners) fn()
+}
 
 export function showToast(
   message: string,
@@ -51,9 +56,12 @@ export function ToastHost() {
       setItems((prev) => admitToast(prev, t, TOAST_VISIBLE_CAP) as Toast[])
       window.setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== t.id)), t.ms)
     }
+    const clear = () => setItems([])
     listeners.add(fn)
+    clearListeners.add(clear)
     return () => {
       listeners.delete(fn)
+      clearListeners.delete(clear)
     }
   }, [])
   if (!items.length) return null

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { moveById, normalizeTabTitle } from '@shared/workspace-features'
+import { moveById, normalizeTabTitle, LATENCY_POLL_MS, classifyLatency } from '@shared/workspace-features'
 import type {
   LocalPortForward,
   SavedSessionProfile,
@@ -11,9 +11,12 @@ import type {
   TerminalPrefs
 } from '@shared/ipc'
 import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
+import { bumpTerminalFontSize, resetTerminalFontSize } from '@shared/terminal-zoom'
+import { normalizeSessionNote, sessionNotePreview } from '@shared/session-note'
+import { formatConnectionString, statusHostChipLabel } from '@shared/connection-string'
 import TerminalPane from './components/TerminalPane'
 import SplitTerminalView from './components/SplitTerminalView'
-import AIPanel from './components/AIPanel'
+import AIPanel, { type AiPendingInfo } from './components/AIPanel'
 import AppToolbar from './components/AppToolbar'
 import type { TitlebarMenuAction } from './components/TitlebarMenus'
 import AiConfigModal from './components/AiConfigModal'
@@ -21,11 +24,13 @@ import ConnectionConfigModal from './components/ConnectionConfigModal'
 import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
 import HostKeyConfirmModal from './components/HostKeyConfirmModal'
+import KnownHostsModal from './components/KnownHostsModal'
 import SessionSearchBar from './components/SessionSearchBar'
 import { exportSessionsAndCopy } from './components/SessionExportButtons'
 import SnippetsPanel from './components/SnippetsPanel'
 import TerminalPrefsModal from './components/TerminalPrefsModal'
 import UiThemeModal from './components/UiThemeModal'
+import { applyUiTheme, isLightUiTheme, suggestedTerminalTheme, toggleLightDarkTheme, type UiThemeId } from './lib/ui-themes'
 import SftpPanel from './components/SftpPanel'
 import { askSftpClose, clearArmedFolderSync, requestFolderSync, takeArmedFolderSync } from './lib/sftp-activity'
 import { formatSftpTabTitle, planSftpOpen } from '@shared/sftp-host'
@@ -47,6 +52,11 @@ import MaintenanceTab from './components/MaintenanceTab'
 import PostmortemAiTab from './components/PostmortemAiTab'
 import FirstWeekChip from './components/FirstWeekChip'
 import BroadcastTargetPicker from './components/BroadcastTargetPicker'
+import {
+  broadcastStillActive,
+  initialBroadcastSelection,
+  pruneBroadcastTargets
+} from '@shared/broadcast-targets'
 import InspectWizard, { type InspectReport } from './components/InspectWizard'
 import {
   evaluateAlerts,
@@ -68,7 +78,8 @@ import { BuiltMenu } from './components/BuiltMenu'
 import CommandPalette from './components/CommandPalette'
 import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
-import { ToastHost, showToast } from './lib/toast'
+import { ToastHost, clearToasts, showToast } from './lib/toast'
+import { SCREENSHOT_EVENT, screenshotHooksEnabled, type ScreenshotOp } from './lib/screenshot-hooks'
 import { isSkipped, markChecked, shouldAutoCheck, skipVersion } from './lib/update-check'
 import { loadUpdateChannelPrefs, rememberUpdateSource, sourceLabel } from '@shared/update-channel'
 import { alertHostIds, ignoreAlert, locateTargetFor, reconcileAlerts } from '@shared/alert-locate'
@@ -79,7 +90,9 @@ import { completeTask, dismissTasksForever, loadTaskState, pendingTasks, reopenT
 import { loadSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT } from '@shared/sftp-density'
 import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind } from './lib/terminal-find'
-import { matchKeymap } from '@shared/keymap'
+import { keysFor, matchKeymap } from '@shared/keymap'
+import { matchSnippetHotkey, SNIPPET_HOTKEY_EVENT } from '@shared/snippet-hotkey'
+import { dispatchInjectTerminal } from './lib/terminal-inject'
 import { closeControlTipKey } from '@shared/close-tab'
 import { changelogFor } from '@shared/changelog'
 import { tabLabel } from '@shared/tab-label'
@@ -132,15 +145,16 @@ import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
 import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabOverflowMark, tabStripChrome, tabStripNudgePx, tabStripRevealDelta, tabStripWheelDelta } from '@shared/tab-overflow'
 import { loadProbePrefs, probeExtrasOf, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
-import { bellShouldFlash, endingSoon, expireDue, formatRemaining, loadMaintenance, shouldNotify } from '@shared/maintenance'
+import { bellShouldFlash, endingSoon, expireDue, formatRemaining, loadMaintenance, shouldNotify, activeWindows, endMaintenance } from '@shared/maintenance'
 import { planPostmortem } from '@shared/postmortem-ai'
 import { markLoop } from '@shared/alert-loop'
 import { arrangeTabs, closeOthers, closeRight } from '@shared/tab-actions'
+import { popClosedTab, pushClosedTab, type ClosedTabSnap } from '@shared/closed-tabs'
 import { collectReminderNotice, REMINDER_FILTER_EVENT, REMINDER_FOCUS_EVENT } from './lib/reminder-tick'
 import { loadFirstWeekDismissed, saveFirstWeekDismissed } from '@shared/first-week'
 import { decideQuickStart, loadFreshProfile, loadQuickDone, noteInstall, saveQuickDone } from '@shared/onboarding'
 import { loadWelcomePrefs, saveWelcomeCompleted, saveWelcomeDismissed } from '@shared/welcome-prefs'
-import { admitProductOverlay, escProductTarget, isHigherChromeOpen, pickProductOverlay, productBackdropCount, shouldOfferTourAfterWelcome } from '@shared/overlay-stack'
+import { admitProductOverlay, escProductTarget, isHigherChromeOpen, pickProductOverlay, productBackdropCount, suppressParkableProduct, shouldOfferTourAfterWelcome } from '@shared/overlay-stack'
 import { bindProductFocus } from './lib/focus-restore'
 import {
   IMPORT_HINT_OFF_KEY,
@@ -160,7 +174,7 @@ import { recentIdentity } from '@shared/recent-sidebar'
 import type { JumpHop } from '@shared/jump-chain'
 import { loadPlaybooks, savePlaybooks, upsertPlaybook } from '@shared/playbook'
 import { type SyncPhase } from '@shared/sync-vault'
-import { disconnectStatusSentence, fitStatusSlots, statusBarSlots, statusQuietLabel } from '@shared/status-bar'
+import { disconnectStatusSentence, fitStatusSlots, formatStatusLatency, latencyClipboardText, statusBarSlots, statusQuietLabel } from '@shared/status-bar'
 import { QUIET_LOAD_ATTRS } from '@shared/quiet-load'
 import { trayHoverTitle } from '@shared/product'
 import { tabKindIcon } from '@shared/tab-kind'
@@ -204,6 +218,7 @@ import {
 } from '@shared/batch-connect'
 import { loadLastWorkspace, loadRestoreLayout, loadStartupMode, saveLastWorkspace, saveRestoreLayout, saveStartupMode, type SavedWorkspaceTab, type StartupMode } from '@shared/startup-pref'
 import { RESTORE_BIND_MS, snapshotWorkspace } from '@shared/session-restore'
+import { formatOpenTabsList } from '@shared/open-tabs-export'
 import { coldStartShowsWelcome, planColdStart, restoreWatchIds, showsDroppedConnection, showsRestoreHold } from '@shared/cold-start'
 import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionForAction, type SettingsSection } from '@shared/settings-nav'
 import { editorOpenPlan, type EditorId } from '@shared/editor-surface'
@@ -461,10 +476,11 @@ function syncPhaseKey(phase: SyncPhase): MessageKey {
 
 export default function App() {
   const { t: tr, locale, setLocale } = useI18n()
-  const labelFor = (tab: Pick<Tab, 'title' | 'status' | 'view' | 'auditHost' | 'connectOpts'>) =>
+  const labelFor = (tab: Pick<Tab, 'title' | 'customTitle' | 'status' | 'view' | 'auditHost' | 'connectOpts'>) =>
     tabLabel(
       {
         title: tab.title,
+        customTitle: tab.customTitle,
         status: tab.status,
         view: tab.view,
         auditHost: tab.auditHost,
@@ -484,6 +500,7 @@ export default function App() {
   const [privateKeyPath, setPrivateKeyPath] = useState('')
   const [passphrase, setPassphrase] = useState('')
   const [label, setLabel] = useState('')
+  const [sessionNote, setSessionNote] = useState('')
 
   const [jumpHost, setJumpHost] = useState('')
   const [jumpPort, setJumpPort] = useState('22')
@@ -506,6 +523,7 @@ export default function App() {
   const [alertHistory, setAlertHistory] = useState<FiredAlert[]>(() => loadAlertHistory())
   const [rulesDock, setRulesDock] = useState<{ nonce: number; tab: 'rules' | 'history' } | null>(null)
   const [bellPrefs, setBellPrefs] = useState<BellPrefs>(() => loadBellPrefs())
+  const [statusLatencyMs, setStatusLatencyMs] = useState<number | null | undefined>(undefined)
   const [dashScope, setDashScope] = useState<DashScope>(() => loadDashScope())
   const [startupMode, setStartupMode] = useState<StartupMode>(() => loadStartupMode())
   const [restoreLayout, setRestoreLayout] = useState(() => loadRestoreLayout())
@@ -544,13 +562,30 @@ export default function App() {
   const [blocksOn, setBlocksOn] = useState(() => blocksEnabled())
   const [jumpFail, setJumpFail] = useState<{ hop: number; total: number; name: string; reason: string; profileId?: string } | null>(null)
   const [hopProgress, setHopProgress] = useState<{ hop: number; total: number; name: string } | null>(null)
-  const [connFocus, setConnFocus] = useState<'jump' | 'cert' | null>(null)
+  const [connFocus, setConnFocus] = useState<'jump' | 'cert' | 'note' | null>(null)
   const [tabOverflowOpen, setTabOverflowOpen] = useState(false)
   const [tabOverflowPos, setTabOverflowPos] = useState<{ top: number; left: number } | null>(null)
   const [tabStripOverflowing, setTabStripOverflowing] = useState(false)
   const [tabHiddenCount, setTabHiddenCount] = useState(0)
   const [tabFade, setTabFade] = useState({ left: false, right: false })
   const tabChrome = tabStripChrome(tabStripOverflowing)
+
+  const openAllTabsMenu = useCallback(() => {
+    const btn = tabOverflowBtnRef.current
+    if (btn) {
+      const r = btn.getBoundingClientRect()
+      const width = 280
+      const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8))
+      setTabOverflowPos({ top: Math.round(r.bottom + 4), left: Math.round(left) })
+    } else {
+      setTabOverflowPos({ top: 48, left: Math.max(8, window.innerWidth - 300) })
+    }
+    tabOverflowFromRef.current = 'chevron'
+    setTabQuery('')
+    setTabListIndex(0)
+    setTabOverflowOpen(true)
+  }, [])
+
   const tabBarRef = useRef<HTMLDivElement>(null)
   const tabOverflowBtnRef = useRef<HTMLButtonElement>(null)
   const tabOverflowMenuRef = useRef<HTMLDivElement>(null)
@@ -601,15 +636,26 @@ export default function App() {
   }, [])
 
   const toggleSidebar = useCallback(() => {
-    updateLayout((p) => withPaneToggle(p, 'sidebar', !p.showSidebar))
-  }, [updateLayout])
+    const next = !layout.showSidebar
+    updateLayout((p) => withPaneToggle(p, 'sidebar', next))
+    showToast(tg(next ? 'toolbar.showSidebar' : 'toolbar.hideSidebar'))
+  }, [updateLayout, layout.showSidebar])
   const toggleMain = useCallback(() => {
-    updateLayout((p) => withPaneToggle(p, 'main', !p.showMain))
-  }, [updateLayout])
+    const next = !layout.showMain
+    updateLayout((p) => withPaneToggle(p, 'main', next))
+    showToast(tg(next ? 'toolbar.showMain' : 'toolbar.hideMain'))
+  }, [updateLayout, layout.showMain])
   const toggleAi = useCallback(() => {
-    updateLayout((p) => withPaneToggle(p, 'ai', !p.showAi))
-  }, [updateLayout])
+    const next = !layout.showAi
+    updateLayout((p) => withPaneToggle(p, 'ai', next))
+    showToast(tg(next ? 'toolbar.showAi' : 'toolbar.hideAi'))
+  }, [updateLayout, layout.showAi])
   const [rightPane, setRightPane] = useState<RightPaneId>(() => loadLayoutPrefs().rightPane)
+  const [aiPending, setAiPending] = useState<AiPendingInfo | null>(null)
+  const [aiFocusPendingToken, setAiFocusPendingToken] = useState(0)
+  const onAiPendingChange = useCallback((info: AiPendingInfo | null) => {
+    setAiPending(info)
+  }, [])
   const [snipLaunch, setSnipLaunch] = useState<{ n: number; focusSearch?: boolean; openForm?: boolean; seed?: string; previewBuiltin?: boolean }>({ n: 0 })
   const openRightPanel = useCallback((pane: RightPaneId, opts?: { focusSearch?: boolean; openForm?: boolean; seed?: string; previewBuiltin?: boolean }) => {
     setRightPane(pane)
@@ -749,6 +795,7 @@ export default function App() {
   const [sideInfo, setSideInfo] = useState<string | null>(null)
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [hostKeyPrompt, setHostKeyPrompt] = useState<SshHostKeyPromptEvent | null>(null)
+  const [knownHostsOpen, setKnownHostsOpen] = useState(false)
   const hostKeyShownRef = useRef<SshHostKeyPromptEvent | null>(null)
   const hostKeyQueueRef = useRef<SshHostKeyPromptEvent[]>([])
   const [aboutOpen, setAboutOpen] = useState(false)
@@ -762,7 +809,13 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (!e.ctrlKey || e.altKey || e.metaKey) return
       const list = tabsRef.current
-      if (!list.length) return
+      if (!list.length) {
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          showToast(tg('tab.none'))
+        }
+        return
+      }
       let target: string | undefined
       if (e.key === 'Tab') {
         setActiveTabId((cur) => {
@@ -900,7 +953,7 @@ export default function App() {
   const multiSelectedRef = useRef<string[]>([])
   multiSelectedRef.current = multiSelected
   const [batchFails, setBatchFails] = useState<{ id: string; label: string; reason: string }[]>([])
-  const [batchQueue, setBatchQueue] = useState<{ queued: number; total: number; started: number } | null>(null)
+  const [batchQueue, setBatchQueue] = useState<{ queued: number; total: number; started: number; ok: number; fail: number; current?: string } | null>(null)
   const lastClickedProfileRef = useRef<string | null>(null)
   const [backupOpen, setBackupOpen] = useState(false)
   const openDashboardRef = useRef<() => void>(() => {})
@@ -924,6 +977,7 @@ export default function App() {
   const [sftpComfort, setSftpComfort] = useState(() => loadSftpDensity() === 'comfort')
   const pendingLocateRef = useRef<ServerToolsTab | 'terminal' | null>(null)
   const [reconnectingTabId, setReconnectingTabId] = useState<string | null>(null)
+  const [reconnectAllBusy, setReconnectAllBusy] = useState(false)
   // G2 welcome tour, UX-09 host picker, A1 AI explain card, UX-10 indicators
   const [tourOpen, setTourOpen] = useState(false)
   const [welcomeDismissed, setWelcomeDismissed] = useState(() => loadWelcomePrefs().dismissed)
@@ -998,6 +1052,39 @@ export default function App() {
     [tabs, profiles, sessionRo, elevateMap]
   )
   const onlineSessionIds = useMemo(() => new Set(connectedSshSessions.map((s) => s.sessionId)), [connectedSshSessions])
+  const cmdkHostEntries = useMemo(() => {
+    const out: Array<{ id: string; label: string; host: string; username: string; port: number; recent?: boolean }> = []
+    const seen = new Set<string>()
+    for (const r of recentRows.slice(0, 8)) {
+      const p =
+        profiles.find((x) => x.id === r.id) ||
+        profiles.find((x) => x.host === r.host && (x.port || 22) === (r.port || 22) && x.username === r.username)
+      if (!p || seen.has(p.id)) continue
+      seen.add(p.id)
+      out.push({
+        id: p.id,
+        label: p.label || r.label || `${p.username}@${p.host}`,
+        host: p.host,
+        username: p.username,
+        port: p.port || 22,
+        recent: true
+      })
+    }
+    for (const p of profiles) {
+      if (seen.has(p.id)) continue
+      if (out.length >= 24) break
+      seen.add(p.id)
+      out.push({
+        id: p.id,
+        label: p.label || `${p.username}@${p.host}`,
+        host: p.host,
+        username: p.username,
+        port: p.port || 22
+      })
+    }
+    return out
+  }, [profiles, recentRows])
+
   const recentIdSet = useMemo(() => {
     const keys = new Set(recentRows.map((r) => recentIdentity(r)))
     return new Set(profiles.filter((p) => keys.has(recentIdentity(p))).map((p) => p.id))
@@ -1092,11 +1179,48 @@ export default function App() {
     void window.aiss.workspace.healthProbeRelease?.()
   }, [])
   const activeIsSsh = Boolean(activeSessionId && activeTab?.kind !== 'local')
+  useEffect(() => {
+    if (!activeSessionId || !activeIsSsh) {
+      setStatusLatencyMs(undefined)
+      return
+    }
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tick = async () => {
+      let ms: number | null = null
+      try {
+        ms = await window.aiss.workspace.ping(activeSessionId)
+      } catch {
+        ms = null
+      }
+      if (!alive) return
+      setStatusLatencyMs(ms)
+      timer = setTimeout(() => void tick(), LATENCY_POLL_MS)
+    }
+    void tick()
+    return () => {
+      alive = false
+      if (timer) clearTimeout(timer)
+    }
+  }, [activeSessionId, activeIsSsh])
   const isRecordingActive = Boolean(activeSessionId && recordingSessionId === activeSessionId)
   const connectedSshSessionsRef = useRef(connectedSshSessions)
   connectedSshSessionsRef.current = connectedSshSessions
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
+  const snippetsHotkeyRef = useRef<import('@shared/ipc').CommandSnippet[]>([])
+  useEffect(() => {
+    const loadSnips = () => {
+      void window.aiss.snippets.list().then((list) => {
+        snippetsHotkeyRef.current = Array.isArray(list) ? list : []
+      }).catch(() => {
+        snippetsHotkeyRef.current = []
+      })
+    }
+    loadSnips()
+    window.addEventListener(SNIPPET_HOTKEY_EVENT, loadSnips)
+    return () => window.removeEventListener(SNIPPET_HOTKEY_EVENT, loadSnips)
+  }, [])
   const addDemoHostRef = useRef<(connect: boolean) => Promise<void>>(async () => undefined)
   const activeIsDemo = Boolean(activeIsSession && activeTab?.status === 'connected' && activeTab.connectOpts.demo)
   // X3 / UX-10: broadcast targets are explicit; fall back to split pair for legacy
@@ -1106,6 +1230,36 @@ export default function App() {
     if (splitEnabled && activeSessionId) return [...new Set([activeSessionId, splitSecondary || activeSessionId])]
     return activeSessionId ? [activeSessionId] : []
   }, [broadcastEnabled, broadcastTargets, splitEnabled, activeSessionId, splitSecondary])
+
+  const broadcastPickerTabs = useMemo(() => {
+    return tabs
+      .filter((x) => x.sessionId && x.status === 'connected' && (!x.view || x.view === 'session') && x.kind !== 'local')
+      .map((x) => {
+        const profile = x.profileId ? profiles.find((p) => p.id === x.profileId) : undefined
+        return {
+          sessionId: x.sessionId!,
+          title: x.customTitle || x.title || x.sessionId!,
+          group: profile?.folderId,
+          isProd: effectiveLevel(profile) === 'production'
+        }
+      })
+  }, [tabs, profiles])
+
+  const broadcastLiveIds = useMemo(() => broadcastPickerTabs.map((x) => x.sessionId), [broadcastPickerTabs])
+
+  // Keep last target set across picker reopen; drop ids whose sessions closed.
+  useEffect(() => {
+    setBroadcastTargets((prev) => {
+      const next = pruneBroadcastTargets(prev, broadcastLiveIds)
+      return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next
+    })
+  }, [broadcastLiveIds])
+
+  useEffect(() => {
+    if (!broadcastStillActive(broadcastEnabled, pruneBroadcastTargets(broadcastTargets, broadcastLiveIds))) {
+      if (broadcastEnabled) setBroadcastEnabled(false)
+    }
+  }, [broadcastEnabled, broadcastTargets, broadcastLiveIds])
   const [recordTick, setRecordTick] = useState(0)
   useEffect(() => {
     if (!recordingStartedAt) return
@@ -1427,12 +1581,14 @@ export default function App() {
     }
     bar.addEventListener('wheel', onWheel, { capture: true, passive: false })
     measure()
+    const raf = window.requestAnimationFrame(() => measure())
     return () => {
+      window.cancelAnimationFrame(raf)
       ro.disconnect()
       scroll.removeEventListener('scroll', measure)
       bar.removeEventListener('wheel', onWheel, { capture: true })
     }
-  }, [tabs.length, locale, layout.showMain])
+  }, [tabs.length, locale, layout.showMain, layout.showSidebar, layout.showAi])
   useEffect(() => {
     if (!tabOverflowOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -1737,6 +1893,7 @@ export default function App() {
   ])
 
   const closeTabRef = useRef<(tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => void>(() => {})
+  const closedTabsRef = useRef<ClosedTabSnap[]>([])
   const sftpBypassRef = useRef(false)
   const liveCloseBypassRef = useRef(false)
   const closeTab = useCallback((tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => {
@@ -1848,6 +2005,16 @@ export default function App() {
     setRecordingSessionId((cur) => (cur === sessionId ? null : cur))
     const curTabs = tabsRef.current
     const idx = curTabs.findIndex((t) => t.tabId === tabId)
+    const closing = curTabs[idx]
+    if (closing && (!closing.view || closing.view === 'session') && closing.connectOpts) {
+      closedTabsRef.current = pushClosedTab(closedTabsRef.current, {
+        connectOpts: closing.connectOpts,
+        profileId: closing.profileId,
+        hostInventoryId: closing.hostInventoryId,
+        kind: closing.kind === 'local' ? 'local' : 'ssh',
+        title: closing.customTitle || closing.title
+      })
+    }
     const rest = curTabs.filter((t) => t.tabId !== tabId)
     const fallback = rest[Math.min(Math.max(idx, 0), Math.max(rest.length - 1, 0))]?.tabId ?? null
     setTabs((prev) => prev.filter((t) => t.tabId !== tabId))
@@ -1855,17 +2022,20 @@ export default function App() {
   }, [])
   closeTabRef.current = closeTab
 
-  const commitRename = useCallback(() => {
+  const commitRename = useCallback((raw?: string) => {
     const id = renamingTabId
     if (!id) return
-    const title = normalizeTabTitle(renameDraft)
+    const title = normalizeTabTitle(raw !== undefined ? raw : renameDraft)
     if (title) setTabs((prev) => prev.map((t) => (t.tabId === id ? { ...t, title, customTitle: title } : t)))
     setRenamingTabId(null)
   }, [renamingTabId, renameDraft])
 
   const startRename = useCallback((tabId: string) => {
     const tab = tabsRef.current.find((t) => t.tabId === tabId)
-    if (!tab) return
+    if (!tab) {
+      showToast(tg('tab.none'))
+      return
+    }
     setRenameDraft(tab.title)
     setRenamingTabId(tabId)
   }, [])
@@ -1904,6 +2074,7 @@ export default function App() {
   const saveProfile = useCallback(() => {
     if (!host.trim() || !username.trim()) {
       setError(tg('app.needHostUser'))
+      showToast(tg('app.needHostUser'), { kind: 'error' })
       return
     }
     const h = host.trim()
@@ -1925,7 +2096,8 @@ export default function App() {
       ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {}),
       autoRecord: formAutoRecord,
       ...(forwards ? { forwards } : {}),
-      protection
+      protection,
+      ...(normalizeSessionNote(sessionNote) ? { note: normalizeSessionNote(sessionNote) } : { note: undefined })
     }
 
     let nextProfiles: SavedSessionProfile[]
@@ -1942,6 +2114,8 @@ export default function App() {
       nextProfiles = existing ? profiles.map((s) => (s.id === existing.id ? row : s)) : [...profiles, row]
     }
     void persistSessionState({ folders, profiles: nextProfiles })
+    const savedLabel = label.trim() || `${u}@${h}`
+    showToast(tg('app.profileSaved', { name: savedLabel }))
   }, [
     buildForwards,
     buildJumpHost,
@@ -1960,7 +2134,8 @@ export default function App() {
     jumpChain,
     connAuth,
     certificatePath,
-    formAutoRecord
+    formAutoRecord,
+    sessionNote
   ])
 
   const resetConnectionForm = useCallback(() => {
@@ -1971,6 +2146,7 @@ export default function App() {
     setPrivateKeyPath('')
     setPassphrase('')
     setLabel('')
+    setSessionNote('')
     setJumpHost('')
     setJumpPort('22')
     setJumpUsername('')
@@ -1998,6 +2174,7 @@ export default function App() {
     setPrivateKeyPath(profile.privateKeyPath ?? '')
     setPassphrase(profile.passphrase ?? '')
     setLabel(profile.label)
+    setSessionNote(profile.note ?? '')
     setJumpHost(profile.jumpHost?.host ?? '')
     setJumpPort(String(profile.jumpHost?.port ?? 22))
     setJumpUsername(profile.jumpHost?.username ?? '')
@@ -2016,7 +2193,7 @@ export default function App() {
   }, [])
 
   const openConnectionEditor = useCallback(
-    (profile?: SavedSessionProfile, focus?: 'jump' | 'cert' | null) => {
+    (profile?: SavedSessionProfile, focus?: 'jump' | 'cert' | 'note' | null) => {
       ensureMainVisible()
       setConnFocus(focus ?? null)
       setError(null)
@@ -2097,6 +2274,7 @@ export default function App() {
       bound = tabsNow.find((t) => t.sessionId === forSessionId && isSsh(t))
       if (!bound) {
         setError(tg('app.needSshSftp'))
+        showToast(tg('app.needSshSftp'), { kind: 'error' })
         return null
       }
     } else if (profile) {
@@ -2113,6 +2291,7 @@ export default function App() {
         tabsNow.find((t) => isSsh(t) && t.status === 'connected')
       if (!bound) {
         setError(tg('app.needSshSftp'))
+        showToast(tg('app.needSshSftp'), { kind: 'error' })
         return null
       }
     }
@@ -2248,6 +2427,7 @@ export default function App() {
         )
       if (!bound) {
         setError(tg('app.needSshSftp'))
+        showToast(tg('app.needSshSftp'), { kind: 'error' })
         return
       }
       const hostLabel = bound.title
@@ -2493,6 +2673,7 @@ export default function App() {
       boundSessionId: info.sessionId,
       connectOpts: info.connectOpts ?? PLACEHOLDER_CONNECT
     })
+    showToast(tg('w3.history'))
   }, [openM2])
 
   const openPostmortem = useCallback((alert: FiredAlert) => {
@@ -2509,6 +2690,7 @@ export default function App() {
       handledManually: alert.handledManually
     })
     openM2('postmortem', tg('w4.tab', { host: alert.hostTitle, rule: alert.ruleId }).slice(0, 24), { focusAlertId: alert.id })
+    showToast(tg('w4.opened'))
   }, [openM2])
 
   const openMaintenance = useCallback((hostKeys?: string[]) => {
@@ -2521,9 +2703,14 @@ export default function App() {
       return
     }
     openM2('alert-postmortem-ai', tg('a5.tabTitle', { title: alert.hostTitle }).slice(0, 24), { focusAlertId: alert.id })
+    showToast(tg('a5.opened'))
   }, [aiConfigured, openM2])
 
   const createDiffPlaybook = useCallback((info: { hostKey: string; hostTitle: string; path: string; fixes: Array<{ command: string; note?: string }> }) => {
+    if (!info.fixes.length) {
+      showToast(tg('l8b.noFixes'))
+      return
+    }
     const owner = tabsRef.current.find((t) => (t.sessionId === info.hostKey || t.profileId === info.hostKey) && (!t.view || t.view === 'session'))
     const profile = profilesRef.current.find((p) => p.id === info.hostKey) ?? profilesRef.current.find((p) => p.id === owner?.profileId)
     const file = info.path.split('/').filter(Boolean).pop() || info.path
@@ -2556,6 +2743,7 @@ export default function App() {
     const onOpen = (event: Event) => {
       const detail = (event as CustomEvent<{ hostKeys?: string[] }>).detail
       openMaintenance(detail?.hostKeys)
+      showToast(tg('l2d.open'))
     }
     window.addEventListener('aiss-maintenance-open', onOpen)
     return () => window.removeEventListener('aiss-maintenance-open', onOpen)
@@ -2749,7 +2937,14 @@ export default function App() {
 
   const elevateProfile = useCallback(async (p: SavedSessionProfile) => {
     const level = stricterLevel(effectiveLevel(p), Boolean(sessionRoRef.current[p.id]))
-    if (level === 'normal') return
+    if (level === 'normal') {
+      showToast(tg('s4.alreadyOff'))
+      return
+    }
+    if (isElevated(p.id, loadElevate())) {
+      showToast(tg('l4.alreadyUnlocked'))
+      return
+    }
     if (level === 'production') {
       const typed = await promptDialog({
         title: tg('l4.unlockTitle'),
@@ -3463,6 +3658,7 @@ export default function App() {
       const bound = findConnectedSessionForProfile(info.profile)
       if (!bound?.sessionId) {
         setError(tg('app.needSshDocker'))
+        showToast(tg('app.needSshDocker'), { kind: 'error' })
         return
       }
       ensureMainVisible()
@@ -3589,9 +3785,14 @@ export default function App() {
           p.username === sessionTab.connectOpts.username
       )
     if (!profile) {
-      setError(tg('app.needSshRefreshDocker'))
+      const msg = tg('app.needSshRefreshDocker')
+      setError(msg)
+      showToast(msg, { kind: 'error' })
       return
     }
+    const host =
+      statusHostChipLabel(profile.label?.trim() || profile.host) || profile.label || profile.host || '—'
+    showToast(tg('docker.refreshing', { host }))
     if (expandedHosts[profile.id]) {
       void loadDockerTreeForProfile(profile, true)
     } else {
@@ -3616,6 +3817,7 @@ export default function App() {
           (p.port || 22) === (row.port || 22)
       )
       if (match) {
+        showToast(tg('recent.connecting', { host: match.label?.trim() || match.host }))
         connectProfile(match)
         return
       }
@@ -3638,6 +3840,7 @@ export default function App() {
       setForwardRemoteHost('')
       setForwardRemotePort('')
       openConnectionEditor()
+      showToast(tg('recent.needCreds'))
     },
     [connectProfile, openConnectionEditor, profiles]
   )
@@ -3648,6 +3851,7 @@ export default function App() {
       const live = tabsRef.current.find((x) => x.profileId === p.id && x.status !== 'disconnected' && (!x.view || x.view === 'session'))
       if (live) {
         setActiveTabId(live.tabId)
+        showToast(tg('sess.focusedExisting'))
         return
       }
       void connectProfile(p)
@@ -3729,6 +3933,8 @@ export default function App() {
         focusAlertId: row.focusAlertId,
         settingsSection: isSettingsSection(row.settingsSection) ? row.settingsSection : undefined,
         playbookId: row.playbookId,
+        pinned: row.pinned === true,
+        openSeq: (row.order + 1) * 10,
         cold: plan.autoConnect && needsSession,
         restored: !plan.autoConnect && needsSession
       } satisfies Tab
@@ -3841,6 +4047,7 @@ export default function App() {
       if (p.id === DEMO_PROFILE_ID) {
         setTabs((prev) => prev.map((t) => (t.profileId === DEMO_PROFILE_ID && !t.customTitle && (!t.view || t.view === 'session') ? { ...t, title: renamed } : t)))
       }
+      showToast(tg('ctx.renamed', { name: renamed }))
     },
     [folders, persistSessionState, profiles]
   )
@@ -3849,7 +4056,12 @@ export default function App() {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       const p = profiles.find((x) => x.id === selectedProfileId)
-      if (!p) return
+      if (!p) {
+        if (e.key === 'Enter' || e.key === 'F2' || e.key === 'Delete' || e.key === 'Backspace') {
+          showToast(tg('l10.none'))
+        }
+        return
+      }
       if (e.key === 'Enter') {
         e.preventDefault()
         openOrFocusProfile(p)
@@ -3968,7 +4180,7 @@ export default function App() {
     try {
       const { sessionId, meta } = await window.aiss.ssh.openLocalShell()
       const tabId = uuid()
-      const title = meta.label ?? 'Local Shell'
+      const title = meta.label ?? tg('localShell.label')
       const connectOpts: SshConnectOptions = {
         host: 'localhost',
         port: 0,
@@ -3989,33 +4201,62 @@ export default function App() {
         }
       ])
       setActiveTabId(tabId)
+      showToast(tg('localShell.opened'))
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const raw = e instanceof Error ? e.message : String(e)
+      const msg = /node-pty|本机 Shell 不可用|Local shell unavailable/i.test(raw) ? tg('localShell.unavailable') : raw
+      setError(msg)
+      showToast(msg, { kind: 'error' })
     } finally {
       setConnecting(false)
     }
   }, [])
 
   const startRecording = useCallback(async () => {
-    if (!activeSessionId) return
+    if (!activeSessionId) {
+      showToast(tg('toolbar.needSession'))
+      return
+    }
     setError(null)
     try {
       const path = await window.aiss.ssh.startRecording(activeSessionId)
       if (path) {
         setRecordingSessionId(activeSessionId)
         setRecordingStartedAt(Date.now())
-      } else setError(tg('app.recordFail'))
+        const tab = tabsRef.current.find((t) => t.sessionId === activeSessionId)
+        const host =
+          statusHostChipLabel(
+            tab?.connectOpts.label?.trim() || tab?.connectOpts.host || tab?.title || tab?.customTitle
+          ) || tab?.title || tab?.connectOpts.host || '—'
+        showToast(tg('sess.recordingStarted', { host }))
+      } else {
+        setError(tg('app.recordFail'))
+        showToast(tg('app.recordFail'), { kind: 'error' })
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+      showToast(msg, { kind: 'error' })
     }
   }, [activeSessionId])
 
   const stopRecording = useCallback(async () => {
-    if (!recordingSessionId) return
+    if (!recordingSessionId) {
+      showToast(tg('sess.notRecording'))
+      return
+    }
+    const tab = tabsRef.current.find((t) => t.sessionId === recordingSessionId)
+    const host =
+      statusHostChipLabel(
+        tab?.connectOpts.label?.trim() || tab?.connectOpts.host || tab?.title || tab?.customTitle
+      ) || tab?.title || tab?.connectOpts.host || '—'
     try {
       await window.aiss.ssh.stopRecording(recordingSessionId)
+      showToast(tg('sess.recordingStopped', { host }))
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+      showToast(msg, { kind: 'error' })
     } finally {
       setRecordingSessionId(null)
       setRecordingStartedAt(null)
@@ -4073,10 +4314,16 @@ export default function App() {
     const id = uuid()
     void persistSessionState({ folders: [...folders, { id, name }], profiles })
     setExpandedFolders((e) => ({ ...e, [id]: true }))
+    showToast(tg('app.folderCreated', { name }))
   }, [folders, persistSessionState, profiles])
 
   const renameFolder = useCallback(
     async (folderId: string, currentName: string) => {
+      if (!folders.find((f) => f.id === folderId)) {
+        showToast(tg('app.folderMissing'))
+        setFolderMenu(null)
+        return
+      }
       const name = (await askText(tg('app.renameFolder'), currentName))?.trim()
       if (!name) return
       void persistSessionState({
@@ -4084,6 +4331,7 @@ export default function App() {
         profiles
       })
       setFolderMenu(null)
+      showToast(tg('app.folderRenamed', { name }))
     },
     [folders, persistSessionState, profiles]
   )
@@ -4091,7 +4339,12 @@ export default function App() {
   const deleteFolder = useCallback(
     (folderId: string) => {
       const folder = folders.find((f) => f.id === folderId)
-      const name = folder?.name ?? ''
+      if (!folder) {
+        showToast(tg('app.folderMissing'))
+        setFolderMenu(null)
+        return
+      }
+      const name = folder.name
       void askConfirm({
         id: 'confirm.deleteGroups',
         title: tg('confirm.deleteGroupTitle', { name }),
@@ -4113,6 +4366,7 @@ export default function App() {
           profiles: nextProfiles
         })
         setFolderMenu(null)
+        showToast(tg('app.folderDeleted', { name }))
       })
     },
     [folders, persistSessionState, profiles]
@@ -4122,7 +4376,10 @@ export default function App() {
     async (profileId: string) => {
       setSessionMenu(null)
       const cur = profiles.find((p) => p.id === profileId)
-      if (!cur) return
+      if (!cur) {
+        showToast(tg('l10.missing'))
+        return
+      }
       const input = await askText(tg('tags.prompt'), (cur.tags ?? []).join(', '))
       if (input == null) return
       const tags = normalizeTags(input)
@@ -4132,6 +4389,7 @@ export default function App() {
         return tags.length ? { ...rest, tags } : (rest as SavedSessionProfile)
       })
       void persistSessionState({ folders, profiles: next })
+      showToast(tags.length ? tg('tags.saved', { tags: tags.join(', ') }) : tg('tags.cleared'))
     },
     [folders, persistSessionState, profiles]
   )
@@ -4149,6 +4407,13 @@ export default function App() {
       })
       void persistSessionState({ folders, profiles: next })
       setSessionMenu(null)
+      const n = ids.size
+      if (targetFolderId) {
+        const name = folders.find((f) => f.id === targetFolderId)?.name || '—'
+        showToast(tg('app.movedToFolder', { n, name }))
+      } else {
+        showToast(tg('app.movedToUngrouped', { n }))
+      }
     },
     [folders, persistSessionState, profiles]
   )
@@ -4187,7 +4452,27 @@ export default function App() {
       if (!res) return
       const model = buildImportPreview(res.items, profiles, res.notes)
       if (!model.rows.length) {
-        setSideInfo(model.notes.join(' ') || tg('n2.empty'))
+        const msg = model.notes.join(' ') || tg('n2.empty')
+        setSideInfo(msg)
+        showToast(msg)
+        return
+      }
+      openImportPreview(model)
+    } catch (e) {
+      noteFailure(e, 'import')
+    }
+  }, [openImportPreview, profiles, noteFailure])
+
+  const importSshConfigPick = useCallback(async () => {
+    setError(null)
+    setSideInfo(null)
+    try {
+      const res = await window.aiss.sessions.importSshConfig()
+      const model = buildImportPreview(res.items, profiles, res.notes)
+      if (!model.rows.length) {
+        const msg = model.notes.join(' ') || tg('n2.empty')
+        setSideInfo(msg)
+        showToast(msg)
         return
       }
       openImportPreview(model)
@@ -4198,7 +4483,10 @@ export default function App() {
 
   const applyImport = useCallback(
     (policy: ImportPolicy) => {
-      if (!importPreview) return
+      if (!importPreview) {
+        showToast(tg('n2.empty'))
+        return
+      }
       const applied = applyImportPolicy({
         model: importPreview,
         policy,
@@ -4241,7 +4529,10 @@ export default function App() {
     setError(null)
     setParseNotes(null)
     const blob = smartPaste.trim()
-    if (!blob) return
+    if (!blob) {
+      showToast(tg('conn.pasteEmpty'))
+      return
+    }
     setAiParsing(true)
     try {
       const p = await window.aiss.ai.parseSshForm(blob)
@@ -4254,7 +4545,9 @@ export default function App() {
       if (p.passphrase != null) setPassphrase(p.passphrase)
       setParseNotes(p.notes ?? null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+      showToast(msg, { kind: 'error' })
     } finally {
       setAiParsing(false)
     }
@@ -4292,9 +4585,17 @@ export default function App() {
     const ids = new Set(list.map((host) => host.id))
     setBatchFails((prev) => prev.filter((row) => !ids.has(row.id)))
     let didFocus = false
+    let okCount = 0
+    let failCount = 0
     const noteFail = (id: string, label: string, reason: string) => {
+      failCount += 1
       setBatchFails((prev) => [...prev.filter((row) => row.id !== id), { id, label, reason }])
+      setBatchQueue((cur) => (cur ? { ...cur, fail: failCount, current: label } : cur))
       showToast(tg('l10.fail', { host: label, reason }), { kind: 'error' })
+    }
+    const noteOk = (label: string) => {
+      okCount += 1
+      setBatchQueue((cur) => (cur ? { ...cur, ok: okCount, current: label } : cur))
     }
     try {
       const results = await runBatchConnect(list, BATCH_CONNECT_LIMIT, async (host) => {
@@ -4315,6 +4616,7 @@ export default function App() {
         }
         if (target === 'reuse') {
           setBatchFails((prev) => prev.filter((row) => row.id !== profile.id))
+          noteOk(label)
           return { ok: true, reused: true }
         }
         let error = ''
@@ -4327,6 +4629,7 @@ export default function App() {
           const sid = await reconnectTabRef.current(tabId, { full: false, quiet: true, onError })
           if (sid) {
             setBatchFails((prev) => prev.filter((row) => row.id !== profile.id))
+            noteOk(label)
             return { ok: true }
           }
           if (!error) return { ok: true, skipped: true }
@@ -4342,6 +4645,7 @@ export default function App() {
         })
         if (sid) {
           setBatchFails((prev) => prev.filter((row) => row.id !== profile.id))
+          noteOk(label)
           return { ok: true }
         }
         if (!error) return { ok: true, skipped: true }
@@ -4351,12 +4655,33 @@ export default function App() {
         isCancelled: () => batchCancelRef.current,
         onProgress: (progress) => {
           batchQueuedRef.current = progress.queued
-          setBatchQueue({ queued: progress.queued, total: progress.total, started: progress.started })
+          setBatchQueue((cur) => ({
+            queued: progress.queued,
+            total: progress.total,
+            started: progress.started,
+            ok: cur?.ok ?? okCount,
+            fail: cur?.fail ?? failCount,
+            current: cur?.current
+          }))
         }
       })
       const summary = summarizeBatch(results)
-      if (summary.fail > 1) showToast(tg('l10.summary', { ok: summary.ok, fail: summary.fail }), { kind: 'error' })
-      else if (summary.fail === 0 && summary.ok > 1) showToast(tg('l10.done', { n: summary.ok }))
+      const okLabels = results
+        .filter((row) => row.ok && !row.skipped && !row.cancelled)
+        .map((row) => row.label || row.id)
+      const failLabels = summary.failed.map((row) => row.label || row.id)
+      const fmtHosts = (labels: string[]) =>
+        labels.length === 0
+          ? '—'
+          : labels.length <= 3
+            ? labels.join(', ')
+            : `${labels.slice(0, 2).join(', ')}…+${labels.length - 2}`
+      if (summary.fail > 1 || (summary.fail === 1 && summary.ok > 0))
+        showToast(tg('l10.summary', { ok: summary.ok, fail: summary.fail, hosts: fmtHosts(failLabels) }), {
+          kind: 'error'
+        })
+      else if (summary.fail === 0 && summary.ok >= 1)
+        showToast(tg('l10.done', { n: summary.ok, hosts: fmtHosts(okLabels) }))
       if (results.some((row) => row.ok && !row.reused && !row.skipped)) onFirstConnectRef.current()
     } finally {
       batchBusyRef.current = false
@@ -4385,6 +4710,7 @@ export default function App() {
           }
           if (action === 'aiInspect') {
             setInspectOpen(true)
+            showToast(tg('inspect.opened'))
             return
           }
           if (action === 'aiExplainError') {
@@ -4431,6 +4757,7 @@ export default function App() {
         setWelcomeReplay(true)
         setWelcomeDismissed(false)
         saveWelcomeDismissed(false)
+        showToast(tg('pf1.replay'))
         return
       }
       if (action === 'tour') {
@@ -4438,6 +4765,7 @@ export default function App() {
         setQuickExplicit(false)
         setTourExplicit(true)
         setTourOpen(true)
+        showToast(tg('l7.tour'))
         return
       }
       if (action === 'quickStart') {
@@ -4451,36 +4779,81 @@ export default function App() {
         setQuickStep(hasHost ? 2 : 1)
         setQuickExplicit(true)
         setQuickOpen(true)
+        showToast(tg('pf1.welcome'))
         return
       }
       if (action === 'enableRuleTemplates') {
         openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })
+        showToast(tg('l2c.templatesOpen'))
         return
       }
       if (action === 'retryFailedProbes') {
-        if (!tabsRef.current.some((tab) => tab.view === 'home') || probeFailCountRef.current === 0) return
+        if (!tabsRef.current.some((tab) => tab.view === 'home')) {
+          showToast(tg('l7b.needHome'), { kind: 'error' })
+          return
+        }
+        if (probeFailCountRef.current === 0) {
+          showToast(tg('l7c.noFails'))
+          return
+        }
         setRetryAllNonce((n) => n + 1)
         return
       }
       if (action === 'exportPlaybookPack') {
         openM2('playbook-list', tg('m2.playbooks'))
+        showToast(tg('w5.export'))
         window.setTimeout(() => window.dispatchEvent(new Event('aiss-export-share')), 60)
         return
       }
       if (action === 'importPlaybookPack') {
         openM2('playbook-import', tg('w5.import'))
+        showToast(tg('w5.import'))
         return
       }
       if (action === 'gateTimeline') {
         openM2('gate-timeline', tg('s2b.tab'))
+        showToast(tg('s2b.timelineOpen'))
         return
       }
-      if (action === 'maintOpen' || action === 'maintEnd') {
+      if (action === 'maintOpen') {
         openMaintenance()
+        showToast(tg('l2d.open'))
+        return
+      }
+      if (action === 'maintEnd') {
+        const active = activeWindows(loadMaintenance())
+        if (!active.length) {
+          showToast(tg('l2d.noneActive'))
+          openMaintenance()
+          return
+        }
+        if (active.length > 1) {
+          showToast(tg('l2d.pickEnd'))
+          openMaintenance()
+          return
+        }
+        const row = active[0]!
+        const scopeLabel = row.scope === 'hosts' ? row.hostKeys.join(', ') : row.tagIds.join(', ')
+        void askConfirm({
+          id: 'confirm.maintEnd',
+          title: tg('l2d.endTitle'),
+          body: tg('l2d.endBody', { scope: scopeLabel }),
+          confirmText: tg('l2d.endConfirm')
+        }).then((ok) => {
+          if (!ok) return
+          const ended = endMaintenance(row.id, 'user')
+          if (!ended) {
+            showToast(tg('l2d.noneActive'), { kind: 'error' })
+            return
+          }
+          window.dispatchEvent(new Event('aiss-maintenance-change'))
+          showToast(tg('l2d.toastEnded'))
+        })
         return
       }
       if (action === 'setDryRunReminder') {
         openM2('playbook-list', tg('m2.playbooks'))
+        showToast(tg('w6.set'))
         window.setTimeout(() => window.dispatchEvent(new Event(REMINDER_FILTER_EVENT)), 60)
         return
       }
@@ -4488,7 +4861,7 @@ export default function App() {
         const focus = tabsRef.current.find((t) => t.view === 'alert-workbench')?.focusAlertId
         const alert = (focus ? loadAlertHistory().find((a) => a.id === focus) : undefined) ?? loadAlertHistory().find((a) => a.status === 'active')
         if (!alert) {
-          showToast(tg('w1.paletteNeedAlert'))
+          showToast(tg('w1.needAlertForPostmortem'))
           return
         }
         openPostmortemAi(alert)
@@ -4497,7 +4870,7 @@ export default function App() {
       if (action === 'explainDiff' || action === 'diffFixPlaybook') {
         const diff = tabsRef.current.find((t) => t.view === 'file-diff' && t.tabId === activeTabId) ?? tabsRef.current.find((t) => t.view === 'file-diff')
         if (!diff) {
-          showToast(tg('l8b.needDiff'))
+          showToast(tg(action === 'explainDiff' ? 'l8b.needDiffExplain' : 'l8b.needDiffPlaybook'))
           return
         }
         setActiveTabId(diff.tabId)
@@ -4509,9 +4882,14 @@ export default function App() {
         const next = reopenTasks()
         setTaskState(next)
         setTasksManual(true)
+        showToast(tg('l7.tasksReopened'))
         return
       }
       if (action === 'switchTab') {
+        if (!tabsRef.current.length) {
+          showToast(tg('tab.none'))
+          return
+        }
         tabOverflowFromRef.current = 'palette'
         setTabQuery('')
         setTabListIndex(0)
@@ -4521,7 +4899,10 @@ export default function App() {
         return
       }
       if (action === 'refreshHomeHealth') {
-        if (!tabsRef.current.some((t) => t.view === 'home')) return
+        if (!tabsRef.current.some((t) => t.view === 'home')) {
+          showToast(tg('l7b.needHome'), { kind: 'error' })
+          return
+        }
         setProbeNonce((n) => n + 1)
         return
       }
@@ -4530,10 +4911,12 @@ export default function App() {
         saveSftpDensity(next)
         setSftpComfort(next === 'comfort')
         window.dispatchEvent(new CustomEvent(SFTP_DENSITY_EVENT))
+        showToast(tg(next === 'comfort' ? 'sb.sftpComfortOn' : 'sb.sftpComfortOff'))
         return
       }
       if (action === 'updateChannel') {
         openUnifiedSettings('about')
+        showToast(tg('about.updatesOpened'))
         return
       }
       if (action === 'demoHost') {
@@ -4560,14 +4943,21 @@ export default function App() {
         void importSessionsPick()
         return
       }
+      if (action === 'importSshConfig') {
+        void importSshConfigPick()
+        return
+      }
       if (action === 'exportJson' || action === 'exportOpenssh') {
         const format = action === 'exportJson' ? 'json' : 'openssh'
         void (async () => {
           try {
             await exportSessionsAndCopy(format)
             setSideInfo(tg('exp.copied', { format }))
+            showToast(tg('exp.copied', { format }))
           } catch (e) {
-            setError(e instanceof Error ? e.message : String(e))
+            const msg = e instanceof Error ? e.message : String(e)
+            setError(msg)
+            showToast(msg, { kind: 'error' })
           }
         })()
         return
@@ -4584,18 +4974,166 @@ export default function App() {
         toggleAi()
         return
       }
+      if (action === 'focusTerminal') {
+        const sid = activeSessionIdRef.current
+        if (!sid) {
+          showToast(tg('term.noSession'), { kind: 'error' })
+          return
+        }
+        updateLayout((p) => withPaneToggle(p, 'main', true))
+        window.dispatchEvent(new CustomEvent('aiss-focus-terminal', { detail: { sessionId: sid } }))
+        return
+      }
+      if (action === 'focusAiPanel') {
+        const wasHidden = !layout.showAi
+        updateLayout((p) => withPaneToggle(p, 'ai', true))
+        setRightPane('ai')
+        if (wasHidden) showToast(tg('ai.focusShortcutTip'))
+        return
+      }
+      if (action === 'clearAiChat') {
+        updateLayout((p) => withPaneToggle(p, 'ai', true))
+        setRightPane('ai')
+        window.dispatchEvent(new CustomEvent('aiss-ai-clear-chat'))
+        return
+      }
+      if (action === 'copyLastAiReply') {
+        updateLayout((p) => withPaneToggle(p, 'ai', true))
+        setRightPane('ai')
+        window.dispatchEvent(new CustomEvent('aiss-ai-copy-last-reply'))
+        return
+      }
+      if (action === 'closeOtherTabs') {
+        if (!activeTabId) {
+          showToast(tg('tab.none'))
+          return
+        }
+        const rows = tabsRef.current.map((t, i) => ({
+          ...t,
+          id: t.tabId,
+          seq: t.openSeq ?? i + 1,
+          pinned: Boolean(t.pinned)
+        }))
+        const dropIds = closeOthers(rows, activeTabId)
+        if (!dropIds.length) {
+          showToast(tg('tab.closeOthersDisabled'))
+          return
+        }
+        const drop = new Set(dropIds)
+        closeTabsWhere((row) => !drop.has(row.tabId))
+        showToast(tg('tab.closedOthersToast', { n: dropIds.length }))
+        return
+      }
+      if (action === 'closeTabsToRight') {
+        if (!activeTabId) {
+          showToast(tg('tab.none'))
+          return
+        }
+        const rows = tabsRef.current.map((t, i) => ({
+          ...t,
+          id: t.tabId,
+          seq: t.openSeq ?? i + 1,
+          pinned: Boolean(t.pinned)
+        }))
+        const { close: dropIds } = closeRight(rows, activeTabId)
+        if (!dropIds.length) {
+          showToast(tg('tab.closeRightDisabled'))
+          return
+        }
+        const drop = new Set(dropIds)
+        closeTabsWhere((row) => !drop.has(row.tabId))
+        showToast(tg('tab.closedRightToast', { n: dropIds.length }))
+        return
+      }
+      if (action === 'openAllTabs') {
+        if (!tabsRef.current.length) {
+          showToast(tg('tab.none'))
+          return
+        }
+        openAllTabsMenu()
+        return
+      }
+      if (action === 'closeDisconnectedTabs') {
+        const gone = disconnectedSessions(tabsRef.current)
+        if (!gone.length) {
+          showToast(tg('tab.list.noDisconnected'))
+          return
+        }
+        const snapshots = gone.map((t) => ({ ...t }))
+        const hostLabels = snapshots.map(
+          (t) =>
+            statusHostChipLabel(
+              t.connectOpts?.label?.trim() || t.connectOpts?.host || t.title || t.customTitle
+            ) || t.title || t.connectOpts?.host || '?'
+        )
+        const hosts =
+          hostLabels.length <= 3
+            ? hostLabels.join(', ')
+            : `${hostLabels.slice(0, 2).join(', ')}…+${hostLabels.length - 2}`
+        setClosingDisconnected(true)
+        for (const t of gone) closeTab(t.tabId, t.sessionId, t.status, t.view)
+        window.setTimeout(() => setClosingDisconnected(false), 400)
+        showToast(tg('tab.list.closedToast', { n: snapshots.length, hosts }), {
+          ms: 2000,
+          action: {
+            label: tg('tab.list.undo'),
+            run: () => {
+              setTabs((prev) => {
+                const ids = new Set(prev.map((x) => x.tabId))
+                return [...prev, ...snapshots.filter((x) => !ids.has(x.tabId))]
+              })
+            }
+          }
+        })
+        return
+      }
+      if (action === 'reopenClosedTab') {
+        const { next, snap } = popClosedTab(closedTabsRef.current)
+        closedTabsRef.current = next
+        if (!snap) {
+          showToast(tg('tab.reopenEmpty'))
+          return
+        }
+        void openSession(snap.connectOpts as Parameters<typeof openSession>[0], {
+          profileId: snap.profileId,
+          hostInventoryId: snap.hostInventoryId,
+          kind: snap.kind || 'ssh'
+        }).then(() => showToast(tg('tab.reopened')))
+        return
+      }
+      if (action === 'serialPort') {
+        showToast(tg('serial.unavailable'), {
+          action: localShellAvailable
+            ? { label: tg('menu.localShell'), run: () => void openLocalShell() }
+            : undefined,
+          ms: 8000
+        })
+        return
+      }
       if (action === 'localShell') {
         void openLocalShell()
         return
       }
       if (action === 'sftp') {
         openSftpTransfer(undefined, { alignCwd: true })
+        showToast(tg('toolbar.sftpTitle'))
+        return
+      }
+      if (action === 'sftpTransferQueue') {
+        const sid = openSftpTransfer(undefined, { alignCwd: true })
+        showToast(tg('d1.queue'))
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('aiss-sftp-focus-queue', { detail: { sessionId: sid ?? activeSessionIdRef.current } })
+          )
+        }, 80)
         return
       }
       if (action === 'folderSync') {
         const armed = takeArmedFolderSync()
         requestFolderSync(armed.set ? armed.profileId : undefined)
         openSftpTransfer(undefined, { alignCwd: true })
+        showToast(tg('menu.folderSync'))
         return
       }
       if (action === 'smartComplete') {
@@ -4615,6 +5153,10 @@ export default function App() {
           tabsRef.current.find((x) => (!x.view || x.view === 'session') && x.kind !== 'local' && x.status === 'connected')
         const hk = tab ? sessionHostKey(tab) : ''
         const { removed, dropped } = clearHostHistory(hk)
+        if (!removed) {
+          showToast(tg('x1.nothingToClear'))
+          return
+        }
         toastUndo({
           message: tg('x1.cleared', { n: removed }),
           undo: () => restoreSmartEntries(dropped)
@@ -4626,37 +5168,65 @@ export default function App() {
         return
       }
       if (action === 'toggleSplit') {
-        setSplitEnabled((v) => {
-          if (v) setBroadcastEnabled(false)
-          return !v
-        })
+        if (splitEnabled) {
+          const alsoBroadcast = broadcastEnabled
+          setSplitEnabled(false)
+          setBroadcastEnabled(false)
+          showToast(alsoBroadcast ? tg('sb.splitOffAlsoBroadcast') : tg('sb.splitOff'))
+        } else {
+          const live = tabsRef.current.filter(
+            (x) => x.sessionId && x.status === 'connected' && (!x.view || x.view === 'session') && x.kind !== 'local'
+          )
+          if (live.length < 2) {
+            showToast(tg('sb.splitNeedTwo'))
+            return
+          }
+          setSplitEnabled(true)
+          showToast(tg('sb.splitOn'))
+        }
         return
       }
       if (action === 'toggleBroadcast') {
-        setBroadcastEnabled((v) => {
-          if (v) {
-            setBroadcastTargets([])
-            return false
+        if (broadcastEnabled) {
+          setBroadcastEnabled(false) // keep broadcastTargets for next picker open
+          showToast(tg('sb.broadcastOff'))
+        } else {
+          const live = tabsRef.current.filter(
+            (x) => x.sessionId && x.status === 'connected' && (!x.view || x.view === 'session') && x.kind !== 'local'
+          )
+          if (live.length < 2) {
+            showToast(tg('x3.needTwo'))
+            return
           }
           setBroadcastPickerOpen(true)
-          return v // stay off until picker confirms
-        })
+        }
         return
       }
       if (action === 'broadcastTargets') {
+        const live = tabsRef.current.filter(
+          (x) => x.sessionId && x.status === 'connected' && (!x.view || x.view === 'session') && x.kind !== 'local'
+        )
+        if (live.length < 2) {
+          showToast(tg('x3.needTwo'))
+          return
+        }
         setBroadcastPickerOpen(true)
+        showToast(tg('menu.broadcastTargets'))
         return
       }
       if (action === 'opsHome') {
         openHome()
+        showToast(tg('l7.title'))
         return
       }
       if (action === 'alertWorkbench') {
         openWorkbench()
+        showToast(tg('l7.openWorkbench'))
         return
       }
       if (action === 'auditLog') {
         openAudit()
+        showToast(tg('menu.auditLog'))
         return
       }
       if (action === 'exportAudit') {
@@ -4665,10 +5235,12 @@ export default function App() {
         setAuditEvents(loadAudit())
         auditExportNonce.current += 1
         setAuditExport({ nonce: auditExportNonce.current, seed: ctx ?? { range: '7d', host: tab?.auditHost || '' } })
+        showToast(tg('audit.exportOpen'))
         return
       }
       if (action === 'playbooks') {
         openM2('playbook-list', tg('m2.playbooks'))
+        showToast(tg('m2.playbooks'))
         return
       }
       if (action === 'runPlaybook') {
@@ -4683,6 +5255,43 @@ export default function App() {
       }
       if (action === 'cloudSync') {
         openM2('sync-settings', tg('m2.cloudSync'))
+        showToast(tg('m2.cloudSync'))
+        return
+      }
+      if (action === 'exportOpenTabsList') {
+        const rows = tabsRef.current
+        if (!rows.length) {
+          showToast(tg('tabs.listEmpty'), { kind: 'error' })
+          return
+        }
+        const text = formatOpenTabsList(rows)
+        const titles = rows.map((t) => String(t.title || t.customTitle || '').trim()).filter(Boolean)
+        const hosts =
+          titles.length === 0
+            ? '—'
+            : titles.length <= 3
+              ? titles.join(', ')
+              : `${titles.slice(0, 2).join(', ')}…+${titles.length - 2}`
+        void navigator.clipboard.writeText(text).then(
+          () => showToast(tg('tabs.listCopied', { n: rows.length, hosts })),
+          () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+        )
+        return
+      }
+      if (action === 'saveWorkspaceNow') {
+        const snapshot = snapshotWorkspace(tabsRef.current, activeTabId)
+        const ids = [
+          ...new Set(snapshot.filter((row) => row.kind === 'terminal' && row.profileId).map((row) => row.profileId!))
+        ]
+        saveLastWorkspace({ profileIds: snapshot.length ? ids : [], tabs: snapshot })
+        const titles = snapshot.map((row) => String(row.title || '').trim()).filter(Boolean)
+        const hosts =
+          titles.length === 0
+            ? '—'
+            : titles.length <= 3
+              ? titles.join(', ')
+              : `${titles.slice(0, 2).join(', ')}…+${titles.length - 2}`
+        showToast(tg('ws.savedNow', { n: snapshot.length, hosts }))
         return
       }
       if (action === 'syncNow') {
@@ -4699,6 +5308,7 @@ export default function App() {
       }
       if (action === 'sessionRecordings') {
         openM2('recordings', tg('m2.recordings'))
+        showToast(tg('menu.sessionRecordings'))
         return
       }
       if (action === 'toggleBlocks') {
@@ -4707,15 +5317,18 @@ export default function App() {
       }
       if (action === 'startupSettings') {
         openUnifiedSettings('general')
+        showToast(tg('menu.startupSettings'))
         return
       }
       if (action === 'alertRules') {
         openClassifiedEditor('alert-rules')
+        showToast(tg('o2.rulesTitle'))
         return
       }
       if (action === 'alertHistory') {
         if (bellPrefs.mode === 'drawer') openClassifiedEditor('alert-history')
         else openWorkbench({ filter: 'all' })
+        showToast(tg('o2.historyTitle'))
         return
       }
       if (action === 'toggleRecording') {
@@ -4725,6 +5338,7 @@ export default function App() {
       }
       if (action === 'connection') {
         openConnectionEditor()
+        showToast(tg('toolbar.newConn'))
         return
       }
       if (action === 'batchConnect') {
@@ -4775,6 +5389,7 @@ export default function App() {
             : undefined,
           true
         )
+        showToast(tg('s2b.openProtection'))
         return
       }
       if (action === 'inventory') {
@@ -4792,46 +5407,57 @@ export default function App() {
               }
             : undefined
         )
+        showToast(tg('menu.inventory'))
         return
       }
       if (action === 'about') {
         openUnifiedSettings('about')
+        showToast(tg('about.desc'))
         return
       }
       if (action === 'shortcuts') {
         setShortcutsOpen(true)
+        showToast(tg('menu.shortcuts'))
         return
       }
       if (action === 'batchExec') {
         openToolTabRef.current('batch')
+        showToast(tg('ctx.batch'))
         return
       }
       if (action === 'portForward') {
         openToolTabRef.current('forward')
+        showToast(tg('tab.forward'))
         return
       }
       if (action === 'dashboard') {
         openDashboardRef.current()
+        showToast(tg('l7.openDashboard'))
         return
       }
       if (action === 'resourceMonitor') {
         openToolTabRef.current('monitor')
+        showToast(tg('g3.monitor'))
         return
       }
       if (action === 'commandPalette') {
         setPaletteOpen(true)
+        showToast(tg('toolbar.searchFeatures'))
         return
       }
       if (action === 'whatsNew') {
         setWhatsNewOpen(true)
+        showToast(tg('about.whatsNew'))
         return
       }
       if (action === 'backup') {
         openUnifiedSettings('backup')
+        showToast(tg('menu.backup'))
         return
       }
       if (action === 'serverTools') {
         openToolTabRef.current('toolbox')
+        showToast(tg('ctx.toolbox'))
         return
       }
       if (action === 'openDocker') {
@@ -4839,15 +5465,45 @@ export default function App() {
         if (!sid || connectedSshSessionsRef.current.length === 0) {
           pendingLocateRef.current = 'docker'
           setHostPicker({ action: 'serverTools', feature: 'Docker' })
+          showToast(tg('docker.pickHost'))
           return
         }
+        const tab = tabsRef.current.find((t) => t.sessionId === sid)
+        const host =
+          statusHostChipLabel(
+            tab?.connectOpts.label?.trim() || tab?.connectOpts.host || tab?.title || tab?.customTitle
+          ) || tab?.title || tab?.connectOpts.host || '—'
+        showToast(tg('docker.opening', { host }))
         openToolTabRef.current('toolbox', sid, undefined, 0, 'docker')
         return
       }
-      if (action === 'setJumpHosts' || action === 'checkCerts') {
+      if (action === 'copyConnectionString') {
         const tab = tabsRef.current.find((x) => x.tabId === activeTabId && (!x.view || x.view === 'session'))
         const profile = profilesRef.current.find((p) => p.id === tab?.profileId) ?? profilesRef.current.find((p) => p.id === selectedProfileId)
-        openConnectionEditor(profile, action === 'setJumpHosts' ? 'jump' : 'cert')
+        if (!tab && !profile) {
+          showToast(tg('l10.none'))
+          return
+        }
+        const conn = formatConnectionString({
+          username: tab?.connectOpts.username ?? profile?.username,
+          host: tab?.connectOpts.host ?? profile?.host,
+          port: tab?.connectOpts.port ?? profile?.port
+        })
+        void navigator.clipboard.writeText(conn).then(
+          () => showToast(tg('sess.copiedConn', { conn })),
+          () => showToast(tg('sess.copiedConn', { conn }), { kind: 'error' })
+        )
+        return
+      }
+      if (action === 'setJumpHosts' || action === 'checkCerts' || action === 'editSessionNote') {
+        const tab = tabsRef.current.find((x) => x.tabId === activeTabId && (!x.view || x.view === 'session'))
+        const profile = profilesRef.current.find((p) => p.id === tab?.profileId) ?? profilesRef.current.find((p) => p.id === selectedProfileId)
+        if (!profile) {
+          showToast(tg('l10.none'))
+          return
+        }
+        const focus = action === 'setJumpHosts' ? 'jump' : action === 'checkCerts' ? 'cert' : 'note'
+        openConnectionEditor(profile, focus)
         return
       }
       if (action === 'testJump') {
@@ -4870,35 +5526,54 @@ export default function App() {
       }
       if (action === 'syncConflicts') {
         openM2('sync-conflicts', tg('m2.conflicts'))
+        showToast(tg('m2.conflicts'))
         return
       }
       if (action === 'syncPreview') {
         const ex = tabsRef.current.find((t) => t.view === 'sync-preview')
         if (ex) setActiveTabId(ex.tabId)
         else openM2('sync-settings', tg('m2.cloudSync'))
+        showToast(tg('m2.cloudSync'))
+        return
+      }
+      if (action === 'knownHosts') {
+        setKnownHostsOpen(true)
+        showToast(tg('kh.title'))
         return
       }
       if (action === 'settings') {
         openUnifiedSettings(sectionForAction('settings') ?? 'general')
+        showToast(tg('settings.title'))
         return
       }
       if (action === 'find') {
+        if (!activeSessionIdRef.current) {
+          showToast(tg('term.noSession'), { kind: 'error' })
+          return
+        }
         requestTerminalFind()
         return
       }
       if (action === 'toggleLanguage') {
-        setLocale(locale === 'en' ? 'zh-CN' : 'en')
+        const next = locale === 'en' ? 'zh-CN' : 'en'
+        setLocale(next)
+        showToast(tg('toolbar.localeTitle', { locale: next === 'en' ? 'English' : '中文' }))
         return
       }
       if (action === 'toggleHostStatus') {
         setShowHostStatus((v) => {
-          localStorage.setItem('aiss.showHostStatus', v ? '0' : '1')
-          return !v
+          const next = !v
+          localStorage.setItem('aiss.showHostStatus', next ? '1' : '0')
+          showToast(tg(next ? 'settings.hostStatusOn' : 'settings.hostStatusOff'))
+          return next
         })
         return
       }
       if (action === 'openAi') {
+        const wasHidden = !layout.showAi
+        updateLayout((p) => withPaneToggle(p, 'ai', true))
         openRightPanelRef.current('ai')
+        if (wasHidden) showToast(tg('ai.focusShortcutTip'))
         return
       }
       if (action === 'checkUpdate') {
@@ -4906,30 +5581,184 @@ export default function App() {
         return
       }
       if (action === 'github') {
+        showToast(tg('toolbar.openGithub'))
         void window.aiss.app.openGithub().catch(() => undefined)
         return
       }
       if (action === 'reconnectPolicy') {
         openUnifiedSettings('connections', 'l9-reconnect')
+        showToast(tg('l9.section'))
         return
       }
       if (action === 'reconnectNow') {
         const tab = tabs.find((x) => x.tabId === activeTabId)
-        const subject = tab && tab.status === 'disconnected' && (!tab.view || tab.view === 'session')
-          ? tab
-          : tabs.find((x) => x.sessionId && x.sessionId === tab?.boundSessionId && x.status === 'disconnected')
+        const subject =
+          tab && tab.status === 'disconnected' && (!tab.view || tab.view === 'session') && tab.kind !== 'local'
+            ? tab
+            : tabs.find((x) => x.sessionId && x.sessionId === tab?.boundSessionId && x.status === 'disconnected') ||
+              tabs.find(
+                (x) =>
+                  x.status === 'disconnected' &&
+                  (!x.view || x.view === 'session') &&
+                  x.kind !== 'local' &&
+                  Boolean(x.sessionId || x.profileId)
+              )
         if (!subject) {
-          showToast(tg('toolbar.needSession'))
+          showToast(tg('palette.needDropped'))
           return
         }
+        if (subject.tabId !== activeTabId) setActiveTabId(subject.tabId)
         haltedRef.current.delete(subject.tabId)
         const cur = autoRetryRef.current.get(subject.tabId)
         if (cur) clearTimeout(cur.timer)
         autoRetryRef.current.delete(subject.tabId)
-        void reconnectTab(subject.tabId, { full: false }).then((sid) => {
+        const hostLabel =
+          statusHostChipLabel(
+            subject.connectOpts.label?.trim() || subject.connectOpts.host || subject.title || subject.customTitle
+          ) || subject.title || subject.connectOpts.host || ''
+        if (hostLabel) showToast(tg('sess.reconnectStarted', { host: hostLabel }))
+        void reconnectTab(subject.tabId, { full: true }).then((sid) => {
           if (sid) cancelAutoReconnect(subject.tabId)
           else if (policyRef.current.mode !== 'off') scheduleAutoReconnectRef.current(subject.tabId)
         })
+        return
+      }
+      if (action === 'askAgain') {
+        updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+        openRightPanelRef.current('ai')
+        window.setTimeout(() => window.dispatchEvent(new Event('aiss-ai-ask-again')), 40)
+        return
+      }
+      if (action === 'disconnectSession') {
+        const tab = tabsRef.current.find((t) => t.tabId === activeTabId && (!t.view || t.view === 'session'))
+        const sid = tab?.status === 'connected' ? tab.sessionId : null
+        if (!sid || !tab) {
+          showToast(tg('sess.noLiveSession'), { kind: 'error' })
+          return
+        }
+        const hostLabel =
+          statusHostChipLabel(
+            tab.connectOpts.label?.trim() || tab.connectOpts.host || tab.title || tab.customTitle
+          ) || tab.title || tab.connectOpts.host || ''
+        void askConfirm({
+          id: 'confirm.disconnectSession',
+          title: tg('confirm.disconnectSession'),
+          body: tg('confirm.disconnectSessionBody', { host: hostLabel }),
+          confirmText: tg('confirm.disconnectSession'),
+          danger: true
+        }).then((ok) => {
+          if (!ok) return
+          void window.aiss.ssh.disconnect(sid)
+          haltedRef.current.add(tab.tabId)
+          setTabs((prev) =>
+            prev.map((t) =>
+              t.tabId === tab.tabId ? { ...t, status: 'disconnected' as const, failRaw: undefined } : t
+            )
+          )
+          setRecordingSessionId((cur) => (cur === sid ? null : cur))
+          showToast(tg('sess.disconnectedToast', { host: hostLabel || '—' }))
+        })
+        return
+      }
+      if (action === 'disconnectAllSessions') {
+        const live = tabsRef.current.filter(
+          (t) =>
+            t.status === 'connected' &&
+            (!t.view || t.view === 'session') &&
+            t.kind !== 'local' &&
+            Boolean(t.sessionId)
+        )
+        if (!live.length) {
+          showToast(tg('sess.noLiveSession'), { kind: 'error' })
+          return
+        }
+        const hostLabels = live.map(
+          (t) =>
+            statusHostChipLabel(
+              t.connectOpts.label?.trim() || t.connectOpts.host || t.title || t.customTitle
+            ) || t.title || t.connectOpts.host || '?'
+        )
+        const hosts =
+          hostLabels.length <= 3
+            ? hostLabels.join(', ')
+            : `${hostLabels.slice(0, 2).join(', ')}…+${hostLabels.length - 2}`
+        void askConfirm({
+          id: 'confirm.disconnectAllSessions',
+          title: tg('confirm.disconnectAllSessions'),
+          body: tg('confirm.disconnectAllSessionsBody', { n: live.length, hosts }),
+          confirmText: tg('confirm.disconnectAllSessions'),
+          danger: true
+        }).then((ok) => {
+          if (!ok) return
+          const ids = new Set(live.map((t) => t.tabId))
+          for (const t of live) {
+            if (t.sessionId) void window.aiss.ssh.disconnect(t.sessionId)
+            haltedRef.current.add(t.tabId)
+          }
+          setTabs((prev) =>
+            prev.map((t) =>
+              ids.has(t.tabId) ? { ...t, status: 'disconnected' as const, failRaw: undefined } : t
+            )
+          )
+          setRecordingSessionId((cur) => (cur && live.some((t) => t.sessionId === cur) ? null : cur))
+          showToast(tg('sess.disconnectedAllToast', { n: live.length, hosts }))
+        })
+        return
+      }
+      if (action === 'reconnectAllDropped') {
+        if (reconnectAllBusy) {
+          showToast(tg('palette.reconnectAllBusy'))
+          return
+        }
+        const dropped = tabs.filter(
+          (x) =>
+            x.status === 'disconnected' &&
+            (!x.view || x.view === 'session') &&
+            x.kind !== 'local' &&
+            Boolean(x.sessionId || x.profileId)
+        )
+        if (!dropped.length) {
+          showToast(tg('palette.needDropped'))
+          return
+        }
+        const hostLabels = dropped.map(
+          (t) =>
+            statusHostChipLabel(
+              t.connectOpts.label?.trim() || t.connectOpts.host || t.title || t.customTitle
+            ) || t.title || t.connectOpts.host || '?'
+        )
+        const hosts =
+          hostLabels.length <= 3
+            ? hostLabels.join(', ')
+            : `${hostLabels.slice(0, 2).join(', ')}…+${hostLabels.length - 2}`
+        showToast(tg('palette.reconnectAllStarted', { n: dropped.length, hosts }))
+        setReconnectAllBusy(true)
+        void (async () => {
+          let okCount = 0
+          try {
+            // Sequential: avoid stacking host-key / password prompts.
+            for (const subject of dropped) {
+              haltedRef.current.delete(subject.tabId)
+              const cur = autoRetryRef.current.get(subject.tabId)
+              if (cur) clearTimeout(cur.timer)
+              autoRetryRef.current.delete(subject.tabId)
+              const sid = await reconnectTab(subject.tabId, { full: true, quiet: true })
+              if (sid) {
+                okCount += 1
+                cancelAutoReconnect(subject.tabId)
+              } else if (policyRef.current.mode !== 'off') {
+                scheduleAutoReconnectRef.current(subject.tabId)
+              }
+            }
+            showToast(
+              okCount > 0
+                ? tg('palette.reconnectedAll', { n: okCount, total: dropped.length, hosts })
+                : tg('palette.reconnectAllFailed', { n: dropped.length, hosts })
+            )
+          } finally {
+            setReconnectAllBusy(false)
+          }
+        })()
         return
       }
       if (action === 'readonlyOn' || action === 'readonlyOff' || action === 'setProtection') {
@@ -4944,8 +5773,14 @@ export default function App() {
         }
         const id = tab.profileId || tab.tabId
         const on = Boolean(sessionRo[id]) || effectiveLevel(profiles.find((p) => p.id === tab.profileId)) === 'readonly'
-        if (action === 'readonlyOn' && on) return
-        if (action === 'readonlyOff' && !on && effectiveLevel(profiles.find((p) => p.id === tab.profileId)) !== 'readonly') return
+        if (action === 'readonlyOn' && on) {
+          showToast(tg('s4.alreadyOn'))
+          return
+        }
+        if (action === 'readonlyOff' && !on && effectiveLevel(profiles.find((p) => p.id === tab.profileId)) !== 'readonly') {
+          showToast(tg('s4.alreadyOff'))
+          return
+        }
         toggleSessionReadonly(tab)
         return
       }
@@ -4955,20 +5790,32 @@ export default function App() {
           showToast(tg('toolbar.needSession'))
           return
         }
-        if (action === 'reconnect') void reconnectTab(tab.tabId)
-        else void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
+        const host =
+          statusHostChipLabel(
+            tab.connectOpts.label?.trim() || tab.connectOpts.host || tab.title || tab.customTitle
+          ) || tab.title || tab.connectOpts.host || '—'
+        if (action === 'reconnect') {
+          showToast(tg('sess.reconnectStarted', { host }))
+          void reconnectTab(tab.tabId)
+        } else {
+          showToast(tg('sess.duplicating', { host }))
+          void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
+        }
         return
       }
       if (action === 'snippets') {
         openRightPanelRef.current('snippets')
+        showToast(tg('menu.snippets'))
         return
       }
       if (action === 'builtinSnippets') {
         openRightPanelRef.current('snippets', { previewBuiltin: true })
+        showToast(tg('snip.builtinOpen'))
         return
       }
       if (action === 'builtinPlaybooks') {
         openM2('playbook-list', tg('m2.playbooks'))
+        showToast(tg('m2.builtinOpen'))
         window.setTimeout(() => window.dispatchEvent(new Event('aiss-builtin-playbooks')), 60)
         return
       }
@@ -4988,7 +5835,7 @@ export default function App() {
       }
       if (action === 'exportPostmortem') {
         if (!tabsRef.current.some((t) => t.view === 'alert-workbench')) {
-          showToast(tg('w1.paletteNeedAlert'))
+          showToast(tg('w1.needAlertWorkbench'))
           return
         }
         const tab = tabsRef.current.find((t) => t.view === 'alert-workbench')
@@ -5006,6 +5853,7 @@ export default function App() {
           }
           const latest = books.reduce((a, b) => ((b.updatedAt || 0) >= (a.updatedAt || 0) ? b : a))
           openM2('playbook-run', tg('m2.run'), { playbookId: latest.id })
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent('aiss-dry-run')), 120)
           return
         }
         setActiveTabId(run.tabId)
@@ -5035,13 +5883,91 @@ export default function App() {
         window.dispatchEvent(new CustomEvent('aiss-toggle-block-strip'))
         return
       }
-      if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme' || action === 'mcpGuide') {
+      if (action === 'toggleTabPin') {
+        const tab = tabs.find((row) => row.tabId === activeTabId)
+        if (!tab) {
+          showToast(tg('tab.none'))
+          return
+        }
+        const wasPinned = Boolean(tab.pinned)
+        setTabs((prev) =>
+          prev.map((row, i) =>
+            row.tabId === tab.tabId ? { ...row, pinned: !row.pinned, openSeq: row.openSeq ?? i + 1 } : row
+          )
+        )
+        showToast(wasPinned ? tg('tab.unpinned') : tg('tab.pinnedToast'), { ms: wasPinned ? 2000 : 2500 })
+        return
+      }
+      if (action === 'clearScrollback') {
+        const sid = activeSessionIdRef.current
+        if (!sid) {
+          showToast(tg('term.noSession'), { kind: 'error' })
+          return
+        }
+        const tab = tabsRef.current.find((t) => t.sessionId === sid) ?? tabsRef.current.find((t) => t.tabId === activeTabId)
+        const host =
+          statusHostChipLabel(
+            tab?.connectOpts.label?.trim() || tab?.connectOpts.host || tab?.title || tab?.customTitle
+          ) || tab?.title || tab?.connectOpts.host || '—'
+        window.dispatchEvent(new CustomEvent('aiss-clear-scrollback', { detail: { sessionId: sid } }))
+        showToast(tg('term.scrollbackCleared', { host }))
+        return
+      }
+      if (action === 'toggleMuteBell') {
+        const next = !terminalPrefs.muteBell
+        void window.aiss.terminal.setPrefs({ muteBell: next }).then((p) => {
+          setTerminalPrefs(p)
+          showToast(tg(next ? 'term.bellMuted' : 'term.bellUnmuted'))
+        }).catch(() => undefined)
+        return
+      }
+      if (action === 'zoomIn' || action === 'zoomOut' || action === 'zoomReset') {
+        const cur = terminalPrefs.fontSize
+        const next =
+          action === 'zoomIn'
+            ? bumpTerminalFontSize(cur, 1)
+            : action === 'zoomOut'
+              ? bumpTerminalFontSize(cur, -1)
+              : resetTerminalFontSize()
+        if (next === cur && action !== 'zoomReset') {
+          showToast(tg(action === 'zoomIn' ? 'zoom.atMax' : 'zoom.atMin', { n: next }))
+          return
+        }
+        void window.aiss.terminal.setPrefs({ fontSize: next }).then((p) => {
+          setTerminalPrefs(p)
+          showToast(tg('zoom.size', { n: p.fontSize }))
+        }).catch(() => undefined)
+        return
+      }
+      if (action === 'toggleUiTheme') {
+        const next = toggleLightDarkTheme()
+        const termTheme = suggestedTerminalTheme(next)
+        void window.aiss.terminal.setPrefs({ themeId: termTheme }).then(setTerminalPrefs).catch(() => {})
+        showToast(tg(isLightUiTheme(next) ? 'theme.switchedLight' : 'theme.switchedDark'))
+        return
+      }
+      if (action === 'mcpGuide') {
         openUnifiedSettings(sectionForAction(action) ?? 'general')
+        showToast(tg('mcp.guideOpened'))
+        return
+      }
+      if (action === 'ai' || action === 'terminalPrefs' || action === 'uiTheme') {
+        openUnifiedSettings(sectionForAction(action) ?? 'general')
+        showToast(
+          tg(
+            action === 'ai'
+              ? 'settings.aiOpened'
+              : action === 'terminalPrefs'
+                ? 'settings.terminalOpened'
+                : 'settings.themeOpened'
+          )
+        )
       }
     },
     [
       addFolder,
       importSessionsPick,
+      importSshConfigPick,
       toggleSidebar,
       toggleMain,
       toggleAi,
@@ -5060,11 +5986,13 @@ export default function App() {
       activeTabId,
       locale,
       setLocale,
+      terminalPrefs,
       layout.showAi,
       runUpdateCheck,
       sftpComfort,
       reconnectTab,
       cancelAutoReconnect,
+      reconnectAllBusy,
       toggleSessionReadonly,
       profiles,
       sessionRo,
@@ -5090,12 +6018,16 @@ export default function App() {
   const monitorProfile = useCallback(
     async (p: SavedSessionProfile) => {
       setSessionMenu(null)
+      showToast(tg('g3.monitor'))
       const live = tabs.find(
         (x) => x.profileId === p.id && x.status === 'connected' && x.sessionId && (!x.view || x.view === 'session')
       )
       if (live) return openMonitorForSession(live.sessionId)
       const sid = await connectProfile(p)
       if (sid) openMonitorForSession(sid)
+      else {
+        showToast(tg('ctx.connectFailed', { reason: tg('ctx.seeError') }), { kind: 'error' })
+      }
     },
     [tabs, connectProfile, openMonitorForSession]
   )
@@ -5116,6 +6048,7 @@ export default function App() {
   )
   const openSftpFromHost = useCallback((p: SavedSessionProfile) => {
     setSessionMenu(null)
+    showToast(tg('toolbar.sftpTitle'))
     const live = tabsRef.current.find(
       (x) => x.profileId === p.id && x.status === 'connected' && x.sessionId && (!x.view || x.view === 'session') && x.kind !== 'local'
     )
@@ -5124,7 +6057,10 @@ export default function App() {
       return
     }
     const tabId = openSftpTransfer(undefined, { alignCwd: false, profile: p })
-    if (!tabId) return
+    if (!tabId) {
+      showToast(tg('app.needSshSftp'), { kind: 'error' })
+      return
+    }
     void ensureProfileSession(p).then((sid) => {
       setTabs((prev) =>
         prev.map((t) =>
@@ -5164,7 +6100,10 @@ export default function App() {
   const deleteProfilesFn = useCallback(
     async (ids: string[]) => {
       setSessionMenu(null)
-      if (!ids.length) return
+      if (!ids.length) {
+        showToast(tg('l10.none'))
+        return
+      }
       const first = profiles.find((x) => x.id === ids[0])
       const name = first ? first.label?.trim() || `${first.username}@${first.host}` : ''
       const allDemo = ids.every((id) => profiles.find((x) => x.id === id)?.demo)
@@ -5177,6 +6116,11 @@ export default function App() {
       const drop = new Set(ids)
       void persistSessionState({ folders, profiles: profiles.filter((x) => !drop.has(x.id)) })
       setMultiSelected([])
+      showToast(
+        ids.length > 1
+          ? tg('app.profilesDeleted', { n: ids.length })
+          : tg('app.profileDeleted', { name: name || '—' })
+      )
     },
     [folders, persistSessionState, profiles]
   )
@@ -5186,6 +6130,7 @@ export default function App() {
   const addDemoHost = useCallback(
     async (connect: boolean) => {
       let demo = profilesRef.current.find((x) => x.demo)
+      let created = false
       if (!demo) {
         demo = {
           id: DEMO_PROFILE_ID,
@@ -5196,9 +6141,17 @@ export default function App() {
           demo: true
         }
         await persistSessionState({ folders, profiles: [demo, ...profilesRef.current] })
+        created = true
       }
       setSelectedProfileId(demo.id)
-      if (connect) openOrFocusProfile(demo)
+      if (connect) {
+        showToast(tg(created ? 'l7.demoAddedConnect' : 'l7.demoConnect'))
+        openOrFocusProfile(demo)
+      } else if (created) {
+        showToast(tg('l7.demoAdded'))
+      } else {
+        showToast(tg('l7.demoExists'))
+      }
     },
     [folders, locale, openOrFocusProfile, persistSessionState]
   )
@@ -5399,6 +6352,146 @@ export default function App() {
   const ensureAiVisible = useCallback(() => {
     updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
   }, [updateLayout])
+  const openAiPendingConfirm = useCallback(() => {
+    ensureAiVisible()
+    openRightPanelRef.current('ai')
+    setAiFocusPendingToken((n) => n + 1)
+  }, [ensureAiVisible])
+
+  useEffect(() => {
+    const onShot = (ev: Event) => {
+      if (!screenshotHooksEnabled()) return
+      const detail = (ev as CustomEvent<ScreenshotOp>).detail
+      if (!detail?.op) return
+      if (detail.op === 'dismissProduct') {
+        try {
+          localStorage.setItem('aiss.prefs.onboarding.quickDone', '1')
+          localStorage.setItem('aiss.tourDone', '1')
+          localStorage.setItem('aiss.prefs.welcomeDismissed', '1')
+          localStorage.setItem('aiss.prefs.welcomeCompleted', '1')
+          localStorage.setItem('aiss.prefs.firstWeekTipsDismissed', 'true')
+        } catch { /* ignore */ }
+        setQuickOpen(false)
+        setTourOpen(false)
+        setWelcomeDismissed(true)
+        setWelcomeCompleted(true)
+        setTipsDismissed(true)
+        setTipsSnooze(true)
+        setTasksManual(false)
+        setTaskState(dismissTasksForever())
+        setKnownHostsOpen(false)
+        clearToasts()
+        setAlertHistory([])
+        setAlertRules((prev) => {
+          const next = { ...prev, mutedUntil: Date.now() + 3_600_000 }
+          saveAlertRules(next)
+          return next
+        })
+        return
+      }
+      if (detail.op === 'closeModals') {
+        setKnownHostsOpen(false)
+        setPaletteOpen(false)
+        setShortcutsOpen(false)
+        return
+      }
+      if (detail.op === 'knownHosts') {
+        setQuickOpen(false)
+        setTourOpen(false)
+        setKnownHostsOpen(true)
+        return
+      }
+      if (detail.op === 'theme') {
+        applyUiTheme(detail.id as UiThemeId)
+        return
+      }
+      if (detail.op === 'sftp' || detail.op === 'sftpDual') {
+        setQuickOpen(false)
+        setTourOpen(false)
+        setKnownHostsOpen(false)
+        const wantDual = detail.op === 'sftpDual'
+        if (wantDual) {
+          let demo = profilesRef.current.find((x) => x.demo)
+          if (!demo) {
+            demo = {
+              id: DEMO_PROFILE_ID,
+              label: demoProfileLabel(locale),
+              host: DEMO_HOST,
+              port: 22,
+              username: DEMO_USER,
+              demo: true
+            }
+            void persistSessionState({ folders, profiles: [demo, ...profilesRef.current] })
+          }
+          const live = tabsRef.current.find(
+            (x) =>
+              x.profileId === demo!.id &&
+              x.status === 'connected' &&
+              x.sessionId &&
+              (!x.view || x.view === 'session')
+          )
+          // Prefer openSftpTransfer (does not set restoreFailed). restore-hold would unmount SftpPanel.
+          if (live?.sessionId) openSftpTransfer(live.sessionId, { alignCwd: true })
+          else openSftpTransfer(undefined, { profile: demo, alignCwd: false })
+          try { sessionStorage.setItem('aiss.screenshot.sftpDualPending', '1') } catch { /* ignore */ }
+          clearToasts()
+          setAlertRules((prev) => {
+            const next = { ...prev, mutedUntil: Date.now() + 3_600_000 }
+            saveAlertRules(next)
+            return next
+          })
+          const armMock = () => {
+            clearToasts()
+            try { sessionStorage.setItem('aiss.screenshot.sftpDualPending', '1') } catch { /* ignore */ }
+            setTabs((prev) =>
+              prev.map((x) =>
+                x.view === 'sftp'
+                  ? { ...x, restoreFailed: false, cold: false, restored: false }
+                  : x
+              )
+            )
+            const sftp = tabsRef.current.find((x) => x.view === 'sftp')
+            if (sftp) setActiveTabId(sftp.tabId)
+            window.dispatchEvent(new CustomEvent(SCREENSHOT_EVENT, { detail: { op: 'sftpMockFill' } }))
+          }
+          window.setTimeout(armMock, 400)
+          window.setTimeout(armMock, 1100)
+          void addDemoHostRef.current(true)
+          return
+        }
+        const profile = profilesRef.current[0]
+        if (profile) {
+          openSftpFromHost(profile)
+          window.setTimeout(() => {
+            const sftp = tabsRef.current.find((x) => x.view === 'sftp')
+            if (sftp) setActiveTabId(sftp.tabId)
+          }, 900)
+        } else showToast('No profile for SFTP screenshot')
+        return
+      }
+      if (detail.op === 'sftpMockFill') {
+        // Handled by SftpPanel listeners; App no-ops so the event can still bubble.
+        return
+      }
+      if (detail.op === 'aiConfirm') {
+        setQuickOpen(false)
+        setTourOpen(false)
+        const preview = detail.preview || 'systemctl status nginx --no-pager'
+        setAiPending({
+          requestId: detail.requestId || 'screenshot-confirm',
+          action: 'command',
+          preview
+        })
+        ensureAiVisible()
+        openRightPanelRef.current('ai')
+        setAiFocusPendingToken((n) => n + 1)
+        // AIPanel also listens for the same event to fill the dock
+        return
+      }
+    }
+    window.addEventListener(SCREENSHOT_EVENT, onShot)
+    return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
+  }, [ensureAiVisible, openSftpFromHost, openSftpTransfer, persistSessionState, folders, locale])
   const closeTour = useCallback(() => {
     try {
       localStorage.setItem(TOUR_DONE_KEY, '1')
@@ -5674,7 +6767,29 @@ export default function App() {
       }
       if (el?.closest('.term-blocks')) scopes.push('blocks')
       const action = matchKeymap(e, inTerminal, scopes)
-      if (!action) return
+      if (!action) {
+        // Do not steal chords while typing / capturing a hotkey in a form field.
+        const tag = (el?.tagName || '').toLowerCase()
+        const editable =
+          tag === 'input' ||
+          tag === 'textarea' ||
+          tag === 'select' ||
+          Boolean(el?.isContentEditable) ||
+          Boolean(el?.closest?.('input, textarea, select, [contenteditable="true"]'))
+        if (editable && !inTerminal) return
+        const snip = matchSnippetHotkey(e, snippetsHotkeyRef.current)
+        if (!snip) return
+        e.preventDefault()
+        e.stopPropagation()
+        const sid = activeSessionIdRef.current
+        if (!sid) {
+          showToast(tg('snip.needSession'))
+          return
+        }
+        dispatchInjectTerminal(sid, snip.body, false)
+        showToast(tg('snip.hotkeyFired', { title: snip.title }))
+        return
+      }
       e.preventDefault()
       e.stopPropagation()
       // IX-6: Ctrl+W closes outside a terminal. Inside one, only Ctrl+Shift+W matches.
@@ -5682,7 +6797,11 @@ export default function App() {
       if (action === 'closeTab') {
         if (isDialogOpen()) return
         const tab = tabsRef.current.find((t) => t.tabId === activeTabIdRef.current)
-        if (tab) closeTabRef.current(tab.tabId, tab.sessionId, tab.status, tab.view)
+        if (!tab) {
+          showToast(tg('tab.none'))
+          return
+        }
+        closeTabRef.current(tab.tabId, tab.sessionId, tab.status, tab.view)
         return
       }
       // UX-45: ops shortcuts toast instead of running while a Confirm/Prompt is open
@@ -5726,18 +6845,33 @@ export default function App() {
       !taskState.dismissedForever &&
       pendingTasks(taskState).length > 0)
   const updateRequested = updateModalOpen && Boolean(updateInfo)
-  const product = pickProductOverlay({
-    systemUpdate: updateRequested,
-    releaseNotes: whatsNewOpen,
-    welcome: welcomeEligible,
-    tour: tourOpen,
-    tourExplicit,
-    quickStart: quickOpen,
-    quickExplicit,
-    tasks: tasksEligible
-  })
+  const higherChromeOpen =
+    paletteOpen ||
+    shortcutsOpen ||
+    knownHostsOpen ||
+    aboutOpen ||
+    startupOpen ||
+    broadcastPickerOpen ||
+    Boolean(hostPicker) ||
+    resourceOpen ||
+    isHigherChromeOpen(typeof document !== 'undefined' ? document : { querySelector: () => null })
+  const workspaceEditorOpen = tabs.some((tab) => tab.view === 'connection' || tab.view === 'import-preview')
+  const product = suppressParkableProduct(
+    pickProductOverlay({
+      systemUpdate: updateRequested,
+      releaseNotes: whatsNewOpen,
+      welcome: welcomeEligible,
+      tour: tourOpen,
+      tourExplicit,
+      quickStart: quickOpen,
+      quickExplicit,
+      tasks: tasksEligible
+    }),
+    { higherChrome: higherChromeOpen, workspaceEditor: workspaceEditorOpen }
+  )
   const productDimmers = productBackdropCount(product)
   const showWelcome = product === 'welcome'
+  
   if (showWelcome) welcomeSeen.current = true
   const valueKind = pickValueMoment({
     importCount: importMoment?.count ?? null,
@@ -5773,6 +6907,11 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      if (tourOpen) {
+        e.preventDefault()
+        closeTour()
+        return
+      }
       const target = escProductTarget({
         product,
         higherChrome: isHigherChromeOpen(document),
@@ -5791,7 +6930,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [product, dismissWelcome, closeTour, finishQuick])
+  }, [product, tourOpen, dismissWelcome, closeTour, finishQuick])
 
   const productLayerOpen = product != null
   const productFocusRef = useRef<ReturnType<typeof bindProductFocus> | null>(null)
@@ -5853,6 +6992,7 @@ export default function App() {
           toggleAi: layout.showAi,
           toggleSplit: splitEnabled,
           toggleHostStatus: showHostStatus,
+          toggleMuteBell: terminalPrefs.muteBell,
           toggleBroadcast: broadcastEnabled,
           toggleRecording: Boolean(recordingSessionId),
           toggleBlocks: blocksOn,
@@ -5861,11 +7001,13 @@ export default function App() {
         }}
         disabled={{
           syncNow: !syncReady,
-          runPlaybook: !hasPlaybooks
+          runPlaybook: !hasPlaybooks,
+          localShell: !localShellAvailable
         }}
         hints={{
           syncNow: syncReady ? undefined : tg('m2.syncNeedSetup'),
-          runPlaybook: hasPlaybooks ? undefined : tg('m2.noPlaybooks')
+          runPlaybook: hasPlaybooks ? undefined : tg('m2.noPlaybooks'),
+          localShell: localShellAvailable ? undefined : tg('localShell.hintUnavailable')
         }}
       />
       {valueKind ? (
@@ -6095,8 +7237,8 @@ export default function App() {
                 type="button"
                 className="broadcast-badge"
                 data-testid="broadcast-badge"
-                title={tr('ux10.broadcastOff')}
-                onClick={() => setBroadcastEnabled(false)}
+                title={tr('ux10.broadcastEdit')}
+                onClick={() => setBroadcastPickerOpen(true)}
               >
                 {tr('ux10.broadcasting', { n: broadcastSessions.length })}
               </button>
@@ -6142,11 +7284,17 @@ export default function App() {
               <button
                 key={t.tabId}
                 type="button"
-                title={[sftpAddr, guardTip].filter(Boolean).join(' · ') || undefined}
+                title={[sftpAddr, guardTip, tg('tab.pinTip')].filter(Boolean).join(' · ') || undefined}
                 data-tab-id={t.tabId}
                 className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.pinned ? 'is-pinned' : ''} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${(isSession || t.view === 'sftp') && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
                 onDoubleClick={() => startRename(t.tabId)}
+                onAuxClick={(e) => {
+                  if (e.button !== 1) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  closeTab(t.tabId, t.sessionId, t.status, t.view)
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   setActiveTabId(t.tabId)
@@ -6183,10 +7331,10 @@ export default function App() {
                     maxLength={60}
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => setRenameDraft(e.target.value)}
-                    onBlur={commitRename}
+                    onBlur={(e) => commitRename(e.currentTarget.value)}
                     onKeyDown={(e) => {
                       e.stopPropagation()
-                      if (e.key === 'Enter') commitRename()
+                      if (e.key === 'Enter') commitRename(e.currentTarget.value)
                       if (e.key === 'Escape') setRenamingTabId(null)
                     }}
                   />
@@ -6195,7 +7343,7 @@ export default function App() {
                 <span className="tab-kind-icon">
                   <Icon name={tabKindIcon(t.view)} size={12} />
                 </span>
-                {t.pinned ? <Icon name="pin" size={12} /> : null}
+                {/* pin affordance: tab-pin-btn */}
                 {isSession && t.sessionId && broadcastSessions.includes(t.sessionId) ? (
                   <span className="tab-bc-dot" data-testid="tab-bc-dot" title={tr('ux10.inBroadcast')} aria-label={tr('ux10.inBroadcast')} />
                 ) : null}
@@ -6213,6 +7361,46 @@ export default function App() {
                 {showRo ? <span className="prot-badge prot-badge--readonly" data-testid="s4-tab-badge">{tg('s4.badge')}</span> : null}
                 </>
                 )}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className={`tab-pin-btn${t.pinned ? ' is-on' : ''}`}
+                  data-testid="tab-pin-btn"
+                  title={t.pinned ? tg('tab.unpin') : tg('tab.pin')}
+                  aria-label={t.pinned ? tg('tab.unpin') : tg('tab.pin')}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const wasPinned = Boolean(t.pinned)
+                    setTabs((prev) =>
+                      prev.map((row, i) =>
+                        row.tabId === t.tabId ? { ...row, pinned: !row.pinned, openSeq: row.openSeq ?? i + 1 } : row
+                      )
+                    )
+                    if (!wasPinned) {
+                      try {
+                        if (localStorage.getItem('aiss.prefs.tabPinTipShown') !== '1') {
+                          localStorage.setItem('aiss.prefs.tabPinTipShown', '1')
+                          showToast(tg('tab.pinnedToast'), { ms: 3500 })
+                        }
+                      } catch { /* ignore */ }
+                    } else {
+                      toastUndo({
+                        message: tg('tab.unpinned'),
+                        undo: () => setTabs((prev) => prev.map((row) => (row.tabId === t.tabId ? { ...row, pinned: true } : row)))
+                      })
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      ;(e.currentTarget as HTMLElement).click()
+                    }
+                  }}
+                >
+                  <Icon name="pin" size={12} />
+                </span>
                 <span
                   role="button"
                   tabIndex={0}
@@ -6292,7 +7480,7 @@ export default function App() {
                 <path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.2" />
               </svg>
             </button>
-            {tabChrome.menu ? (
+            {tabs.length > 0 ? (
               <button
                 ref={tabOverflowBtnRef}
                 type="button"
@@ -6304,19 +7492,14 @@ export default function App() {
                 aria-label={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
                 title={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
                 onClick={() => {
-                  const btn = tabOverflowBtnRef.current
-                  if (btn) {
-                    const r = btn.getBoundingClientRect()
-                    const width = 280
-                    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8))
-                    setTabOverflowPos({ top: Math.round(r.bottom + 4), left: Math.round(left) })
+                  if (tabOverflowOpen) {
+                    setTabOverflowOpen(false)
+                    return
                   }
-                  tabOverflowFromRef.current = 'chevron'
-                  setTabQuery('')
-                  setTabListIndex(0)
-                  setTabOverflowOpen((v) => !v)
+                  openAllTabsMenu()
                 }}
               >
+                <span className="tab-overflow-label-text">{tr('tab.allTabs')}</span>
                 <span className="tab-overflow-mark" aria-hidden>{tabOverflowMark(tabHiddenCount)}</span>
               </button>
             ) : null}
@@ -6504,6 +7687,13 @@ export default function App() {
                             message: tg('tab.unpinned'),
                             undo: () => setTabs((prev) => prev.map((row) => (row.tabId === tab.tabId ? { ...row, pinned: true } : row)))
                           })
+                        } else {
+                          try {
+                            if (localStorage.getItem('aiss.prefs.tabPinTipShown') !== '1') {
+                              localStorage.setItem('aiss.prefs.tabPinTipShown', '1')
+                              showToast(tg('tab.pinnedToast'), { ms: 3500 })
+                            }
+                          } catch { /* ignore */ }
                         }
                       } else if (id === 'rename') startRename(tab.tabId)
                       else if (id === 'duplicate') {
@@ -6522,7 +7712,24 @@ export default function App() {
 
           {batchQueue ? (
             <div className="l10-queue" role="status" data-testid="l10-queue">
-              <span>{tg('l10.queue', { started: batchQueue.started, total: batchQueue.total, n: batchQueue.queued })}</span>
+              <span className="l10-queue-text">
+                {tg('l10.queue', {
+                  started: batchQueue.started,
+                  total: batchQueue.total,
+                  n: batchQueue.queued,
+                  ok: batchQueue.ok,
+                  fail: batchQueue.fail
+                })}
+              </span>
+              <span className="l10-queue-chips" aria-hidden>
+                <span className="l10-chip l10-chip-ok" data-testid="l10-chip-ok">{tg('l10.okChip', { n: batchQueue.ok })}</span>
+                <span className="l10-chip l10-chip-fail" data-testid="l10-chip-fail">{tg('l10.failChip', { n: batchQueue.fail })}</span>
+              </span>
+              {batchQueue.current ? (
+                <span className="l10-queue-current" title={batchQueue.current} data-testid="l10-queue-current">
+                  {tg('l10.queueCurrent', { host: batchQueue.current })}
+                </span>
+              ) : null}
               <button
                 type="button"
                 data-testid="l10-cancel-queue"
@@ -6541,10 +7748,9 @@ export default function App() {
                 <button type="button" onClick={() => setBatchFails([])}>{tg('g3.gotIt')}</button>
               </div>
               {batchFails.map((row) => (
-                <div key={row.id} className="l10-error" data-testid="l10-error">
-                  <span title={tg('l10.fail', { host: row.label, reason: row.reason })}>
-                    {tg('l10.fail', { host: row.label, reason: row.reason })}
-                  </span>
+                <div key={row.id} className="l10-error" data-testid="l10-error" data-host={row.label}>
+                  <span className="l10-error-host" title={row.label}>{row.label}</span>
+                  <span className="l10-error-reason" title={row.reason}>{row.reason}</span>
                   <button type="button" onClick={() => void connectManyRef.current([{ id: row.id, label: row.label }])}>
                     {tg('upd.retry')}
                   </button>
@@ -6718,7 +7924,12 @@ export default function App() {
                 <button
                   type="button"
                   data-testid="s4-copy"
-                  onClick={() => void navigator.clipboard.writeText(roBlock.command)}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(roBlock.command).then(
+                      () => showToast(tg('ctx.copied')),
+                      () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+                    )
+                  }}
                 >
                   {tg('s4.copyCmd')}
                 </button>
@@ -6727,7 +7938,11 @@ export default function App() {
                   data-testid="s4-unlock"
                   onClick={() => {
                     const g = guardForSession(roBlock.sessionId)
-                    if (g.profile) void elevateProfile(g.profile)
+                    if (!g.profile) {
+                      showToast(tg('s4.needProfile'), { kind: 'error' })
+                      return
+                    }
+                    void elevateProfile(g.profile)
                   }}
                 >
                   {tg('s4.unlock')}
@@ -6738,10 +7953,41 @@ export default function App() {
               <EmptyState
                 testId="terminal-empty"
                 icon={<Icon name="keyboard" size={32} />}
-                title={startupMode === 'blank' ? tr('l7.blankTitle') : tr('ux08.termTitle')}
-                desc={startupMode === 'blank' ? tr('l7.blankDesc') : tr('ux08.termDesc')}
-                primary={{ label: tr('l7.title'), onClick: () => openHome(), avoid: true }}
-                secondary={[{ label: tr('ux08.newConnection'), onClick: () => openConnectionEditor() }, { label: tr('ux08.palette'), onClick: () => setPaletteOpen(true) }]}
+                title={
+                  profiles.length === 0
+                    ? tr('ux08.sidebarTitle')
+                    : startupMode === 'blank'
+                      ? tr('l7.blankTitle')
+                      : tr('ux08.termTitle')
+                }
+                desc={
+                  profiles.length === 0
+                    ? tr('ux08.termDescEmpty')
+                    : startupMode === 'blank'
+                      ? tr('l7.blankDesc')
+                      : tr('ux08.termDesc')
+                }
+                primary={
+                  profiles.length === 0
+                    ? {
+                        label: tr('ux08.newConnection'),
+                        onClick: () => openConnectionEditor(),
+                        testId: 'term-empty-new',
+                        command: 'connection'
+                      }
+                    : { label: tr('l7.title'), onClick: () => openHome(), avoid: true }
+                }
+                secondary={
+                  profiles.length === 0
+                    ? [
+                        { label: tr('pf1.import'), onClick: () => void importSessionsPick(), command: 'importSessions' },
+                        { label: tr('pf1.demo'), onClick: () => void addDemoHost(true), command: 'demoHost' }
+                      ]
+                    : [
+                        { label: tr('ux08.newConnection'), onClick: () => openConnectionEditor() },
+                        { label: tr('ux08.palette'), onClick: () => setPaletteOpen(true) }
+                      ]
+                }
               >
                 <RecentConnections variant="welcome" limit={5} hideWhenEmpty onQuickConnect={quickConnectRecent} demoRenamed={profiles.some((p) => p.id === DEMO_PROFILE_ID && p.demoRenamed)} />
                 <div className="empty-state-keys">
@@ -6750,6 +7996,12 @@ export default function App() {
                   </span>
                   <span>
                     <kbd>Ctrl+K</kbd> {tr('ux08.keyPalette')}
+                  </span>
+                  <span data-testid="term-empty-key-focus">
+                    <kbd>{keysFor('focusTerminal') ?? 'Ctrl+Shift+`'}</kbd> {tr('ux08.keyFocusTerm')}
+                  </span>
+                  <span data-testid="term-empty-key-ai">
+                    <kbd>{keysFor('focusAiPanel') ?? 'Ctrl+Shift+A'}</kbd> {tr('ux08.keyAi')}
                   </span>
                 </div>
               </EmptyState>
@@ -6779,6 +8031,8 @@ export default function App() {
                     setPassphrase={setPassphrase}
                     label={label}
                     setLabel={setLabel}
+                    sessionNote={sessionNote}
+                    setSessionNote={setSessionNote}
                     smartPaste={smartPaste}
                     setSmartPaste={setSmartPaste}
                     parseNotes={parseNotes}
@@ -7177,14 +8431,23 @@ export default function App() {
                 ) : t.view === 'playbook-list' ? (
                   <PlaybookList
                     profiles={profiles}
-                    onEdit={(id) => openM2('playbook-edit', tg('m2.edit'), { playbookId: id })}
-                    onRun={(id) => openM2('playbook-run', tg('m2.run'), { playbookId: id })}
+                    onEdit={(id) => {
+                      openM2('playbook-edit', tg('m2.edit'), { playbookId: id })
+                      showToast(tg('m2.edit'))
+                    }}
+                    onRun={(id) => {
+                      openM2('playbook-run', tg('m2.run'), { playbookId: id })
+                      showToast(tg('m2.run'))
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'playbook-edit' && t.playbookId ? (
                   <PlaybookEditor
                     playbookId={t.playbookId}
-                    onRun={(id) => openM2('playbook-run', tg('m2.run'), { playbookId: id })}
+                    onRun={(id) => {
+                      openM2('playbook-run', tg('m2.run'), { playbookId: id })
+                      showToast(tg('m2.run'))
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'playbook-run' && t.playbookId ? (
@@ -7193,7 +8456,10 @@ export default function App() {
                     profiles={profiles}
                     live={liveSessions}
                     sessionReadonly={sessionRo}
-                    onResult={() => openM2('playbook-result', tg('m2.playbooks'))}
+                    onResult={() => {
+                      openM2('playbook-result', tg('m2.playbooks'))
+                      showToast(tg('m2.playbooks'))
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'playbook-result' ? (
@@ -7242,7 +8508,10 @@ export default function App() {
                   <SyncConflicts onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'recordings' ? (
                   <RecordingsList
-                    onOpen={(file) => openM2('recording-play', tg('m2.play'), { recordingFile: file })}
+                    onOpen={(file) => {
+                      openM2('recording-play', tg('m2.play'), { recordingFile: file })
+                      showToast(tg('m2.play'))
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     hasSession={connectedSshSessions.length > 0}
                     onStart={() => void startRecording()}
@@ -7294,6 +8563,7 @@ export default function App() {
                         if (!ok) return
                         clearAudit()
                         setAuditEvents(loadAudit())
+                        showToast(tg('audit.cleared'))
                       })
                     }}
                     onExport={(seed) => {
@@ -7420,9 +8690,10 @@ export default function App() {
                         connectOpts: t.connectOpts
                       })
                     }}
-                    onPinPreview={(plan) =>
+                    onPinPreview={(plan) => {
                       openM2('sync-preview', tg('m2.syncPreview'), { syncPlan: { ...plan, sessionId: t.boundSessionId, profileId: t.profileId }, boundSessionId: t.boundSessionId, profileId: t.profileId })
-                    }
+                      showToast(tg('m2.syncPreview'))
+                    }}
                     beforeRemoteWrite={async () => {
                       if (!t.boundSessionId) return false
                       const g = guardForSession(t.boundSessionId)
@@ -7552,6 +8823,7 @@ export default function App() {
                     onProbePrefs={updateProbePrefs}
                     tagOptions={[...new Set(profiles.flatMap((p) => p.tags ?? []))]}
                     onOpenTemplates={() => openM2('alert-rules', tg('o2.rulesTitle'), { rulesSeg: 'templates' })}
+                    onOpenKnownHosts={() => setKnownHostsOpen(true)}
                     onOpenGate={() => openM2('gate-timeline', tg('s2b.tab'))}
                     settingsAnchor={settingsAnchor}
                   />
@@ -7563,7 +8835,7 @@ export default function App() {
                     onSaved={setTerminalPrefs}
                   />
                 ) : t.view === 'uiTheme' ? (
-                  <UiThemeModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
+                  <UiThemeModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} onTerminalTheme={(themeId) => setTerminalPrefs((p) => ({ ...p, themeId }))} />
                 ) : t.view === 'snippets' ? null : t.view === 'mcpGuide' ? (
                   <McpGuidePanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'updates' ? (
@@ -7675,7 +8947,50 @@ export default function App() {
                     </>
                   )
                 ) : (
-                  <div className="terminal-disconnected-placeholder">{tr('term.disconnected')}</div>
+                  <div className="terminal-disconnected-placeholder" data-testid="term-disconnected" role="status">
+                    <div className="term-disconnect-card">
+                      <p className="term-disconnect-msg">{tr('term.disconnected')}</p>
+                      {t.failRaw ? (
+                        <p className="term-disconnect-reason" data-testid="term-disconnect-reason">
+                          {friendlyErrorMessage(t.failRaw)}
+                        </p>
+                      ) : null}
+                      {t.failRaw ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          data-testid="term-copy-disconnect-reason"
+                          onClick={() => {
+                            const text = friendlyErrorMessage(t.failRaw!) || t.failRaw!
+                            void navigator.clipboard.writeText(text).then(
+                              () => showToast(tg('term.disconnectReasonCopied')),
+                              () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+                            )
+                          }}
+                        >
+                          {tg('term.copyDisconnectReason')}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="primary"
+                        data-testid="term-reconnect"
+                        disabled={reconnectingTabId === t.tabId}
+                        onClick={() => {
+                          haltedRef.current.delete(t.tabId)
+                          const cur = autoRetryRef.current.get(t.tabId)
+                          if (cur) clearTimeout(cur.timer)
+                          autoRetryRef.current.delete(t.tabId)
+                          void reconnectTab(t.tabId, { full: true }).then((sid) => {
+                            if (sid) cancelAutoReconnect(t.tabId)
+                            else if (policyRef.current.mode !== 'off') scheduleAutoReconnectRef.current(t.tabId)
+                          })
+                        }}
+                      >
+                        {reconnectingTabId === t.tabId ? tr('term.connecting') : tg('pf5.reconnect')}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
               )
@@ -7821,6 +9136,20 @@ export default function App() {
               }
               production={profiles.find((p) => p.id === activeTab?.profileId)?.protection === 'production'}
               hostName={activeTab?.connectOpts.host ?? null}
+              onNeedSession={() => {
+                const live = connectedSshSessions[0]
+                if (live) {
+                  const tab = tabs.find((t) => t.sessionId === live.sessionId)
+                  if (tab) {
+                    setActiveTabId(tab.tabId)
+                    return
+                  }
+                }
+                openConnectionEditor()
+              }}
+              initialPending={aiPending}
+              onPendingChange={onAiPendingChange}
+              focusPendingToken={aiFocusPendingToken}
             />
             ) : null}
           </div>
@@ -7911,6 +9240,18 @@ export default function App() {
                   {quiet}
                 </span>
               ) : null}
+              {aiPending && (!layout.showAi || rightPane !== 'ai') ? (
+                <button
+                  type="button"
+                  className="statusbar-slot statusbar-slot--ai-pending"
+                  data-testid="statusbar-ai-pending"
+                  title={aiPending.preview || tg('sb.aiPending')}
+                  onClick={() => openAiPendingConfirm()}
+                >
+                  <span className="statusbar-glyph" aria-hidden>●</span>
+                  <span className="statusbar-label">{tg('sb.aiPending')}</span>
+                </button>
+              ) : null}
               {slots.map((slot) => {
                 if (slot.id === 'disconnect') {
                   return (
@@ -7945,8 +9286,8 @@ export default function App() {
                       type="button"
                       className="statusbar-slot"
                       data-testid="statusbar-broadcast"
-                      title={tg('ux10.broadcastOff')}
-                      onClick={() => setBroadcastEnabled(false)}
+                      title={tg('ux10.broadcastEdit')}
+                      onClick={() => setBroadcastPickerOpen(true)}
                     >
                       <span className="statusbar-glyph" aria-hidden>{slot.glyph}</span>
                       <span className="statusbar-label">{tg('sb.broadcast', { n: slot.count ?? 0 })}</span>
@@ -7983,6 +9324,176 @@ export default function App() {
                   </button>
                 )
               })}
+              {activeIsSsh ? (() => {
+                const tab = activeTab && (!activeTab.view || activeTab.view === 'session') ? activeTab : null
+                const hostLabel = statusHostChipLabel(
+                  tab?.connectOpts.label?.trim() || tab?.connectOpts.host || tab?.title || tab?.customTitle
+                )
+                if (!hostLabel) return null
+                return (
+                  <button
+                    type="button"
+                    className="statusbar-slot statusbar-slot--host"
+                    data-testid="statusbar-host"
+                    title={`${tg('sb.hostTip')} · ${tg('sb.hostFocusTip')}`}
+                    onDoubleClick={(e) => {
+                      e.preventDefault()
+                      const sid = activeSessionIdRef.current
+                      if (!sid) return
+                      updateLayout((p) => withPaneToggle(p, 'main', true))
+                      window.dispatchEvent(new CustomEvent('aiss-focus-terminal', { detail: { sessionId: sid } }))
+                    }}
+                    onClick={() => {
+                      const profile = profilesRef.current.find((p) => p.id === tab?.profileId)
+                      const conn = formatConnectionString({
+                        username: tab?.connectOpts.username ?? profile?.username,
+                        host: tab?.connectOpts.host ?? profile?.host,
+                        port: tab?.connectOpts.port ?? profile?.port
+                      })
+                      void navigator.clipboard.writeText(conn).then(
+                        () => showToast(tg('sess.copiedConn', { conn })),
+                        () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+                      )
+                    }}
+                  >
+                    <span className="statusbar-label">{hostLabel}</span>
+                  </button>
+                )
+              })() : null}
+              {activeIsSsh && formatStatusLatency(statusLatencyMs, locale === 'en' ? 'en' : 'zh-CN') ? (
+                <button
+                  type="button"
+                  className={`statusbar-slot statusbar-slot--latency session-latency-${classifyLatency(statusLatencyMs)}`}
+                  data-testid="statusbar-latency"
+                  title={`${tg('sb.latencyTip')} · ${tg('sb.latencyTipCopy')}`}
+                  onClick={() => {
+                    const clip = latencyClipboardText(statusLatencyMs)
+                    if (!clip) return
+                    const tab = tabsRef.current.find(
+                      (row) => row.tabId === activeTabId && (!row.view || row.view === 'session')
+                    )
+                    const host =
+                      statusHostChipLabel(
+                        tab?.connectOpts.label?.trim() || tab?.connectOpts.host || tab?.title || tab?.customTitle
+                      ) || tab?.title || tab?.connectOpts.host || '—'
+                    void navigator.clipboard.writeText(clip).then(
+                      () => showToast(tg('sb.latencyCopied', { ms: clip, host })),
+                      () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+                    )
+                  }}
+                >
+                  <span className="statusbar-label">{formatStatusLatency(statusLatencyMs, locale === 'en' ? 'en' : 'zh-CN')}</span>
+                </button>
+              ) : null}
+              {(() => {
+                const pid = activeTab?.profileId
+                const noteRaw = pid ? profiles.find((p) => p.id === pid)?.note : undefined
+                const preview = sessionNotePreview(noteRaw, 18)
+                if (!preview) return null
+                return (
+                  <button
+                    type="button"
+                    className="statusbar-slot statusbar-slot--note"
+                    data-testid="statusbar-note"
+                    title={tg('sb.noteTip')}
+                    onClick={() => handleTitlebarMenuAction('editSessionNote')}
+                  >
+                    <span className="statusbar-label">{tg('sb.note', { note: preview })}</span>
+                  </button>
+                )
+              })()}
+              {sftpComfort ? (
+                <button
+                  type="button"
+                  className="statusbar-slot statusbar-slot--sftp-comfort"
+                  data-testid="statusbar-sftp-comfort"
+                  title={tg('sb.sftpComfortTip')}
+                  onClick={() => {
+                    saveSftpDensity('auto')
+                    setSftpComfort(false)
+                    window.dispatchEvent(new CustomEvent(SFTP_DENSITY_EVENT))
+                    showToast(tg('sb.sftpComfortOff'))
+                  }}
+                >
+                  <span className="statusbar-label">{tg('sb.sftpComfort')}</span>
+                </button>
+              ) : null}
+              {splitEnabled ? (
+                <button
+                  type="button"
+                  className="statusbar-slot statusbar-slot--split"
+                  data-testid="statusbar-split"
+                  title={tg('sb.splitTip')}
+                  onClick={() => {
+                    const alsoBroadcast = broadcastEnabled
+                    setSplitEnabled(false)
+                    setBroadcastEnabled(false)
+                    showToast(alsoBroadcast ? tg('sb.splitOffAlsoBroadcast') : tg('sb.splitOff'))
+                  }}
+                >
+                  <span className="statusbar-label">{tg('sb.splitOn')}</span>
+                </button>
+              ) : null}
+              {activeTab?.pinned ? (
+                <button
+                  type="button"
+                  className="statusbar-slot statusbar-slot--pin"
+                  data-testid="statusbar-pin"
+                  title={tg('sb.pinTip')}
+                  onClick={() => {
+                    const tab = tabsRef.current.find((row) => row.tabId === activeTabId)
+                    if (!tab?.pinned) return
+                    const hostLabel =
+                      statusHostChipLabel(
+                        tab.connectOpts?.label?.trim() || tab.connectOpts?.host || tab.title || tab.customTitle
+                      ) || tab.title || tab.connectOpts?.host || '—'
+                    setTabs((prev) =>
+                      prev.map((row, i) =>
+                        row.tabId === tab.tabId ? { ...row, pinned: false, openSeq: row.openSeq ?? i + 1 } : row
+                      )
+                    )
+                    showToast(tg('tab.unpinnedHost', { host: hostLabel }), { ms: 2000 })
+                  }}
+                >
+                  <span className="statusbar-label">{tg('sb.pinned')}</span>
+                </button>
+              ) : null}
+              {terminalPrefs.muteBell ? (
+                <button
+                  type="button"
+                  className="statusbar-slot statusbar-slot--mute-bell"
+                  data-testid="statusbar-mute-bell"
+                  title={tg('sb.muteBellTip')}
+                  onClick={() => {
+                    void window.aiss.terminal.setPrefs({ muteBell: false }).then((p) => {
+                      setTerminalPrefs(p)
+                      showToast(tg('term.bellUnmuted'))
+                    }).catch(() => undefined)
+                  }}
+                >
+                  <span className="statusbar-label">{tg('sb.muteBell')}</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="statusbar-slot"
+                data-testid="statusbar-font-size"
+                title={tg('sb.fontSizeTip')}
+                onClick={(e) => {
+                  const next =
+                    e.shiftKey
+                      ? bumpTerminalFontSize(terminalPrefs.fontSize, 1)
+                      : e.altKey || e.ctrlKey || e.metaKey
+                        ? bumpTerminalFontSize(terminalPrefs.fontSize, -1)
+                        : resetTerminalFontSize()
+                  void window.aiss.terminal.setPrefs({ fontSize: next }).then((p) => {
+                    setTerminalPrefs(p)
+                    showToast(tg('zoom.size', { n: p.fontSize }))
+                  })
+                }}
+              >
+                <span className="statusbar-label">{tg('sb.fontSize', { n: terminalPrefs.fontSize })}</span>
+              </button>
             </>
           )
         })()}
@@ -8002,7 +9513,7 @@ export default function App() {
           setHostPicker(null)
         }}
       />
-      <WelcomeTour open={product === 'tour'} onClose={closeTour} ensureAiVisible={ensureAiVisible} />
+      <WelcomeTour open={tourOpen} onClose={closeTour} ensureAiVisible={ensureAiVisible} />
       <StartupSettingsModal
         open={startupOpen}
         value={startupMode}
@@ -8016,6 +9527,25 @@ export default function App() {
           setRestoreLayout(on)
         }}
         onClose={() => setStartupOpen(false)}
+      />
+      <KnownHostsModal
+        open={knownHostsOpen}
+        onClose={() => setKnownHostsOpen(false)}
+        onUseKey={(path) => {
+          setKnownHostsOpen(false)
+          const existing = tabsRef.current.find((t) => t.view === 'connection')
+          if (existing) {
+            setActiveTabId(existing.tabId)
+          } else {
+            openConnectionEditor(undefined, 'cert')
+          }
+          setConnFocus(null)
+          setPrivateKeyPath(path)
+          setConnAuth('key')
+          queueMicrotask(() => setConnFocus('cert'))
+          const base = path.split(/[/\\]/).pop() || path
+          showToast(tg('kh.useKeyDone', { name: base }))
+        }}
       />
       <HostKeyConfirmModal prompt={hostKeyPrompt} onRespond={(accept, alwaysTrust) => void respondHostKey(accept, alwaysTrust)} />
       <AboutModal
@@ -8062,10 +9592,17 @@ export default function App() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onAction={handleTitlebarMenuAction}
+        activeSessionId={activeSessionId}
+        hostEntries={cmdkHostEntries}
+        onOpenHost={(id) => {
+          const p = profiles.find((x) => x.id === id)
+          if (p) void connectProfile(p)
+        }}
         aiReady={aiConfigured}
         notes={{
           ...(syncReady ? {} : { syncNow: tg('m2.syncNeedSetup') }),
           ...(hasPlaybooks ? {} : { runPlaybook: tg('m2.noPlaybooks') }),
+          ...(localShellAvailable ? {} : { localShell: tg('localShell.hintUnavailable') }),
           ...(tabs.some((tab) => tab.view === 'alert-workbench')
             ? aiConfigured
               ? {}
@@ -8077,7 +9614,21 @@ export default function App() {
               : {}
             : { refreshHomeHealth: tg('l7b.needHome'), retryFailedProbes: tg('l7b.needHome') }),
           ...(tabs.some((tab) => tab.view === 'alert-workbench') ? {} : { aiPostmortem: tg('w1.paletteNeedAlert') }),
-          ...(tabs.some((tab) => tab.view === 'file-diff') ? {} : { explainDiff: tg('l8b.needDiff'), diffFixPlaybook: tg('l8b.needDiff') })
+          ...(tabs.some((tab) => tab.view === 'file-diff') ? {} : { explainDiff: tg('l8b.needDiff'), diffFixPlaybook: tg('l8b.needDiff') }),
+          ...(reconnectAllBusy
+            ? {
+                reconnectNow: tg('palette.reconnectAllBusy'),
+                reconnectAllDropped: tg('palette.reconnectAllBusy')
+              }
+            : tabs.some(
+                  (t) => t.status === 'disconnected' && (!t.view || t.view === 'session') && t.kind !== 'local'
+                )
+              ? {}
+              : {
+                  reconnectNow: tg('palette.needDropped'),
+                  reconnectAllDropped: tg('palette.needDropped')
+                }),
+          ...(aiConfigured ? {} : { askAgain: tg('ux37.notConfigured') })
         }}
       />
       <QuickStartWizard
@@ -8156,6 +9707,28 @@ export default function App() {
       {/* last so confirm/prompt dialogs stack above any open modal */}
       <ContextMenuHost />
       <DialogHost />
+      
+      {broadcastPickerOpen ? (
+        <BroadcastTargetPicker
+          open={broadcastPickerOpen}
+          tabs={broadcastPickerTabs}
+          initialSelected={initialBroadcastSelection(broadcastTargets, broadcastLiveIds)}
+          onCancel={() => setBroadcastPickerOpen(false)}
+          onConfirm={(ids) => {
+            const live = pruneBroadcastTargets(ids, broadcastLiveIds)
+            setBroadcastTargets(live)
+            setBroadcastEnabled(live.length >= 2)
+            setBroadcastPickerOpen(false)
+            if (live.length >= 2) showToast(tg('ux10.broadcasting', { n: live.length }))
+          }}
+          onStop={() => {
+            setBroadcastEnabled(false)
+            setBroadcastPickerOpen(false)
+            // keep broadcastTargets so reopen restores the last set
+          }}
+        />
+      ) : null}
+
       <ToastHost />
 
       {sessionMenu && (() => {
@@ -8201,6 +9774,7 @@ export default function App() {
           if (id === 'maint') {
             setSessionMenu(null)
             openMaintenance(multi ?? [p.id])
+            showToast(tg('l2d.open'))
             return
           }
           if (id === 'batch') {
@@ -8212,12 +9786,14 @@ export default function App() {
                 if (sid) sids.push(sid)
               }
               openToolTabRef.current('batch', null, sids)
+              showToast(tg('ctx.batch'))
             })()
             return
           }
           if (id === 'monitorBoard') {
             setSessionMenu(null)
             openDashboard()
+            showToast(tg('l7.openDashboard'))
             return
           }
           if (id === 'sftp') {
@@ -8231,12 +9807,14 @@ export default function App() {
           if (id === 'toolbox') {
             runForProfile(p, (sid) => {
               openToolTabRef.current('toolbox', sid)
+              showToast(tg('ctx.toolbox'))
             })
             return
           }
           if (id === 'edit') {
             openConnectionEditor(p)
             setSessionMenu(null)
+            showToast(tg('pf5.editConn'))
             return
           }
           if (id === 'profile') {
@@ -8249,6 +9827,11 @@ export default function App() {
               hostInventoryId: p.hostInventoryId
             })
             setSessionMenu(null)
+            showToast(tg('menu.inventory'))
+            return
+          }
+          if (id === 'tags') {
+            void editProfileTags(p.id)
             return
           }
           if (id === 'rename') {
@@ -8258,7 +9841,12 @@ export default function App() {
           if (id === 'copyAddr') {
             setSessionMenu(null)
             const addr = `${p.username}@${p.host}${p.port && p.port !== 22 ? ` -p ${p.port}` : ''}`
-            void navigator.clipboard.writeText(addr).then(() => showToast(tg('ctx.copied')))
+            try {
+              window.aiss.clipboard.writeText(addr)
+              showToast(tg('ctx.copied'))
+            } catch {
+              void navigator.clipboard.writeText(addr).then(() => showToast(tg('ctx.copied')))
+            }
             return
           }
           if (id === 'delete') void deleteProfilesFn(multi ?? [p.id])

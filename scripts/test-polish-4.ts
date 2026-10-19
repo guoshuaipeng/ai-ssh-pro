@@ -13,11 +13,11 @@ const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   version: string
   build?: { win?: Record<string, unknown> }
-  scripts: { test: string }
+  scripts: { test: string; 'test:parts'?: string }
 }
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
-assert.equal(pkg.scripts.test.includes('scripts/test-polish-4.ts'), true)
+assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-4.ts'), true)
 assert.equal(pkg.version.split('.').length, 3, 'one semver, no extra micro build')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')

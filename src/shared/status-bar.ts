@@ -112,3 +112,23 @@ export function shareDisconnectCopy(host: string, locale: 'zh-CN' | 'en', phaseT
   if (phaseText.startsWith(bare)) return lead + phaseText.slice(bare.length)
   return phaseText
 }
+
+/** Status-bar RTT chip label for an active SSH session ping. */
+export function formatStatusLatency(
+  ms: number | null | undefined,
+  locale: 'zh-CN' | 'en'
+): string | null {
+  if (ms === undefined) return null
+  if (ms === null || typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) {
+    return locale === 'en' ? 'RTT —' : '延迟 —'
+  }
+  const n = Math.round(ms)
+  return locale === 'en' ? `RTT ${n} ms` : `延迟 ${n} ms`
+}
+
+/** Plain RTT for clipboard (no locale words). */
+export function latencyClipboardText(ms: number | null | undefined): string | null {
+  if (ms === undefined) return null
+  if (ms === null || typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return null
+  return `${Math.round(ms)} ms`
+}

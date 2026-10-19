@@ -2,6 +2,8 @@
 
 export type TabLabelSource = {
   title: string
+  /** User rename (tab chrome). Wins over the view default label. */
+  customTitle?: string
   status?: string
   view?: string
   auditHost?: string
@@ -35,6 +37,8 @@ export function tabLabel(
   t: TabLabelSource,
   tr: (key: string, vars?: Record<string, string | number>) => string
 ): string {
+  const custom = t.customTitle?.trim()
+  if (custom) return custom
   const session = !t.view || t.view === 'session'
   if (session && t.status === 'connecting') return tr('tab.connecting', { title: t.title })
   if (session && t.status === 'disconnected') return tr('tab.disconnected', { title: t.title })
@@ -46,6 +50,11 @@ export function tabLabel(
     return full.length > 24 ? full.slice(0, 24) : full
   }
   const key = t.view ? VIEW_TITLE[t.view] : undefined
-  if (key) return tr(key)
+  if (key) {
+    // openToolTab sets "Monitor · host" / "Toolbox · host"; keep that over the bare menu label.
+    const bare = tr(key)
+    if (t.title?.trim() && t.title.trim() !== bare) return t.title.trim()
+    return bare
+  }
   return t.title
 }

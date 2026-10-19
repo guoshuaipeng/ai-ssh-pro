@@ -5,6 +5,7 @@ import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import {
   BUILTIN_SNIPPETS,
   builtinSnippetById,
+  localizeBuiltin,
   saveAsSnippet,
   stripBuiltinSnippets,
   type LibrarySeg
@@ -16,6 +17,14 @@ import {
   filterSnippets,
   mergeSnippetsImport
 } from '@shared/workspace-features'
+import {
+  eventToHotkeyString,
+  normalizeSnippetHotkey,
+  notifySnippetsChanged,
+  snippetHotkeyConflictsKeymap,
+  snippetHotkeyConflictsPeer,
+  suggestSnippetHotkey
+} from '@shared/snippet-hotkey'
 import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
 import { toastUndo } from '../lib/dialogs'
@@ -46,7 +55,7 @@ function newId(): string {
 }
 
 export default function SnippetsPanel({ activeSessionId, variant = 'rail', launch }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const fileRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -64,6 +73,8 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
   const [more, setMore] = useState(false)
   const [pending, setPending] = useState<{ snippet: CommandSnippet; execute: boolean; vars: string[] } | null>(null)
   const [varValues, setVarValues] = useState<Record<string, string>>({})
+  const [hotkey, setHotkey] = useState('')
+  const [hotkeyConflict, setHotkeyConflict] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -84,6 +95,8 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     setEditingId(null)
     setTitle('')
     setBody('')
+    setHotkey('')
+    setHotkeyConflict(null)
   }, [load])
 
   useEffect(() => {
@@ -92,6 +105,8 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
       setFormOpen(true)
       setEditingId(null)
       setTitle('')
+      setHotkey('')
+      setHotkeyConflict(null)
       if (launch.seed) setBody(launch.seed)
     }
     if (launch.previewBuiltin) {
@@ -112,6 +127,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     try {
       await getSnippetsApi().save(safe)
       setItems(safe)
+      notifySnippetsChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       throw e
@@ -124,6 +140,8 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     setEditingId(null)
     setTitle('')
     setBody('')
+    setHotkey('')
+    setHotkeyConflict(null)
     setFormOpen(false)
   }
 
@@ -147,18 +165,47 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     setEditingId(s.id)
     setTitle(s.title)
     setBody(s.body)
+    setHotkey(s.hotkey || '')
+    setHotkeyConflict(null)
   }
 
   const onSaveAsBuiltin = async (id: string) => {
     const source = builtinSnippetById(id)
     if (!source) return
-    const copy = saveAsSnippet(source, newId)
+    const copy = saveAsSnippet(source, newId, undefined, locale)
     try {
       await persist([...items, copy])
       showToast(t('w9.savedAs', { name: copy.title }))
     } catch {
       /* error already set */
     }
+  }
+
+  const applyHotkeyDraft = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      setHotkey('')
+      setHotkeyConflict(null)
+      return
+    }
+    const n = normalizeSnippetHotkey(trimmed)
+    if (!n) {
+      setHotkey(trimmed)
+      setHotkeyConflict(t('snip.hotkeyInvalid'))
+      return
+    }
+    setHotkey(n)
+    const km = snippetHotkeyConflictsKeymap(n)
+    if (km) {
+      setHotkeyConflict(t('snip.hotkeyTakenApp', { action: km }))
+      return
+    }
+    const peer = snippetHotkeyConflictsPeer(n, items, editingId)
+    if (peer) {
+      setHotkeyConflict(t('snip.hotkeyTakenPeer', { title: peer.title }))
+      return
+    }
+    setHotkeyConflict(null)
   }
 
   const onSaveForm = async () => {
@@ -168,9 +215,33 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
       setError(t('snip.needTitleBody'))
       return
     }
+    let hk: string | undefined
+    if (hotkey.trim()) {
+      const n = normalizeSnippetHotkey(hotkey)
+      if (!n) {
+        setError(t('snip.hotkeyInvalid'))
+        return
+      }
+      if (snippetHotkeyConflictsKeymap(n)) {
+        setError(t('snip.hotkeyTakenApp', { action: snippetHotkeyConflictsKeymap(n)! }))
+        return
+      }
+      const peer = snippetHotkeyConflictsPeer(n, items, editingId)
+      if (peer) {
+        setError(t('snip.hotkeyTakenPeer', { title: peer.title }))
+        return
+      }
+      hk = n
+    }
     const next = editingId
-      ? items.map((s) => (s.id === editingId ? { ...s, title: tt, body: b } : s))
-      : [...items, { id: newId(), title: tt, body: b }]
+      ? items.map((s) => {
+          if (s.id !== editingId) return s
+          const row: CommandSnippet = { ...s, title: tt, body: b }
+          if (hk) row.hotkey = hk
+          else delete row.hotkey
+          return row
+        })
+      : [...items, { id: newId(), title: tt, body: b, ...(hk ? { hotkey: hk } : {}) }]
     try {
       await persist(next)
       resetForm()
@@ -235,10 +306,11 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
   }
 
   const visible = filterSnippets(items, query)
-  const builtinVisible = BUILTIN_SNIPPETS.filter((row) => filterSnippets([{ title: row.title, body: `${row.summary}\n${row.body}` }], query).length > 0)
+  const localizedBuiltins = BUILTIN_SNIPPETS.map((row) => localizeBuiltin(row, locale))
+  const builtinVisible = localizedBuiltins.filter((row) => filterSnippets([{ title: row.title, body: `${row.summary}\n${row.body}` }], query).length > 0)
   const showBuiltin = seg !== 'mine'
   const showMine = seg !== 'builtin'
-  const preview = previewId ? builtinSnippetById(previewId) : undefined
+  const preview = previewId ? localizedBuiltins.find((row) => row.id === previewId) : undefined
 
   const onExport = () => {
     const blob = new Blob([buildSnippetsExport(items)], { type: 'application/json;charset=utf-8' })
@@ -277,6 +349,50 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
         <label htmlFor="snippet-body">{t('snip.fieldBody')}</label>
         <textarea id="snippet-body" value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="df -h" />
         <span title={t('snip.varHint')}>ⓘ</span>
+      </div>
+      <div className="field" data-testid="snip-hotkey-field">
+        <label htmlFor="snippet-hotkey">{t('snip.fieldHotkey')}</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            id="snippet-hotkey"
+            data-testid="snip-hotkey"
+            value={hotkey}
+            placeholder={t('snip.hotkeyPh')}
+            readOnly
+            onKeyDown={(e) => {
+              if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') {
+                e.preventDefault()
+                applyHotkeyDraft('')
+                return
+              }
+              if (e.key === 'Tab') return
+              e.preventDefault()
+              e.stopPropagation()
+              const chord = eventToHotkeyString(e)
+              if (chord) applyHotkeyDraft(chord)
+            }}
+          />
+          <button
+            type="button"
+            data-testid="snip-hotkey-suggest"
+            disabled={saving}
+            onClick={() => {
+              const s = suggestSnippetHotkey(items, editingId)
+              if (!s) {
+                setHotkeyConflict(t('snip.hotkeyNoFree'))
+                return
+              }
+              applyHotkeyDraft(s)
+            }}
+          >
+            {t('snip.hotkeySuggest')}
+          </button>
+          <button type="button" disabled={!hotkey || saving} onClick={() => applyHotkeyDraft('')}>
+            {t('snip.hotkeyClear')}
+          </button>
+        </div>
+        <p className="l7-meta" style={{ margin: '4px 0 0' }}>{t('snip.hotkeyHint')}</p>
+        {hotkeyConflict ? <p className="l2-error" data-testid="snip-hotkey-conflict">{hotkeyConflict}</p> : null}
       </div>
       {error ? <p className="l2-error">{error}</p> : null}
       <div className="workspace-panel-actions">
@@ -385,7 +501,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
               testId="snippets-empty"
               icon="snippet"
               title={t('pf4.snipTitle')}
-              desc={t('w9.tryHint')}
+              desc={t('snip.cmdkHint')}
               primary={{ label: t('ux08.snipNew'), onClick: openNew, testId: 'snip-new' }}
               secondary={[{
                 label: t('w9.try'),
@@ -443,7 +559,10 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
                   background: 'var(--bg)'
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{s.title}</div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
+                  {s.hotkey ? <kbd className="cmdp-kbd" data-testid="snip-hotkey-badge">{s.hotkey}</kbd> : null}
+                </div>
                 <pre
                   style={{
                     margin: '0 0 8px',

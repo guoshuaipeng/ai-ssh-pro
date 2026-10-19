@@ -143,7 +143,7 @@ const built = readFileSync('src/renderer/src/components/BuiltMenu.tsx', 'utf8')
 const ctxMenu = readFileSync('src/renderer/src/components/ContextMenu.tsx', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 
 function fnBody(source: string, name: string, next: string): string {
@@ -193,8 +193,8 @@ assert.match(features, /\.tab-context-menu\s*\{[^}]*max-height:\s*calc\(100vh - 
 assert.match(styles, /\.session-context-menu\s*\{[^}]*position:\s*fixed/)
 assert.match(styles, /\.session-context-menu\s*\{[^}]*max-height:\s*calc\(100vh - 16px\)/)
 
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-ix5-menus\.ts/)
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ix5-menus\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 /** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */
 function unreleasedBulletAt(section: string, id: string): number {

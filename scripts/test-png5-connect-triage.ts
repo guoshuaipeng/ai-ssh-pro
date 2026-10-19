@@ -4,22 +4,24 @@ import { readFileSync } from 'node:fs'
 import {
   acceptPrimaryAction,
   connectionTechnicalDetail,
+  jumpTroubleDetail,
   orderedActions,
   primaryAction,
   showConnectionTrouble,
   troubleshootConnection,
   type TroubleId
 } from '../src/shared/connect-trouble'
+import { classifyHopReason } from '../src/shared/jump-chain'
 import { isEngineerLeak } from '../src/shared/product-error'
 import { disconnectStatusSentence } from '../src/shared/status-bar'
 import { translate } from '../src/renderer/src/lib/i18n'
 
-const zh = (key: Parameters<typeof translate>[1]) => translate('zh-CN', key)
-const en = (key: Parameters<typeof translate>[1]) => translate('en', key)
+const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('zh-CN', key, vars)
+const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /test-png5-connect-triage/)
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-png5-connect-triage/)
 
 const ipc = "Error invoking remote method 'ssh:connect': Error: connect ECONNREFUSED 10.0.0.1:22"
 const refused = troubleshootConnection(ipc)
@@ -48,6 +50,24 @@ assert.deepEqual(orderedActions(unreachable), ['edit', 'retry'])
 
 assert.equal(troubleshootConnection('getaddrinfo ENOTFOUND missing.example').id, 'dns')
 assert.equal(troubleshootConnection('[hop 2/3] bastion (10.0.0.2): refused').id, 'jump')
+const jumpAuth = troubleshootConnection('[hop 1/2] bastion (10.0.0.2): All configured authentication methods failed')
+assert.equal(jumpAuth.id, 'jump')
+assert.deepEqual(orderedActions(jumpAuth), ['keys', 'edit', 'retry'])
+assert.equal(primaryAction(jumpAuth), 'keys')
+const jumpTimeout = troubleshootConnection('[hop 2/3] edge (10.0.0.3): connect ETIMEDOUT')
+assert.equal(jumpTimeout.primary, 'retry')
+assert.equal(classifyHopReason('refused'), 'refused')
+assert.equal(classifyHopReason('All configured authentication methods failed'), 'auth')
+assert.equal(classifyHopReason('ETIMEDOUT'), 'timeout')
+assert.equal(classifyHopReason('EHOSTUNREACH'), 'unreachable')
+const jd = jumpTroubleDetail('[hop 2/3] bastion (10.0.0.2): Connection refused')
+assert.ok(jd)
+assert.equal(jd?.reasonKind, 'refused')
+assert.equal(jd?.hop, 2)
+assert.equal(jd?.name, 'bastion')
+assert.match(zh('png5.cause.jump.auth', { hop: 1, total: 2, name: 'bastion' }), /bastion/)
+assert.match(en('png5.cause.jump.timeout', { hop: 2, total: 3, name: 'edge' }), /edge/)
+assert.equal(isEngineerLeak(zh('png5.cause.jump.refused', { hop: 1, total: 1, name: 'j' })), false)
 assert.equal(troubleshootConnection('No route to host').id, 'unreachable')
 assert.equal(troubleshootConnection('handshake timed out').id, 'timeout')
 assert.equal(showConnectionTrouble('import', '无法解析该文件'), false)
@@ -108,6 +128,9 @@ const detailsAt = card.indexOf('data-testid="png5-details"')
 assert.ok(causeAt > 0 && actionsAt > causeAt && detailsAt > actionsAt, 'cause, then actions, then details')
 assert.equal(card.includes('connect-trouble-steps'), false)
 assert.match(card, /disconnectStatusSentence\(host, loc\)/)
+assert.match(card, /jumpTroubleDetail\(raw\)/)
+assert.match(card, /png5\.cause\.jump\./)
+assert.match(card, /data-hop-kind/)
 assert.match(card, /acceptPrimaryAction\(busy\)/)
 assert.match(card, /disabled=\{isPrimary && busy\}/)
 assert.match(card, /aria-busy=\{isPrimary && busy \? true : undefined\}/)

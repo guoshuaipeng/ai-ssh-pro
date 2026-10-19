@@ -302,7 +302,7 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
 const css = `${styles}\n${features}`
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 
 assert.match(dialogs, /shouldCaptureOnEnqueue\(prev\)/)
@@ -340,8 +340,8 @@ assert.match(ix3Bullet, /Public HOLD/)
 assert.match(ix3Bullet, /0\.4\.4/)
 assert.match(ix3Bullet, /term\.focus\(\)/)
 
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-ix3-focus\.ts/)
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ix3-focus\.ts/)
 
 assert.match(css, /\.sftp-pane\.is-active:focus-visible/)
 assert.match(styles, /button\.primary:focus-visible,\s*button\.danger:focus-visible,\s*button\.primary\.danger:focus-visible/)

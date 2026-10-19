@@ -34,6 +34,9 @@ assert.ok(foot.includes('data-testid="statusbar-record"'))
 assert.ok(foot.includes('data-testid="statusbar-broadcast"'))
 assert.ok(foot.includes('data-testid="statusbar-disconnect"'))
 assert.ok(foot.includes('data-testid="statusbar-reconnect"'))
+assert.ok(app.includes('data-testid="statusbar-ai-pending"'))
+assert.ok(app.includes("sb.aiPending"))
+assert.ok(app.includes("openAiPendingConfirm"))
 assert.ok(foot.includes('pf5.reconnect'))
 assert.ok(foot.indexOf('data-testid="statusbar-disconnect"') < foot.indexOf('</footer>'))
 assert.ok(app.indexOf('className="app-shell"') < app.indexOf('data-testid="app-statusbar"'))
@@ -105,7 +108,7 @@ assert.match(i18n, /'pf5\.reconnect': '重连'/)
 assert.match(i18n, /'pf5\.reconnect': 'Reconnect'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

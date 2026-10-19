@@ -22,7 +22,7 @@ import { buildPaletteEntries } from '../src/renderer/src/lib/palette'
 import { SHARED_MENUS } from '../src/shared/menus'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 const mem = () => {
   const bag = new Map<string, string>()
@@ -139,7 +139,8 @@ assert.equal(palette.find((e) => e.id === 'switchTab')?.label, '切换标签…'
 assert.equal(palette.find((e) => e.id === 'refreshHomeHealth')?.label, '刷新首页健康')
 const enPalette = buildPaletteEntries(SHARED_MENUS, 'en')
 assert.equal(enPalette.find((e) => e.id === 'switchTab')?.label, 'Switch tab…')
-assert.ok(SHARED_MENUS.every((m) => m.items.every((it) => it.type !== 'item' || (it.id !== 'switchTab' && it.id !== 'refreshHomeHealth'))))
+assert.ok(SHARED_MENUS.some((m) => m.items.some((it) => it.type === 'item' && it.id === 'switchTab')))
+assert.ok(SHARED_MENUS.some((m) => m.items.some((it) => it.type === 'item' && it.id === 'refreshHomeHealth')))
 
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 const home = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')

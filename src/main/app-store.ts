@@ -13,6 +13,9 @@ import type {
   LocalPortForward
 } from '../shared/ipc'
 import { TERMINAL_PREFS_DEFAULTS } from '../shared/ipc'
+import { clampTerminalFontSize } from '../shared/terminal-zoom'
+import { normalizeSnippetHotkey } from '../shared/snippet-hotkey'
+import { normalizeAiChatHistory, serializeAiChatHistory } from '../shared/ai-chat-history'
 import type { LocaleId, RecentConnection, RecentConnectionInput } from '../shared/workspace-features'
 import {
   mergeRecentConnection,
@@ -420,19 +423,25 @@ function normalizeTerminalPrefs(raw: unknown): TerminalPrefs {
   if (!raw || typeof raw !== 'object') return { ...d }
   const o = raw as Record<string, unknown>
   const themeId =
-    o.themeId === 'github-dark' || o.themeId === 'solarized-dark' || o.themeId === 'monokai'
+    o.themeId === 'github-dark' ||
+    o.themeId === 'solarized-dark' ||
+    o.themeId === 'monokai' ||
+    o.themeId === 'github-light' ||
+    o.themeId === 'solarized-light'
       ? o.themeId
       : d.themeId
   const fontFamily = typeof o.fontFamily === 'string' && o.fontFamily.trim() ? o.fontFamily.trim() : d.fontFamily
   const fontSize =
     typeof o.fontSize === 'number' && Number.isFinite(o.fontSize)
-      ? Math.min(32, Math.max(10, Math.floor(o.fontSize)))
+      ? clampTerminalFontSize(o.fontSize)
       : d.fontSize
   const scrollback =
     typeof o.scrollback === 'number' && Number.isFinite(o.scrollback)
       ? Math.min(50000, Math.max(500, Math.floor(o.scrollback)))
       : d.scrollback
-  return { themeId, fontFamily, fontSize, scrollback }
+  const osc52Clipboard = typeof o.osc52Clipboard === 'boolean' ? o.osc52Clipboard : d.osc52Clipboard
+  const muteBell = typeof o.muteBell === 'boolean' ? o.muteBell : d.muteBell
+  return { themeId, fontFamily, fontSize, scrollback, osc52Clipboard, muteBell }
 }
 
 function normalizeSnippets(raw: unknown): CommandSnippet[] {
@@ -446,7 +455,12 @@ function normalizeSnippets(raw: unknown): CommandSnippet[] {
     const body = typeof o.body === 'string' ? o.body : null
     if (!id || !title || body == null) continue
     if (id.startsWith('builtin:snip:')) continue
-    out.push({ id, title, body })
+    const row: CommandSnippet = { id, title, body }
+    if (typeof o.hotkey === 'string' && o.hotkey.trim()) {
+      const hk = normalizeSnippetHotkey(o.hotkey)
+      if (hk) row.hotkey = hk
+    }
+    out.push(row)
   }
   return out
 }
@@ -524,22 +538,14 @@ export function getAiChatHistory(key: string): AiChatMessage[] {
   const k = key.trim()
   if (!k) return []
   const all = appStore.get('aiChatHistory') ?? {}
-  const rows = all[k]
-  if (!Array.isArray(rows)) return []
-  return rows
-    .filter((m) => m && typeof m === 'object' && (m.role === 'user' || m.role === 'assistant' || m.role === 'system'))
-    .map((m) => ({ role: m.role, content: String(m.content ?? '') }))
-    .slice(-200)
+  return normalizeAiChatHistory(all[k])
 }
 
 export function setAiChatHistory(key: string, messages: AiChatMessage[]): void {
   const k = key.trim()
   if (!k) return
   const all = { ...(appStore.get('aiChatHistory') ?? {}) }
-  const cleaned = messages
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({ role: m.role, content: String(m.content ?? '').slice(0, 20000) }))
-    .slice(-200)
+  const cleaned = serializeAiChatHistory(messages)
   if (cleaned.length === 0) {
     delete all[k]
     archiveAndClearThreadContext(k)

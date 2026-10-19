@@ -7,6 +7,8 @@
  *   node scripts/mcp-inventory-server.mjs --list
  *   node scripts/mcp-inventory-server.mjs --get <id>
  *   node scripts/mcp-inventory-server.mjs --search <query>
+ *   node scripts/mcp-inventory-server.mjs --export [out.json]
+ *   node scripts/mcp-inventory-server.mjs --import <file.json> [--overwrite]
  *   node scripts/mcp-inventory-server.mjs --upload <hostId> <localPath> <remotePath>
  *   node scripts/mcp-inventory-server.mjs --exec <hostId> <command>
  *   npx @modelcontextprotocol/sdk ... OR run as MCP stdio when SDK present:
@@ -385,6 +387,71 @@ function removeHost(id) {
   return true
 }
 
+
+/** Sync-free dump (same shape as app inventory:exportToFile). Strips privateKeyPath. */
+function exportBundle() {
+  ensure()
+  const hosts = []
+  for (const e of listHosts()) {
+    const rec = getHost(e.id)
+    if (!rec) continue
+    const { privateKeyPath, ...metaSafe } = rec.meta || {}
+    hosts.push({
+      meta: metaSafe,
+      services: rec.services || [],
+      notesMarkdown: rec.notesMarkdown || ''
+    })
+  }
+  return {
+    version: 1,
+    kind: 'ai-ssh-pro-inventory',
+    exportedAt: new Date().toISOString(),
+    hosts
+  }
+}
+
+/** Merge an export bundle. Never imports privateKeyPath. */
+function importBundle(raw, opts = {}) {
+  const notes = []
+  const overwrite = opts.overwrite === true
+  if (!raw || typeof raw !== 'object') {
+    return { upserted: 0, skipped: 0, notes: ['invalid bundle'] }
+  }
+  if (raw.kind && raw.kind !== 'ai-ssh-pro-inventory') {
+    notes.push('kind unexpected (continuing if hosts[] present)')
+  }
+  if (!Array.isArray(raw.hosts)) {
+    return { upserted: 0, skipped: 0, notes: ['hosts[] missing'] }
+  }
+  let upserted = 0
+  let skipped = 0
+  for (const h of raw.hosts) {
+    if (!h?.meta?.title?.trim()) {
+      skipped += 1
+      continue
+    }
+    const id = typeof h.meta.id === 'string' ? h.meta.id.trim() : ''
+    if (id && getHost(id) && !overwrite) {
+      skipped += 1
+      continue
+    }
+    upsertHost({
+      id: id || undefined,
+      title: h.meta.title,
+      host: h.meta.host,
+      port: h.meta.port,
+      username: h.meta.username,
+      profileId: h.meta.profileId,
+      tags: h.meta.tags,
+      env: h.meta.env,
+      services: Array.isArray(h.services) ? h.services : [],
+      notesMarkdown: typeof h.notesMarkdown === 'string' ? h.notesMarkdown : ''
+    })
+    upserted += 1
+  }
+  return { upserted, skipped, notes }
+}
+
 const TOOLS = [
   {
     name: 'list_hosts',
@@ -454,6 +521,25 @@ const TOOLS = [
     }
   },
   {
+    name: 'export_inventory',
+    description:
+      'Export all host profiles as sync-free JSON (strips privateKeyPath). Same format as the app Export inventory.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'import_inventory',
+    description:
+      'Import an ai-ssh-pro-inventory JSON bundle. Skips existing ids unless overwrite=true. Never imports private keys.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        bundle: { type: 'object', description: 'Parsed export JSON (kind ai-ssh-pro-inventory)' },
+        overwrite: { type: 'boolean', description: 'Replace existing hosts with same id (default false)' }
+      },
+      required: ['bundle']
+    }
+  },
+  {
     name: 'ssh_test',
     description:
       'Test SSH key login to an inventory host (uses meta.privateKeyPath or AISS_SSH_KEY)',
@@ -518,6 +604,10 @@ async function callTool(name, args = {}) {
       })
     case 'append_note':
       return appendNote(args.hostId, args.note)
+    case 'export_inventory':
+      return exportBundle()
+    case 'import_inventory':
+      return importBundle(args.bundle, { overwrite: args.overwrite === true })
     case 'remove_host':
       return removeHost(args.id)
     case 'ssh_test':
@@ -536,7 +626,39 @@ async function callTool(name, args = {}) {
 // CLI mode
 const argv = process.argv.slice(2)
 if (argv.includes('--list')) {
-  console.log(JSON.stringify({ root: ROOT, hosts: listHosts() }, null, 2))
+  const hosts = listHosts()
+  const payload = { root: ROOT, hosts, count: hosts.length }
+  if (hosts.length === 0) {
+    payload.hint =
+      'Inventory is empty. Add hosts in the app (Host profile) or: --import <file.json>. See --help.'
+  }
+  console.log(JSON.stringify(payload, null, 2))
+  process.exit(0)
+}
+if (argv[0] === '--export') {
+  const outPath = argv[1] && !argv[1].startsWith('-') ? argv[1] : null
+  const bundle = exportBundle()
+  const text = JSON.stringify(bundle, null, 2) + '\n'
+  if (outPath) {
+    writeFileSync(outPath, text, 'utf8')
+    console.log(JSON.stringify({ path: outPath, count: bundle.hosts.length }, null, 2))
+  } else {
+    process.stdout.write(text)
+  }
+  process.exit(0)
+}
+if (argv[0] === '--import' && argv[1]) {
+  const filePath = argv[1]
+  const overwrite = argv.includes('--overwrite')
+  let raw
+  try {
+    raw = JSON.parse(readFileSync(filePath, 'utf8'))
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e)
+    process.exit(1)
+  }
+  const result = importBundle(raw, { overwrite })
+  console.log(JSON.stringify({ path: filePath, ...result }, null, 2))
   process.exit(0)
 }
 if (argv[0] === '--get' && argv[1]) {
@@ -572,8 +694,8 @@ if (argv[0] === '--upload' && argv[1] && argv[2] && argv[3]) {
     })
 } else if (argv.includes('--help')) {
   console.log(`Inventory root: ${ROOT}
-CLI: --list | --get <id> | --search <q> | --upload <hostId> <local> <remote> | --exec <hostId> <command>
-MCP tools: list/get/search/upsert + ssh_test/ssh_exec/ssh_upload
+CLI: --list | --get <id> | --search <q> | --export [out.json] | --import <file.json> [--overwrite] | --upload <hostId> <local> <remote> | --exec <hostId> <command>
+MCP tools: list/get/search/upsert/export_inventory/import_inventory + ssh_test/ssh_exec/ssh_upload
 `)
   process.exit(0)
 } else {
@@ -603,7 +725,7 @@ rl.on('line', async (line) => {
     if (method === 'initialize') {
       reply(id, {
         protocolVersion: '2024-11-05',
-        serverInfo: { name: 'ai-ssh-inventory', version: '0.3.0' },
+        serverInfo: { name: 'ai-ssh-inventory', version: '0.4.0' },
         capabilities: { tools: {} }
       })
       return

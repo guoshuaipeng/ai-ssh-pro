@@ -179,3 +179,75 @@ export function baseName(path: string): string {
   const i = norm.lastIndexOf('/')
   return i >= 0 ? norm.slice(i + 1) : norm
 }
+
+/** UI buckets for the transfer queue panel. */
+export type TransferGroupKey = 'active' | 'paused' | 'failed' | 'finished'
+
+export const TRANSFER_GROUP_ORDER: TransferGroupKey[] = ['active', 'paused', 'failed', 'finished']
+
+export function transferGroupKey(status: TransferStatus): TransferGroupKey {
+  switch (status) {
+    case 'running':
+    case 'queued':
+      return 'active'
+    case 'paused':
+    case 'interrupted':
+      return 'paused'
+    case 'error':
+      return 'failed'
+    case 'done':
+    case 'cancelled':
+      return 'finished'
+  }
+}
+
+export function groupTransferTasks(tasks: readonly TransferTask[]): { key: TransferGroupKey; tasks: TransferTask[] }[] {
+  const buckets: Record<TransferGroupKey, TransferTask[]> = {
+    active: [],
+    paused: [],
+    failed: [],
+    finished: []
+  }
+  for (const t of tasks) {
+    buckets[transferGroupKey(t.status)].push(t)
+  }
+  return TRANSFER_GROUP_ORDER.filter((k) => buckets[k].length > 0).map((k) => ({ key: k, tasks: buckets[k]! }))
+}
+
+export function isFinishedTransfer(status: TransferStatus): boolean {
+  return status === 'done' || status === 'cancelled'
+}
+
+export function clearFinishedTransfers(tasks: readonly TransferTask[]): TransferTask[] {
+  return tasks.filter((t) => !isFinishedTransfer(t.status))
+}
+
+export function countFinishedTransfers(tasks: readonly TransferTask[]): number {
+  return tasks.filter((t) => isFinishedTransfer(t.status)).length
+}
+
+/** One-line progress: bytes · pct · speed · ETA (skips empty parts). */
+export function formatTransferProgress(t: {
+  transferred: number
+  total: number
+  speedBps?: number
+  status: TransferStatus
+}): string {
+  const parts: string[] = []
+  if (t.total > 0) {
+    parts.push(`${formatBytes(t.transferred)} / ${formatBytes(t.total)}`)
+  } else if (t.transferred > 0) {
+    parts.push(formatBytes(t.transferred))
+  }
+  if (t.status === 'running' || t.status === 'queued' || t.status === 'paused' || t.status === 'interrupted') {
+    parts.push(`${pctOf(t.transferred, t.total)}%`)
+  }
+  if (t.status === 'running') {
+    const sp = formatSpeed(t.speedBps)
+    if (sp !== '—') parts.push(sp)
+    const eta = formatEta(t.transferred, t.total, t.speedBps)
+    if (eta) parts.push(eta)
+  }
+  return parts.join(' · ')
+}
+

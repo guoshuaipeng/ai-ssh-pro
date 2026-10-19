@@ -157,6 +157,11 @@ export default function ReconnectPolicySection({ anchor }: { anchor?: string | n
       ) : null}
       {kaError ? <p className="l9-error" data-testid="l9-ka-error">{t('l9.kaError')}</p> : null}
       <p className="l7-muted">{t('l9.kaHint')}</p>
+      {policy.keepAliveSec == null ? (
+        <p className="jump-issue" data-testid="l9-ka-off-nudge">
+          {t('l9.kaOffNudge')}
+        </p>
+      ) : null}
       <label className="settings-row">
         <input
           data-testid="l9-jump-prefer"

@@ -1,3 +1,4 @@
+import type { TerminalThemeId } from '@shared/ipc'
 import { tg } from './i18n'
 
 export type UiThemeId =
@@ -98,16 +99,20 @@ export function getUiChromeColors(id: UiThemeId): UiChromeColors {
 /** 应用到 <html data-ui-theme="…">，并同步 Windows 窗控底色 */
 export function applyUiTheme(id: UiThemeId): void {
   const next = isUiThemeId(id) ? id : UI_THEME_DEFAULT
-  document.documentElement.setAttribute('data-ui-theme', next)
   saveUiThemeId(next)
-  window.dispatchEvent(new CustomEvent('aiss-ui-theme', { detail: next }))
-  // 窗控 overlay 在主进程，切主题时必须跟着改，否则浅色下右上角仍是黑底
-  const chrome = getUiChromeColors(next)
-  const sync = window.aiss?.app?.setUiChrome
-  if (typeof sync === 'function') {
-    void sync(chrome).catch(() => {
-      /* ignore */
-    })
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-ui-theme', next)
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aiss-ui-theme', { detail: next }))
+    // 窗控 overlay 在主进程，切主题时必须跟着改，否则浅色下右上角仍是黑底
+    const chrome = getUiChromeColors(next)
+    const sync = window.aiss?.app?.setUiChrome
+    if (typeof sync === 'function') {
+      void sync(chrome).catch(() => {
+        /* ignore */
+      })
+    }
   }
 }
 
@@ -120,4 +125,13 @@ export function toggleLightDarkTheme(current: UiThemeId = loadUiThemeId()): UiTh
   const next: UiThemeId = isLightUiTheme(current) ? 'github-dark' : 'light'
   applyUiTheme(next)
   return next
+}
+
+/** Best-effort UI → terminal theme pairing (all terminal themes are dark today). */
+export function suggestedTerminalTheme(uiId: UiThemeId): TerminalThemeId {
+  if (uiId === 'light') return 'github-light'
+  if (uiId === 'sand') return 'solarized-light'
+  if (uiId === 'ocean') return 'solarized-dark'
+  if (uiId === 'forest') return 'monokai'
+  return 'github-dark'
 }

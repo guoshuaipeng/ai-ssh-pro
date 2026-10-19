@@ -1,4 +1,5 @@
 import { mt } from './main-i18n'
+import { aiHttpErrorMessages } from '../shared/ai-http-error'
 import type { WebContents } from 'electron'
 import { parseAiAssistantReply, type AiChatPayload, type AiSettings, type AiStreamEvent } from '../shared/ipc'
 import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
@@ -160,7 +161,13 @@ export async function streamOpenAICompatibleChat(
   } catch (e) {
     send(wc, {
       type: 'error',
-      message: e instanceof Error ? e.message : String(e)
+      message: (() => {
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = aiHttpErrorMessages(0, raw)
+        return /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed|network|ERR_/i.test(raw)
+          ? mt(msg.zh, msg.en)
+          : raw
+      })()
     })
     return
   }
@@ -168,7 +175,10 @@ export async function streamOpenAICompatibleChat(
   if (!res.ok) {
     const t = await res.text().catch(() => '')
     logAi('ai:chat legacy http error', { status: res.status, preview: t.slice(0, 200) })
-    send(wc, { type: 'error', message: `HTTP ${res.status}: ${t.slice(0, 500)}` })
+    {
+      const msg = aiHttpErrorMessages(res.status, t)
+      send(wc, { type: 'error', message: mt(msg.zh, msg.en) })
+    }
     return
   }
 

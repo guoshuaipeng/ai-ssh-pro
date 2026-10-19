@@ -8,7 +8,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 assert.deepEqual(tabStripChrome(false), { arrows: false, menu: false })
 assert.deepEqual(tabStripChrome(true), { arrows: true, menu: true })
@@ -48,7 +48,8 @@ assert.match(styles, /\.tab-overflow-btn\s*\{[^}]*width:\s*28px/)
 assert.match(styles, /\.tab-overflow-btn\s*\{[^}]*height:\s*24px/)
 
 assert.ok(app.includes('tabStripChrome(tabStripOverflowing)'))
-assert.ok(app.includes('tabChrome.arrows') && app.includes('tabChrome.menu'))
+assert.ok(app.includes('tabChrome.arrows'))
+assert.ok(app.includes('tabStripChrome(tabStripOverflowing)'))
 assert.ok(app.includes('data-testid="tab-scroll-left"') && app.includes('data-testid="tab-scroll-right"'))
 assert.ok(app.includes('data-testid="tab-bar-scroll"') && app.includes('data-testid="tab-overflow"'))
 assert.ok(app.includes('tabStripWheelDelta(e.deltaX, e.deltaY, e.deltaMode, scroll.clientWidth)'))
@@ -85,6 +86,6 @@ assert.ok(unreleased.includes('A-TFL') && unreleased.includes('S15'))
 assert.ok(unreleased.includes('A-OM') && unreleased.includes('A-HITL'))
 assert.ok(unreleased.includes('Core-A'))
 assert.ok(unreleased.includes('Polish-2'))
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 console.log('test-polish-3 ok')

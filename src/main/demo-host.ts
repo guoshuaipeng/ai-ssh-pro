@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { Client } from 'ssh2'
-import type { SessionMeta, SshConnectResult, SshDataEvent } from '../shared/ipc'
+import type { SessionMeta, SshConnectResult, SshDataEvent, SshStatusEvent } from '../shared/ipc'
 import {
   DEMO_HOST,
   DEMO_PROMPT,
@@ -81,11 +81,20 @@ function demoSftp(): unknown {
       const content = demoReadFile(path) ?? ''
       return Readable.from([Buffer.from(content, 'utf8')])
     },
+    // ssh2's string-path readdir opens a handle then READDIR; keep both styles working.
+    opendir: (path: string, cb: (err: Error | undefined, handle: Buffer) => void) => {
+      cb(undefined, Buffer.from(demoNormalizePath(path || '/home/demo'), 'utf8'))
+    },
+    close: (_handle: Buffer, cb?: (err?: Error | null) => void) => {
+      cb?.(null)
+    },
     end: () => undefined
   }
   return new Proxy(base, {
-    get(target, prop: string) {
-      if (prop in target) return target[prop]
+    get(target, prop) {
+      if (typeof prop === 'symbol') return undefined
+      if (prop === 'then') return undefined
+      if (prop in target) return (target as Record<string | symbol, unknown>)[prop]
       return (...args: unknown[]) => {
         const cb = args[args.length - 1]
         if (typeof cb === 'function') (cb as (e: Error) => void)(readOnly())
@@ -249,11 +258,20 @@ export class DemoHostManager {
   }
 
   disconnect(sessionId: string): void {
+    const rec = this.sessions.get(sessionId)
+    if (!rec) return
     this.sessions.delete(sessionId)
+    // Mirror real SSH teardown: renderer clears connectedSshSessions on ssh:status closed.
+    if (!rec.owner.isDestroyed()) {
+      const st: SshStatusEvent = { sessionId, status: 'closed', message: mt('连接已断开', 'Disconnected') }
+      rec.owner.send('ssh:status', st)
+    }
   }
 
   disconnectAll(): void {
-    this.sessions.clear()
+    for (const id of [...this.sessions.keys()]) {
+      this.disconnect(id)
+    }
   }
 }
 

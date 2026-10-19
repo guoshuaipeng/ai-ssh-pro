@@ -13,14 +13,14 @@ const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   version: string
   build?: { win?: Record<string, unknown> }
-  scripts: { test: string }
+  scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
-assert.equal(pkg.scripts.test.includes('scripts/test-polish-6.ts'), true)
+assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-6.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')
 assert.equal(rawPkg.includes(tipSuggest), false)

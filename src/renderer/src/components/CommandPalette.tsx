@@ -12,6 +12,10 @@ import { paletteItemIndexes, paletteKeyStep, secondNavOrder } from '@shared/pale
 import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
+import { BUILTIN_SNIPPETS, localizeBuiltin } from '@shared/builtin-pack'
+import { dispatchInjectTerminal } from '../lib/terminal-inject'
+import { showToast } from '../lib/toast'
+import type { CommandSnippet } from '@shared/ipc'
 
 type Props = {
   open: boolean
@@ -21,6 +25,18 @@ type Props = {
   aiReady?: boolean
   /** Grey reason shown beside an action that cannot run yet. */
   notes?: Partial<Record<string, string>>
+  /** Active terminal for Ctrl+K → insert snippet */
+  activeSessionId?: string | null
+  /** Saved / recent hosts for one-click open */
+  hostEntries?: Array<{
+    id: string
+    label: string
+    host: string
+    username: string
+    port: number
+    recent?: boolean
+  }>
+  onOpenHost?: (profileId: string) => void
 }
 
 type Entry = PaletteEntry
@@ -41,13 +57,22 @@ const CAT_KEY: Record<string, 'palette.pinned' | 'palette.cat.connection' | 'pal
   help: 'palette.cat.help'
 }
 
-export default function CommandPalette({ open, onClose, onAction, aiReady = true, notes }: Props) {
+export default function CommandPalette({ open, onClose, onAction, aiReady = true, notes, activeSessionId = null, hostEntries = [], onOpenHost }: Props) {
   const { t, locale } = useI18n()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
+  const [snipList, setSnipList] = useState<CommandSnippet[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   useOverlayFocusRestore(open)
+
+  useEffect(() => {
+    if (!open) return
+    void window.aiss.snippets
+      .list()
+      .then((list) => setSnipList(Array.isArray(list) ? list : []))
+      .catch(() => setSnipList([]))
+  }, [open])
 
   const entries = useMemo<Entry[]>(() => {
     const prefs = loadSmartPrefs()
@@ -81,11 +106,55 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
         hay: `${label} ${group} ${p.name} folder sync`.toLowerCase()
       }
     })
-    return [...base, ...profiles].map((e) => {
+    const snipGroup = t('snip.titleN', { n: snipList.length })
+    const mine = snipList.map((s, i) => {
+      const label = t('cmdp.insertSnip', { title: s.title })
+      return {
+        id: 'snippets' as const,
+        snippetId: s.id,
+        snippetBody: s.body,
+        label,
+        group: snipGroup,
+        category: 'session' as const,
+        order: 20_000 + i,
+        shortcut: s.hotkey,
+        hay: `${label} ${s.title} ${s.body} ${s.hotkey || ''} snippet pianduan insert`.toLowerCase()
+      }
+    })
+    const builtins = BUILTIN_SNIPPETS.map((s, i) => {
+      const loc = localizeBuiltin(s, locale)
+      const label = t('cmdp.insertBuiltin', { title: loc.title })
+      return {
+        id: 'snippets' as const,
+        snippetId: s.id,
+        snippetBody: loc.body,
+        label,
+        group: snipGroup,
+        category: 'session' as const,
+        order: 21_000 + i,
+        hay: `${label} ${loc.title} ${loc.body} ${loc.summary} builtin snippet`.toLowerCase()
+      }
+    })
+    const hostGroup = t('cmdp.hosts')
+    const hosts = hostEntries.map((h, i) => {
+      const name = h.label || `${h.username}@${h.host}`
+      const label = h.recent ? t('cmdp.openRecent', { name }) : t('cmdp.openHost', { name })
+      return {
+        id: 'connection' as const,
+        sessionProfileId: h.id,
+        label,
+        group: hostGroup,
+        category: 'connection' as const,
+        order: (h.recent ? 50 : 400) + i,
+        hay: `${label} ${name} ${h.host} ${h.username} ${h.port} host session ssh recent`.toLowerCase()
+      }
+    })
+    return [...hosts, ...base, ...profiles, ...mine, ...builtins].map((e) => {
+      if ('snippetId' in e && e.snippetId) return e
       const note = notes?.[e.id]
       return note ? { ...e, note, disabled: true } : e
     })
-  }, [aiReady, locale, notes, open, t])
+  }, [aiReady, hostEntries, locale, notes, open, snipList, t])
   const usage = useMemo(() => (open ? loadPaletteUsage() : {}), [open])
   const laid = useMemo(() => layoutPalette(entries, q, usage), [entries, q, usage])
   const filtered = laid.items
@@ -107,8 +176,21 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
   const run = (e?: Entry) => {
     if (!e || e.disabled) return
     onClose()
-    recordPaletteUse(e.id)
+    recordPaletteUse(e.sessionProfileId ? `host:${e.sessionProfileId}` : e.snippetId ? `snip:${e.snippetId}` : e.id)
     window.setTimeout(() => {
+      if (e.snippetId && e.snippetBody != null) {
+        if (!activeSessionId) {
+          showToast(t('snip.needSession'))
+          return
+        }
+        dispatchInjectTerminal(activeSessionId, e.snippetBody, false)
+        showToast(t('snip.inserted'))
+        return
+      }
+      if (e.sessionProfileId) {
+        onOpenHost?.(e.sessionProfileId)
+        return
+      }
       if (e.syncId) armFolderSync(e.syncId)
       onAction(e.id)
     }, 0)
@@ -176,7 +258,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
             )
           })}
         </div>
-        <div className="cmdp-foot">{t('cmdp.hint')}</div>
+        <div className="cmdp-foot">{t('cmdp.hint')} · {t('cmdp.snipHint')}</div>
       </div>
     </div>
   )

@@ -47,6 +47,15 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'pasteAlt', keys: 'Shift+Insert', scope: 'display', group: 'terminal', label: { zh: '粘贴（备选）', en: 'Paste (alternative)' } },
   { id: 'toggleSidebar', keys: 'Ctrl+Alt+1', scope: 'global', group: 'view', label: { zh: '显示/隐藏会话栏', en: 'Show/hide session sidebar' } },
   { id: 'toggleAi', keys: 'Ctrl+Alt+B', scope: 'global', group: 'view', label: { zh: '显示/隐藏 AI 面板', en: 'Show/hide AI panel' } },
+  { id: 'focusAiPanel', keys: 'Ctrl+Shift+A', scope: 'global', group: 'view', label: { zh: '聚焦 AI 面板', en: 'Focus AI panel' } },
+  { id: 'focusTerminal', keys: 'Ctrl+Shift+`', scope: 'global', group: 'view', label: { zh: '聚焦终端', en: 'Focus terminal' } },
+  { id: 'clearScrollback', keys: 'Ctrl+Shift+K', scope: 'global', group: 'terminal', label: { zh: '清空终端回滚缓冲', en: 'Clear terminal scrollback' } },
+  { id: 'toggleUiTheme', keys: 'Ctrl+Alt+D', scope: 'global', group: 'view', label: { zh: '切换浅色/深色主题', en: 'Toggle light/dark theme' } },
+  { id: 'zoomIn', keys: 'Ctrl+=', scope: 'global', group: 'view', label: { zh: '放大终端字体', en: 'Zoom in terminal font' } },
+  { id: 'zoomInAlt', keys: 'Ctrl+Shift+=', scope: 'global', group: 'view', label: { zh: '放大终端字体', en: 'Zoom in terminal font' } },
+  { id: 'zoomOut', keys: 'Ctrl+-', scope: 'global', group: 'view', label: { zh: '缩小终端字体', en: 'Zoom out terminal font' } },
+  { id: 'zoomReset', keys: 'Ctrl+0', scope: 'global', group: 'view', label: { zh: '重置终端字体', en: 'Reset terminal font' } },
+{ id: 'reopenClosedTab', keys: 'Ctrl+Shift+T', scope: 'global', group: 'view', label: { zh: '重新打开关闭的标签', en: 'Reopen closed tab' } },
   { id: 'nextTab', keys: 'Ctrl+Tab', scope: 'display', group: 'view', label: { zh: '下一个标签', en: 'Next tab' } },
   { id: 'gotoTab', keys: 'Ctrl+1…9', scope: 'display', group: 'view', label: { zh: '切换到第 N 个标签（9 = 最后一个）', en: 'Go to tab N (9 = last)' } },
   { id: 'closeTab', keys: 'Ctrl+W', scope: 'nonTerminal', group: 'view', label: { zh: '关闭当前标签（终端外）', en: 'Close current tab (outside a terminal)' } },
@@ -62,7 +71,8 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
 export const KEYMAP_ACTION_ALIAS: Readonly<Record<string, string>> = {
   commandPaletteAlt: 'commandPalette',
   fileHistory: 'fileSnapshots',
-  closeTabTerminal: 'closeTab'
+  closeTabTerminal: 'closeTab',
+  zoomInAlt: 'zoomIn'
 }
 
 export function keysFor(id: string): string | undefined {
@@ -81,7 +91,10 @@ function eventKeyName(e: KeyLike): string {
   if (e.code && /^Key[A-Z]$/.test(e.code)) return e.code.slice(3)
   if (e.code && /^Digit[0-9]$/.test(e.code)) return e.code.slice(5)
   if (e.code === 'Comma') return ','
+  if (e.code === 'Equal' || e.code === 'NumpadAdd') return '='
+  if (e.code === 'Minus' || e.code === 'NumpadSubtract') return '-'
   if (e.code === 'Space' || e.key === ' ') return 'Space'
+  if (e.code === 'Backquote') return '`'
   if (e.key.length === 1) return e.key.toUpperCase()
   return e.key
 }

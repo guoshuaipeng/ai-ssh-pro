@@ -175,6 +175,24 @@ export function probeHostKeyError(status: 'trusted' | 'unknown' | 'changed'): { 
   return PROBE_HOST_KEY_DENIED
 }
 
+
+export type HopReasonKind = 'auth' | 'timeout' | 'unreachable' | 'refused' | 'dns' | 'generic'
+
+/** Map the raw hop failure reason to a human triage bucket. */
+export function classifyHopReason(reason: string): HopReasonKind {
+  const s = String(reason ?? '')
+  if (/ECONNREFUSED|Connection refused|没有在监听|连接被拒绝|refused/i.test(s)) return 'refused'
+  if (/ETIMEDOUT|timed out|handshake|连接超时|超时/i.test(s)) return 'timeout'
+  if (/ENOTFOUND|getaddrinfo|找不到主机|Host not found/i.test(s)) return 'dns'
+  if (/EHOSTUNREACH|ENETUNREACH|EHOSTDOWN|No route to host|Host is unreachable|主机不可达|无法到达|网络不可达/i.test(s)) {
+    return 'unreachable'
+  }
+  if (/authentication methods failed|All configured authentication|认证失败|密码或密钥|用户名或密钥|Permission denied \(publickey|Permission denied \(password/i.test(s)) {
+    return 'auth'
+  }
+  return 'generic'
+}
+
 export function formatHopFailure(hop: number, total: number, name: string, addr: string, reason: string): string {
   return `[hop ${hop}/${total}] ${name} (${addr}): ${reason}`
 }

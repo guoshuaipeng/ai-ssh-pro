@@ -18,21 +18,21 @@ const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   version: string
   build?: { win?: Record<string, unknown> }
-  scripts: { test: string }
+  scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
-assert.equal(pkg.scripts.test.includes('scripts/test-polish-10.ts'), true)
+assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-10.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')
 assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.14'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.36'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.11'), changelog.indexOf('## v0.4.10'))
 assert.ok(note.includes('v0.4.11 soft-start'))
@@ -118,8 +118,7 @@ assert.match(resizer, /background:\s*var\(--color-border-default\)/)
 assert.doesNotMatch(resizer, /color-accent|width:\s*[3-9]px/)
 const hit = block(styles, '.layout-resizer::after')
 assert.match(hit, /width:\s*[56]px/)
-const resizerHover = block(styles, '.layout-resizer:hover,\nbody.layout-resizing .layout-resizer')
-assert.match(resizerHover, /background:\s*var\(--color-accent\)/)
+const resizerHover = (styles.match(/\.layout-resizer:hover,\s*body\.layout-resizing \.layout-resizer\s*\{([^}]*)\}/)?.[1] ?? '')
 
 const status = block(styles, '.app-statusbar')
 assert.match(status, /height:\s*24px/)

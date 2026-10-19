@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto'
 import Store from 'electron-store'
+import {
+  parseOpenSshKnownHosts,
+  planKnownHostsImport,
+  type ImportPlanRow
+} from '../shared/known-hosts-io'
 
 export type KnownHostEntry = {
   /** host:port */
@@ -76,4 +81,84 @@ export function checkHostKey(host: string, port: number, hostKey: Buffer): HostK
     previousFingerprint: known.fingerprint,
     hostKey
   }
+}
+
+export function listKnownHosts(): KnownHostEntry[] {
+  const entries = store.get('entries')
+  return Object.values(entries).sort((a, b) => a.hostPort.localeCompare(b.hostPort))
+}
+
+export function removeKnownHostByKey(hostPort: string): boolean {
+  const key = String(hostPort ?? '').trim().toLowerCase()
+  if (!key) return false
+  const entries = { ...store.get('entries') }
+  if (!entries[key]) return false
+  delete entries[key]
+  store.set('entries', entries)
+  return true
+}
+
+export function trustHostKeyBase64(host: string, port: number, hostKeyBase64: string): KnownHostEntry {
+  return trustHostKey(host, port, Buffer.from(hostKeyBase64, 'base64'))
+}
+
+export type KnownHostImportPreviewRow = ImportPlanRow & {
+  fingerprint: string
+  selectedDefault: boolean
+}
+
+export type KnownHostImportPreview = {
+  rows: KnownHostImportPreviewRow[]
+  skippedHashed: number
+  skippedOther: number
+  /** Truncated raw lines for hashed host names — never imported. */
+  skippedHashedSamples: string[]
+  sourcePath?: string
+}
+
+export function buildImportPreview(text: string, sourcePath?: string): KnownHostImportPreview {
+  const parsed = parseOpenSshKnownHosts(text)
+  const existing = listKnownHosts().map((e) => ({
+    hostPort: e.hostPort,
+    fingerprint: e.fingerprint,
+    hostKeyBase64: e.hostKeyBase64
+  }))
+  const plan = planKnownHostsImport(parsed.entries, existing)
+  const rows: KnownHostImportPreviewRow[] = plan.map((row) => {
+    let fingerprint: string
+    try {
+      fingerprint = fingerprintSha256(Buffer.from(row.hostKeyBase64, 'base64'))
+    } catch {
+      fingerprint = 'SHA256:?'
+    }
+    return {
+      ...row,
+      fingerprint,
+      selectedDefault: row.action === 'add' || row.action === 'update'
+    }
+  })
+  const hashed = parsed.skipped.filter((s) => s.kind === 'hashed')
+  return {
+    rows,
+    skippedHashed: hashed.length,
+    skippedOther: parsed.skipped.filter((s) => s.kind !== 'hashed').length,
+    skippedHashedSamples: hashed.slice(0, 8).map((s) => (s.line.length > 96 ? s.line.slice(0, 96) + '…' : s.line)),
+    sourcePath
+  }
+}
+
+export function applyImportRows(
+  rows: Array<{ host: string; port: number; hostKeyBase64: string }>
+): { ok: number; fail: number } {
+  let ok = 0
+  let fail = 0
+  for (const row of rows) {
+    try {
+      trustHostKeyBase64(row.host, row.port, row.hostKeyBase64)
+      ok += 1
+    } catch {
+      fail += 1
+    }
+  }
+  return { ok, fail }
 }

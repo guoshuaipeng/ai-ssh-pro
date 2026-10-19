@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiProvider, AiSettings } from '@shared/ipc'
-import { tg } from '../lib/i18n'
+import { tg, useI18n } from '../lib/i18n'
 
 const MASK = '••••••••'
 
@@ -11,6 +11,7 @@ function parseModelLines(text: string): string[] {
 
 /** 对话框内 AI 配置表单（无折叠） */
 export default function AiConfigForm() {
+  const { locale } = useI18n()
   const [providers, setProviders] = useState<AiProvider[]>([])
   const [activeProviderId, setActiveProviderId] = useState('')
 
@@ -26,6 +27,9 @@ export default function AiConfigForm() {
   const [sshParseInstructions, setSshParseInstructions] = useState('')
   const [useOpenClaw, setUseOpenClaw] = useState(true)
   const [savedHint, setSavedHint] = useState<string | null>(null)
+  const [testHint, setTestHint] = useState<string | null>(null)
+  const [testOk, setTestOk] = useState(false)
+  const [testBusy, setTestBusy] = useState(false)
 
   const parsedModelList = useMemo(() => parseModelLines(modelListText), [modelListText])
 
@@ -138,6 +142,35 @@ export default function AiConfigForm() {
     setApiKey(nextActive.apiKey ? MASK : '')
     setModel(nextActive.modelList[0] ?? model)
   }, [activeProviderId, commitEditorToProviders, model, providers])
+
+
+  const testConnection = useCallback(async () => {
+    if (testBusy) return
+    setTestBusy(true)
+    setTestHint(null)
+    setTestOk(false)
+    try {
+      const key = apiKey === MASK ? storedApiKey : apiKey.trim()
+      // Prefer live editor values so users can verify before Save.
+      const res = await window.aiss.ai.testProvider({
+        baseURL: baseURL.trim(),
+        apiKey: key,
+        model: model.trim() || parseModelLines(modelListText)[0] || ''
+      })
+      const en = locale === 'en'
+      if (res.ok) {
+        setTestOk(true)
+        setTestHint(tg('ai.testOk', { ms: String(res.latencyMs), model: res.model }))
+      } else {
+        setTestHint(en ? res.messageEn : res.messageZh)
+      }
+    } catch (e) {
+      setTestHint(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTestBusy(false)
+      window.setTimeout(() => setTestHint(null), 8000)
+    }
+  }, [apiKey, baseURL, locale, model, modelListText, storedApiKey, testBusy])
 
   const save = useCallback(async () => {
     if (!baseURL.trim()) {
@@ -306,7 +339,24 @@ export default function AiConfigForm() {
         <button type="button" className="primary" onClick={() => void save()}>
           {tg('ui.25')}
         </button>
+        <button
+          type="button"
+          data-testid="ai-provider-test"
+          disabled={testBusy}
+          title={tg('ai.testTip')}
+          onClick={() => void testConnection()}
+        >
+          {testBusy ? tg('ai.testing') : tg('ai.testConnection')}
+        </button>
         {savedHint && <span style={{ fontSize: 12, color: 'var(--accent)' }}>{savedHint}</span>}
+        {testHint && (
+          <span
+            data-testid="ai-provider-test-hint"
+            style={{ fontSize: 12, color: testOk ? 'var(--accent)' : 'var(--danger)' }}
+          >
+            {testHint}
+          </span>
+        )}
       </div>
     </>
   )

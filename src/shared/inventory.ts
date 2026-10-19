@@ -74,3 +74,18 @@ export type HostInventoryUpsertInput = {
 
 /** 注入 Agent 的摘要文本上限 */
 export const INVENTORY_CONTEXT_MAX_CHARS = 6000
+
+
+/** Sync-free inventory dump (no private key bytes / paths). */
+export type HostInventoryExportHost = {
+  meta: Omit<HostMeta, 'privateKeyPath'>
+  services: HostService[]
+  notesMarkdown: string
+}
+
+export type HostInventoryExportBundle = {
+  version: 1
+  kind: 'ai-ssh-pro-inventory'
+  exportedAt: string
+  hosts: HostInventoryExportHost[]
+}

@@ -23,9 +23,9 @@ import AuditExportModal from '../src/renderer/src/components/AuditExportModal'
 const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('zh-CN', key, vars)
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-s1b\.ts/)
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-s1b\.ts/)
 
 const secrets: Array<[string, string]> = [
   ['echo password=hunter2-s1b id', 'hunter2-s1b'],

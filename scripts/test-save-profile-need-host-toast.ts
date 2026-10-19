@@ -1,0 +1,18 @@
+/** saveProfile toasts when host/user missing. */
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
+const start = app.indexOf('const saveProfile = useCallback')
+assert.ok(start >= 0)
+const chunk = app.slice(start, start + 280)
+assert.match(chunk, /setError\(tg\('app\.needHostUser'\)\)/)
+assert.match(chunk, /showToast\(tg\('app\.needHostUser'\), \{ kind: 'error' \}\)/)
+
+const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
+assert.ok(i18n.includes('app.needHostUser'))
+
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-save-profile-need-host-toast/)
+console.log('test-save-profile-need-host-toast ok')

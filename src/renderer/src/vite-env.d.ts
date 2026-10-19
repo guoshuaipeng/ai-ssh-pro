@@ -34,6 +34,7 @@ import type {
   AppUpdateCheckResult,
   McpGuideInfo
 } from '@shared/ipc'
+import type { AiProviderTestInput, AiProviderTestResult } from '@shared/ai-provider-test'
 import type {
   BatchExecRequest,
   BatchExecResult,
@@ -48,6 +49,10 @@ import type {
 } from '@shared/inventory'
 
 export type AissPreload = {
+  clipboard: {
+    writeText: (text: string) => void
+    readText: () => string
+  }
   app: {
     onOpenDialog: (cb: (kind: AppDialogKind) => void) => () => void
     getVersion: () => Promise<string>
@@ -135,6 +140,59 @@ export type AissPreload = {
     hash: (target: string) => Promise<string>
     readText: (target: string, maxBytes?: number) => Promise<import('@shared/ipc').SftpReadTextResult>
     detectKeyKind: (target: string) => Promise<import('@shared/ssh-cert').KeyKind>
+    pickPrivateKey: () => Promise<string | null>
+    pickCertificate: () => Promise<string | null>
+  }
+  knownHosts: {
+    list: () => Promise<
+      Array<{ hostPort: string; fingerprint: string; hostKeyBase64: string; trustedAt: number }>
+    >
+    remove: (hostPort: string) => Promise<boolean>
+    pickImport: () => Promise<{
+      rows: Array<{
+        host: string
+        port: number
+        hostPort: string
+        keyType: string
+        hostKeyBase64: string
+        action: 'add' | 'update' | 'unchanged'
+        fingerprint: string
+        selectedDefault: boolean
+        previousFingerprint?: string
+      }>
+      skippedHashed: number
+      skippedOther: number
+      skippedHashedSamples: string[]
+      sourcePath?: string
+    } | null>
+    applyImport: (
+      rows: Array<{ host: string; port: number; hostKeyBase64: string }>
+    ) => Promise<{ ok: number; fail: number }>
+    listLocalKeys: () => Promise<{
+      dir: string
+      keys: Array<{ name: string; path: string }>
+      error?: string
+    }>
+    openSshDir: () => Promise<boolean>
+    lookupHost: (
+      host: string,
+      port?: number
+    ) => Promise<{
+      ok: boolean
+      query: string
+      file: string
+      matches: Array<{
+        host: string
+        port: number
+        keyType: string
+        hostKeyBase64: string
+        hashed: boolean
+        line: string
+        fingerprint: string
+      }>
+      error?: string
+      missingTool?: boolean
+    }>
   }
   docker: {
     listTree: (sessionId: string) => Promise<DockerTreeResult>
@@ -179,6 +237,7 @@ export type AissPreload = {
     list: () => Promise<SavedSessionsState>
     save: (state: SavedSessionsState) => Promise<void>
     importPick: () => Promise<SessionImportPickResult | null>
+    importSshConfig: () => Promise<import('@shared/ipc').SessionImportPickResult>
     export: (format: SessionExportFormat) => Promise<string>
   }
   snippets: {
@@ -194,6 +253,13 @@ export type AissPreload = {
     getRoot: () => Promise<string>
     upsertService: (hostId: string, service: HostService) => Promise<HostInventoryRecord | null>
     appendNote: (hostId: string, note: string) => Promise<HostInventoryRecord | null>
+    exportToFile: () => Promise<{ path: string; count: number } | null>
+    importFromFile: (overwrite?: boolean) => Promise<{
+      path: string
+      upserted: number
+      skipped: number
+      notes: string[]
+    } | null>
   }
   terminal: {
     getPrefs: () => Promise<TerminalPrefs>
@@ -201,6 +267,7 @@ export type AissPreload = {
   }
   ai: {
     getSettings: () => Promise<AiSettings>
+    testProvider: (req: AiProviderTestInput) => Promise<AiProviderTestResult>
     setSettings: (partial: Partial<AiSettings>) => Promise<void>
     chat: (payload: AiChatPayload) => Promise<void>
     abortChat: () => Promise<void>

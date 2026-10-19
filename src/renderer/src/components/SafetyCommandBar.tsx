@@ -28,6 +28,8 @@ type Props = {
   agreeLabel?: string
   onAgree: (command: string) => void
   onDecline: () => void
+  /** Stale Core-A confirm: fill composer with the prior ask (parent handles). */
+  onAskAgain?: () => void
 }
 
 function AutoRunOnce({ command, onRun }: { command: string; onRun: (command: string) => void }) {
@@ -63,7 +65,8 @@ export default function SafetyCommandBar({
   settings,
   agreeLabel,
   onAgree,
-  onDecline
+  onDecline,
+  onAskAgain
 }: Props) {
   const book = sessionInFlightBook(sessionKey)
   const engaged = safetyTierEngaged(settings)
@@ -118,6 +121,19 @@ export default function SafetyCommandBar({
     return (
       <div className="ai-decision" data-testid="safety-auto">
         {tg('safety.autoRan')}
+      </div>
+    )
+  }
+
+  if (requestId && !confirmable && !decision) {
+    return (
+      <div className="ai-reply-actions ai-stale-actions" data-testid="ai-confirm-stale">
+        <span className="ai-decision">{tg('ux64.confirmStale')}</span>
+        {onAskAgain ? (
+          <button type="button" className="ai-fill-cmd-btn" data-testid="ai-ask-again" onClick={onAskAgain}>
+            {tg('ux64.askAgain')}
+          </button>
+        ) : null}
       </div>
     )
   }

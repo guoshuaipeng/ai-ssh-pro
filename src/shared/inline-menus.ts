@@ -176,6 +176,7 @@ export function buildHostMenu(ctx: HostMenuCtx): BuiltNode[] {
     },
     { type: 'item', id: 'maint', labelKey: 'l2d.openForHost' },
     { type: 'item', id: 'profile', labelKey: 'host.menu.inventory', titleKey: 'host.menu.inventoryTip' },
+    { type: 'item', id: 'tags', labelKey: 'ctx.tags' },
     { type: 'item', id: 'rename', labelKey: 'ctx.rename', hint: 'F2' },
     moveSub(ctx),
     { type: 'item', id: 'copyAddr', labelKey: 'ctx.copyAddr' },

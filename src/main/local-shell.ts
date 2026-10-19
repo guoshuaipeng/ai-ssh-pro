@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { SessionMeta, SshConnectResult, SshDataEvent, SshStatusEvent } from '../shared/ipc'
 import { RingBuffer } from './ring-buffer'
+import { mt } from './main-i18n'
 
 const require = createRequire(import.meta.url)
 
@@ -39,7 +40,7 @@ export class LocalShellManager {
 
   open(owner: WebContents, cols = 120, rows = 32): SshConnectResult {
     if (!isLocalShellAvailable()) {
-      throw new Error('本机 Shell 不可用：请安装并针对 Electron 重建 node-pty（optionalDependency）')
+      throw new Error(mt('本机 Shell 不可用：请安装并针对 Electron 重建 node-pty（optionalDependency）', 'Local shell unavailable: install and rebuild node-pty for Electron (optionalDependency)'))
     }
     const pty = require('node-pty') as {
       spawn: (
@@ -67,7 +68,7 @@ export class LocalShellManager {
       host: 'localhost',
       port: 0,
       username: process.env.USERNAME || process.env.USER || 'local',
-      label: '本机 Shell',
+      label: mt('本机 Shell', 'Local shell'),
       connectedAt,
       termCols: cols,
       termRows: rows,
@@ -98,7 +99,7 @@ export class LocalShellManager {
       ring.flushPartial()
       this.sessions.delete(sessionId)
       if (!owner.isDestroyed()) {
-        const st: SshStatusEvent = { sessionId, status: 'closed', message: '本机 Shell 已退出' }
+        const st: SshStatusEvent = { sessionId, status: 'closed', message: mt('本机 Shell 已退出', 'Local shell exited') }
         owner.send('ssh:status', st)
       }
     })

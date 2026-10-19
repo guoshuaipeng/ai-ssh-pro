@@ -26,7 +26,7 @@ export function blocksAreOn(): boolean {
 export function turnBlocks(on: boolean): boolean {
   if (!on) disableBlocksKeepsScrollback()
   setBlocksEnabled(on)
-  if (!on) showToast(tg('m2.blocksOff'))
+  showToast(tg(on ? 'm2.blocksOn' : 'm2.blocksOff'))
   window.dispatchEvent(new Event('aiss-blocks'))
   return on
 }
@@ -43,7 +43,12 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
     return () => window.removeEventListener('aiss-blocks', sync)
   }, [])
   useEffect(() => {
-    const toggle = () => setCollapsed((v) => !v)
+    const toggle = () =>
+      setCollapsed((v) => {
+        const next = !v
+        showToast(tg(next ? 'blocks.hide' : 'blocks.show'))
+        return next
+      })
     window.addEventListener('aiss-toggle-block-strip', toggle)
     return () => window.removeEventListener('aiss-toggle-block-strip', toggle)
   }, [])
@@ -113,7 +118,7 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       <div className="term-blocks-head">
         <span>{tg('blocks.title', { n: blocks.length })}</span>
         <button type="button" onClick={() => setBlocks((cur) => cur.map((b) => ({ ...b, collapsed: true })))}>{tg('blocks.collapseAll')}</button>
-        <button type="button" title={collapsed ? tg('blocks.show') : tg('blocks.hide')} onClick={() => setCollapsed((v) => !v)}>{collapsed ? '⌃' : '⌄'}</button>
+        <button type="button" title={collapsed ? tg('blocks.show') : tg('blocks.hide')} onClick={() => setCollapsed((v) => { const next = !v; showToast(tg(next ? 'blocks.hide' : 'blocks.show')); return next })}>{collapsed ? '⌃' : '⌄'}</button>
       </div>
       {collapsed ? null : blocks.map((b, index) => (
         <div

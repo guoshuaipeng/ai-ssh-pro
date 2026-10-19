@@ -27,6 +27,8 @@ export type ConnectionConfigModalProps = {
   setPassphrase: (v: string) => void
   label: string
   setLabel: (v: string) => void
+  sessionNote?: string
+  setSessionNote?: (v: string) => void
   smartPaste: string
   setSmartPaste: (v: string) => void
   parseNotes: string | null
@@ -64,7 +66,7 @@ export type ConnectionConfigModalProps = {
   jumpChain?: import('@shared/jump-chain').JumpHop[]
   setJumpChain?: (v: import('@shared/jump-chain').JumpHop[]) => void
   profiles?: import('@shared/ipc').SavedSessionProfile[]
-  focusSection?: 'jump' | 'cert' | null
+  focusSection?: 'jump' | 'cert' | 'note' | null
   onTestJump?: () => Promise<import('@shared/jump-chain').HopProbeRow[]>
 }
 
@@ -91,6 +93,8 @@ export default function ConnectionConfigModal({
   setPassphrase,
   label,
   setLabel,
+  sessionNote = '',
+  setSessionNote,
   smartPaste,
   setSmartPaste,
   parseNotes,
@@ -146,7 +150,16 @@ export default function ConnectionConfigModal({
       forwardRemotePort.trim()
   )
   const [advancedOpen, setAdvancedOpen] = useState(advancedOpenDefault)
+  const noteRef = useRef<HTMLInputElement>(null)
   const certRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focusSection !== 'note') return
+    const el = noteRef.current
+    if (!el) return
+    el.scrollIntoView({ block: 'nearest' })
+    el.focus()
+    el.select()
+  }, [focusSection])
   useEffect(() => {
     if (focusSection !== 'cert') return
     if (authMode === 'password') {
@@ -155,6 +168,11 @@ export default function ConnectionConfigModal({
     }
     certRef.current?.scrollIntoView({ block: 'nearest' })
   }, [focusSection, authMode])
+
+  useEffect(() => {
+    if (!authModeExternal || authModeExternal === authMode) return
+    setAuthModeState(authModeExternal)
+  }, [authModeExternal, authMode])
 
   return (
     <div className="workspace-panel workspace-panel--editor conn-form-ux25">
@@ -195,6 +213,20 @@ export default function ConnectionConfigModal({
                 <label>{tg('ui.41')}</label>
                 <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={tg('ui.42')} />
               </div>
+              {setSessionNote ? (
+                <div className="field">
+                  <label>{tg('conn.note')}</label>
+                  <input
+                    ref={noteRef}
+                    data-testid="conn-session-note"
+                    value={sessionNote}
+                    maxLength={120}
+                    onChange={(e) => setSessionNote(e.target.value)}
+                    placeholder={tg('conn.notePh')}
+                  />
+                  <p className="l4-hint">{tg('conn.noteHint')}</p>
+                </div>
+              ) : null}
               <div className="field">
                 <label>{tg('ui.43')}</label>
                 <input value={host} onChange={(e) => setHost(e.target.value)} placeholder={HOST_PLACEHOLDER} />
@@ -256,11 +288,26 @@ export default function ConnectionConfigModal({
                 <>
                   <div className="field">
                     <label>{tg('ui.48')}</label>
-                    <input
-                      value={privateKeyPath}
-                      onChange={(e) => setPrivateKeyPath(e.target.value)}
-                      placeholder={'C:\\Users\\me\\.ssh\\id_rsa'}
-                    />
+                    <div className="field-row-browse" data-testid="conn-key-browse-row">
+                      <input
+                        value={privateKeyPath}
+                        onChange={(e) => setPrivateKeyPath(e.target.value)}
+                        placeholder={'C:\\Users\\me\\.ssh\\id_rsa'}
+                        data-testid="conn-private-key"
+                      />
+                      <button
+                        type="button"
+                        data-testid="conn-browse-key"
+                        onClick={() => {
+                          void window.aiss?.localFs?.pickPrivateKey?.().then((path) => {
+                            if (path) setPrivateKeyPath(path)
+                          })
+                        }}
+                      >
+                        {tg('conn.browseKey')}
+                      </button>
+                    </div>
+                    <p className="field-hint" data-testid="conn-key-hint">{tg('conn.keyHint')}</p>
                   </div>
                   <div className="field">
                     <label>{tg('ui.49')}</label>
@@ -298,6 +345,9 @@ export default function ConnectionConfigModal({
               {setJumpChain ? (
                 <JumpChainEditor hops={jumpChain ?? []} targetHost={host} profiles={profiles} onChange={setJumpChain} onTest={onTestJump} />
               ) : null}
+              <p className="l4-hint" data-testid="conn-proxycommand-hint">
+                {tg('m2.proxyCommandHint')}
+              </p>
               {setJumpChain ? null : (
               <div className="field-grid field-grid--single">
                 <div className="field">
@@ -350,7 +400,26 @@ export default function ConnectionConfigModal({
               {setCertificatePath ? (
                 <div className="field">
                   <label>{tg('m2.cert')}</label>
-                  <input value={certificatePath} onChange={(e) => setCertificatePath(e.target.value)} placeholder="id_ed25519-cert.pub" />
+                  <div className="field-row-browse" data-testid="conn-cert-browse-row">
+                    <input
+                      value={certificatePath}
+                      onChange={(e) => setCertificatePath(e.target.value)}
+                      placeholder="id_ed25519-cert.pub"
+                      data-testid="conn-cert-path"
+                    />
+                    <button
+                      type="button"
+                      data-testid="conn-browse-cert"
+                      onClick={() => {
+                        void window.aiss?.localFs?.pickCertificate?.().then((path) => {
+                          if (path) setCertificatePath(path)
+                        })
+                      }}
+                    >
+                      {tg('conn.browseCert')}
+                    </button>
+                  </div>
+                  <p className="l4-hint">{tg('m2.certBrowseHint')}</p>
                 </div>
               ) : null}
               {setAutoRecord ? (

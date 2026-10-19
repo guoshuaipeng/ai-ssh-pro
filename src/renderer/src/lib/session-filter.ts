@@ -22,6 +22,7 @@ export function profileMatches(p: SavedSessionProfile, q: string): boolean {
     matches(p.label, q) ||
     matches(p.host, q) ||
     matches(p.username, q) ||
+    matches(p.note, q) ||
     matches(`${p.username}@${p.host}:${p.port}`, q)
   )
 }

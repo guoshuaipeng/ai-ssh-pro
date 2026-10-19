@@ -2,8 +2,9 @@ import { snapshotKeep, snapshotsEnabled } from '../shared/snapshots'
 import type { ResourceSnapshot } from '../shared/resource-monitor'
 import type { DfRow, ExecOutcome, KillSignal, ListenPort, LogRequest, ProcInfo, ServiceAction, ServiceInfo } from '../shared/server-tools'
 import type { BackupExportResult, BackupImportResult } from '../shared/ipc'
+import type { AiProviderTestInput, AiProviderTestResult } from '../shared/ai-provider-test'
 import type { ActiveForward, AddForwardRequest } from '../shared/ipc'
-import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
+import { clipboard, contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type {
   SshConnectOptions,
   SshConnectResult,
@@ -59,6 +60,10 @@ function unsub(channel: string, fn: (e: IpcRendererEvent, ...args: unknown[]) =>
 }
 
 const api = {
+  clipboard: {
+    writeText: (text: string) => clipboard.writeText(String(text ?? '')),
+    readText: () => clipboard.readText()
+  },
   app: {
     onOpenDialog: (cb: (kind: AppDialogKind) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, kind: AppDialogKind) => cb(kind)
@@ -188,7 +193,60 @@ const api = {
     readText: (target: string, maxBytes?: number): Promise<import('../shared/ipc').SftpReadTextResult> =>
       ipcRenderer.invoke('localFs:readText', target, maxBytes),
     detectKeyKind: (target: string): Promise<import('../shared/ssh-cert').KeyKind> =>
-      ipcRenderer.invoke('localFs:detectKeyKind', target)
+      ipcRenderer.invoke('localFs:detectKeyKind', target),
+    pickPrivateKey: (): Promise<string | null> => ipcRenderer.invoke('localFs:pickPrivateKey'),
+    pickCertificate: (): Promise<string | null> => ipcRenderer.invoke('localFs:pickCertificate')
+  },
+  knownHosts: {
+    list: (): Promise<
+      Array<{ hostPort: string; fingerprint: string; hostKeyBase64: string; trustedAt: number }>
+    > => ipcRenderer.invoke('knownHosts:list'),
+    remove: (hostPort: string): Promise<boolean> => ipcRenderer.invoke('knownHosts:remove', hostPort),
+    pickImport: (): Promise<{
+      rows: Array<{
+        host: string
+        port: number
+        hostPort: string
+        keyType: string
+        hostKeyBase64: string
+        action: 'add' | 'update' | 'unchanged'
+        fingerprint: string
+        selectedDefault: boolean
+        previousFingerprint?: string
+      }>
+      skippedHashed: number
+      skippedOther: number
+      skippedHashedSamples: string[]
+      sourcePath?: string
+    } | null> => ipcRenderer.invoke('knownHosts:pickImport'),
+    applyImport: (
+      rows: Array<{ host: string; port: number; hostKeyBase64: string }>
+    ): Promise<{ ok: number; fail: number }> => ipcRenderer.invoke('knownHosts:applyImport', rows),
+    listLocalKeys: (): Promise<{
+      dir: string
+      keys: Array<{ name: string; path: string }>
+      error?: string
+    }> => ipcRenderer.invoke('knownHosts:listLocalKeys'),
+    openSshDir: (): Promise<boolean> => ipcRenderer.invoke('knownHosts:openSshDir'),
+    lookupHost: (
+      host: string,
+      port?: number
+    ): Promise<{
+      ok: boolean
+      query: string
+      file: string
+      matches: Array<{
+        host: string
+        port: number
+        keyType: string
+        hostKeyBase64: string
+        hashed: boolean
+        line: string
+        fingerprint: string
+      }>
+      error?: string
+      missingTool?: boolean
+    }> => ipcRenderer.invoke('knownHosts:lookupHost', host, port)
   },
   docker: {
     listTree: (sessionId: string): Promise<DockerTreeResult> =>
@@ -255,6 +313,7 @@ const api = {
     list: (): Promise<SavedSessionsState> => ipcRenderer.invoke('sessions:list'),
     save: (state: SavedSessionsState): Promise<void> => ipcRenderer.invoke('sessions:save', state),
     importPick: (): Promise<SessionImportPickResult | null> => ipcRenderer.invoke('sessions:importPick'),
+    importSshConfig: (): Promise<SessionImportPickResult> => ipcRenderer.invoke('sessions:importSshConfig'),
     export: (format: SessionExportFormat): Promise<string> => ipcRenderer.invoke('sessions:export', format)
   },
   snippets: {
@@ -272,7 +331,15 @@ const api = {
     upsertService: (hostId: string, service: HostService): Promise<HostInventoryRecord | null> =>
       ipcRenderer.invoke('inventory:upsertService', hostId, service),
     appendNote: (hostId: string, note: string): Promise<HostInventoryRecord | null> =>
-      ipcRenderer.invoke('inventory:appendNote', hostId, note)
+      ipcRenderer.invoke('inventory:appendNote', hostId, note),
+    exportToFile: (): Promise<{ path: string; count: number } | null> =>
+      ipcRenderer.invoke('inventory:exportToFile'),
+    importFromFile: (overwrite?: boolean): Promise<{
+      path: string
+      upserted: number
+      skipped: number
+      notes: string[]
+    } | null> => ipcRenderer.invoke('inventory:importFromFile', overwrite)
   },
   terminal: {
     getPrefs: (): Promise<TerminalPrefs> => ipcRenderer.invoke('terminal:getPrefs'),
@@ -282,6 +349,8 @@ const api = {
   ai: {
     getSettings: (): Promise<AiSettings> => ipcRenderer.invoke('ai:settings:get'),
     setSettings: (partial: Partial<AiSettings>): Promise<void> => ipcRenderer.invoke('ai:settings:set', partial),
+    testProvider: (req: AiProviderTestInput): Promise<AiProviderTestResult> =>
+      ipcRenderer.invoke('ai:provider:test', req),
     chat: (payload: AiChatPayload): Promise<void> => ipcRenderer.invoke('ai:chat', payload),
     abortChat: (): Promise<void> => ipcRenderer.invoke('ai:abortChat'),
     confirmStep: (requestId: string, ok: boolean): Promise<boolean> =>

@@ -1,6 +1,7 @@
 /** UX-50: "last session" restores whitelisted center tabs. Terminal scrollback is not part of the snapshot. */
 
 import type { SavedWorkspaceTab } from './startup-pref'
+import { arrangeTabs } from './tab-actions'
 
 export const RESTORE_KINDS = [
   'home',
@@ -66,7 +67,9 @@ export function planRestore(
   return { keep, skipped }
 }
 
-/** Persistable slice of open center tabs. Local shells, scrollback, and unsaved buffers are omitted. */
+/** Persistable slice of open center tabs. Local shells, scrollback, and unsaved buffers are omitted.
+ * Order matches the tab strip (pinned first, then drag/openSeq), so restore keeps visual order.
+ */
 export function snapshotWorkspace(
   tabs: Array<{
     tabId: string
@@ -78,11 +81,21 @@ export function snapshotWorkspace(
     focusAlertId?: string
     settingsSection?: string
     playbookId?: string
+    pinned?: boolean
+    openSeq?: number
   }>,
   activeId: string | null
 ): SavedWorkspaceTab[] {
+  const arranged = arrangeTabs(
+    tabs.map((t, i) => ({
+      ...t,
+      id: t.tabId,
+      seq: typeof t.openSeq === 'number' ? t.openSeq : (i + 1) * 10,
+      pinned: Boolean(t.pinned)
+    }))
+  )
   const rows: SavedWorkspaceTab[] = []
-  tabs.forEach((t, order) => {
+  arranged.forEach((t, order) => {
     const kind = !t.view || t.view === 'session' ? (t.kind === 'local' ? 'local' : 'terminal') : t.view
     const row: SavedWorkspaceTab = {
       kind,
@@ -93,7 +106,8 @@ export function snapshotWorkspace(
       focusAlertId: t.focusAlertId,
       settingsSection: t.settingsSection,
       playbookId: t.playbookId,
-      active: t.tabId === activeId
+      active: t.tabId === activeId,
+      pinned: t.pinned ? true : undefined
     }
     if (!isCompleteRestoreRow(row)) return
     rows.push(row)

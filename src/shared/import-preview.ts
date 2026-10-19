@@ -70,6 +70,16 @@ export type PublicPreviewRow = {
   username: string
   group: string
   conflict: boolean
+  /** Basename only — never the full key body. */
+  keyName?: string
+  hasJump?: boolean
+  forwardCount?: number
+}
+
+function keyBasename(path: string | undefined): string | undefined {
+  if (!path?.trim()) return undefined
+  const parts = path.replace(/\\/g, '/').split('/')
+  return parts[parts.length - 1] || path
 }
 
 /** Safe to render or log: no password, passphrase, or key material. */
@@ -80,7 +90,10 @@ export function publicRows(model: ImportPreviewModel): PublicPreviewRow[] {
     port: r.draft.port,
     username: r.draft.username,
     group: r.group,
-    conflict: r.conflict
+    conflict: r.conflict,
+    keyName: keyBasename(r.draft.privateKeyPath),
+    hasJump: Boolean(r.draft.jumpChain?.length || r.draft.jumpHost?.host),
+    forwardCount: r.draft.forwards?.length ?? 0
   }))
 }
 
@@ -141,6 +154,11 @@ export function applyImportPolicy(opts: {
       ...(d.password ? { password: d.password } : {}),
       ...(d.privateKeyPath ? { privateKeyPath: d.privateKeyPath } : {}),
       ...(d.passphrase ? { passphrase: d.passphrase } : {}),
+      ...(d.authMode
+        ? { authMode: d.authMode }
+        : d.privateKeyPath
+          ? { authMode: 'key' as const }
+          : {}),
       ...(d.jumpHost ? { jumpHost: d.jumpHost } : {}),
       ...(d.jumpChain?.length ? { jumpChain: d.jumpChain } : {}),
       ...(d.forwards?.length ? { forwards: d.forwards } : {}),

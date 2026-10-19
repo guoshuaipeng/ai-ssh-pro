@@ -18,6 +18,8 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
   const [fontFamily, setFontFamily] = useState(TERMINAL_PREFS_DEFAULTS.fontFamily)
   const [fontSize, setFontSize] = useState(TERMINAL_PREFS_DEFAULTS.fontSize)
   const [scrollback, setScrollback] = useState(TERMINAL_PREFS_DEFAULTS.scrollback)
+  const [osc52Clipboard, setOsc52Clipboard] = useState(TERMINAL_PREFS_DEFAULTS.osc52Clipboard)
+  const [muteBell, setMuteBell] = useState(TERMINAL_PREFS_DEFAULTS.muteBell)
   const [hint, setHint] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [smart, setSmart] = useState<SmartPrefs>(() => loadSmartPrefs())
@@ -31,6 +33,8 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
       setFontFamily(p.fontFamily)
       setFontSize(p.fontSize)
       setScrollback(p.scrollback)
+      setOsc52Clipboard(p.osc52Clipboard !== false)
+      setMuteBell(p.muteBell === true)
       setLoaded(true)
     })
   }, [])
@@ -46,7 +50,7 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
     return () => window.clearTimeout(timer)
     // save identity changes every render; the fields are the trigger
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [embedded, loaded, themeId, fontFamily, fontSize, scrollback])
+  }, [embedded, loaded, themeId, fontFamily, fontSize, scrollback, osc52Clipboard, muteBell])
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -55,14 +59,16 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
         themeId,
         fontFamily: fontFamily.trim() || TERMINAL_PREFS_DEFAULTS.fontFamily,
         fontSize: Math.min(48, Math.max(8, Math.round(fontSize) || 14)),
-        scrollback: Math.min(100000, Math.max(100, Math.round(scrollback) || 4000))
+        scrollback: Math.min(100000, Math.max(100, Math.round(scrollback) || 4000)),
+        osc52Clipboard,
+        muteBell
       })
       onSaved?.(next)
       setHint(tg('ui.4'))
     } finally {
       setBusy(false)
     }
-  }, [fontFamily, fontSize, onSaved, scrollback, themeId])
+  }, [fontFamily, fontSize, muteBell, onSaved, osc52Clipboard, scrollback, themeId])
 
   return (
     <div className={embedded ? 'settings-embed' : 'workspace-panel workspace-panel--settings'} data-testid="terminal-prefs">
@@ -125,6 +131,34 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
               onChange={(e) => setScrollback(parseInt(e.target.value, 10) || 4000)}
             />
           </div>
+
+          <label className="field" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              data-testid="osc52-clipboard"
+              checked={osc52Clipboard}
+              onChange={(e) => setOsc52Clipboard(e.target.checked)}
+              style={{ marginTop: 3 }}
+            />
+            <span>
+              <strong style={{ display: 'block', fontSize: 13 }}>{tg('term.osc52')}</strong>
+              <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{tg('term.osc52Hint')}</span>
+            </span>
+          </label>
+
+          <label className="field" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              data-testid="mute-bell"
+              checked={muteBell}
+              onChange={(e) => setMuteBell(e.target.checked)}
+              style={{ marginTop: 3 }}
+            />
+            <span>
+              <strong style={{ display: 'block', fontSize: 13 }}>{tg('term.muteBell')}</strong>
+              <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{tg('term.muteBellHint')}</span>
+            </span>
+          </label>
           <fieldset className="smart-prefs" data-testid="smart-prefs">
             <legend>{tg('x1.title')}</legend>
             <label>

@@ -10,4 +10,7 @@ assert.deepEqual(filterProfiles(list, ':2222').map((x) => x.label), ['demo-web-0
 assert.equal(filterProfiles(list, 'web dba').length, 0)
 assert.equal(folderMatches('Demo · Database', 'data'), true)
 assert.equal(folderMatches('Demo · Database', ''), false)
+const withNote = [{ id: 'n1', label: 'alpha', host: '1.1.1.1', username: 'u', port: 22, note: 'prod weekend' }]
+assert.equal(filterProfiles(withNote, 'weekend').length, 1)
+assert.equal(filterProfiles(withNote, 'zzz').length, 0)
 console.log('session-filter ok')

@@ -13,6 +13,7 @@ import { useI18n, type MessageKey } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
 import { PRODUCT_NAME } from '@shared/product'
 import type { IconName } from '@shared/icon-registry'
+import aiSparkleUrl from '../assets/ai-sparkle.png'
 import Icon, { Twist } from './Icon'
 import BrandMark from './BrandMark'
 
@@ -43,8 +44,10 @@ const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: IconName; label
 ]
 
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
-  const pane =
-    kind === 'sidebar' ? 'M5.25 2.5v11' : kind === 'ai' ? 'M10.75 2.5v11' : 'M5.25 2.5v11M10.75 2.5v11'
+  if (kind === 'ai') {
+    return <img src={aiSparkleUrl} width={14} height={14} alt="" aria-hidden className="layout-toggle-ai-icon" />
+  }
+  const pane = kind === 'sidebar' ? 'M5.25 2.5v11' : 'M5.25 2.5v11M10.75 2.5v11'
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
       <rect x="1.75" y="2.5" width="12.5" height="11" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.15" />
@@ -343,8 +346,17 @@ export default function AppToolbar({
               type="button"
               className={`layout-toggle-btn${item.on ? ' is-on' : ''}`}
               data-testid={`layout-toggle-${item.kind}`}
-              title={item.on ? t(item.hide) : t(item.show)}
-              aria-label={item.on ? t(item.hide) : t(item.show)}
+              title={(() => {
+                const base = item.on ? t(item.hide) : t(item.show)
+                // AI sparkle: advertise Focus AI (Ctrl+Shift+A); other panes use their toggle chord when any.
+                const keys = item.kind === 'ai' ? keysFor('focusAiPanel') : keysFor(item.id)
+                return keys ? `${base} (${keys})` : base
+              })()}
+              aria-label={(() => {
+                const base = item.on ? t(item.hide) : t(item.show)
+                const keys = item.kind === 'ai' ? keysFor('focusAiPanel') : keysFor(item.id)
+                return keys ? `${base} (${keys})` : base
+              })()}
               aria-pressed={item.on}
               onClick={() => onMenuAction(item.id)}
             >

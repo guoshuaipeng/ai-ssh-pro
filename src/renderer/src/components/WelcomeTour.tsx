@@ -73,7 +73,7 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
       const next = idx + dir
       if (next < 0 || next >= TOUR_STEPS.length) finish()
       else setIdx(next)
-    }, 250)
+    }, 600)
     return () => {
       cancelled = true
       window.clearTimeout(timer)
@@ -121,6 +121,12 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
         }
         return
       }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        finish()
+        return
+      }
       if (e.key === 'ArrowRight' || e.key === 'Enter') {
         e.preventDefault()
         e.stopPropagation()
@@ -148,7 +154,7 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
     if (h && Math.abs(h - cardH) > 2) setCardH(h)
   })
 
-  if (!open || !rect) return null
+  if (!open) return null
   const step = TOUR_STEPS[idx]!
   const visible = TOUR_STEPS.map((_, i) => i).filter((i) => !skipped.includes(i))
   const posIn = Math.max(1, visible.indexOf(idx) + 1)
@@ -161,19 +167,23 @@ export default function WelcomeTour({ open, onClose, ensureAiVisible }: Props) {
     const r = el.getBoundingClientRect()
     return { left: r.left, top: r.top, width: r.width, height: r.height }
   })
-  const placed = placeTourCard({
-    target: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-    avoids,
-    viewport: { width: window.innerWidth, height: window.innerHeight },
-    card: { width: bubbleW, height: cardH }
-  })
+  const placed = rect
+    ? placeTourCard({
+        target: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        avoids,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        card: { width: bubbleW, height: cardH }
+      })
+    : { side: 'bottom' as const, left: Math.max(16, (window.innerWidth - bubbleW) / 2), top: Math.max(72, window.innerHeight * 0.2) }
 
   return (
     <div className="tour-root" data-testid="welcome-tour" role="dialog" aria-modal="true" aria-label={t('g2.title')}>
-      <div
-        className="tour-highlight"
-        style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }}
-      />
+      {rect ? (
+        <div
+          className="tour-highlight"
+          style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }}
+        />
+      ) : null}
       <div
         ref={cardRef}
         className={`tour-bubble tour-bubble--${placed.side}`}

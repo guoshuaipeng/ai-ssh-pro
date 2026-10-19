@@ -43,6 +43,8 @@ export type SavedWorkspaceTab = {
   settingsSection?: string
   playbookId?: string
   active?: boolean
+  /** Tab pin; restored with arrangeTabs (pinned first). */
+  pinned?: boolean
 }
 
 export type LastWorkspace = { profileIds: string[]; tabs?: SavedWorkspaceTab[] }
@@ -60,7 +62,8 @@ function cleanTab(raw: unknown, order: number): SavedWorkspaceTab | null {
     focusAlertId: typeof o.focusAlertId === 'string' ? o.focusAlertId : undefined,
     settingsSection: typeof o.settingsSection === 'string' ? o.settingsSection : undefined,
     playbookId: typeof o.playbookId === 'string' ? o.playbookId : undefined,
-    active: o.active === true
+    active: o.active === true,
+    pinned: o.pinned === true
   }
 }
 

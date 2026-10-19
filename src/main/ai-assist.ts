@@ -1,5 +1,7 @@
+import { mt } from './main-i18n'
 import type { AiAssistRequest, AiAssistResult, AiSettings } from '../shared/ipc'
 import { normalizeSelectionExplain } from '../shared/selection-explain'
+import { aiHttpErrorMessages } from '../shared/ai-http-error'
 
 /** A1 / A2: short, single-shot JSON completions against the active OpenAI-compatible provider. */
 const inflight = new Map<string, AbortController>()
@@ -113,7 +115,10 @@ export async function runAiAssist(req: AiAssistRequest, settings: AiSettings): P
     if (!res.ok && res.status === 400) res = await post({})
     if (!res.ok) {
       const t = await res.text().catch(() => '')
-      return { ok: false, code: 'error', message: `HTTP ${res.status} ${t.slice(0, 200)}`.trim() }
+      {
+        const msg = aiHttpErrorMessages(res.status, t)
+        return { ok: false, code: 'error', message: mt(msg.zh, msg.en) }
+      }
     }
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] }
     const content = json.choices?.[0]?.message?.content

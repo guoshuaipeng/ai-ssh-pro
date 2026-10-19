@@ -77,7 +77,7 @@ const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
 
 assert.ok(i18n.includes(`'tab.closeTip': '${CLOSE_TIP_ZH}'`))
 assert.ok(i18n.includes(`'tab.closeTipTerminal': '${CLOSE_TIP_TERMINAL_ZH}'`))
@@ -116,8 +116,8 @@ assert.match(barRule, /overflow:\s*hidden/)
 assert.ok(app.includes('tabStripWheelDelta('))
 assert.ok(app.includes('data-testid="tab-overflow"'))
 
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-ix6-split-close\.ts/)
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ix6-split-close\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 /** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */
 function unreleasedBulletAt(section: string, id: string): number {

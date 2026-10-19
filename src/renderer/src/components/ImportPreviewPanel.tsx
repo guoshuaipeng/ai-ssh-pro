@@ -50,6 +50,8 @@ export default function ImportPreviewPanel({ model, onClose, onApply }: Props) {
                   <th>{t('n2.colGroup')}</th>
                   <th>{t('sftp.colName')}</th>
                   <th>{t('n2.host')}</th>
+                  <th>{t('n2.colAuth')}</th>
+                  <th>{t('n2.colConflict')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -59,8 +61,11 @@ export default function ImportPreviewPanel({ model, onClose, onApply }: Props) {
                     <td>{r.label}</td>
                     <td>
                       {r.username}@{r.host}:{r.port}
-                      {r.conflict ? ' · !' : ''}
+                      {r.hasJump ? <span className="n2-tag">{t('n2.tagJump')}</span> : null}
+                      {r.forwardCount ? <span className="n2-tag">{t('n2.tagFwd', { n: r.forwardCount })}</span> : null}
                     </td>
+                    <td>{r.keyName ? t('n2.authKey', { name: r.keyName }) : t('n2.authPassword')}</td>
+                    <td>{r.conflict ? t('n2.conflictYes') : t('n2.conflictNo')}</td>
                   </tr>
                 ))}
               </tbody>

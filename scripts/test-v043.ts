@@ -20,7 +20,7 @@ const css = read('src/renderer/src/features.css')
 const styles = read('src/renderer/src/styles.css')
 const main = read('src/main/index.ts')
 
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 assert.equal('fileVersion' in pkg.build.win, false)
 assert.ok(changelog.includes('## v0.4.3\n'))
 assert.ok(changelog.includes('## v0.4.2\n'))
@@ -37,7 +37,8 @@ assert.equal(labelForSessionExport({ id: DEMO_PROFILE_ID, label: 'My lab', demoR
 assert.equal(labelForSessionExport({ id: 'other', label: 'web01' }, 'en'), 'web01')
 assert.ok(main.includes('labelForSessionExport'))
 assert.ok(app.includes('demoRenamed: true'))
-assert.ok(!app.includes("tr('tab.none')") && !app.includes('tab.none'))
+assert.ok(app.includes("tg('tab.none')"), 'empty-tab paths toast tab.none')
+assert.ok(!app.includes("tr('tab.none')"), 'no legacy tr(tab.none)')
 
 const mem = () => {
   const bag = new Map<string, string>()

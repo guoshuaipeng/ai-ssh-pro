@@ -1,5 +1,8 @@
 /** UX-35: strip Electron IPC prefixes and map common errors to readable copy. */
 
+import { classifyHopReason, parseHopFailure } from '@shared/jump-chain'
+import { friendlyAiHttpError, parseAiHttpErrorMessage } from '@shared/ai-http-error'
+
 export type FriendlyError = { message: string; detail?: string; code?: string }
 
 const IPC_PREFIX = /^Error invoking remote method '[^']+':\s*/i
@@ -19,7 +22,42 @@ type Locale = 'zh-CN' | 'en'
 
 function mapKnown(clean: string, locale: Locale): { message: string; code: string } | null {
   const zh = locale === 'zh-CN'
-  if (/ECONNREFUSED/i.test(clean)) {
+  const hop = parseHopFailure(clean)
+  if (hop) {
+    const kind = classifyHopReason(hop.reason)
+    const where = zh
+      ? `跳板「${hop.name}」（第 ${hop.hop}/${hop.total} 跳）`
+      : `Jump host "${hop.name}" (hop ${hop.hop}/${hop.total})`
+    const byKind: Record<string, string> = zh
+      ? {
+          auth: `${where}用户名或密钥未通过`,
+          timeout: `${where}连接超时`,
+          unreachable: `${where}网络不可达`,
+          refused: `${where}端口没有在监听`,
+          dns: `${where}找不到主机地址`,
+          generic: `${where}没有连上`
+        }
+      : {
+          auth: `${where}: user name or key was not accepted`,
+          timeout: `${where}: connection timed out`,
+          unreachable: `${where}: host is unreachable`,
+          refused: `${where}: nothing is listening on that port`,
+          dns: `${where}: host name could not be found`,
+          generic: `${where} did not connect`
+        }
+    return { code: `JUMP_${kind.toUpperCase()}`, message: byKind[kind] ?? byKind.generic }
+  }
+  const aiHttp = parseAiHttpErrorMessage(clean)
+  if (aiHttp) {
+    return {
+      code: `AI_HTTP_${aiHttp.status}`,
+      message: friendlyAiHttpError(aiHttp.status, aiHttp.body, locale)
+    }
+  }
+  if (/API Key 无效|API key is invalid|Rate limited|请求过于频繁|无法连接 AI 服务|Could not reach the AI provider/i.test(clean)) {
+    return { code: 'AI_PROVIDER', message: clean }
+  }
+    if (/ECONNREFUSED/i.test(clean)) {
     const m = clean.match(/([\w.-]+):(\d+)/)
     const host = m?.[1] ?? ''
     const port = m?.[2] ?? ''

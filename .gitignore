@@ -32,3 +32,11 @@ __pycache__/
 e2e-artifacts/
 
 .release-lock
+
+# Local agent / regression scratch (never commit)
+_*.cjs
+_*.txt
+_*.mjs
+.regression-*
+scripts/_e2e_*.mjs
+scripts/_pin*.py

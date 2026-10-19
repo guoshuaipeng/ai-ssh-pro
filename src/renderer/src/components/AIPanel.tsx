@@ -1,17 +1,30 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
+import { keysFor } from '@shared/keymap'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
+import { normalizeAiChatMessage } from '@shared/ai-chat-history'
 import { parseAiAssistantReply } from '@shared/ipc'
 import { commandBundle, highlightKeyNumbers, layoutOpsReply, type OpsLayout } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
-import { confirmDialog } from '../lib/dialogs'
+import { lastAssistantText } from '@shared/ai-last-reply'
+import { currentTerminalSelection } from '../lib/terminal-selection'
+import { lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
+import { confirmDialog, isDialogOpen } from '../lib/dialogs'
+import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
 import { effectiveSafetyTier, isSafetyTier, releaseSessionInFlight, SAFETY_TIERS, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
+import { SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
+
+export type AiPendingInfo = {
+  requestId: string
+  action: string
+  preview: string
+}
 
 type Props = {
   activeSessionId: string | null
@@ -23,6 +36,14 @@ type Props = {
   production?: boolean
   hostName?: string | null
   onOpenSettings?: () => void
+  /** When Agree needs an SSH tab: focus a live session or open New connection. */
+  onNeedSession?: () => void
+  /** Restore a Core-A wait after the AI pane was hidden/unmounted. */
+  initialPending?: AiPendingInfo | null
+  /** Keep App (status bar) in sync with the waiting confirm. */
+  onPendingChange?: (info: AiPendingInfo | null) => void
+  /** Bump to scroll/focus the pending dock/card (status-bar chip). */
+  focusPendingToken?: number
 }
 
 type UserLine = { role: 'user'; content: string }
@@ -184,17 +205,42 @@ function resolveHistoryKey(historyKey: string | null | undefined, activeSessionI
 function linesToHistoryMessages(lines: Line[]): AiChatMessage[] {
   return lines
     .filter((l) => !('streaming' in l && l.streaming))
-    .map((l) => ({ role: l.role, content: l.content }))
+    .map((l) => {
+      if (l.role === 'user') return { role: 'user' as const, content: l.content }
+      const row: AiChatMessage = { role: 'assistant', content: l.content }
+      if (l.requestId) row.requestId = l.requestId
+      if (l.structured) row.structured = l.structured
+      if (l.safetyMode) row.safetyMode = l.safetyMode
+      if (l.decision) row.decision = l.decision
+      if (l.parseMiss) row.parseMiss = true
+      return row
+    })
 }
 
 function historyToLines(messages: AiChatMessage[]): Line[] {
-  return messages
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) =>
-      m.role === 'user'
-        ? ({ role: 'user', content: m.content } satisfies UserLine)
-        : ({ role: 'assistant', content: m.content } satisfies AssistantLine)
-    )
+  const out: Line[] = []
+  for (const raw of messages) {
+    const m = normalizeAiChatMessage(raw)
+    if (!m) continue
+    if (m.role === 'user') {
+      out.push({ role: 'user', content: m.content })
+      continue
+    }
+    if (m.role !== 'assistant') continue
+    const row: AssistantLine = {
+      role: 'assistant',
+      content: m.content,
+      // History reload is not fresh — do not auto-run.
+      fresh: false
+    }
+    if (m.requestId) row.requestId = m.requestId
+    if (m.structured) row.structured = m.structured
+    if (m.safetyMode) row.safetyMode = m.safetyMode as AssistantLine['safetyMode']
+    if (m.decision) row.decision = m.decision
+    if (m.parseMiss) row.parseMiss = true
+    out.push(row)
+  }
+  return out
 }
 
 export default function AIPanel({
@@ -204,13 +250,58 @@ export default function AIPanel({
   inventoryLookup = null,
   production = false,
   hostName = null,
-  onOpenSettings
+  onOpenSettings,
+  onNeedSession,
+  initialPending = null,
+  onPendingChange,
+  focusPendingToken = 0
 }: Props) {
   const [lines, setLines] = useState<Line[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [includeTerminal, setIncludeTerminal] = useState(true)
-  const [pendingConfirm, setPendingConfirm] = useState<{ requestId: string; action: AiAssistantReply['action'] } | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState<{ requestId: string; action: AiAssistantReply['action'] } | null>(() =>
+    initialPending
+      ? { requestId: initialPending.requestId, action: initialPending.action as AiAssistantReply['action'] }
+      : null
+  )
+  const [pendingPreviewHold, setPendingPreviewHold] = useState(() => initialPending?.preview?.trim() || '')
+
+  const screenshotForceKeyRef = useRef(false)
+  useEffect(() => {
+    const onShot = (ev: Event) => {
+      if (!screenshotHooksEnabled()) return
+      const detail = (ev as CustomEvent<{ op?: string; preview?: string; requestId?: string; action?: string }>).detail
+      if (!detail || detail.op !== 'aiConfirm') return
+      // Demo userdata often has no API key; empty-state UI hides the confirm dock.
+      screenshotForceKeyRef.current = true
+      setHasApiKey(true)
+      const requestId = (detail.requestId || 'screenshot-confirm').trim() || 'screenshot-confirm'
+      const preview = (detail.preview || 'systemctl status nginx --no-pager').trim()
+      setPendingConfirm({ requestId, action: (detail.action as AiAssistantReply['action']) || 'command' })
+      setPendingPreviewHold(preview)
+      setLines((prev) => {
+        if (prev.some((l) => l.role === 'assistant' && l.requestId === requestId)) return prev
+        return [
+          ...prev,
+          {
+            role: 'assistant',
+            content: preview,
+            requestId,
+            fresh: true,
+            structured: {
+              action: 'command',
+              description: 'Screenshot demo confirm',
+              riskLevel: 'medium',
+              command: preview
+            }
+          }
+        ]
+      })
+    }
+    window.addEventListener(SCREENSHOT_EVENT, onShot)
+    return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
+  }, [])
   const [hasApiKey, setHasApiKey] = useState(false)
   const [configContext, setConfigContext] = useState<string | null>(null)
   const [configFlash, setConfigFlash] = useState(false)
@@ -221,6 +312,9 @@ export default function AIPanel({
   const [activeModel, setActiveModel] = useState('')
   const tailRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const pendingAgreeRef = useRef<HTMLButtonElement>(null)
+  const pendingNeedSessionRef = useRef<HTMLButtonElement>(null)
+  const pendingDeclineRef = useRef<HTMLButtonElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [workingGoal, setWorkingGoal] = useState<string | null>(null)
@@ -245,9 +339,9 @@ export default function AIPanel({
         setActiveProviderId(s.activeProviderId)
         setActiveModel(s.model)
         setSafetySettings(s)
-        const ready = Boolean(p?.apiKey?.trim())
+        const ready = Boolean(p?.apiKey?.trim()) || screenshotForceKeyRef.current
         setHasApiKey(ready)
-        if (sawSettings.current && !hadKey.current && ready) showToast(tg('ux37.ready'))
+        if (sawSettings.current && !hadKey.current && ready && !screenshotForceKeyRef.current) showToast(tg('ux37.ready'))
         hadKey.current = ready
         sawSettings.current = true
       })
@@ -292,20 +386,38 @@ export default function AIPanel({
   // Load persisted chat when history key / session changes
   useEffect(() => {
     let cancelled = false
-    setPendingConfirm(null)
+    // Keep screenshot/demo pending dock across history reloads.
+    if (!screenshotForceKeyRef.current) setPendingConfirm(null)
     if (!persistKey) {
-      setLines([])
+      if (!screenshotForceKeyRef.current) setLines([])
       return
     }
-    setLines([])
     void window.aiss.ai.getChatHistory(persistKey).then((msgs) => {
       if (cancelled) return
+      if (screenshotForceKeyRef.current) {
+        setLines((prev) => {
+          const hist = historyToLines(msgs)
+          const demo = prev.filter((l) => l.role === 'assistant' && String(l.requestId || '').startsWith('screenshot'))
+          return demo.length ? [...hist, ...demo] : hist.length ? hist : prev
+        })
+        return
+      }
       setLines(historyToLines(msgs))
     })
     return () => {
       cancelled = true
     }
   }, [persistKey])
+
+  // Keep dock in sync when App restores/seeds a pending AI approval (status bar / screenshot hooks).
+  useEffect(() => {
+    if (!initialPending?.requestId) return
+    setPendingConfirm({
+      requestId: initialPending.requestId,
+      action: initialPending.action as AiAssistantReply['action']
+    })
+    if (initialPending.preview?.trim()) setPendingPreviewHold(initialPending.preview.trim())
+  }, [initialPending?.requestId, initialPending?.action, initialPending?.preview])
 
   useEffect(() => {
     refreshWorkingGoal(persistKey)
@@ -336,6 +448,13 @@ export default function AIPanel({
   useEffect(() => {
     tailRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [lines, busy])
+
+  // Keep the waiting confirm card in view, and surface a dock above the composer.
+  useEffect(() => {
+    if (!pendingConfirm?.requestId) return
+    const el = document.querySelector(`[data-confirm-id="${pendingConfirm.requestId}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [pendingConfirm?.requestId])
 
   const [snapshotBusy, setSnapshotBusy] = useState(false)
 
@@ -399,6 +518,8 @@ export default function AIPanel({
           } else {
             next.push(row)
           }
+          // Persist step fields so remount can restore the confirm card.
+          queueMicrotask(() => persistHistory(next))
           return next
         })
         setPendingConfirm(ev.requestId ? { requestId: ev.requestId, action: s.action } : null)
@@ -569,24 +690,140 @@ export default function AIPanel({
     if (seenConfirm.current.has(requestId)) return
     seenConfirm.current.add(requestId)
     setPendingConfirm(null)
-    setLines((prev) =>
-      prev.map((row) =>
+    setLines((prev) => {
+      const next = prev.map((row) =>
         row.role === 'assistant' && row.requestId === requestId
-          ? { ...row, decision: ok ? 'agreed' : 'skipped' }
+          ? { ...row, decision: (ok ? 'agreed' : 'skipped') as 'agreed' | 'skipped' }
           : row
       )
+      queueMicrotask(() => persistHistory(next))
+      return next
+    })
+    try {
+      await window.aiss.ai.confirmStep(requestId, ok)
+    } finally {
+      // Dock unmounts with the focused button — return caret to the composer.
+      queueMicrotask(() => inputRef.current?.focus())
+    }
+  }, [persistHistory])
+
+  // Esc declines / Enter agrees on the dock — never when a dialog, menu, or palette is in front.
+  useEffect(() => {
+    if (!pendingConfirm?.requestId) return
+    const requestId = pendingConfirm.requestId
+    const action = pendingConfirm.action
+    const onKey = (e: KeyboardEvent) => {
+      if (isDialogOpen()) return
+      if (isHigherChromeOpen(document)) return
+      if (document.querySelector('.modal-backdrop')) return
+      // Product overlays (welcome / tour / quick start) own Esc first.
+      if (document.querySelector('.welcome-stage, .tour-root, .ux60-layer, [data-testid="ux60"], [data-testid="first-week"]')) return
+      if (e.key === 'Escape') {
+        const tgt = e.target as HTMLElement | null
+        // Composer Esc stays with the textarea (clear/blur). Other inputs do not block decline.
+        if (tgt?.closest?.('.ai-input-row')) return
+        e.preventDefault()
+        e.stopPropagation()
+        void confirmStep(requestId, false)
+        return
+      }
+      if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return
+      const target = e.target as HTMLElement | null
+      if (!target?.closest?.('.ai-pending-confirm')) return
+      // Native button activation already handles focused Agree/Decline/CTA.
+      if (target.closest('button, a, [role="button"]')) return
+      e.preventDefault()
+      e.stopPropagation()
+      const needsSession = action !== 'tool_call' && !activeSessionId
+      if (needsSession) {
+        onNeedSession?.()
+        return
+      }
+      void confirmStep(requestId, true)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [pendingConfirm, activeSessionId, confirmStep, onNeedSession])
+
+  // Focus the dock control once per pending id (skip if typing in the composer).
+  useEffect(() => {
+    if (!pendingConfirm?.requestId) return
+    if (isDialogOpen() || isHigherChromeOpen(document) || document.querySelector('.modal-backdrop')) return
+    if (document.querySelector('.welcome-stage, .tour-root, .ux60-layer, [data-testid="ux60"], [data-testid="first-week"]')) return
+    const ae = document.activeElement as HTMLElement | null
+    if (ae?.closest?.('.ai-input-row')) return
+    const needsSession = pendingConfirm.action !== 'tool_call' && !activeSessionId
+    const btn = needsSession ? pendingNeedSessionRef.current : pendingAgreeRef.current
+    // Defer so the dock is mounted; do not yank focus if the user started typing meanwhile.
+    const id = window.setTimeout(() => {
+      const now = document.activeElement as HTMLElement | null
+      if (now?.closest?.('.ai-input-row')) return
+      btn?.focus()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [pendingConfirm?.requestId, pendingConfirm?.action, activeSessionId])
+
+  // Tell App when a confirm is waiting so the status bar can surface it while AI is hidden.
+  useEffect(() => {
+    if (!pendingConfirm?.requestId) {
+      setPendingPreviewHold('')
+      onPendingChange?.(null)
+      return
+    }
+    const line = linesRef.current.find(
+      (l): l is AssistantLine =>
+        l.role === 'assistant' && Boolean(l.requestId) && l.requestId === pendingConfirm.requestId
     )
-    await window.aiss.ai.confirmStep(requestId, ok)
-  }, [])
+    const structured = line?.structured
+    const preview = (
+      structured?.command?.trim() ||
+      (structured?.toolName ? structured.toolName : '') ||
+      structured?.description?.trim() ||
+      line?.content?.trim() ||
+      pendingPreviewHold ||
+      ''
+    ).replace(/\s+/g, ' ')
+    if (preview) {
+      setPendingPreviewHold((prev) => (prev === preview ? prev : preview))
+    }
+    onPendingChange?.({
+      requestId: pendingConfirm.requestId,
+      action: String(pendingConfirm.action),
+      preview: preview || pendingPreviewHold
+    })
+  }, [pendingConfirm, lines, onPendingChange, pendingPreviewHold])
+
+  // Status-bar chip: open AI → bump token → scroll dock/card into view.
+  useEffect(() => {
+    if (!focusPendingToken || !pendingConfirm?.requestId) return
+    const id = pendingConfirm.requestId
+    const card = document.querySelector(`[data-confirm-id="${id}"]`)
+    card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const dock = document.querySelector<HTMLElement>('[data-testid="ai-pending-confirm"]')
+    dock?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const needsSession = pendingConfirm.action !== 'tool_call' && !activeSessionId
+    const btn = needsSession ? pendingNeedSessionRef.current : pendingAgreeRef.current
+    window.setTimeout(() => {
+      const ae = document.activeElement as HTMLElement | null
+      if (ae?.closest?.('.ai-input-row')) return
+      btn?.focus()
+    }, 0)
+  }, [focusPendingToken, pendingConfirm?.requestId, pendingConfirm?.action, activeSessionId])
+
 
   const markDecision = useCallback((index: number, decision: 'agreed' | 'skipped') => {
-    setLines((prev) =>
-      prev.map((row, idx) => (idx === index && row.role === 'assistant' ? { ...row, decision } : row))
-    )
-  }, [])
+    setLines((prev) => {
+      const next = prev.map((row, idx) => (idx === index && row.role === 'assistant' ? { ...row, decision } : row))
+      queueMicrotask(() => persistHistory(next))
+      return next
+    })
+  }, [persistHistory])
 
   const retryLastUser = useCallback(() => {
-    if (busy) return
+    if (busy) {
+      showToast(tg('ai.busyWait'), { kind: 'error' })
+      return
+    }
     const prev = linesRef.current
     for (let i = prev.length - 1; i >= 0; i--) {
       const row = prev[i]
@@ -595,14 +832,67 @@ export default function AIPanel({
         return
       }
     }
+    showToast(tg('ai.noLastAsk'), { kind: 'error' })
   }, [busy, submitToAi])
+
+  /** Stale confirm: put the prior user ask back in the composer (no auto-send). */
+  const refillAskBefore = useCallback((assistantIndex: number) => {
+    const prev = linesRef.current
+    for (let i = assistantIndex - 1; i >= 0; i--) {
+      const row = prev[i]
+      if (row?.role === 'user' && row.content.trim()) {
+        setInput(row.content)
+        queueMicrotask(() => {
+          const el = inputRef.current
+          if (!el) return
+          el.focus()
+          el.setSelectionRange(0, el.value.length)
+        })
+        return
+      }
+    }
+    // No prior user line — toast and focus empty composer.
+    showToast(tg('ai.noLastAsk'), { kind: 'error' })
+    queueMicrotask(() => inputRef.current?.focus())
+  }, [])
+
+  // CmdK / menu: Ask again → fill last user ask (no auto-send).
+  useEffect(() => {
+    const onAsk = () => {
+      const prev = linesRef.current
+      for (let i = prev.length - 1; i >= 0; i--) {
+        const row = prev[i]
+        if (row?.role === 'user' && row.content.trim()) {
+          setInput(row.content)
+          queueMicrotask(() => {
+            const el = inputRef.current
+            if (!el) return
+            el.focus()
+            el.setSelectionRange(0, el.value.length)
+          })
+          return
+        }
+      }
+      showToast(tg('ai.noLastAsk'), { kind: 'error' })
+      queueMicrotask(() => inputRef.current?.focus())
+    }
+    window.addEventListener('aiss-ai-ask-again', onAsk)
+    return () => window.removeEventListener('aiss-ai-ask-again', onAsk)
+  }, [])
 
   const stopGeneration = useCallback(() => {
     void window.aiss.ai.abortChat()
   }, [])
 
   const clearConversation = useCallback(() => {
-    if (busy) return
+    if (busy) {
+      showToast(tg('ai.clearBusy'), { kind: 'error' })
+      return
+    }
+    if (!linesRef.current.length) {
+      showToast(tg('ai.chatAlreadyEmpty'))
+      return
+    }
     void (async () => {
       const ok = await confirmDialog({
         title: tg('wm.clearTitle'),
@@ -621,8 +911,37 @@ export default function AIPanel({
     })()
   }, [busy, persistKey, refreshWorkingGoal])
 
+  useEffect(() => {
+    const onClear = () => clearConversation()
+    window.addEventListener('aiss-ai-clear-chat', onClear)
+    return () => window.removeEventListener('aiss-ai-clear-chat', onClear)
+  }, [clearConversation])
+
+  useEffect(() => {
+    const onCopy = () => {
+      const text = lastAssistantText(linesRef.current)
+      if (!text) {
+        showToast(tg('ai.noLastReply'), { kind: 'error' })
+        return
+      }
+      void navigator.clipboard.writeText(text).then(
+        () => showToast(tg('ai.copiedLastReply')),
+        () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+      )
+    }
+    window.addEventListener('aiss-ai-copy-last-reply', onCopy)
+    return () => window.removeEventListener('aiss-ai-copy-last-reply', onCopy)
+  }, [])
+
   const undoLastRound = useCallback(() => {
-    if (busy) return
+    if (busy) {
+      showToast(tg('ai.busyWait'), { kind: 'error' })
+      return
+    }
+    if (!linesRef.current.length) {
+      showToast(tg('ai.nothingToUndo'))
+      return
+    }
     setLines((prev) => {
       const next = [...prev]
       while (next.length && next[next.length - 1].role === 'assistant') next.pop()
@@ -677,6 +996,7 @@ export default function AIPanel({
     agreeLabel?: string
     onAgree: (command: string) => void
     onDecline: () => void
+    onAskAgain?: () => void
   }) => (
     <SafetyCommandBar
       {...opts}
@@ -695,6 +1015,32 @@ export default function AIPanel({
   const effectiveTier = effectiveSafetyTier(safetySettings, { hostId: hostKey, sessionId: persistKey })
   const ladderBand = safetyLadderBand(effectiveTier)
 
+  const pendingLine =
+    pendingConfirm == null
+      ? null
+      : lines.find(
+          (l): l is AssistantLine =>
+            l.role === 'assistant' && Boolean(l.requestId) && l.requestId === pendingConfirm.requestId
+        ) ?? null
+  const pendingStructured = pendingLine?.structured
+  const pendingPreviewRaw = (
+    pendingStructured?.command?.trim() ||
+    (pendingStructured?.toolName ? pendingStructured.toolName : '') ||
+    pendingStructured?.description?.trim() ||
+    pendingLine?.content?.trim() ||
+    pendingPreviewHold ||
+    ''
+  ).replace(/\s+/g, ' ')
+  const pendingPreviewTruncated = pendingPreviewRaw.length > 120
+  const pendingPreview = pendingPreviewTruncated ? `${pendingPreviewRaw.slice(0, 117)}…` : pendingPreviewRaw
+  const pendingIsTool = pendingConfirm?.action === 'tool_call'
+  const pendingAgreeLabel = pendingIsTool ? tg('ux64.agreeContinue') : tg('ux64.agreeRun')
+  const revealPendingCard = () => {
+    if (!pendingConfirm?.requestId) return
+    const card = document.querySelector(`[data-confirm-id="${pendingConfirm.requestId}"]`)
+    card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   return (
     <aside className="ai-panel" style={{ minWidth: 280 }}>
       {!hasApiKey ? (
@@ -707,6 +1053,9 @@ export default function AIPanel({
       <div className="ai-header">
         <div className="ai-header-row">
         <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{tg('ai.title')}</span>
+        <span className="ai-header-shortcut" data-testid="ai-focus-shortcut-hint" title={tg('ai.focusShortcutTip')}>
+          <kbd>{keysFor('focusAiPanel') ?? 'Ctrl+Shift+A'}</kbd>
+        </span>
         {modelList.length > 0 ? (
           <select
             data-testid="ai-provider-select"
@@ -740,6 +1089,60 @@ export default function AIPanel({
           </button>
           {moreOpen ? (
             <div className="titlebar-popover" style={{ right: 0, left: 'auto', minWidth: 140 }}>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="ai-explain-last-error"
+                disabled={busy}
+                onClick={() => {
+                  setMoreOpen(false)
+                  const sid = currentTerminalSelection()?.sessionId || lastErrorSessionId()
+                  const text = lastErrorFor(sid) ?? lastErrorFor(null)
+                  const target = lastErrorFor(sid) ? sid : lastErrorSessionId()
+                  if (!text || !target) {
+                    showToast(tg('a1.noError'), { kind: 'error' })
+                    return
+                  }
+                  requestAiExplain({ sessionId: target, text, source: 'auto' })
+                }}
+              >
+                {tg('a1.title')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="ai-explain-selection"
+                disabled={busy}
+                onClick={() => {
+                  setMoreOpen(false)
+                  const sel = currentTerminalSelection()
+                  void requestSelectionExplain({ sessionId: sel?.sessionId ?? '', text: sel?.text ?? '' }).then((status) => {
+                    if (status === 'empty') showToast(tg('a6.needSelection'), { kind: 'error' })
+                  })
+                }}
+              >
+                {tg('a1.explainSelection')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="ai-copy-last-reply"
+                disabled={busy || !lastAssistantText(lines)}
+                onClick={() => {
+                  setMoreOpen(false)
+                  const text = lastAssistantText(lines)
+                  if (!text) {
+                    showToast(tg('ai.noLastReply'), { kind: 'error' })
+                    return
+                  }
+                  void navigator.clipboard.writeText(text).then(
+                    () => showToast(tg('ai.copiedLastReply')),
+                    () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+                  )
+                }}
+              >
+                {tg('ai.copyLastReply')}
+              </button>
               <button type="button" role="menuitem" disabled={busy} onClick={() => { setMoreOpen(false); clearConversation() }}>
                 {tg('ai.clear')}
               </button>
@@ -749,6 +1152,24 @@ export default function AIPanel({
             </div>
           ) : null}
         </div>
+        </div>
+        <div
+          className={`ai-session-context${!activeSessionId ? ' is-none' : ''}`}
+          data-testid="ai-session-context"
+          title={
+            activeSessionId
+              ? tg('ai.contextHostTip', { host: hostName || inventoryLookup?.host || '—' })
+              : tg('ai.contextNoneTip')
+          }
+        >
+          {activeSessionId ? (
+            <>
+              <span className="ai-session-context-label">{tg('ai.contextBound')}</span>
+              <span className="ai-session-context-host">{hostName || inventoryLookup?.host || tg('ai.contextSession')}</span>
+            </>
+          ) : (
+            <span className="ai-session-context-host">{tg('ai.contextNone')}</span>
+          )}
         </div>
         {workingGoal ? (
           <div className="ai-working-goal" title={workingGoal} data-testid="ai-working-goal">
@@ -799,6 +1220,22 @@ export default function AIPanel({
         {lines.length === 0 && (
           <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">
             <p>{tg('ux64.emptyHint')}</p>
+            <div className="ai-starter-prompts" data-testid="ai-starter-prompts">
+              {(['ux64.starterLoad', 'ux64.starterError', 'ux64.starterProcess'] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="ai-starter-prompt"
+                  data-testid={`ai-starter-${key.split('.').pop()}`}
+                  onClick={() => {
+                    setInput(tg(key))
+                    queueMicrotask(() => inputRef.current?.focus())
+                  }}
+                >
+                  {tg(key)}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {lines.map((l, i) => {
@@ -874,7 +1311,13 @@ export default function AIPanel({
               s.action === 'command' ? 'command' : s.action === 'tool_call' ? 'tool' : 'conclusion'
             const showRisk = s.action === 'end' || s.action === 'command' || Boolean(l.requestId)
             return (
-              <div key={i} className="msg assistant ai-structured ai-dark-card" data-testid="ai-reply-card" data-card={card}>
+              <div
+                key={i}
+                className="msg assistant ai-structured ai-dark-card"
+                data-testid="ai-reply-card"
+                data-card={card}
+                data-confirm-id={l.requestId || undefined}
+              >
                 {showRisk ? (
                   <div className="ai-card-head">
                     <RiskBadge level={s.riskLevel} />
@@ -904,6 +1347,18 @@ export default function AIPanel({
                       <div className="ai-decision">{tg('ux64.executed')}</div>
                     ) : l.decision === 'skipped' ? (
                       <div className="ai-decision">{tg('ux64.skipped')}</div>
+                    ) : !isConfirmable ? (
+                      <div className="ai-reply-actions ai-stale-actions" data-testid="ai-confirm-stale">
+                        <span className="ai-decision">{tg('ux64.confirmStale')}</span>
+                        <button
+                          type="button"
+                          className="ai-fill-cmd-btn"
+                          data-testid="ai-ask-again"
+                          onClick={() => refillAskBefore(i)}
+                        >
+                          {tg('ux64.askAgain')}
+                        </button>
+                      </div>
                     ) : (
                       <div className="ai-reply-actions">
                         <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={!isConfirmable} onClick={() => confirmStep(l.requestId!, true)}>
@@ -937,7 +1392,8 @@ export default function AIPanel({
                       onDecline: () => {
                         if (l.requestId) void confirmStep(l.requestId, false)
                         else markDecision(i, 'skipped')
-                      }
+                      },
+                      onAskAgain: () => refillAskBefore(i)
                     })}
                   </div>
                 ) : null}
@@ -987,6 +1443,76 @@ export default function AIPanel({
         })}
         <div ref={tailRef} />
       </div>
+
+      {pendingConfirm ? (
+        <div
+          className="ai-pending-confirm"
+          role="region"
+          tabIndex={-1}
+          aria-label={tg('ux64.pendingTitle')}
+          data-testid="ai-pending-confirm"
+          data-action={pendingConfirm.action}
+        >
+          <div className="ai-pending-confirm-main">
+            <div className="ai-pending-confirm-title">{tg('ux64.pendingTitle')}</div>
+            {pendingPreview ? (
+              <code className="ai-pending-confirm-preview" title={pendingPreviewRaw}>
+                {pendingPreview}
+              </code>
+            ) : null}
+            {pendingPreviewTruncated && pendingLine ? (
+              <button
+                type="button"
+                className="link-btn ai-pending-view-card"
+                data-testid="ai-pending-view-card"
+                onClick={revealPendingCard}
+              >
+                {tg('ux64.viewCard')}
+              </button>
+            ) : null}
+          </div>
+          <div className="ai-reply-actions ai-pending-confirm-actions">
+            {!activeSessionId && !pendingIsTool ? (
+              <>
+                <span className="ai-pending-need-hint" data-testid="ai-pending-need-hint">
+                  {tg('ux64.noSession')}
+                </span>
+                <button
+                  type="button"
+                  ref={pendingNeedSessionRef}
+                  className="ai-fill-cmd-btn ai-btn-agree"
+                  data-testid="ai-pending-need-session"
+                  title={tg('ux64.needSessionCta')}
+                  onClick={() => onNeedSession?.()}
+                >
+                  {tg('ux64.needSessionCta')}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                ref={pendingAgreeRef}
+                className="ai-fill-cmd-btn ai-btn-agree"
+                data-testid="ai-pending-agree"
+                title={pendingAgreeLabel}
+                onClick={() => void confirmStep(pendingConfirm.requestId, true)}
+              >
+                {pendingAgreeLabel}
+              </button>
+            )}
+            <button
+              type="button"
+              ref={pendingDeclineRef}
+              className="ai-fill-cmd-btn ai-btn-decline"
+              data-testid="ai-pending-decline"
+              title={tg('ux64.disagree')}
+              onClick={() => void confirmStep(pendingConfirm.requestId, false)}
+            >
+              <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="ai-input-row">
         <div className="ai-toolbar">

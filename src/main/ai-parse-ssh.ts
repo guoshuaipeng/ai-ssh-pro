@@ -1,3 +1,5 @@
+import { mt } from './main-i18n'
+import { aiHttpErrorMessages } from '../shared/ai-http-error'
 import type { AiParsedSshForm, AiSettings } from '../shared/ipc'
 
 const SYSTEM_BASE = `你是 SSH 连接信息解析器。用户会粘贴一段任意文本（可能含 IP、域名、端口、用户名、密码、私钥路径、会话备注、表格或运维工单片段）。
@@ -93,7 +95,10 @@ export async function parseSshFormWithAi(rawText: string, settings: AiSettings):
   }
   if (!res.ok) {
     const t = await res.text().catch(() => '')
-    throw new Error(`解析请求失败 HTTP ${res.status}: ${t.slice(0, 400)}`)
+    {
+      const msg = aiHttpErrorMessages(res.status, t)
+      throw new Error(mt('解析请求失败：' + msg.zh, 'Parse request failed: ' + msg.en))
+    }
   }
   const json = (await res.json()) as {
     choices?: { message?: { content?: string } }[]

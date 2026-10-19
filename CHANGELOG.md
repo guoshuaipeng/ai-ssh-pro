@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+## v0.6.36
+
+Released 2026-10-19 (CST).
+
+- **静默路径 Toast 扫尾（M186–M222）.** 广播/分屏在会话不足 2 个时提示，不再空开选择器或分屏；重连全部已断开、已打开标签切换、最近连接补凭据/正在连接、只读拦截复制与临时解除、主机右键打开维护/批量/看板/SFTP/监控/工具箱/档案、剧本编辑与运行、录制与导出会话、文件版本与告警复盘等入口打开或失败时均有 Toast。空数据、未选主机、删除已不存在的分组/标签等不再静默。不新增工具栏主按钮。 / **Silent-path toast sweep (M186–M222).** Broadcast and split toast when fewer than two live sessions, instead of opening an empty picker or blank split. Reconnect-all, focus-existing-tab, recent-connect need-creds / connecting, read-only copy and temporary unlock, host context opens (maintenance, batch, board, SFTP, monitor, toolbox, profile), playbook edit/run, recording and session export, file history and postmortem openings and failures all toast. Empty data, no host selected, and missing folder/tag deletes are no longer silent. No new toolbar primary.
+- **演示主机断开状态.** 演示会话 `disconnect` 会向渲染进程发送 `ssh:status` closed，资源监控等需会话的入口在断开后会正确打开主机选择器（UX-09）。 / **Demo host disconnect status.** Demo `disconnect` emits `ssh:status` closed so session-gated features (e.g. Resource monitor) open the host picker after disconnect (UX-09).
+- **E2E 回归.** Playwright + Electron 套件在隔离 profile 下 45/45 通过（欢迎引导、SSH、SFTP、标签、广播、演示主机、AI 解释、主机选择器等）。 / **E2E regression.** Playwright + Electron suite is 45/45 green under an isolated profile (welcome tour, SSH, SFTP, tags, broadcast, demo host, AI explain, host picker, and more).
+
 ## v0.4.14
+
+Local soft-start notes for this iteration also live in `docs/CHANGELOG-UNRELEASED.md` (2026-10-16). Not tagged. No GitHub Release. Public HOLD.
 
 v0.4.14 soft-start. Package version is `0.4.14`. Not tagged. No GitHub Release. `build.win.fileVersion` is not set.
 

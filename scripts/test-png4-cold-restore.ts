@@ -12,7 +12,7 @@ const zh = (key: Parameters<typeof translate>[1]) => translate('zh-CN', key)
 const en = (key: Parameters<typeof translate>[1]) => translate('en', key)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 function memoryStore() {
   const mem = new Map<string, string>()
@@ -225,3 +225,31 @@ assert.match(body, /恢复上次布局/)
 assert.match(body, /Public HOLD/)
 assert.match(body, /0\.4\.4/)
 assert.match(body, /不打 tag/)
+
+
+/* Tab strip order + pin round-trip through snapshotWorkspace */
+const reordered = snapshotWorkspace(
+  [
+    { tabId: 'a', title: 'alpha', profileId: 'p1', openSeq: 30, pinned: false },
+    { tabId: 'b', title: 'beta', profileId: 'p1', openSeq: 10, pinned: true },
+    { tabId: 'c', title: 'gamma', view: 'home', openSeq: 20, pinned: false }
+  ],
+  'a'
+)
+assert.equal(reordered[0]?.kind, 'terminal')
+assert.equal(reordered[0]?.title, 'beta')
+assert.equal(reordered[0]?.pinned, true)
+assert.equal(reordered[1]?.kind, 'home')
+assert.equal(reordered[2]?.title, 'alpha')
+assert.equal(reordered[2]?.active, true)
+assert.equal(reordered[0]?.order, 0)
+assert.equal(reordered[2]?.order, 2)
+
+const appSrc = readFileSync('src/renderer/src/App.tsx', 'utf8')
+assert.match(appSrc, /BroadcastTargetPicker/)
+assert.match(appSrc, /onStop=\{/)
+assert.match(appSrc, /pinned: row\.pinned === true/)
+assert.match(appSrc, /openSeq: \(row\.order \+ 1\) \* 10/)
+assert.match(readFileSync('src/renderer/src/components/BroadcastTargetPicker.tsx', 'utf8'), /x3-stop/)
+assert.match(readFileSync('src/shared/startup-pref.ts', 'utf8'), /pinned\?: boolean/)
+console.log('test-png4: tab order/pin + broadcast picker wiring ok')

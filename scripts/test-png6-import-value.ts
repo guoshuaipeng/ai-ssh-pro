@@ -164,9 +164,9 @@ const opsStart = toolbar.indexOf('OPS_BUTTONS')
 const opsButtons = toolbar.slice(opsStart, toolbar.indexOf(']', opsStart))
 assert.equal((opsButtons.match(/id: '/g) ?? []).length, 3, 'no new toolbar primary')
 
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-png6-import-value\.ts/)
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-png6-import-value\.ts/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

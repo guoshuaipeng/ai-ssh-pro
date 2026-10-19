@@ -19,17 +19,29 @@ assert.deepEqual(
     'alertWorkbench|告警工作台|Alert workbench|daily',
     'playbooks|运维剧本|Playbooks|daily',
     'runPlaybook|运行剧本…|Run playbook…|low',
+    'builtinPlaybooks|内置运维剧本…|Built-in playbooks…|low',
+    'exportPlaybookPack|导出剧本分享包…|Export playbook pack…|low',
+    'importPlaybookPack|导入剧本分享包…|Import playbook pack…|low',
+    'dryRunPlaybook|剧本演练（Dry-run）…|Dry-run playbook…|low',
     'resourceMonitor|资源监控|Resource monitor|daily',
     'dashboard|多主机看板|Multi-host dashboard|low',
     'serverTools|服务器工具箱|Server toolbox|daily',
+    'openDocker|Docker 容器…|Docker containers…|low',
     'refreshDocker|刷新 Docker|Refresh Docker|low',
     'batchExec|批量执行…|Batch run…|daily',
     'snippets|命令片段|Snippets|daily',
+    'builtinSnippets|内置命令片段…|Built-in snippets…|low',
     'inventory|主机档案|Host inventory|daily',
     'alertRules|告警规则…|Alert rules…|low',
+    'enableRuleTemplates|告警规则模板…|Alert rule templates…|low',
     'alertHistory|告警历史|Alert history|low',
+    'exportPostmortem|导出复盘…|Export postmortem…|low',
     'auditLog|审计日志|Audit log|low',
-    'exportAudit|导出审计（合规）|Export audit (compliance)|low'
+    'exportAudit|导出审计（合规）|Export audit (compliance)|low',
+    'gateTimeline|闸门时间线|Gate timeline|low',
+    'maintOpen|维护窗口…|Maintenance window…|low',
+    'maintEnd|结束维护…|End maintenance…|low',
+    'setDryRunReminder|演练提醒筛选…|Dry-run reminder filter…|low'
   ]
 )
 
@@ -154,6 +166,6 @@ assert.ok(unreleased.includes('刷新 Docker'))
 assert.ok(unreleased.includes('告警历史'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 console.log('test-png2-ops-menu ok')

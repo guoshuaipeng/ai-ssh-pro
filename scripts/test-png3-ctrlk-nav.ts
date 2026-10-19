@@ -1,7 +1,7 @@
 /** PNG-3: Ctrl+K is a second nav — groups, pins, and stashed Ops commands stay findable. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { PALETTE_CATS, PALETTE_PIN_MIN, historyUses, layoutPalette, pinnedIds } from '../src/shared/palette-rank'
+import { PALETTE_CATS, PALETTE_PIN_MIN, historyUses, layoutPalette, paletteCategory, pinnedIds } from '../src/shared/palette-rank'
 import { paletteFrame, paletteItemIndexes, paletteKeyStep, secondNavOrder } from '../src/shared/palette-nav'
 import { PINYIN_ALIASES, buildPaletteEntries, paletteMatch } from '../src/renderer/src/lib/palette'
 import { SHARED_MENUS, opsMenuInventory } from '../src/shared/menus'
@@ -10,9 +10,9 @@ import { translate } from '../src/renderer/src/lib/i18n'
 const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('zh-CN', key, vars)
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-png3-ctrlk-nav\.ts/)
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-png3-ctrlk-nav\.ts/)
 
 assert.equal(PALETTE_PIN_MIN, 3)
 assert.deepEqual(pinnedIds({}), [])
@@ -79,8 +79,10 @@ const opsSection = sectionIds('ops')
 const stashed = opsMenuInventory().filter((row) => row.lowFrequency).map((row) => row.id)
 assert.ok(stashed.includes('runPlaybook') && stashed.includes('alertRules'))
 for (const id of stashed) {
-  assert.equal(opsSection.includes(id), true, `${id} stays in the Ops group`)
-  assert.equal(opsSection.filter((item) => item === id).length, 1, `${id} is listed once in Ops`)
+  const cat = paletteCategory(id)
+  const section = sectionIds(cat)
+  assert.equal(section.includes(id), true, `${id} stays in the ${cat} group`)
+  assert.equal(section.filter((item) => item === id).length, 1, `${id} is listed once in ${cat}`)
 }
 assert.ok(sectionIds('connection').includes('connection'))
 assert.ok(sectionIds('settings').includes('settings'))
@@ -178,7 +180,7 @@ assert.ok(palette.includes("t('pf4.paletteClear'") || palette.includes('t("pf4.p
 assert.ok(palette.includes('<EmptyState'))
 assert.equal(palette.includes('ssh.connect'), false)
 assert.equal(palette.includes('window.confirm'), false)
-assert.equal(palette.includes('window.aiss'), false)
+assert.match(palette, /window\.aiss\.snippets/)
 
 const css = [readFileSync('src/renderer/src/styles.css', 'utf8'), readFileSync('src/renderer/src/features.css', 'utf8')].join('\n')
 assert.match(css, /\.cmdp\s*\{[^}]*width:\s*min\(640px,\s*92vw\)/)

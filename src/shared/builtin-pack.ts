@@ -12,31 +12,56 @@ import {
 
 export const BUILTIN_SNIPPET_PREFIX = 'builtin:snip:'
 
-export type BuiltinSnippet = CommandSnippet & {
+/** zh-CN first, English second — pick with pickBi / localizeBuiltin. */
+export type BiText = readonly [zh: string, en: string]
+
+export type BuiltinSnippet = {
+  id: string
+  title: BiText
+  summary: BiText
+  body: string
+  builtin: true
+}
+
+export type LocalizedBuiltinSnippet = CommandSnippet & {
   summary: string
   builtin: true
 }
 
-/** Chinese-first labels. Bodies are read-only diagnostics — no secrets, no writes. */
+export function pickBi(text: BiText, locale: string): string {
+  return /^en\b/i.test(locale) ? text[1] : text[0]
+}
+
+export function localizeBuiltin(s: BuiltinSnippet, locale: string): LocalizedBuiltinSnippet {
+  return {
+    id: s.id,
+    title: pickBi(s.title, locale),
+    summary: pickBi(s.summary, locale),
+    body: s.body,
+    builtin: true
+  }
+}
+
+/** Bilingual labels. Bodies are read-only diagnostics — no secrets, no writes. */
 export const BUILTIN_SNIPPETS: readonly BuiltinSnippet[] = [
   {
     id: 'builtin:snip:disk',
-    title: '查看磁盘',
-    summary: '只读查看挂载占用，不删除文件',
+    title: ['查看磁盘', 'Check disk'],
+    summary: ['只读查看挂载占用，不删除文件', 'Read-only mount usage; does not delete files'],
     body: 'df -h',
     builtin: true
   },
   {
     id: 'builtin:snip:mem',
-    title: '查看内存',
-    summary: '只读查看内存与交换分区',
+    title: ['查看内存', 'Check memory'],
+    summary: ['只读查看内存与交换分区', 'Read-only memory and swap'],
     body: 'free -h',
     builtin: true
   },
   {
     id: 'builtin:snip:listen',
-    title: '查看监听端口',
-    summary: '只读列出监听中的套接字',
+    title: ['查看监听端口', 'Listening ports'],
+    summary: ['只读列出监听中的套接字', 'Read-only list of listening sockets'],
     body: 'ss -lntup || netstat -lntup',
     builtin: true
   }
@@ -57,8 +82,15 @@ export function stripBuiltinSnippets<T extends { id: string }>(list: readonly T[
 }
 
 /** User-library copy. The built-in id is never reused, and the source object is not mutated. */
-export function saveAsSnippet(source: Pick<BuiltinSnippet, 'title' | 'body'>, makeId: () => string, title?: string): CommandSnippet {
-  const name = (title?.trim() || `${source.title} 副本`).slice(0, 120)
+export function saveAsSnippet(
+  source: { title: BiText | string; body: string },
+  makeId: () => string,
+  title?: string,
+  locale = 'zh-CN'
+): CommandSnippet {
+  const base = typeof source.title === 'string' ? source.title : pickBi(source.title, locale)
+  const suffix = /^en\b/i.test(locale) ? ' copy' : ' 副本'
+  const name = (title?.trim() || `${base}${suffix}`).slice(0, 120)
   return { id: makeId(), title: name, body: source.body }
 }
 

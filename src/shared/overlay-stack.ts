@@ -69,6 +69,8 @@ export function pickProductOverlay(input: {
 }): ProductOverlay | null {
   if (input.systemUpdate) return 'systemUpdate'
   if (input.releaseNotes) return 'releaseNotes'
+  if (input.tour && input.tourExplicit) return 'tour'
+  if (input.quickStart && input.quickExplicit) return 'quickStart'
   if (input.welcome && !input.tourExplicit && !input.quickExplicit) return 'welcome'
   if (input.tour) return 'tour'
   if (input.quickStart) return 'quickStart'
@@ -106,6 +108,27 @@ export function admitProductOverlay(
 export function productBackdropCount(visible: ProductOverlay | null): 0 | 1 {
   if (visible && MODAL_PRODUCTS.has(visible)) return 1
   return 0
+}
+
+
+/** Floating product cards (no modal dimmer). Park while CmdK / menus / workspace editors are up. */
+export function isParkableProduct(id: ProductOverlay): boolean {
+  return id === 'welcome' || id === 'tour' || id === 'quickStart' || id === 'tasks'
+}
+
+/**
+ * Hide parkable product UI while higher chrome (palette, menus) or a workspace
+ * editor (new connection, import preview) is in front. State stays queued; when
+ * chrome closes, pickProductOverlay may show the same layer again.
+ */
+export function suppressParkableProduct(
+  product: ProductOverlay | null,
+  opts: { higherChrome?: boolean; workspaceEditor?: boolean }
+): ProductOverlay | null {
+  if (!product) return null
+  if (opts.higherChrome && isParkableProduct(product)) return null
+  if (opts.workspaceEditor && (product === 'quickStart' || product === 'tour' || product === 'welcome')) return null
+  return product
 }
 
 /**

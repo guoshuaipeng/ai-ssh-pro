@@ -98,6 +98,8 @@ node scripts/mcp-inventory-server.mjs
 
 ```bash
 node scripts/mcp-inventory-server.mjs --list
+node scripts/mcp-inventory-server.mjs --export inventory-backup.json
+node scripts/mcp-inventory-server.mjs --import inventory-backup.json
 ```
 
 Cursor / Claude Desktop 配置示例：
@@ -141,6 +143,10 @@ Cursor / Claude Desktop 配置示例：
 - 最近连接只保存主机、用户、端口、标签和时间，不保存密码、密钥路径或口令。
 - 命令历史把你选择发送的命令保存在同一套本地存储中（大约 200 条）。如果命令文本里包含机密，它会留在本机，直到你清空历史。
 - 没有遥测。
+
+## 串口
+
+AI-SSH-Pro **不支持**硬件串口（COM / ttyUSB / cu.*）。请用**本机 Shell**，或在系统终端使用外部串口工具。菜单 **文件 → 串口…** / Ctrl+K 可再次查看说明。
 
 ## 本机 Shell（`node-pty`）
 

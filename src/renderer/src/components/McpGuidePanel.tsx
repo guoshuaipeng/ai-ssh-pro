@@ -25,6 +25,8 @@ const TOOLS = [
   { name: 'upsert_host', get desc() { return tg('ui.195') } },
   { name: 'upsert_service', get desc() { return tg('ui.196') } },
   { name: 'append_note', get desc() { return tg('ui.197') } },
+  { name: 'export_inventory', get desc() { return tg('mcp.exportInv') } },
+  { name: 'import_inventory', get desc() { return tg('mcp.importInv') } },
   { name: 'ssh_test', get desc() { return tg('ui.198') } },
   { name: 'ssh_exec', get desc() { return tg('ui.199') } },
   { name: 'ssh_upload', get desc() { return tg('ui.200') } }

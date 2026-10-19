@@ -406,6 +406,8 @@ export type SavedSessionProfile = {
   certificatePath?: string
   /** When true, a successful connect starts an asciicast without a save dialog. */
   autoRecord?: boolean
+  /** Short operator note (sidebar tooltip / subtitle). Keep under ~120 chars. */
+  note?: string
 }
 
 /** 侧栏已保存会话与分组（持久化） */
@@ -425,6 +427,7 @@ export type ImportedSessionDraft = {
   group?: string
   privateKeyPath?: string
   passphrase?: string
+  authMode?: 'password' | 'key' | 'agent'
   jumpHost?: SshJumpHostOptions
   jumpChain?: import('./jump-chain').JumpHop[]
   forwards?: LocalPortForward[]
@@ -442,20 +445,32 @@ export type CommandSnippet = {
   id: string
   title: string
   body: string
+  /** Optional chord e.g. Ctrl+Alt+2 — injects into the active terminal */
+  hotkey?: string
 }
 
-export type TerminalThemeId = 'github-dark' | 'solarized-dark' | 'monokai'
+export type TerminalThemeId = 'github-dark' | 'solarized-dark' | 'monokai' | 'github-light' | 'solarized-light'
 
 export type TerminalPrefs = {
   themeId: TerminalThemeId
   fontFamily: string
   fontSize: number
   scrollback: number
+  /** Allow remote OSC 52 to write the local clipboard (read/query refused). Default true. */
+  osc52Clipboard: boolean
+  /** When true, ignore xterm onBell (no visual flash). Default false. */
+  muteBell: boolean
 }
 
 export type AiChatMessage = {
   role: 'user' | 'assistant' | 'system'
   content: string
+  /** Optional Core-A step fields. Older stores only had role+content; readers must tolerate absence. */
+  structured?: AiAssistantReply
+  requestId?: string
+  safetyMode?: string
+  decision?: 'agreed' | 'skipped'
+  parseMiss?: boolean
 }
 
 export type AiChatPayload = {
@@ -799,7 +814,9 @@ export const TERMINAL_PREFS_DEFAULTS: TerminalPrefs = {
   themeId: 'github-dark',
   fontFamily: 'Cascadia Code, Consolas, "Courier New", monospace',
   fontSize: 14,
-  scrollback: 4000
+  scrollback: 4000,
+  osc52Clipboard: true,
+  muteBell: false
 }
 
 /** 检查 GitHub Releases 的结果（由主进程返回） */

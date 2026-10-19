@@ -18,6 +18,7 @@ import { extractPromptCommand, ghostSuffix, rankSuggestions, terminalKeyAction }
 import { loadSmartHistory, loadSmartPrefs, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
 import { HISTORY_CHANGED_EVENT } from '../lib/workspace-events'
+import { parseOsc52Payload } from '@shared/osc52'
 
 type Props = {
   sessionId: string
@@ -112,6 +113,10 @@ export default function TerminalPane({
   onInputBlockedRef.current = onInputBlocked
   const prefsRef = useRef(resolvePrefs(prefs))
   prefsRef.current = resolvePrefs(prefs)
+  const osc52EnabledRef = useRef(prefsRef.current.osc52Clipboard !== false)
+  osc52EnabledRef.current = prefsRef.current.osc52Clipboard !== false
+  const muteBellRef = useRef(prefsRef.current.muteBell === true)
+  muteBellRef.current = prefsRef.current.muteBell === true
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
@@ -191,6 +196,13 @@ export default function TerminalPane({
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(el)
+    term.onBell(() => {
+      if (muteBellRef.current) return
+      const host = wrapRef.current?.parentElement ?? wrapRef.current
+      if (!host) return
+      host.classList.add('terminal-bell-flash')
+      window.setTimeout(() => host.classList.remove('terminal-bell-flash'), 180)
+    })
     const writeInput = (data: string) => {
       if (inputBlockedRef.current) {
         onInputBlockedRef.current?.()
@@ -214,6 +226,24 @@ export default function TerminalPane({
       }
       return true
     })
+    const oscDisp = term.parser.registerOscHandler(52, (data) => {
+      if (!osc52EnabledRef.current) return true
+      const parsed = parseOsc52Payload(data)
+      if (parsed.kind === 'write') {
+        void navigator.clipboard.writeText(parsed.text).catch(() => {
+          /* permission / focus */
+        })
+        return true
+      }
+      // Refuse clipboard queries — remote must not read local clipboard.
+      if (parsed.kind === 'query') return true
+      if (parsed.kind === 'clear') {
+        void navigator.clipboard.writeText('').catch(() => {})
+        return true
+      }
+      return true
+    })
+
     apiRef.current = { term, fit }
 
     let zm: ZmodemAttach | null = null
@@ -470,6 +500,7 @@ export default function TerminalPane({
       window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)
       subInput.dispose()
       unsubData()
+      try { oscDisp.dispose() } catch { /* ignore */ }
       term.dispose()
       apiRef.current = null
     }
@@ -483,6 +514,16 @@ export default function TerminalPane({
     }
     window.addEventListener('aiss-focus-terminal', onFocus)
     return () => window.removeEventListener('aiss-focus-terminal', onFocus)
+  }, [sessionId])
+
+  useEffect(() => {
+    const onClear = (ev: Event) => {
+      const sid = (ev as CustomEvent<{ sessionId?: string }>).detail?.sessionId
+      if (sid && sid !== sessionId) return
+      apiRef.current?.term.clear()
+    }
+    window.addEventListener('aiss-clear-scrollback', onClear)
+    return () => window.removeEventListener('aiss-clear-scrollback', onClear)
   }, [sessionId])
 
   useEffect(() => {
@@ -576,7 +617,9 @@ export default function TerminalPane({
                 }
               }}
             />
-            <span className="terminal-find-status">{findMiss ? tg('find.none') : ''}</span>
+            <span className="terminal-find-status" data-testid="terminal-find-hint">
+              {findMiss ? tg('find.none') : !findQuery.trim() ? tg('find.hintShortcut') : ''}
+            </span>
             <button type="button" title={tg('find.prev')} aria-label={tg('find.prev')} onClick={() => runFind(true)}>
               ↑
             </button>

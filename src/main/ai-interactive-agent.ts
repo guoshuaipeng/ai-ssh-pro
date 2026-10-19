@@ -1,4 +1,5 @@
 import { mt } from './main-i18n'
+import { aiHttpErrorMessages } from '../shared/ai-http-error'
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -803,7 +804,10 @@ async function callCorePlannerJson(params: {
     }
     if (!res.ok) {
       const t = await res.text().catch(() => '')
-      throw new Error(`HTTP ${res.status}: ${t.slice(0, 500)}`)
+      {
+        const msg = aiHttpErrorMessages(res.status, t)
+        throw new Error(mt(msg.zh, msg.en))
+      }
     }
 
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] }

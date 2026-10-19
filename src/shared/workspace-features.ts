@@ -1,3 +1,4 @@
+import { normalizeSnippetHotkey } from './snippet-hotkey'
 import { KEYMAP } from './keymap'
 import { extractVarNames } from './template-vars'
 /** Local workspace helpers shared by main and renderer. No secrets, no network. */
@@ -299,7 +300,7 @@ export function fillSnippetVars(body: string, values: Record<string, string>): s
   )
 }
 
-export type SnippetLike = { title: string; body: string }
+export type SnippetLike = { id?: string; title: string; body: string; hotkey?: string }
 
 /** Case-insensitive AND search over title + body. */
 export function filterSnippets<T extends SnippetLike>(items: T[], query: string): T[] {
@@ -347,11 +348,11 @@ export const SHORTCUTS: ReadonlyArray<{ keys: string; group: ShortcutGroup; id: 
 
 // ---------- snippets import / export ----------
 export const SNIPPETS_EXPORT_KIND = 'ai-ssh-pro/snippets'
-export type SnippetRow = { id: string; title: string; body: string }
+export type SnippetRow = { id: string; title: string; body: string; hotkey?: string }
 
 export function buildSnippetsExport(items: SnippetLike[]): string {
   return JSON.stringify(
-    { kind: SNIPPETS_EXPORT_KIND, version: 1, snippets: items.map((s) => ({ title: s.title, body: s.body })) },
+    { kind: SNIPPETS_EXPORT_KIND, version: 1, snippets: items.map((s) => ({ title: s.title, body: s.body, ...(s.hotkey ? { hotkey: s.hotkey } : {}) })) },
     null,
     2
   )
@@ -397,7 +398,14 @@ export function mergeSnippetsImport(
       continue
     }
     seen.add(k)
-    list.push({ id: makeId(), title, body })
+    {
+      const row: SnippetRow = { id: makeId(), title, body }
+      if (typeof o.hotkey === 'string' && o.hotkey.trim()) {
+        const hk = normalizeSnippetHotkey(o.hotkey)
+        if (hk) row.hotkey = hk
+      }
+      list.push(row)
+    }
     added++
   }
   return { list, added, skipped }

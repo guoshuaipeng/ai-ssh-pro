@@ -16,7 +16,8 @@ import type {
   HostInventoryUpsertInput,
   HostMeta,
   HostService,
-  HostServicesFile
+  HostServicesFile,
+  HostInventoryExportBundle
 } from '../shared/inventory'
 import { INVENTORY_CONTEXT_MAX_CHARS } from '../shared/inventory'
 
@@ -311,6 +312,75 @@ export class InventoryStore {
     idx.hosts = idx.hosts.filter((h) => h.id !== hid)
     this.writeIndex(idx)
     return true
+  }
+
+
+  /** Full inventory JSON for backup (strips privateKeyPath). */
+  exportBundle(): HostInventoryExportBundle {
+    const hosts: HostInventoryExportBundle['hosts'] = []
+    for (const entry of this.list()) {
+      const rec = this.get(entry.id)
+      if (!rec) continue
+      const { privateKeyPath: _omit, ...metaSafe } = rec.meta
+      hosts.push({
+        meta: metaSafe,
+        services: rec.services,
+        notesMarkdown: rec.notesMarkdown
+      })
+    }
+    return {
+      version: 1,
+      kind: 'ai-ssh-pro-inventory',
+      exportedAt: new Date().toISOString(),
+      hosts
+    }
+  }
+
+  /**
+   * Merge an export bundle. Existing ids are skipped unless overwrite=true.
+   * privateKeyPath is never imported from the file.
+   */
+  importBundle(
+    raw: unknown,
+    opts?: { overwrite?: boolean }
+  ): { upserted: number; skipped: number; notes: string[] } {
+    const notes: string[] = []
+    const overwrite = opts?.overwrite === true
+    if (!raw || typeof raw !== 'object') {
+      return { upserted: 0, skipped: 0, notes: ['invalid bundle'] }
+    }
+    const b = raw as Partial<HostInventoryExportBundle>
+    if (b.kind !== 'ai-ssh-pro-inventory') notes.push('kind missing or unexpected (continuing if hosts[] present)')
+    if (!Array.isArray(b.hosts)) {
+      return { upserted: 0, skipped: 0, notes: ['hosts[] missing'] }
+    }
+    let upserted = 0
+    let skipped = 0
+    for (const h of b.hosts) {
+      if (!h?.meta?.title?.trim()) {
+        skipped += 1
+        continue
+      }
+      const id = typeof h.meta.id === 'string' ? h.meta.id.trim() : ''
+      if (id && this.get(id) && !overwrite) {
+        skipped += 1
+        continue
+      }
+      this.upsert({
+        id: id || undefined,
+        title: h.meta.title,
+        host: h.meta.host,
+        port: h.meta.port,
+        username: h.meta.username,
+        profileId: h.meta.profileId,
+        tags: h.meta.tags,
+        env: h.meta.env,
+        services: Array.isArray(h.services) ? h.services : [],
+        notesMarkdown: typeof h.notesMarkdown === 'string' ? h.notesMarkdown : ''
+      })
+      upserted += 1
+    }
+    return { upserted, skipped, notes }
   }
 
   /** Compact text for Core-A system prompt */

@@ -27,7 +27,7 @@ export const DEFAULT_RECONNECT_POLICY: ReconnectPolicy = {
   robustMaxAttempts: 5,
   customDelaysSec: [2, 5, 10, 20],
   customMaxAttempts: 4,
-  keepAliveSec: null,
+  keepAliveSec: 60,
   jumpRetryFromFailedHop: true
 }
 
@@ -119,7 +119,7 @@ export function delayForAttempt(policy: ReconnectPolicy, attempt: number): numbe
 
 /**
  * ssh2 keepalive interval. undefined keeps the historical 15s for callers that
- * do not know about L9. null/0 turns probes off (the settings default).
+ * do not know about L9. null/0 turns probes off. Settings default is 60s.
  */
 export function keepaliveIntervalMs(sec: number | null | undefined): number {
   if (sec === undefined) return 15_000

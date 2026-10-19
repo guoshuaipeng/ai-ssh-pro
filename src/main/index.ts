@@ -41,12 +41,31 @@ import { abortAiAssist, runAiAssist } from './ai-assist'
 import type { AiAssistRequest } from '../shared/ipc'
 import { importSessionFilesFromPaths } from './session-import'
 import { resolveHostKeyPrompt } from './host-key-prompt'
+import {
+  applyImportRows,
+  buildImportPreview,
+  listKnownHosts,
+  removeKnownHostByKey
+} from './known-hosts'
+import { invalidateKnownHostLookupCache, lookupHostInOpenSshKnownHosts } from './known-hosts-lookup'
+import { isLikelyPrivateKeyName } from '../shared/known-hosts-io'
 import * as sftpManager from './sftp-manager'
 import * as localFs from './local-fs'
 import { loadSftpQueue, saveSftpQueue } from './sftp-queue-store'
 import * as dockerManager from './docker-manager'
 import { exportSessionsToJson, exportSessionsToOpenSsh } from './session-export'
 import { labelForSessionExport } from '../shared/demo-host'
+import {
+  AI_PROVIDER_TEST_TIMEOUT_MS,
+  aiProviderTestBody,
+  aiProviderTestUrl,
+  classifyAiProviderTestResponse,
+  networkFailResult,
+  validateAiProviderTestInput,
+  validationFailMessages,
+  type AiProviderTestInput,
+  type AiProviderTestResult
+} from '../shared/ai-provider-test'
 import { startRecording, stopRecording, stopAllRecordings } from './session-recorder'
 import { LocalShellManager, isLocalShellAvailable } from './local-shell'
 import { demoHostManager } from './demo-host'
@@ -426,6 +445,67 @@ function registerIpc(): void {
     return resolveHostKeyPrompt(payload.requestId, Boolean(payload.accept), payload.alwaysTrust !== false)
   })
 
+
+  ipcMain.handle('knownHosts:list', () => listKnownHosts())
+  ipcMain.handle('knownHosts:remove', (_e, hostPort: string) => {
+    const out = removeKnownHostByKey(String(hostPort ?? ''))
+    invalidateKnownHostLookupCache()
+    return out
+  })
+  ipcMain.handle('knownHosts:pickImport', async () => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const sshDir = join(homedir(), '.ssh')
+    const opts = {
+      title: mt('导入 OpenSSH known_hosts', 'Import OpenSSH known_hosts'),
+      defaultPath: join(sshDir, 'known_hosts'),
+      properties: ['openFile'] as Array<'openFile'>,
+      filters: [
+        { name: 'known_hosts', extensions: ['*'] },
+        { name: mt('所有文件', 'All files'), extensions: ['*'] }
+      ]
+    }
+    const { canceled, filePaths } = parent
+      ? await dialog.showOpenDialog(parent, opts)
+      : await dialog.showOpenDialog(opts)
+    if (canceled || !filePaths?.[0]) return null
+    const filePath = filePaths[0]!
+    const text = readFileSync(filePath, 'utf8')
+    return buildImportPreview(text, filePath)
+  })
+  ipcMain.handle(
+    'knownHosts:applyImport',
+    (_e, rows: Array<{ host: string; port: number; hostKeyBase64: string }>) => {
+      const out = applyImportRows(Array.isArray(rows) ? rows : [])
+      invalidateKnownHostLookupCache()
+      return out
+    }
+  )
+  ipcMain.handle('knownHosts:listLocalKeys', () => {
+    const sshDir = join(homedir(), '.ssh')
+    try {
+      const listing = localFs.listLocal(sshDir)
+      const keys = listing.entries
+        .filter((f) => !f.isDirectory && isLikelyPrivateKeyName(f.name))
+        .map((f) => ({ name: f.name, path: f.path }))
+      return { dir: sshDir, keys }
+    } catch (e) {
+      return { dir: sshDir, keys: [] as Array<{ name: string; path: string }>, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle('knownHosts:lookupHost', async (_e, host: string, port?: number) => {
+    return lookupHostInOpenSshKnownHosts(String(host ?? ''), typeof port === 'number' ? port : 22)
+  })
+  ipcMain.handle('knownHosts:openSshDir', () => {
+    const sshDir = join(homedir(), '.ssh')
+    try {
+      if (!existsSync(sshDir)) mkdirSync(sshDir, { recursive: true })
+      localFs.revealLocal(sshDir)
+      return true
+    } catch {
+      return false
+    }
+  })
+
   ipcMain.handle('ssh:startRecording', async (_e, sessionId: string, opts?: { auto?: boolean; host?: string; cols?: number; rows?: number; title?: string }) => {
     if (opts?.auto) {
       const host = (opts.host || 'host').replace(/[^\w.-]+/g, '_').slice(0, 80) || 'host'
@@ -752,6 +832,44 @@ function registerIpc(): void {
   )
   ipcMain.handle('localFs:detectKeyKind', (_e, target: string) => detectKeyFileKind(String(target ?? '')))
 
+  ipcMain.handle('localFs:pickPrivateKey', async () => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const sshDir = join(homedir(), '.ssh')
+    const opts = {
+      title: mt('选择 SSH 私钥', 'Select SSH private key'),
+      defaultPath: sshDir,
+      properties: ['openFile'] as Array<'openFile'>,
+      filters: [
+        { name: mt('所有文件', 'All files'), extensions: ['*'] },
+        { name: mt('常见后缀', 'Common extensions'), extensions: ['pem', 'key', 'ppk'] }
+      ]
+    }
+    const { canceled, filePaths } = parent
+      ? await dialog.showOpenDialog(parent, opts)
+      : await dialog.showOpenDialog(opts)
+    if (canceled || !filePaths?.length) return null
+    return filePaths[0] ?? null
+  })
+
+  ipcMain.handle('localFs:pickCertificate', async () => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const sshDir = join(homedir(), '.ssh')
+    const opts = {
+      title: mt('选择 OpenSSH 证书', 'Select OpenSSH certificate'),
+      defaultPath: sshDir,
+      properties: ['openFile'] as Array<'openFile'>,
+      filters: [
+        { name: mt('证书 / 公钥', 'Certificates / public keys'), extensions: ['pub'] },
+        { name: mt('所有文件', 'All files'), extensions: ['*'] }
+      ]
+    }
+    const { canceled, filePaths } = parent
+      ? await dialog.showOpenDialog(parent, opts)
+      : await dialog.showOpenDialog(opts)
+    if (canceled || !filePaths?.length) return null
+    return filePaths[0] ?? null
+  })
+
   ipcMain.handle('docker:listTree', async (_e, sessionId: string) => {
     return await dockerManager.listTree(requireSshClient(sessionId))
   })
@@ -905,12 +1023,18 @@ function registerIpc(): void {
   })
   ipcMain.handle('sessions:importPick', async () => {
     const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const sshConfig = join(homedir(), '.ssh', 'config')
     const dlgOpts: Electron.OpenDialogOptions = {
-      title: '导入会话（Xshell .xsh / OpenSSH config / PuTTY .reg / MobaXterm .mxtsessions / SecureCRT .ini）',
+      title: mt(
+        '导入会话（Xshell / OpenSSH config / PuTTY / MobaXterm / SecureCRT）',
+        'Import sessions (Xshell / OpenSSH config / PuTTY / MobaXterm / SecureCRT)'
+      ),
+      defaultPath: existsSync(sshConfig) ? sshConfig : join(homedir(), '.ssh'),
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: '会话配置', extensions: ['xsh', 'config', 'reg', 'mxtsessions', 'ini'] },
-        { name: '所有文件', extensions: ['*'] }
+        { name: mt('OpenSSH config', 'OpenSSH config'), extensions: ['config', '*'] },
+        { name: mt('会话配置', 'Session files'), extensions: ['xsh', 'config', 'reg', 'mxtsessions', 'ini'] },
+        { name: mt('所有文件', 'All files'), extensions: ['*'] }
       ]
     }
     const { canceled, filePaths } = parent
@@ -918,6 +1042,21 @@ function registerIpc(): void {
       : await dialog.showOpenDialog(dlgOpts)
     if (canceled || !filePaths?.length) return null
     return await importSessionFilesFromPaths(filePaths)
+  })
+  ipcMain.handle('sessions:importSshConfig', async () => {
+    const sshConfig = join(homedir(), '.ssh', 'config')
+    if (!existsSync(sshConfig)) {
+      return {
+        items: [],
+        notes: [
+          mt(
+            `未找到 ${sshConfig}。请用「导入会话」手动选择 OpenSSH config 文件。`,
+            `No ${sshConfig} found. Use Import sessions to pick an OpenSSH config file.`
+          )
+        ]
+      }
+    }
+    return await importSessionFilesFromPaths([sshConfig])
   })
   ipcMain.handle('sessions:export', (_e, format: SessionExportFormat) => {
     const state = getSavedSessionsState()
@@ -948,8 +1087,81 @@ function registerIpc(): void {
     getInventoryStore().appendNote(hostId, note)
   )
 
+  ipcMain.handle('inventory:exportToFile', async () => {
+    const bundle = getInventoryStore().exportBundle()
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const opts = {
+      title: mt('导出主机档案', 'Export host inventory'),
+      defaultPath: `ai-ssh-pro-inventory-${new Date().toISOString().slice(0, 10)}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    }
+    const { canceled, filePath } = parent
+      ? await dialog.showSaveDialog(parent, opts)
+      : await dialog.showSaveDialog(opts)
+    if (canceled || !filePath) return null
+    writeFileSync(filePath, `${JSON.stringify(bundle, null, 2)}\n`, 'utf8')
+    return { path: filePath, count: bundle.hosts.length }
+  })
+  ipcMain.handle('inventory:importFromFile', async (_e, overwrite?: boolean) => {
+    const parent = BrowserWindow.getFocusedWindow() ?? getMainBrowserWindow()
+    const opts = {
+      title: mt('导入主机档案', 'Import host inventory'),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile' as const]
+    }
+    const { canceled, filePaths } = parent
+      ? await dialog.showOpenDialog(parent, opts)
+      : await dialog.showOpenDialog(opts)
+    if (canceled || !filePaths?.length) return null
+    const filePath = filePaths[0]!
+    let raw: unknown
+    try {
+      raw = JSON.parse(readFileSync(filePath, 'utf8'))
+    } catch (e) {
+      return { path: filePath, upserted: 0, skipped: 0, notes: [`parse error: ${e instanceof Error ? e.message : String(e)}`] }
+    }
+    const result = getInventoryStore().importBundle(raw, { overwrite: overwrite === true })
+    return { path: filePath, ...result }
+  })
+
+
   ipcMain.handle('terminal:getPrefs', () => getTerminalPrefs())
   ipcMain.handle('terminal:setPrefs', (_e, partial: Partial<TerminalPrefs>) => setTerminalPrefs(partial))
+
+  
+  ipcMain.handle('ai:provider:test', async (_e, raw: AiProviderTestInput): Promise<AiProviderTestResult> => {
+    const input: AiProviderTestInput = {
+      baseURL: String(raw?.baseURL ?? ''),
+      apiKey: String(raw?.apiKey ?? ''),
+      model: String(raw?.model ?? '')
+    }
+    const valid = validateAiProviderTestInput(input)
+    if (!valid.ok) {
+      const msgs = validationFailMessages(valid.reason)
+      return { ok: false, status: 0, reason: valid.reason, messageZh: msgs.zh, messageEn: msgs.en }
+    }
+    const url = aiProviderTestUrl(input.baseURL)
+    const started = Date.now()
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), AI_PROVIDER_TEST_TIMEOUT_MS)
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${input.apiKey.trim()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(aiProviderTestBody(input.model)),
+        signal: ac.signal
+      })
+      const body = await res.text().catch(() => '')
+      return classifyAiProviderTestResponse(res.status, body, Date.now() - started, input.model)
+    } catch (e) {
+      return networkFailResult(e)
+    } finally {
+      clearTimeout(timer)
+    }
+  })
 
   ipcMain.handle('ai:settings:get', () => getAiSettings())
   ipcMain.handle('ai:settings:set', (_e, partial: Partial<AiSettings>) => {

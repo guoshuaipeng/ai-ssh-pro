@@ -12,6 +12,41 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.36': [
+    {
+      icon: '▷',
+      text: {
+        zh: '静默操作补齐 Toast：广播/分屏不足两会话、重连进行中、标签已打开等不再无反馈',
+        en: 'Silent paths gain toasts: broadcast/split need two sessions, reconnect-in-progress, already-open tabs, and more'
+      },
+      where: { zh: '会话 / 广播 / 分屏', en: 'Session / Broadcast / Split' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '主机右键与运维入口打开时有提示；SFTP/监控连接失败会明确报错',
+        en: 'Host context and ops opens announce themselves; SFTP/monitor connect failures surface clearly'
+      },
+      where: { zh: '侧栏主机右键', en: 'Sidebar host menu' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '只读拦截条可复制命令、临时解除；无档案或已解除时会说明原因',
+        en: 'Read-only bar can copy the command or unlock briefly; missing profile or already-unlocked states explain why'
+      },
+      where: { zh: '只读会话横幅', en: 'Read-only session banner' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '剧本编辑/运行、录制、文件版本与告警复盘等面板打开时有 Toast，空数据不再静默',
+        en: 'Playbook edit/run, recording, file history, and postmortem panels toast on open; empty data is no longer silent'
+      },
+      where: { zh: '运维剧本 / 录制', en: 'Playbooks / Recording' },
+      action: 'playbooks'
+    }
+  ],
   '0.4.14': [
     {
       icon: '▷',

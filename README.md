@@ -90,6 +90,8 @@ CLI smoke test:
 
 ```bash
 node scripts/mcp-inventory-server.mjs --list
+node scripts/mcp-inventory-server.mjs --export inventory-backup.json
+node scripts/mcp-inventory-server.mjs --import inventory-backup.json
 ```
 
 Example Cursor / Claude Desktop MCP config:
@@ -133,6 +135,10 @@ Optional environment variables:
 - Recent connections store host, user, port, label, and time only. They do not store passwords, key paths, or passphrases.
 - Command history stores the commands you choose to send (capped at about 200) in the same local store. If you type a secret into a command, that text stays on this machine until you clear history.
 - There is no telemetry.
+
+## Serial ports
+
+AI-SSH-Pro does **not** open hardware serial ports (COM / ttyUSB / cu.*). Use **Local shell** for an on-machine PTY, or run your OS serial tool (`PuTTY`, `minicom`, `screen`, etc.) outside the app. Menu **File → Serial port…** / Ctrl+K repeats this note.
 
 ## Local shell (`node-pty`)
 

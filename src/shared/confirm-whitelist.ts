@@ -20,7 +20,10 @@ export const CONFIRM_IDS = [
   'confirm.syncOverwrite',
   'confirm.batchJumpOverride',
   'confirm.quitWithDirty',
-  'confirm.closeLiveTerminal'
+  'confirm.closeLiveTerminal',
+  'confirm.disconnectSession',
+  'confirm.maintEnd',
+  'confirm.disconnectAllSessions'
 ] as const
 
 export type ConfirmId = (typeof CONFIRM_IDS)[number]

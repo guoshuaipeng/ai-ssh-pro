@@ -5,6 +5,7 @@ import { friendlyErrorMessage } from '../lib/friendly-error'
 import Modal from './Modal'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import EmptyState from './EmptyState'
+import ErrorNotice from './ErrorNotice'
 
 type Props = {
   open: boolean
@@ -25,7 +26,7 @@ function fmtBytes(n: number): string {
 
 /** Lists live local port forwards of connected SSH sessions; add / stop at runtime. */
 export default function PortForwardModal({ open, sessions, activeSessionId, onClose, embedded, onPickHost }: Props) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [rows, setRows] = useState<ActiveForward[]>([])
   const [sessionId, setSessionId] = useState('')
   const [localPort, setLocalPort] = useState('')
@@ -76,7 +77,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
       setRemotePort('')
       await reload()
     } catch (e) {
-      setError(friendlyErrorMessage(e))
+      setError(friendlyErrorMessage(e, locale === 'en' ? 'en' : 'zh-CN'))
     } finally {
       setBusy(false)
     }
@@ -129,7 +130,17 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
             {t('pf.add')}
           </button>
         </div>
-        {error ? <p className="pf-error">{error}</p> : null}
+        {error ? (
+          <ErrorNotice
+            testId="pf-error"
+            message={error}
+            actions={
+              <button type="button" onClick={() => void reload()}>
+                {t('pf5.retry')}
+              </button>
+            }
+          />
+        ) : null}
         {rows.length === 0 ? (
           <EmptyState
             compact

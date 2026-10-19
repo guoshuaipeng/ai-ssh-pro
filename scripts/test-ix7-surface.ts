@@ -157,7 +157,7 @@ const surface = readFileSync('src/shared/editor-surface.ts', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
 
 assert.match(surface, /IA nit N2/)
 assert.match(surface, /L2d/)
@@ -201,8 +201,8 @@ const narrow = styles.slice(styles.indexOf('@media (max-width: 1366px)'), styles
 assert.match(narrow, /\.main\s*\{[^}]*overflow-x:\s*hidden/)
 assert.match(narrow, /\.main\s*\{[^}]*min-width:\s*0/)
 
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-ix7-surface\.ts/)
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ix7-surface\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 /** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */
 function unreleasedBulletAt(section: string, id: string): number {

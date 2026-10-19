@@ -7,6 +7,8 @@ import {
   builtinSnippetById,
   isBuiltinSnippetId,
   librarySeg,
+  localizeBuiltin,
+  pickBi,
   saveAsSnippet,
   stripBuiltinSnippets
 } from '../src/shared/builtin-pack'
@@ -47,15 +49,17 @@ function effectBodies(src: string): string[] {
 const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('zh-CN', key, vars)
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
-const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string } }
-assert.equal(pkg.version, '0.4.14')
-assert.match(pkg.scripts.test, /scripts\/test-w9\.ts/)
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
+assert.equal(pkg.version, '0.6.36')
+assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-w9\.ts/)
 
 assert.ok(BUILTIN_SNIPPETS.length >= 1, 'W9-1 shipped snippets')
 for (const row of BUILTIN_SNIPPETS) {
   assert.equal(row.builtin, true)
   assert.ok(isBuiltinSnippetId(row.id))
-  assert.ok(row.title.trim() && row.summary.trim() && row.body.trim())
+  assert.ok(pickBi(row.title, 'zh-CN').trim() && pickBi(row.summary, 'zh-CN').trim() && row.body.trim())
+  assert.ok(pickBi(row.title, 'en').trim() && pickBi(row.summary, 'en').trim())
+  assert.notEqual(pickBi(row.title, 'zh-CN'), pickBi(row.title, 'en'))
   assert.equal(builtinSnippetById(row.id)?.body, row.body)
 }
 
@@ -79,7 +83,9 @@ assert.equal(snippetCopy.id, 'user-snip-1')
 assert.equal(snippetCopy.title, '我的磁盘')
 assert.equal(snippetCopy.body, disk.body)
 assert.equal(disk.id, 'builtin:snip:disk')
-assert.equal(disk.title, '查看磁盘')
+assert.equal(pickBi(disk.title, 'zh-CN'), '查看磁盘')
+assert.equal(pickBi(disk.title, 'en'), 'Check disk')
+assert.equal(localizeBuiltin(disk, 'en').title, 'Check disk')
 assert.deepEqual(stripBuiltinSnippets([disk, snippetCopy]).map((row) => row.id), ['user-snip-1'])
 
 const playbookCopy = saveAsPlaybook(samples[0]!, 50, '磁盘副本')
@@ -171,8 +177,15 @@ assert.equal(toolbar.includes('builtinSnippets'), false)
 assert.equal(toolbar.includes('builtinPlaybooks'), false)
 
 const menuIds = SHARED_MENUS.flatMap((menu) => menu.items.filter((item) => item.type === 'item').map((item) => item.id))
-assert.equal(menuIds.includes('builtinSnippets'), false)
-assert.equal(menuIds.includes('builtinPlaybooks'), false)
+const ops = SHARED_MENUS.find((m) => m.id === 'ops')!
+const hiddenId = (id) => {
+  const hit = ops.items.find((it) => it.type === 'item' && it.id === id)
+  return hit && hit.type === 'item' ? hit.menuHidden === true : false
+}
+assert.equal(menuIds.includes('builtinSnippets'), true)
+assert.equal(menuIds.includes('builtinPlaybooks'), true)
+assert.equal(hiddenId('builtinSnippets'), true)
+assert.equal(hiddenId('builtinPlaybooks'), true)
 assert.ok(paletteMatch('内置片段', 'zh-CN').includes('builtinSnippets'))
 assert.ok(paletteMatch('built-in sample', 'en').includes('builtinPlaybooks'))
 
@@ -196,6 +209,6 @@ for (const mark of order) {
   at = next
 }
 assert.ok(unreleased.includes('S4') && unreleased.includes('A-HITL') && unreleased.includes('不自动执行'))
-assert.equal(pkg.version, '0.4.14')
+assert.equal(pkg.version, '0.6.36')
 
 console.log('test-w9 ok')

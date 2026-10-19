@@ -664,7 +664,7 @@
 .demo-banner button:hover { background: var(--color-warn); }
 
 /* G2 welcome tour */
-.tour-root { position: fixed; inset: 0; z-index: 3000; }
+.tour-root { position: fixed; inset: 0; z-index: 90; } /* below CmdK (1500); park when palette open */
 .tour-highlight {
   position: fixed;
   border-radius: 8px;
@@ -1769,4 +1769,17 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
     /* keep labels; do not wrap the row */
   }
   .inv20-title { max-width: 280px; }
+}
+
+.terminal-pane-wrap.terminal-bell-flash,
+.terminal-bell-flash.terminal-pane-wrap {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.sftp-name-filter {
+  width: 7.5rem;
+  min-width: 5rem;
+  font-size: 12px;
+  padding: 2px 6px;
 }

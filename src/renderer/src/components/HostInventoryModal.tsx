@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   HostInventoryIndexEntry,
   HostInventoryRecord,
@@ -50,6 +50,13 @@ type InventoryApi = {
   upsert: (input: HostInventoryUpsertInput) => Promise<HostInventoryRecord>
   remove: (id: string) => Promise<boolean>
   getRoot: () => Promise<string>
+  exportToFile?: () => Promise<{ path: string; count: number } | null>
+  importFromFile?: (overwrite?: boolean) => Promise<{
+    path: string
+    upserted: number
+    skipped: number
+    notes: string[]
+  } | null>
 }
 
 const SERVICE_KINDS: HostServiceKind[] = ['systemd', 'docker', 'k8s', 'binary', 'unknown']
@@ -258,6 +265,21 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
       setLoading(false)
     }
   }
+
+  // Live filter while typing (Enter / 搜索 still works immediately).
+  const searchReady = useRef(false)
+  useEffect(() => {
+    if (!searchReady.current) {
+      searchReady.current = true
+      return
+    }
+    const id = window.setTimeout(() => {
+      void onSearch()
+    }, 220)
+    return () => window.clearTimeout(id)
+    // intentionally only when the query string changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
 
   const buildInput = (): HostInventoryUpsertInput => {
     const tags = form.tags
@@ -692,6 +714,62 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                       >
                         {tg('l2d.openForHost')}
                       </button>
+                      <button
+                        type="button"
+                        data-testid="inventory-export"
+                        onClick={() => {
+                          setHeaderMenu(false)
+                          void (async () => {
+                            try {
+                              const api = getInventoryApi()
+                              if (!api.exportToFile) {
+                                setError(tg('ui.154'))
+                                return
+                              }
+                              const res = await api.exportToFile()
+                              if (!res) return
+                              setError(null)
+                              toastUndo({ message: tg('inv.exportDone', { count: String(res.count), path: res.path }), undo: () => {} })
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : String(e))
+                            }
+                          })()
+                        }}
+                      >
+                        {tg('inv.export')}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="inventory-import"
+                        onClick={() => {
+                          setHeaderMenu(false)
+                          void (async () => {
+                            try {
+                              const api = getInventoryApi()
+                              if (!api.importFromFile) {
+                                setError(tg('ui.154'))
+                                return
+                              }
+                              const res = await api.importFromFile(false)
+                              if (!res) return
+                              await loadList()
+                              const note = res.notes?.length ? ` · ${res.notes.join('; ')}` : ''
+                              toastUndo({
+                                message:
+                                  tg('inv.importDone', {
+                                    upserted: String(res.upserted),
+                                    skipped: String(res.skipped)
+                                  }) + note,
+                                undo: () => {}
+                              })
+                            } catch (e) {
+                              setError(e instanceof Error ? e.message : String(e))
+                            }
+                          })()
+                        }}
+                      >
+                        {tg('inv.import')}
+                      </button>
                       <button type="button" className="danger" disabled={saving || !(form.id || selectedId)} onClick={() => { setHeaderMenu(false); void onDelete() }}>{tg('ux20.deleteProfile')}</button>
                     </div>
                   ) : null}
@@ -807,12 +885,14 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
             <aside className="inventory-list-pane">
               <div className="inventory-search-row">
                 <input
+                  type="search"
+                  data-testid="inventory-search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void onSearch()
                   }}
-                  placeholder={tg('ui.187')}
+                  placeholder={tg('inv.searchPlaceholder')}
                   aria-label={tg('ui.188')}
                 />
                 <button type="button" onClick={() => void onSearch()} disabled={loading}>
@@ -825,7 +905,13 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                 </button>
               </div>
               {!loading && entries.length === 0 ? (
-                <EmptyState compact icon="host" title={tg('ui.190')} testId="inventory-empty" />
+                <EmptyState
+                  compact
+                  icon="host"
+                  title={searchQuery.trim() ? tg('inv.searchEmpty') : tg('ui.190')}
+                  desc={searchQuery.trim() ? tg('inv.searchEmptyDesc') : undefined}
+                  testId="inventory-empty"
+                />
               ) : null}
               <ul className="inventory-host-list">
                 {entries.map((e) => (
