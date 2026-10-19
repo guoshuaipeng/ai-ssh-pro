@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { tg } from '../lib/i18n'
+import Button from './ui/Button'
 
 type Props = {
   open: boolean
@@ -65,9 +66,7 @@ export default function Modal({ open, title, onClose, children, width = 520, foo
           <h2 id="modal-title" className="modal-title">
             {title}
           </h2>
-          <button type="button" className="modal-close" onClick={onClose} aria-label={tg('common.close')}>
-            ×
-          </button>
+          <Button variant="icon" icon="x" className="modal-close" onClick={onClose} aria-label={tg('common.close')} />
         </div>
         <div className="modal-body">{children}</div>
         {footer ? <div className="modal-footer">{footer}</div> : null}

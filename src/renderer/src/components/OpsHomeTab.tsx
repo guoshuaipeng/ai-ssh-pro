@@ -14,6 +14,8 @@ import { showToast } from '../lib/toast'
 import { AlertLine } from './AlertLine'
 import { BuiltMenu } from './BuiltMenu'
 import EmptyState from './EmptyState'
+import Button from './ui/Button'
+import PanelHeader from './ui/PanelHeader'
 import Icon from './Icon'
 import HealthProbeFields from './HealthProbeFields'
 import ScopePicker from './ScopePicker'
@@ -344,26 +346,29 @@ export default function OpsHomeTab({
 
   return (
     <div ref={rootRef} className="workspace-panel l7-root" data-testid="ops-home" data-ops-quiet={quietLayout.foldSecondary ? '1' : '0'} data-ops-card-cap={quietLayout.cardCap}>
-      <div className="workspace-panel-toolbar l7-head">
-        <h2 className="workspace-panel-title">
-          {t('l7.title')}
-          <span className="l7-meta">
+      <PanelHeader
+        className="l7-head"
+        title={t('l7.title')}
+        meta={
+          <>
             {t('l7.meta', { n: hosts.length, a: activeCount })}
             {showFiltered ? <span data-testid="l7c-filtered"> · {t('l7c.filteredCount', { n: probeTargets.length })}</span> : null}
-          </span>
-        </h2>
-        <div className="workspace-panel-actions l7-head-actions">
+          </>
+        }
+        actionsClassName="l7-head-actions"
+        actions={
+          <>
           {primaryIsAlerts ? (
-            <button type="button" className="primary" data-testid="l7-primary" onClick={() => onOpenWorkbench()}>
+            <Button variant="primary" data-testid="l7-primary" onClick={() => onOpenWorkbench()}>
               {t('l7.workAlerts')}
-            </button>
+            </Button>
           ) : (
-            <button type="button" className="primary" data-testid="l7-primary" onClick={onNewConnection}>
+            <Button variant="primary" data-testid="l7-primary" onClick={onNewConnection}>
               {t('l7.newConnection')}
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
+          <Button
+            variant="icon"
             aria-label={t('l7.more')}
             aria-expanded={more}
             onClick={(e) => {
@@ -372,7 +377,7 @@ export default function OpsHomeTab({
             }}
           >
             ⋯
-          </button>
+          </Button>
           {more ? (
             <div className="l7-more" role="menu" onClick={(e) => e.stopPropagation()}>
               <button type="button" data-testid="l7-open-dashboard" onClick={() => { setMore(false); onOpenDashboard() }}>
@@ -433,8 +438,9 @@ export default function OpsHomeTab({
               <HealthProbeFields prefs={probePrefs} tagOptions={tagOptions} onChange={onProbePrefs} />
             </div>
           ) : null}
-        </div>
-      </div>
+          </>
+        }
+      />
       <div className="l7-body">
         <section className="l7-col l7-health" aria-label={t('l7.health')}>
           <header className="l7-col-head">

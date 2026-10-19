@@ -13,6 +13,6 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(app, /action === 'reconnectNow'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-reconnect-now-cmdk/)
 console.log('test-reconnect-now-cmdk ok')

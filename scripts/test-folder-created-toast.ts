@@ -11,6 +11,6 @@ assert.ok(i18n.includes("app.folderCreated': '已新建分组「{name}」'"))
 assert.ok(i18n.includes("app.folderCreated': 'Created group"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-folder-created-toast/)
 console.log('test-folder-created-toast ok')

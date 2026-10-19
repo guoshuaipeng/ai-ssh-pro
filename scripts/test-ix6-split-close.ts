@@ -116,7 +116,7 @@ assert.match(barRule, /overflow:\s*hidden/)
 assert.ok(app.includes('tabStripWheelDelta('))
 assert.ok(app.includes('data-testid="tab-overflow"'))
 
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ix6-split-close\.ts/)
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 /** Title line only (`- **…（IX-N）.**`). A body cross-ref must not count. */

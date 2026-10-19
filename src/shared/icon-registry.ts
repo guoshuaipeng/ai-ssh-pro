@@ -39,7 +39,8 @@ export const ICON_NAMES = [
   'keyboard',
   'crosshair',
   'pin',
-  'square'
+  'square',
+  'x'
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]
@@ -84,7 +85,8 @@ export const ICON_PATHS: Record<IconName, string> = {
   keyboard: 'M4 7h16v10H4V7zM7 10h2M11 10h2M15 10h2M7 14h10',
   crosshair: 'M12 3v4M12 17v4M3 12h4M17 12h4M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   pin: 'M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10zM12 11.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
-  square: 'M7 7h10v10H7V7z'
+  square: 'M7 7h10v10H7V7z',
+  x: 'M6 6l12 12M18 6L6 18'
 }
 
 export function iconForAction(id: string): IconName | null {

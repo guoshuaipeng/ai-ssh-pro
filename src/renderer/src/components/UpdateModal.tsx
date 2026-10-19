@@ -1,5 +1,6 @@
 import { useI18n } from '../lib/i18n'
 import Modal from './Modal'
+import Button from './ui/Button'
 import { summarizeNotes } from '../lib/update-check'
 
 type Props = {
@@ -24,15 +25,15 @@ export default function UpdateModal({ open, version, notes, sourceLabel, onDownl
       width={480}
       footer={
         <div className="update-modal-actions">
-          <button type="button" className="ghost" onClick={onSkip}>
+          <Button variant="ghost" onClick={onSkip}>
             {t('upd.skip')}
-          </button>
-          <button type="button" onClick={onLater}>
+          </Button>
+          <Button variant="secondary" onClick={onLater}>
             {t('upd.later')}
-          </button>
-          <button type="button" className="primary" onClick={onDownload}>
+          </Button>
+          <Button variant="primary" onClick={onDownload}>
             {t('upd.download')}
-          </button>
+          </Button>
         </div>
       }
     >

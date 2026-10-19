@@ -6057,3 +6057,30 @@ button.primary.danger:focus-visible {
   font-size: 10px;
   padding: 1px 4px;
 }
+/* ui primitives — token-backed chrome helpers */
+.ui-btn--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  gap: 0;
+}
+.ui-btn--icon .aiss-icon,
+.ui-btn--icon svg {
+  width: var(--icon-size-chrome);
+  height: var(--icon-size-chrome);
+  flex-shrink: 0;
+}
+.ui-panel-header-meta {
+  margin-left: var(--space-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--color-text-muted);
+}
+.ui-panel-header .l7-meta {
+  margin-left: var(--space-2);
+}

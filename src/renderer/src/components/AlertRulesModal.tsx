@@ -12,6 +12,7 @@ import { captureEditorFocus, restoreEditorFocus, type EditorFocusTicket } from '
 import { isDialogOpen } from '../lib/dialogs'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
+import Button from './ui/Button'
 
 type Props = {
   open: boolean
@@ -128,9 +129,7 @@ export default function AlertRulesModal({
     >
       <div className="alert-rules-panel-head">
         <h2>{title}</h2>
-        <button type="button" className="modal-close" data-testid="alert-rules-close" aria-label={t('common.close')} onClick={onClose}>
-          ×
-        </button>
+        <Button variant="icon" icon="x" className="modal-close" data-testid="alert-rules-close" aria-label={t('common.close')} onClick={onClose} />
       </div>
       <div className="o2-tabs" role="tablist">
         <button type="button" className={tab === 'rules' ? 'is-on' : ''} onClick={() => setTab('rules')}>

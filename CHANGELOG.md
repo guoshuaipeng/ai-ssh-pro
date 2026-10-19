@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.47
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-9（共享 UI 原语）.** 新增 `components/ui/Button`（primary/secondary/ghost/danger/icon）与 `PanelHeader`；`EmptyState` 作为空态原语再导出。运维首页头、通用 Modal/更新对话框/告警规则关闭钮先接入。见 `docs/ui-primitives.md`。tipSuggest 不变。版本 0.6.47。 / **Feel track M-polish-9 (shared UI primitives).** Adds `ui/Button` and `ui/PanelHeader`; re-exports `EmptyState`. Ops home header, Modal, UpdateModal, and AlertRules close migrate first. See `docs/ui-primitives.md`. tipSuggest unchanged. Package 0.6.47.
+
 ## v0.6.46
 
 Released 2026-10-19 (CST).

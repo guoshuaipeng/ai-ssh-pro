@@ -13,6 +13,6 @@ const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 assert.ok(i18n.includes('app.needHostUser'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-save-profile-need-host-toast/)
 console.log('test-save-profile-need-host-toast ok')

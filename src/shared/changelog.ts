@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.47': [
+    {
+      icon: '▷',
+      text: {
+        zh: '新增共享按钮与面板头原语，chrome 样式更一致',
+        en: 'Shared Button and PanelHeader primitives for consistent chrome'
+      },
+      where: { zh: '界面组件', en: 'UI components' }
+    }
+  ],
   '0.6.46': [
     {
       icon: '▷',

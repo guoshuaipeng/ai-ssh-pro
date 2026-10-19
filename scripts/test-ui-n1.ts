@@ -42,7 +42,7 @@ for (const sel of ['.inv20-card', '.ctx-menu', '.o1-card', '.alert-line', '.tab.
 }
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { 'check:tokens': string } }
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['check:tokens'], /check-token-fallbacks/)
 
 const gate = spawnSync(process.execPath, ['scripts/check-token-fallbacks.mjs'], { encoding: 'utf8' })

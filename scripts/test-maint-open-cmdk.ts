@@ -16,6 +16,6 @@ const pal = readFileSync('src/renderer/src/lib/palette.ts', 'utf8')
 assert.match(pal, /maintOpen:\s*'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-maint-open-cmdk/)
 console.log('test-maint-open-cmdk ok')

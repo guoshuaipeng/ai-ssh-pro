@@ -26,6 +26,6 @@ const store = readFileSync('src/main/app-store.ts', 'utf8')
 assert.match(store, /muteBell/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-mute-bell/)
 console.log('test-mute-bell ok')

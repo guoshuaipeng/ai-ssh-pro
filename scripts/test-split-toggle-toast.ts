@@ -18,6 +18,6 @@ assert.ok(i18n.includes("sb.splitOff': '已退出分屏'"))
 assert.ok(i18n.includes("sb.splitOff': 'Split view off'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.46')
+assert.equal(pkg.version, '0.6.47')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-split-toggle-toast/)
 console.log('test-split-toggle-toast ok')
