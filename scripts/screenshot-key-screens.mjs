@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync, existsSync, copyFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -6,11 +6,25 @@ import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 
 const repo = resolve(import.meta.dirname, '..')
-// Key-screen visual QA (dark + light): node scripts/screenshot-key-screens.mjs [outDir]  (needs npm run build)
-const outDir = resolve(process.argv[2] || join(process.env.TEMP || tmpdir(), 'aiss-key-screens'))
+// Key-screen visual QA (dark + light):
+//   node scripts/screenshot-key-screens.mjs [outDir] [--set chrome] [--only ai-chat,ai-empty] [--themes dark|light] [--no-build]
+// Builds with electron-vite first unless --no-build (reuse out/). --only / --themes keep iteration runs short.
+const argv = process.argv.slice(2)
+const VALUE_FLAGS = ['--only', '--set', '--themes']
+const opt = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined }
+const positional = argv.filter((a, i) => !a.startsWith('--') && !VALUE_FLAGS.includes(argv[i - 1]))
+const csv = (v) => (v || '').split(',').map((x) => x.trim()).filter(Boolean)
+const only = csv(opt('--only'))
+const themes = csv(opt('--themes') || 'dark,light')
+const shotSet = opt('--set') || process.env.AISS_SHOT_SET || ''
+const outDir = resolve(positional[0] || join(process.env.TEMP || tmpdir(), 'aiss-key-screens'))
+if (!argv.includes('--no-build')) {
+  const b = spawnSync('npx electron-vite build', { cwd: repo, stdio: 'inherit', shell: true })
+  if (b.status !== 0) throw new Error('electron-vite build failed')
+}
 const tempDir = join(process.env.TEMP || tmpdir(), 'aiss-key-screens-tmp')
 const mainJs = join(repo, 'out', 'main', 'index.js')
-if (!existsSync(mainJs)) throw new Error('run npm run build first')
+if (!existsSync(mainJs)) throw new Error('out/main/index.js missing: drop --no-build or run npm run build')
 mkdirSync(outDir, { recursive: true })
 mkdirSync(tempDir, { recursive: true })
 
@@ -83,10 +97,13 @@ const chrome = [
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
   { name: 'menu', size: W, steps: [{ click: '.titlebar-menu-trigger' }], wait: 700, close: true }
 ]
-const list = ${JSON.stringify(process.env.AISS_SHOT_SET || '')} === 'chrome' ? chrome : base
+const ONLY = ${JSON.stringify(only)}
+const THEMES = ${JSON.stringify(themes)}
+const picked = (${JSON.stringify(shotSet)} === 'chrome' ? chrome : base).filter((s) => !ONLY.length || ONLY.includes(s.name))
+if (!picked.length) { console.error('--only matched no shots: ' + ONLY.join(',')); process.exit(2) }
 const shots = [
-  ...list.map((s) => ({ ...s, theme: 'github-dark', file: 'dark-' + s.name + '.png' })),
-  ...list.map((s) => ({ ...s, theme: 'light', file: 'light-' + s.name + '.png' }))
+  ...(THEMES.includes('dark') ? picked.map((s) => ({ ...s, theme: 'github-dark', file: 'dark-' + s.name + '.png' })) : []),
+  ...(THEMES.includes('light') ? picked.map((s) => ({ ...s, theme: 'light', file: 'light-' + s.name + '.png' })) : [])
 ]
 
 async function seed(win) {

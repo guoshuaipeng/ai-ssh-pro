@@ -10,6 +10,6 @@ assert.match(chunk, /openInventoryEditor\(/)
 assert.match(chunk, /showToast\(tg\('menu\.inventory'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.53')
+assert.equal(pkg.version, '0.6.54')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-session-inventory-opened-toast/)
 console.log('test-session-inventory-opened-toast ok')

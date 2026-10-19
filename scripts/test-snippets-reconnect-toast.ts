@@ -15,6 +15,6 @@ assert.ok(i18n.includes("l9.section': '重连策略'"))
 assert.ok(i18n.includes("l9.section': 'Reconnect policy'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.53')
+assert.equal(pkg.version, '0.6.54')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-snippets-reconnect-toast/)
 console.log('test-snippets-reconnect-toast ok')

@@ -15,6 +15,6 @@ assert.ok(i18n.includes("x1.nothingToClear': '没有可清除的本机命令历�
 assert.ok(i18n.includes("x1.nothingToClear': 'No command history to clear for this host'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.53')
+assert.equal(pkg.version, '0.6.54')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-clear-host-history-empty-toast/)
 console.log('test-clear-host-history-empty-toast ok')

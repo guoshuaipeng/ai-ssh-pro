@@ -13,6 +13,6 @@ assert.ok(i18n.includes("docker.refreshing': '正在刷新 Docker · {host}'"))
 assert.ok(i18n.includes("docker.refreshing': 'Refreshing Docker · {host}'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.53')
+assert.equal(pkg.version, '0.6.54')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-docker-refresh-toast/)
 console.log('test-docker-refresh-toast ok')

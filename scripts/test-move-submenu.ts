@@ -8,7 +8,7 @@ import { buildHostMenu } from '../src/shared/inline-menus'
 import { placeSubmenu } from '../src/shared/menu-place'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.53')
+assert.equal(pkg.version, '0.6.54')
 
 const beside = placeSubmenu({ left: 200, right: 360, top: 100, bottom: 132 }, 180, 220, 1366, 768)
 assert.equal(beside.side, 'right')

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.54
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-16（小批快修）.** 截图脚本支持 `--only <names>`、`--themes`、`--set` 与 `--no-build`（默认先构建，迭代可复用 out/，单屏一次约 20 秒）。用 M15 最终代码重拍 AI 对话头部（安全档位下拉换行、全文可见）与空态：命令栏悬浮按钮（✦）改为相对中间栏定位，不再压住 AI 输入框的发送按钮；AI 空态引导文案平衡换行、示例问题改为左对齐等宽列表。只读拦截提示（.s4-block）与生产横幅同样被终端层遮挡，已固定 28px 行高并让终端层从其下方开始。tipSuggest 不变。版本 0.6.54。 / Faster screenshot loop, AI empty state, FAB anchored to the centre column, read-only notice no longer under the terminal.
+
 ## v0.6.53
 
 Released 2026-10-19 (CST).

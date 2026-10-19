@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.54': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 空态更整齐，只读提示不再被终端遮挡',
+        en: 'Tidier AI empty state; read-only notice no longer hidden by the terminal'
+      },
+      where: { zh: 'AI 面板 / 终端', en: 'AI panel / Terminal' }
+    }
+  ],
   '0.6.53': [
     {
       icon: '▷',

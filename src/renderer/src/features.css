@@ -1589,6 +1589,10 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
    so the active xterm painted over it. Lift the banner and start the layers below it. */
 .terminal-stack > .term-guard-banner { position: relative; z-index: 2; }
 .terminal-stack:has(> .term-guard-banner) > .terminal-layer { top: 24px; }
+/* M16: the read-only interception notice (.s4-block) had the same overlap; fixed 28px row, layers start below it. */
+.terminal-stack > .s4-block { position: relative; z-index: 2; height: 28px; min-height: 28px; box-sizing: border-box; }
+.terminal-stack:has(> .s4-block) > .terminal-layer { top: 28px; }
+.terminal-stack:has(> .term-guard-banner):has(> .s4-block) > .terminal-layer { top: 52px; }
 .term-guard-banner.is-paused { background: color-mix(in srgb, var(--color-warn) 25%, transparent); }
 .alert-bell { margin-left: auto; position: relative; flex: none; white-space: nowrap; }
 .alert-bell-count { margin-left: 4px; background: var(--danger); color: white; border-radius: 8px; padding: 0 5px; font-size: 11px; }
