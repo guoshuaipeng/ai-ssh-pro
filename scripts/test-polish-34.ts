@@ -5,7 +5,7 @@ import { changelogFor } from '../src/shared/changelog'
 
 const norm = (p: string) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n')
 const pkg = JSON.parse(norm('package.json')) as { version: string; scripts: Record<string, string> }
-assert.equal(pkg.version, '0.6.57')
+assert.ok(pkg.version.localeCompare('0.6.57', undefined, { numeric: true }) >= 0)
 assert.match(pkg.scripts['test:parts'], /test-polish-34/)
 
 const ai = norm('src/renderer/src/components/AIPanel.tsx')

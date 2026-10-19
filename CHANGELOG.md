@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.58
+
+Released 2026-10-19 (CST).
+
+- **M20 安全优先：主进程执行主机保护.** AI 代理写 SSH 前在主进程按主机保护再判一次（渲染进程实时推送每个会话的完整保护级别：普通 / 生产 / 只读，含演示主机默认生产保护、标签页临时只读、提权窗口）：只读主机即使已同意也不写入；生产主机改动类命令不自动执行，必须确认（只读类命令照常）。AI 面板不再只传 `production` 布尔值。回复进行中切换标签页时，流式事件只写入发起它的对话（离屏时按原 key 持久化），并显示“这段对话正在 X 上进行 · 切回”。核实 dispatchInjectTerminal → term.paste → onUserData → handleTermInput 走只读闸门。 Main process now enforces host protection on AI writes (read-only blocks even after Agree; production never auto-runs changes), full protection level is passed, and AI streams stay in their own conversation with a switch-back notice.
+
 ## v0.6.57
 
 Released 2026-10-19 (CST).

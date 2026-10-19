@@ -50,6 +50,8 @@ import {
 } from './core-a-context'
 import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTierEngaged, effectiveSafetyTier, type SafetyMode } from '../shared/safety-tier'
 import { getInventoryStore } from './inventory-store'
+import { aiWriteVerdict, capSafetyModeForProtection, aiEffectiveLevel, protectionFromSafetyContext, stricterProtection } from '../shared/ai-write-guard'
+import { getSessionProtection } from './ai-protection-registry'
 import type { HostServiceKind } from '../shared/inventory'
 import {
   classifyCommandFailure,
@@ -1169,6 +1171,12 @@ export async function runOpenClawCoreAgentChat(
       }
       let safetyMode: SafetyMode | undefined
       let skipCommandWrite = false
+      let commandKind: ReturnType<typeof planCommandConfirm>['kind'] | undefined
+      // M20: protection the AI is held to = stricter of the chat payload and the live registry.
+      const hostProtection = stricterProtection(
+        protectionFromSafetyContext(payload.safetyContext),
+        getSessionProtection(targetSessionId)
+      )
       if (safetyTierEngaged(settings) && parsed.action === 'command') {
         const hostId =
           payload.safetyContext?.hostId ||
@@ -1182,27 +1190,32 @@ export async function runOpenClawCoreAgentChat(
           }),
           command: parsed.command ?? '',
           riskLevel: parsed.riskLevel,
-          production: payload.safetyContext?.production === true,
+          production: aiEffectiveLevel(hostProtection) !== 'normal',
           hostId,
           hostName: payload.safetyContext?.hostName || payload.inventoryLookup?.host,
           allowHosts: settings.autopilotAllowHosts,
           allowHighRisk: settings.autopilotAllowHighRisk === true,
           book: inFlight
         })
-        safetyMode = decision.mode
+        commandKind = decision.kind
+        safetyMode = capSafetyModeForProtection(decision.mode, hostProtection, decision.kind)
         if (decision.alternative) {
           const note = parsed.notes?.includes(decision.alternative)
             ? parsed.notes
             : [parsed.notes, decision.alternative].filter(Boolean).join('\n')
           parsed = { ...parsed, notes: note }
         }
-        if (decision.mode === 'suggest' || decision.mode === 'hold') skipCommandWrite = true
+        if (safetyMode === 'suggest' || safetyMode === 'hold') skipCommandWrite = true
         emitDebug({
           kind: 'execution',
           round: step,
           label: 'safety tier',
-          detail: `mode=${decision.mode} tier=${decision.tier} applied=${decision.appliedTier} kind=${decision.kind} warn=${String(decision.warn)} write=${String(decision.write)}`
+          detail: `mode=${decision.mode} capped=${safetyMode} protection=${hostProtection.level}${hostProtection.elevated ? '+elevated' : ''} tier=${decision.tier} applied=${decision.appliedTier} kind=${decision.kind} warn=${String(decision.warn)} write=${String(decision.write)}`
         })
+      }
+      if (parsed.action === 'command' && safetyMode === undefined && aiEffectiveLevel(hostProtection) === 'readonly') {
+        safetyMode = 'suggest'
+        skipCommandWrite = true
       }
       if (needsInterrupt && safetyMode !== 'auto' && safetyMode !== 'suggest' && safetyMode !== 'hold') {
         emitDebug({
@@ -1612,6 +1625,31 @@ export async function runOpenClawCoreAgentChat(
             type: 'error',
             message: mt('失败的命令不会自动重跑。若要再执行，需要新的确认。', 'A failed command does not run again on its own. Another run needs a new confirmation.')
           })
+          return
+        }
+        // M20: last gate with the protection as it is NOW (the tab may have been locked while waiting).
+        const liveProtection = stricterProtection(
+          protectionFromSafetyContext(payload.safetyContext),
+          getSessionProtection(targetSessionId)
+        )
+        const verdict = aiWriteVerdict(liveProtection, { approved: safetyMode !== 'auto', kind: commandKind })
+        if (!verdict.allow) {
+          logAi('ssh:write blocked', { targetSessionId, reason: verdict.reason, cmd: trimForLog(oneLineCmd, 200) })
+          send(wc, {
+            type: 'step',
+            safetyMode: 'suggest',
+            structured: {
+              description:
+                verdict.reason === 'readonly'
+                  ? mt('这台主机处于只读保护，AI 不会写入终端（即使已同意）。如需执行，请解除只读后手动运行。', 'This host is read-only protected, so the AI does not write to the terminal, even after Agree. To run it, lift read-only and run it yourself.')
+                  : mt('这台主机处于生产保护，改动类命令不会自动执行，需要你确认。', 'This host is production protected; commands that change it do not auto-run and need your confirmation.'),
+              action: 'end',
+              completed: true,
+              riskLevel: 'low',
+              command: oneLineCmd
+            }
+          })
+          send(wc, { type: 'done' })
           return
         }
         if (requestId) writtenRequestIds.add(requestId)

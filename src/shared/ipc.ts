@@ -489,7 +489,16 @@ export type AiChatPayload = {
    * Host context for the safety tier. Production hosts are not given autopilot
    * unless they are on the allow list, and high risk still confirms.
    */
-  safetyContext?: { production?: boolean; hostId?: string; hostName?: string; sessionId?: string }
+  safetyContext?: {
+    production?: boolean
+    /** M20: full effective level (normal / production / readonly), incl. demo default and tab temp read-only. */
+    protection?: 'normal' | 'production' | 'readonly'
+    /** M20: inside the elevation window. */
+    elevated?: boolean
+    hostId?: string
+    hostName?: string
+    sessionId?: string
+  }
 }
 
 export type AiStreamEvent =

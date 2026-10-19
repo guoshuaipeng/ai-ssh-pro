@@ -23,5 +23,5 @@ assert.equal(i18n.includes("'sess.copiedConn'"), true)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: { test: string; 'test:parts'?: string }; version: string }
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-copy-connection-string/)
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 console.log('test-copy-connection-string ok')

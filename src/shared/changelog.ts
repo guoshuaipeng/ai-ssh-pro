@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.58': [
+    {
+      icon: '▷',
+      text: {
+        zh: '只读主机上 AI 不会写入终端（即使已同意）；生产主机的改动类命令不再自动执行',
+        en: 'The AI never writes to a read-only host (even after Agree); on production hosts, changes no longer auto-run'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '回复进行中切换标签页，回复留在原对话，并提示“切回”',
+        en: 'Switching tabs mid-reply keeps the reply in its own conversation, with a “Switch back” notice'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    }
+  ],
   '0.6.57': [
     {
       icon: '▷',

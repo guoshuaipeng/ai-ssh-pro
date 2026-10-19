@@ -355,6 +355,9 @@ const api = {
     abortChat: (): Promise<void> => ipcRenderer.invoke('ai:abortChat'),
     confirmStep: (requestId: string, ok: boolean): Promise<boolean> =>
       ipcRenderer.invoke('ai:confirmStep', requestId, ok),
+    /** M20: tell the main process the live protection of an SSH session (null clears it). */
+    setSessionProtection: (sessionId: string, protection: { level: 'normal' | 'production' | 'readonly'; elevated?: boolean } | null): void =>
+      ipcRenderer.send('ai:protection:set', sessionId, protection),
     assist: (req: AiAssistRequest): Promise<AiAssistResult> => ipcRenderer.invoke('ai:assist', req),
     abortAssist: (requestId: string): Promise<void> => ipcRenderer.invoke('ai:assistAbort', requestId),
     parseSshForm: (rawText: string): Promise<AiParsedSshForm> =>

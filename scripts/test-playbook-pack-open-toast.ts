@@ -16,6 +16,6 @@ assert.ok(i18n.includes("w5.import': '导入分享包…'"))
 assert.ok(i18n.includes("w5.import': 'Import share pack…'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-playbook-pack-open-toast/)
 console.log('test-playbook-pack-open-toast ok')

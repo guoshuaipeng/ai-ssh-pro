@@ -13,6 +13,6 @@ const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 assert.ok(i18n.includes("'m2.edit':"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-playbook-edit-toast/)
 console.log('test-playbook-edit-toast ok')

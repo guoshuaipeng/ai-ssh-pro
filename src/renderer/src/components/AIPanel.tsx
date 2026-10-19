@@ -21,6 +21,8 @@ import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } fro
 import SafetyCommandBar from './SafetyCommandBar'
 import Button from './ui/Button'
 import Icon from './Icon'
+import type { ProtectionLevel } from '@shared/protection'
+import { aiEffectiveLevel } from '@shared/ai-write-guard'
 
 export type AiPendingInfo = {
   requestId: string
@@ -36,6 +38,10 @@ type Props = {
   inventoryLookup?: { host?: string; port?: number; profileId?: string } | null
   /** Saved profile protection. Production hosts do not take autopilot unless allow-listed. */
   production?: boolean
+  /** M20: full effective protection of the bound session (normal / production / readonly). */
+  protection?: ProtectionLevel
+  /** M20: inside the elevation window. */
+  elevated?: boolean
   hostName?: string | null
   onOpenSettings?: () => void
   /** When Agree needs an SSH tab: focus a live session or open New connection. */
@@ -44,6 +50,8 @@ type Props = {
   initialPending?: AiPendingInfo | null
   /** Keep App (status bar) in sync with the waiting confirm. */
   onPendingChange?: (info: AiPendingInfo | null) => void
+  /** M20: bring back the tab whose conversation still has a reply in flight. */
+  onSwitchToConversation?: (historyKey: string) => void
   /** Bump to scroll/focus the pending dock/card (status-bar chip). */
   focusPendingToken?: number
 }
@@ -384,9 +392,12 @@ export default function AIPanel({
   hostInventoryId = null,
   inventoryLookup = null,
   production = false,
+  protection = 'normal',
+  elevated = false,
   hostName = null,
   onOpenSettings,
   onNeedSession,
+  onSwitchToConversation,
   initialPending = null,
   onPendingChange,
   focusPendingToken = 0
@@ -490,6 +501,18 @@ export default function AIPanel({
   const persistKey = resolveHistoryKey(historyKey, activeSessionId)
   const persistKeyRef = useRef(persistKey)
   persistKeyRef.current = persistKey
+  /**
+   * M20: the in-flight turn is bound to the conversation it started in. Stream events for it
+   * update that conversation only; if the user switched tabs mid-reply they are kept (and
+   * persisted) off-screen instead of landing in the conversation now on screen.
+   */
+  const turnRef = useRef<{
+    key: string | null
+    host: string
+    lines: Line[]
+    pending: { requestId: string; action: AiAssistantReply['action'] } | null
+  } | null>(null)
+  const [turnElsewhere, setTurnElsewhere] = useState<{ key: string | null; host: string } | null>(null)
 
   const activeProvider = providers.find((p) => p.id === activeProviderId) ?? providers[0]
   const modelList = activeProvider?.modelList ?? []
@@ -551,6 +574,19 @@ export default function AIPanel({
     let cancelled = false
     // Keep screenshot/demo pending dock across history reloads.
     if (!screenshotForceKeyRef.current) setPendingConfirm(null)
+    const turn = turnRef.current
+    if (turn && turn.key !== persistKey) {
+      // Left the conversation mid-reply: keep what it has so far under its own key.
+      if (turn.key) void window.aiss.ai.setChatHistory(turn.key, linesToHistoryMessages(turn.lines))
+      setTurnElsewhere({ key: turn.key, host: turn.host })
+    } else {
+      setTurnElsewhere(null)
+    }
+    if (turn && turn.key === persistKey) {
+      setLines(turn.lines.slice())
+      if (turn.pending) setPendingConfirm(turn.pending)
+      return
+    }
     if (!persistKey) {
       if (!screenshotForceKeyRef.current) setLines([])
       return
@@ -634,7 +670,36 @@ export default function AIPanel({
     async (text: string, terminalExcerpt?: string) => {
       const userLine: UserLine = { role: 'user', content: text }
       releaseSessionInFlight(persistKey)
-      setLines((prev) => [...prev, userLine])
+      const turn = {
+        key: persistKey,
+        host: hostName || inventoryLookup?.host || '',
+        lines: [...linesRef.current, userLine],
+        pending: null as { requestId: string; action: AiAssistantReply['action'] } | null
+      }
+      turnRef.current = turn
+      setTurnElsewhere(null)
+      const onScreen = () => persistKeyRef.current === turn.key
+      /** Apply an update to this turn's conversation, on screen or off. */
+      const applyTurn = (fn: (prev: Line[]) => Line[]) => {
+        if (onScreen()) {
+          setLines((prev) => {
+            const next = fn(prev)
+            turn.lines = next
+            return next
+          })
+          return
+        }
+        turn.lines = fn(turn.lines)
+        if (turn.key) void window.aiss.ai.setChatHistory(turn.key, linesToHistoryMessages(turn.lines))
+      }
+      const persistTurn = (next: Line[]) => {
+        if (turn.key) void window.aiss.ai.setChatHistory(turn.key, linesToHistoryMessages(next))
+      }
+      const setTurnPending = (p: { requestId: string; action: AiAssistantReply['action'] } | null) => {
+        turn.pending = p
+        if (onScreen()) setPendingConfirm(p)
+      }
+      setLines(turn.lines)
       setBusy(true)
       setPendingConfirm(null)
 
@@ -653,7 +718,7 @@ export default function AIPanel({
       let assistant = ''
       const unsub = window.aiss.ai.onStream((ev) => {
       if (ev.type === 'status') {
-        setLines((prev) => {
+        applyTurn((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) return next
@@ -665,7 +730,7 @@ export default function AIPanel({
       if (ev.type === 'step') {
         usedStepProtocol = true
         const s = ev.structured
-        setLines((prev) => {
+        applyTurn((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
           const row: AssistantLine = {
@@ -683,16 +748,16 @@ export default function AIPanel({
             next.push(row)
           }
           // Persist step fields so remount can restore the confirm card.
-          queueMicrotask(() => persistHistory(next))
+          queueMicrotask(() => persistTurn(next))
           return next
         })
-        setPendingConfirm(ev.requestId ? { requestId: ev.requestId, action: s.action } : null)
+        setTurnPending(ev.requestId ? { requestId: ev.requestId, action: s.action } : null)
         return
       }
       if (ev.type === 'delta') {
         if (usedStepProtocol) return
         assistant += ev.text
-        setLines((prev) => {
+        applyTurn((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) return next
@@ -702,8 +767,8 @@ export default function AIPanel({
         return
       }
       if (ev.type === 'cancelled') {
-        setPendingConfirm(null)
-        setLines((prev) => {
+        setTurnPending(null)
+        applyTurn((prev) => {
           const next = [...prev]
           const msg = ev.message?.trim() ? ev.message.trim() : tg('ai.cancelled')
           const last = next[next.length - 1]
@@ -717,8 +782,8 @@ export default function AIPanel({
         return
       }
       if (ev.type === 'error') {
-        setPendingConfirm(null)
-        setLines((prev) => {
+        setTurnPending(null)
+        applyTurn((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
           const raw = String(ev.message ?? '')
@@ -755,6 +820,8 @@ export default function AIPanel({
           : undefined,
         safetyContext: {
           production,
+          protection,
+          elevated,
           hostId: inventoryLookup?.profileId || hostInventoryId || undefined,
           hostName: hostName || inventoryLookup?.host,
           sessionId: persistKey || undefined
@@ -763,7 +830,7 @@ export default function AIPanel({
       if (!usedStepProtocol) {
         const raw = assistant.trim()
         const parsed = parseAiAssistantReply(raw)
-        setLines((prev) => {
+        applyTurn((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
@@ -791,7 +858,7 @@ export default function AIPanel({
     } finally {
       unsub()
       const elapsedMs = Date.now() - turnStarted
-      setLines((prev) => {
+      applyTurn((prev) => {
         const last = prev[prev.length - 1]
         if (last?.role !== 'assistant' || last.streaming || last.elapsedMs != null) return prev
         const next = [...prev]
@@ -799,11 +866,13 @@ export default function AIPanel({
         return next
       })
       setBusy(false)
-      setPendingConfirm(null)
+      setTurnPending(null)
       refreshWorkingGoal(persistKey)
-      // Persist user + assistant text after the turn completes
+      // Persist user + assistant text after the turn completes — under the turn's own key.
       queueMicrotask(() => {
-        persistHistory(linesRef.current)
+        persistTurn(turn.lines)
+        if (turnRef.current === turn) turnRef.current = null
+        setTurnElsewhere(null)
       })
     }
   },
@@ -852,9 +921,14 @@ export default function AIPanel({
       if (!activeSessionId) return
       const oneLine = cmd.replace(/\r\n/g, '\n').replace(/[\r\n]+/g, ' ').trim()
       if (!oneLine) return
+      // M20: a read-only host never takes an AI write, even after Agree.
+      if (aiEffectiveLevel({ level: protection, elevated }) === 'readonly') {
+        showToast(tg('ai.readonlyBlocked'), { kind: 'error' })
+        return
+      }
       dispatchInjectTerminal(activeSessionId, oneLine, true)
     },
-    [activeSessionId]
+    [activeSessionId, protection, elevated]
   )
 
   const confirmStep = useCallback(async (requestId: string, ok: boolean) => {
@@ -1354,6 +1428,21 @@ export default function AIPanel({
         </div>
       </div>
 
+      {busy && turnElsewhere ? (
+        <div className="ai-turn-elsewhere" role="status" data-testid="ai-turn-elsewhere">
+          <span>{tg('ai.turnElsewhere', { host: turnElsewhere.host || tg('ai.contextSession') })}</span>
+          {turnElsewhere.key && onSwitchToConversation ? (
+            <button
+              type="button"
+              className="link-btn"
+              data-testid="ai-turn-switch-back"
+              onClick={() => onSwitchToConversation(turnElsewhere.key!)}
+            >
+              {tg('ai.turnSwitchBack')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">

@@ -1,4 +1,6 @@
 import { mt, setMainLocaleGetter } from './main-i18n'
+import { setSessionProtection } from './ai-protection-registry'
+import { isProtectionLevel } from '../shared/ai-write-guard'
 import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
 import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell } from 'electron'
@@ -1180,6 +1182,10 @@ function registerIpc(): void {
 
   ipcMain.handle('ai:abortChat', () => {
     abortAiChat()
+  })
+
+  ipcMain.on('ai:protection:set', (_event, sessionId: string, protection: { level?: unknown; elevated?: unknown } | null) => {
+    setSessionProtection(String(sessionId ?? ''), protection && isProtectionLevel(protection.level) ? { level: protection.level, elevated: protection.elevated === true } : null)
   })
 
   ipcMain.handle('ai:confirmStep', async (_event, requestId: string, ok: boolean) => {

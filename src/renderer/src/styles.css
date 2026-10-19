@@ -6428,3 +6428,19 @@ button.primary.danger:focus-visible {
     justify-content: center;
   }
 }
+
+/* ---- M20 (0.6.58): reply still running in another conversation ---- */
+.ai-turn-elsewhere {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-3) 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-info-muted);
+  color: var(--color-info);
+  font-size: var(--fs-xs);
+}
+.ai-turn-elsewhere .link-btn {
+  margin-left: auto;
+}

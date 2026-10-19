@@ -19,7 +19,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 
 assert.equal(tabOverflowMark(0), '⌄')
 assert.equal(tabOverflowMark(3), '⌄ 3')
@@ -128,6 +128,6 @@ assert.equal(en('tab.scrollRight'), 'Scroll tabs right')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 assert.ok(unreleased.includes('P3-TO'))
 assert.ok(unreleased.includes('⌄'))
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 
 console.log('test-tab-overflow ok')

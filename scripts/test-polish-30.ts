@@ -6,7 +6,7 @@ import { tipSuggest, rollback } from '../src/main/core-a-output-truncate'
 import { splitFences, splitInlineCode, layoutOpsReply } from '../src/shared/ai-reply-cards'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-30.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')

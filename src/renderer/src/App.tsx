@@ -2875,6 +2875,18 @@ export default function App() {
     }
   }, [elevateMap, profileForSession, sessionRo])
 
+  // M20: the main process enforces host protection on AI writes; keep its per-session copy current
+  // (profile level, demo default, per-tab temporary read-only, elevation window).
+  useEffect(() => {
+    const push = window.aiss.ai.setSessionProtection
+    if (!push) return
+    for (const t of tabs) {
+      if (!t.sessionId || (t.view && t.view !== 'session')) continue
+      const g = guardForSession(t.sessionId)
+      push(t.sessionId, { level: g.level, elevated: g.elevated })
+    }
+  }, [tabs, guardForSession])
+
   useEffect(() => {
     const onRun = (e: Event) => {
       const plan = (e as CustomEvent<FolderSyncPlan>).detail
@@ -9161,8 +9173,14 @@ export default function App() {
                     }
                   : undefined
               }
-              production={profiles.find((p) => p.id === activeTab?.profileId)?.protection === 'production'}
+              protection={activeSessionId ? guardForSession(activeSessionId).level : 'normal'}
+              elevated={activeSessionId ? guardForSession(activeSessionId).elevated : false}
+              production={activeSessionId ? guardForSession(activeSessionId).level === 'production' && !guardForSession(activeSessionId).elevated : false}
               hostName={activeTab?.connectOpts.host ?? null}
+              onSwitchToConversation={(key) => {
+                const tab = tabs.find((t) => (!t.view || t.view === 'session') && (t.profileId === key || t.sessionId === key))
+                if (tab) setActiveTabId(tab.tabId)
+              }}
               onNeedSession={() => {
                 const live = connectedSshSessions[0]
                 if (live) {

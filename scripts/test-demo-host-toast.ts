@@ -16,6 +16,6 @@ assert.ok(i18n.includes("l7.demoAdded': '已添加演示主机'"))
 assert.ok(i18n.includes("l7.demoAdded': 'Demo host added'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-demo-host-toast/)
 console.log('test-demo-host-toast ok')

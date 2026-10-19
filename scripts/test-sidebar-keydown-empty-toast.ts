@@ -11,6 +11,6 @@ assert.match(chunk, /showToast\(tg\('l10\.none'\)\)/)
 assert.match(chunk, /e\.key === 'Enter' \|\| e\.key === 'F2'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.57')
+assert.equal(pkg.version, '0.6.58')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-sidebar-keydown-empty-toast/)
 console.log('test-sidebar-keydown-empty-toast ok')
