@@ -10,6 +10,6 @@ assert.match(chunk, /openMaintenance\(multi \?\? \[p\.id\]\)/)
 assert.match(chunk, /showToast\(tg\('l2d\.open'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-session-maint-opened-toast/)
 console.log('test-session-maint-opened-toast ok')

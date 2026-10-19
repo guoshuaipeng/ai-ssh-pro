@@ -14,6 +14,6 @@ assert.match(i18n, /tab\.unpinnedHost': '已取消固定 \{host\}'/)
 assert.match(i18n, /tab\.unpinnedHost': 'Unpinned \{host\}'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-statusbar-unpin-host/)
 console.log('test-statusbar-unpin-host ok')

@@ -10,6 +10,6 @@ assert.match(chunk, /if \(level === 'normal'\) \{\s*showToast\(tg\('s4\.alreadyO
 assert.match(chunk, /showToast\(tg\('l4\.unlocked'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-elevate-already-normal-toast/)
 console.log('test-elevate-already-normal-toast ok')

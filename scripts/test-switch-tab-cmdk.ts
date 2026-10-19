@@ -13,6 +13,6 @@ assert.match(app, /action === 'switchTab'/)
 assert.match(app, /setTabOverflowPos|tabOverflow/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-switch-tab-cmdk/)
 console.log('test-switch-tab-cmdk ok')

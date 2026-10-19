@@ -17,6 +17,6 @@ const pal = readFileSync('src/renderer/src/lib/palette.ts', 'utf8')
 assert.match(pal, /setJumpHosts/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-set-jump-hosts-cmdk/)
 console.log('test-set-jump-hosts-cmdk ok')

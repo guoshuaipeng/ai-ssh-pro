@@ -20,6 +20,6 @@ assert.ok(i18n.includes("s4.alreadyOn': 'Already read-only'"))
 assert.ok(i18n.includes("s4.alreadyOff': 'Not in read-only session'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-readonly-session-cmdk/)
 console.log('test-readonly-session-cmdk ok')

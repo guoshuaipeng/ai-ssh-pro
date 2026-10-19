@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.57
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-19（AI 对话面板，Cursor 风格）.** 顶栏只剩一行：绑定主机（+ 当前目标）、快捷键、新对话、⋯；用户消息为整宽浅色圆角气泡，助手回复为无边框的正文（编号结论是列表，不再一条一张卡）；建议命令合并为一个紧凑代码块，内含复制 / 执行 / 不同意与小号风险标签，描述里重复的命令不再显示；“已按安全档自动执行”等为灰色说明文字；每条回复下方一行“用时 Ns · 复制”。输入区为一个圆角框：文本框 + 底行芯片（模型、安全档〔本会话 / 此主机合并为一个弹层〕、附带终端输出开关、发送控制台）+ 圆形发送（生成中变为停止）。 Cursor-style AI chat: one-row header, plain replies, a single compact command block with inline actions + small risk tag, muted status text, “Worked for Ns · copy” meta, and a single composer with model / safety / attach / console chips and a round send button.
+
 ## v0.6.56
 
 Released 2026-10-19 (CST).

@@ -5,7 +5,7 @@ import { changelogFor } from '../src/shared/changelog'
 
 const norm = (p: string) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n')
 const pkg = JSON.parse(norm('package.json')) as { version: string; scripts: Record<string, string> }
-assert.equal(pkg.version, '0.6.56')
+assert.ok(pkg.version.localeCompare('0.6.56', undefined, { numeric: true }) >= 0)
 assert.match(pkg.scripts['test:parts'], /test-polish-33/)
 
 const css = norm('src/renderer/src/styles.css')
@@ -37,7 +37,7 @@ assert.ok(app.includes('data-testid="tab-pin-btn"') && app.includes('data-testid
 assert.match(norm('src/shared/inline-menus.ts'), /testId: 'tab-pin'/)
 
 const changelog = norm('CHANGELOG.md')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.56'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v', changelog.indexOf('## Unreleased')))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.56'), changelog.indexOf('## v0.6.55'))
 assert.ok(note.includes('M-polish-18'))

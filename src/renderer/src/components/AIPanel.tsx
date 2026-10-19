@@ -20,6 +20,7 @@ import AiConfigCard from './AiConfigCard'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
 import Button from './ui/Button'
+import Icon from './Icon'
 
 export type AiPendingInfo = {
   requestId: string
@@ -66,6 +67,8 @@ type AssistantLine = {
   parseMiss?: boolean
   variant?: 'error'
   detail?: string
+  /** M19: wall time of the turn, shown as the muted meta line. Not persisted. */
+  elapsedMs?: number
 }
 
 type Line = UserLine | AssistantLine
@@ -143,8 +146,52 @@ function MetricText({ text }: { text: string }): ReactNode {
 function RiskBadge({ level }: { level: string }) {
   const n = (level || 'medium').toLowerCase()
   return (
-    <div className={`ai-risk-badge ${riskClass(n)}`} data-risk={n}>
+    <span className={`ai-risk-badge ai-risk-tag ${riskClass(n)}`} data-risk={n}>
       {tg('ux64.risk', { level: n })}
+    </span>
+  )
+}
+
+function copyText(text: string) {
+  void navigator.clipboard.writeText(text).then(
+    () => showToast(tg('ctx.copied')),
+    () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+  )
+}
+
+/** M19: the description repeats the suggested command (or a prefix of it). Show it once, in the command block. */
+function coveredBy(skip: string | undefined, commands: string[]): boolean {
+  const k = skip?.trim()
+  if (!k) return false
+  const rows = commands.map((c) => c.trim()).filter(Boolean)
+  return rows.length > 0 && rows.every((c) => k.includes(c))
+}
+
+/** M19: chip label for a model id — drop the vendor path, cap the length; the full id is the tooltip. */
+export function shortModelName(model: string, max = 14): string {
+  const base = model.split('/').pop()?.trim() || model.trim()
+  return base.length > max ? `${base.slice(0, max - 1)}…` : base
+}
+
+/** M19 (Cursor-style): muted line under a reply — elapsed time + copy icon. */
+function ReplyMeta({ text, elapsedMs }: { text: string; elapsedMs?: number }) {
+  return (
+    <div className="ai-reply-meta" data-testid="ai-reply-meta">
+      {elapsedMs != null ? (
+        <span className="ai-reply-meta-time">{tg('ai.workedFor', { s: String(Math.max(1, Math.round(elapsedMs / 1000))) })}</span>
+      ) : null}
+      {text.trim() ? (
+        <button
+          type="button"
+          className="ai-meta-btn"
+          data-testid="ai-reply-copy"
+          title={tg('ux64.copy')}
+          aria-label={tg('ux64.copy')}
+          onClick={() => copyText(text)}
+        >
+          <Icon name="clipboard-list" size={14} />
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -157,7 +204,8 @@ function OpsReply({
   canRun,
   onAgree,
   onDecline,
-  commandBar
+  commandBar,
+  skipCommand
 }: {
   text: string
   badge?: boolean
@@ -167,6 +215,8 @@ function OpsReply({
   onAgree?: (command: string) => void
   onDecline?: () => void
   commandBar?: (command: string) => ReactNode
+  /** Command already shown in the card's own command block. */
+  skipCommand?: string
 }) {
   const fences = splitFences(text)
   if (fences.some((f) => f.kind === 'code')) {
@@ -175,7 +225,7 @@ function OpsReply({
       <div className="ai-md-stack">
         {fences.map((f, i) =>
           f.kind === 'code' ? (
-            <AiCodeBlock key={i} code={f.code} lang={f.lang} />
+            coveredBy(skipCommand, f.code.split('\n')) ? null : <AiCodeBlock key={i} code={f.code} lang={f.lang} />
           ) : (
             <OpsReply
               key={i}
@@ -187,6 +237,7 @@ function OpsReply({
               onAgree={onAgree}
               onDecline={onDecline}
               commandBar={commandBar}
+              skipCommand={skipCommand}
             />
           )
         )}
@@ -194,6 +245,7 @@ function OpsReply({
     )
   }
   const layout: OpsLayout = layoutOpsReply(text)
+  const firstCmd = layout.blocks.findIndex((b) => b.kind === 'commands')
   const structured = layout.blocks.some((b) => b.kind !== 'prose')
   if (!structured) {
     return (
@@ -204,7 +256,6 @@ function OpsReply({
   }
   return (
     <div className="ai-ops-stack" data-testid="ai-ops-stack">
-      {badge && layout.risk ? <RiskBadge level={layout.risk} /> : null}
       {layout.blocks.map((block, i) => {
         if (block.kind === 'prose') {
           return (
@@ -235,10 +286,24 @@ function OpsReply({
             </div>
           )
         }
+        if (coveredBy(skipCommand, block.commands)) return null
         const bundle = commandBundle(block.commands)
         const showActions = confirm && block.confirm
         return (
           <div key={i} className="ai-reply-cmd" data-testid="ai-ops-commands">
+            <div className="ai-cmd-head">
+              <span className="ai-code-lang">shell</span>
+              {badge && layout.risk && i === firstCmd ? <RiskBadge level={layout.risk} /> : null}
+              <button
+                type="button"
+                className="ai-meta-btn ai-cmd-copy"
+                title={tg('common.copy')}
+                aria-label={tg('common.copy')}
+                onClick={() => copyText(block.commands.join('\n'))}
+              >
+                <Icon name="clipboard-list" size={14} />
+              </button>
+            </div>
             <code className="ai-reply-cmd-code">{block.commands.join('\n')}</code>
             {showActions ? (
               commandBar ? (
@@ -354,9 +419,15 @@ export default function AIPanel({
                   ? { role: 'user', content: d.content }
                   : {
                       role: 'assistant',
-                      content: d.content,
+                      content: d.content || d.command?.description || d.end?.description || '',
                       requestId: d.requestId,
-                      structured: d.end ? { action: 'end', description: d.end.description, riskLevel: d.end.riskLevel } : undefined
+                      elapsedMs: d.elapsedMs,
+                      fresh: false,
+                      structured: d.command
+                        ? { action: 'command', description: d.command.description, command: d.command.command, riskLevel: d.command.riskLevel }
+                        : d.end
+                          ? { action: 'end', description: d.end.description, riskLevel: d.end.riskLevel }
+                          : undefined
                     }
               )
         )
@@ -407,6 +478,8 @@ export default function AIPanel({
   const pendingDeclineRef = useRef<HTMLButtonElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [safetyOpen, setSafetyOpen] = useState(false)
+  const safetyRef = useRef<HTMLDivElement | null>(null)
   const [workingGoal, setWorkingGoal] = useState<string | null>(null)
   const [safetySettings, setSafetySettings] = useState<SafetySettings>({ safetyTier: 'confirm' })
   const seenConfirm = useRef(new Set<string>())
@@ -574,6 +647,7 @@ export default function AIPanel({
       ]
 
       const debugTurnId = crypto.randomUUID()
+      const turnStarted = Date.now()
 
       let usedStepProtocol = false
       let assistant = ''
@@ -716,6 +790,14 @@ export default function AIPanel({
       }
     } finally {
       unsub()
+      const elapsedMs = Date.now() - turnStarted
+      setLines((prev) => {
+        const last = prev[prev.length - 1]
+        if (last?.role !== 'assistant' || last.streaming || last.elapsedMs != null) return prev
+        const next = [...prev]
+        next[next.length - 1] = { ...last, elapsedMs }
+        return next
+      })
       setBusy(false)
       setPendingConfirm(null)
       refreshWorkingGoal(persistKey)
@@ -1065,6 +1147,23 @@ export default function AIPanel({
     return () => window.removeEventListener('mousedown', close, true)
   }, [moreOpen])
 
+  useEffect(() => {
+    if (!safetyOpen) return
+    const close = (e: MouseEvent) => {
+      if (safetyRef.current?.contains(e.target as Node)) return
+      setSafetyOpen(false)
+    }
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSafetyOpen(false)
+    }
+    window.addEventListener('mousedown', close, true)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', close, true)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [safetyOpen])
+
   const saveScope = (field: 'safetyTierSessions' | 'safetyTierHosts', id: string | null | undefined, value: string) => {
     const key = id?.trim() ?? ''
     if (!key) return
@@ -1142,171 +1241,120 @@ export default function AIPanel({
         <>
       <div className="ai-header">
         <div className="ai-header-row">
-        <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>{tg('ai.title')}</span>
-        <span className="ai-header-shortcut" data-testid="ai-focus-shortcut-hint" title={tg('ai.focusShortcutTip')}>
-          <kbd>{keysFor('focusAiPanel') ?? 'Ctrl+Shift+A'}</kbd>
-        </span>
-        {modelList.length > 0 ? (
-          <select
-            data-testid="ai-provider-select"
-            value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
-            onChange={(e) => onModelChange(e.target.value)}
-            disabled={busy}
-            title={tg('ai.model')}
-            style={{ flex: 1, minWidth: 0, fontSize: 12 }}
+          <div
+            className={`ai-session-context${!activeSessionId ? ' is-none' : ''}`}
+            data-testid="ai-session-context"
+            title={
+              activeSessionId
+                ? tg('ai.contextHostTip', { host: hostName || inventoryLookup?.host || '—' })
+                : tg('ai.contextNoneTip')
+            }
           >
-            {modelList.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        ) : null}
-        {busy ? (
-          <button type="button" className="ai-fill-cmd-btn" onClick={stopGeneration} title={tg('ai.stopTip')} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
-            {tg('ai.stop')}
-          </button>
-        ) : null}
-        <div className="titlebar-popover-wrap" ref={moreRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <span className="ai-session-context-host">
+              {activeSessionId ? hostName || inventoryLookup?.host || tg('ai.contextSession') : tg('ai.contextNone')}
+            </span>
+            {workingGoal ? (
+              <span className="ai-working-goal" title={workingGoal} data-testid="ai-working-goal">
+                <span className="ai-working-goal-label">{tg('wm.goal')}</span>
+                <span className="ai-working-goal-text">{workingGoal}</span>
+              </span>
+            ) : null}
+          </div>
+          <span className="ai-header-shortcut" data-testid="ai-focus-shortcut-hint" title={tg('ai.focusShortcutTip')}>
+            <kbd>{keysFor('focusAiPanel') ?? 'Ctrl+Shift+A'}</kbd>
+          </span>
           <button
             type="button"
-            className="ai-fill-cmd-btn"
-            aria-label={tg('ai.moreMenu')}
-            aria-expanded={moreOpen}
-            onClick={() => setMoreOpen((v) => !v)}
+            className="ai-icon-btn"
+            data-testid="ai-new-chat"
+            title={tg('ai.newChat')}
+            aria-label={tg('ai.newChat')}
+            disabled={busy}
+            onClick={clearConversation}
           >
-            …
+            <Icon name="plus" size={16} />
           </button>
-          {moreOpen ? (
-            <div className="titlebar-popover" style={{ right: 0, left: 'auto', minWidth: 140 }}>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="ai-explain-last-error"
-                disabled={busy}
-                onClick={() => {
-                  setMoreOpen(false)
-                  const sid = currentTerminalSelection()?.sessionId || lastErrorSessionId()
-                  const text = lastErrorFor(sid) ?? lastErrorFor(null)
-                  const target = lastErrorFor(sid) ? sid : lastErrorSessionId()
-                  if (!text || !target) {
-                    showToast(tg('a1.noError'), { kind: 'error' })
-                    return
-                  }
-                  requestAiExplain({ sessionId: target, text, source: 'auto' })
-                }}
-              >
-                {tg('a1.title')}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="ai-explain-selection"
-                disabled={busy}
-                onClick={() => {
-                  setMoreOpen(false)
-                  const sel = currentTerminalSelection()
-                  void requestSelectionExplain({ sessionId: sel?.sessionId ?? '', text: sel?.text ?? '' }).then((status) => {
-                    if (status === 'empty') showToast(tg('a6.needSelection'), { kind: 'error' })
-                  })
-                }}
-              >
-                {tg('a1.explainSelection')}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                data-testid="ai-copy-last-reply"
-                disabled={busy || !lastAssistantText(lines)}
-                onClick={() => {
-                  setMoreOpen(false)
-                  const text = lastAssistantText(lines)
-                  if (!text) {
-                    showToast(tg('ai.noLastReply'), { kind: 'error' })
-                    return
-                  }
-                  void navigator.clipboard.writeText(text).then(
-                    () => showToast(tg('ai.copiedLastReply')),
-                    () => showToast(tg('ai.copyFailed'), { kind: 'error' })
-                  )
-                }}
-              >
-                {tg('ai.copyLastReply')}
-              </button>
-              <button type="button" role="menuitem" disabled={busy} onClick={() => { setMoreOpen(false); clearConversation() }}>
-                {tg('ai.clear')}
-              </button>
-              <button type="button" role="menuitem" disabled={busy || lines.length === 0} onClick={() => { setMoreOpen(false); undoLastRound() }} title={tg('ai.undoTip')}>
-                {tg('ai.undo')}
-              </button>
-            </div>
-          ) : null}
-        </div>
-        </div>
-        <div
-          className={`ai-session-context${!activeSessionId ? ' is-none' : ''}`}
-          data-testid="ai-session-context"
-          title={
-            activeSessionId
-              ? tg('ai.contextHostTip', { host: hostName || inventoryLookup?.host || '—' })
-              : tg('ai.contextNoneTip')
-          }
-        >
-          {activeSessionId ? (
-            <>
-              <span className="ai-session-context-label">{tg('ai.contextBound')}</span>
-              <span className="ai-session-context-host">{hostName || inventoryLookup?.host || tg('ai.contextSession')}</span>
-            </>
-          ) : (
-            <span className="ai-session-context-host">{tg('ai.contextNone')}</span>
-          )}
-        </div>
-        {workingGoal ? (
-          <div className="ai-working-goal" title={workingGoal} data-testid="ai-working-goal">
-            <span className="ai-working-goal-label">{tg('wm.goal')}</span>
-            <span className="ai-working-goal-text">{workingGoal}</span>
+          <div className="titlebar-popover-wrap" ref={moreRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              type="button"
+              className="ai-icon-btn"
+              data-testid="ai-more"
+              title={tg('ai.moreMenu')}
+              aria-label={tg('ai.moreMenu')}
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              …
+            </button>
+            {moreOpen ? (
+              <div className="titlebar-popover" style={{ right: 0, left: 'auto', minWidth: 140 }}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="ai-explain-last-error"
+                  disabled={busy}
+                  onClick={() => {
+                    setMoreOpen(false)
+                    const sid = currentTerminalSelection()?.sessionId || lastErrorSessionId()
+                    const text = lastErrorFor(sid) ?? lastErrorFor(null)
+                    const target = lastErrorFor(sid) ? sid : lastErrorSessionId()
+                    if (!text || !target) {
+                      showToast(tg('a1.noError'), { kind: 'error' })
+                      return
+                    }
+                    requestAiExplain({ sessionId: target, text, source: 'auto' })
+                  }}
+                >
+                  {tg('a1.title')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="ai-explain-selection"
+                  disabled={busy}
+                  onClick={() => {
+                    setMoreOpen(false)
+                    const sel = currentTerminalSelection()
+                    void requestSelectionExplain({ sessionId: sel?.sessionId ?? '', text: sel?.text ?? '' }).then((status) => {
+                      if (status === 'empty') showToast(tg('a6.needSelection'), { kind: 'error' })
+                    })
+                  }}
+                >
+                  {tg('a1.explainSelection')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="ai-copy-last-reply"
+                  disabled={busy || !lastAssistantText(lines)}
+                  onClick={() => {
+                    setMoreOpen(false)
+                    const text = lastAssistantText(lines)
+                    if (!text) {
+                      showToast(tg('ai.noLastReply'), { kind: 'error' })
+                      return
+                    }
+                    void navigator.clipboard.writeText(text).then(
+                      () => showToast(tg('ai.copiedLastReply')),
+                      () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+                    )
+                  }}
+                >
+                  {tg('ai.copyLastReply')}
+                </button>
+                <button type="button" role="menuitem" disabled={busy} onClick={() => { setMoreOpen(false); clearConversation() }}>
+                  {tg('ai.clear')}
+                </button>
+                <button type="button" role="menuitem" disabled={busy || lines.length === 0} onClick={() => { setMoreOpen(false); undoLastRound() }} title={tg('ai.undoTip')}>
+                  {tg('ai.undo')}
+                </button>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-        <div className="ai-safety-row" data-testid="safety-scope">
-          <span
-            className={`safety-band-badge safety-band-${safetyBandTone(ladderBand)} is-active`}
-            data-testid="safety-band-badge"
-            data-band={ladderBand}
-            title={tg('safety.ladderHint')}
-          >
-            {tg(`safety.band.${ladderBand}` as 'safety.band.confirm')}
-          </span>
-          <label>
-            {tg('safety.session')}
-            <select
-              data-testid="safety-session"
-              value={isSafetyTier(sessionTier) ? sessionTier : ''}
-              onChange={(e) => saveScope('safetyTierSessions', persistKey, e.target.value)}
-            >
-              <option value="">{tg('safety.follow')}</option>
-              {SAFETY_TIERS.map((id) => (
-                <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {tg('safety.host')}
-            <select
-              data-testid="safety-host"
-              value={isSafetyTier(hostTier) ? hostTier : ''}
-              disabled={!hostKey}
-              onChange={(e) => saveScope('safetyTierHosts', hostKey, e.target.value)}
-            >
-              <option value="">{tg('safety.follow')}</option>
-              {SAFETY_TIERS.map((id) => (
-                <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
-              ))}
-            </select>
-          </label>
         </div>
       </div>
 
-<div className="ai-messages">
+      <div className="ai-messages">
         {lines.length === 0 && (
           <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">
             <p>{tg('ux64.emptyHint')}</p>
@@ -1331,7 +1379,7 @@ export default function AIPanel({
         {lines.map((l, i) => {
           if (l.role === 'user') {
             return (
-              <div key={i} className="msg user">
+              <div key={i} className="msg user" data-testid="ai-user-msg">
                 {l.content}
               </div>
             )
@@ -1399,7 +1447,7 @@ export default function AIPanel({
             }
             const card =
               s.action === 'command' ? 'command' : s.action === 'tool_call' ? 'tool' : 'conclusion'
-            const showRisk = s.action === 'end' || s.action === 'command' || Boolean(l.requestId)
+            const metaText = [s.description, s.notes, s.action === 'command' ? s.command : ''].filter(Boolean).join('\n')
             return (
               <div
                 key={i}
@@ -1408,21 +1456,20 @@ export default function AIPanel({
                 data-card={card}
                 data-confirm-id={l.requestId || undefined}
               >
-                {showRisk ? (
-                  <div className="ai-card-head">
-                    <RiskBadge level={s.riskLevel} />
-                  </div>
-                ) : null}
                 <div className="ai-card-body">
-                  <OpsReply text={s.description} confirm={false} />
+                  <OpsReply text={s.description} confirm={false} skipCommand={s.command} />
                 </div>
                 {s.notes ? (
                   <div className="ai-reply-notes">
-                    <OpsReply text={s.notes} confirm={false} />
+                    <OpsReply text={s.notes} confirm={false} skipCommand={s.command} />
                   </div>
                 ) : null}
                 {s.action === 'tool_call' && l.requestId ? (
                   <div className="ai-reply-cmd">
+                    <div className="ai-cmd-head">
+                      <span className="ai-code-lang">tool</span>
+                      <RiskBadge level={s.riskLevel} />
+                    </div>
                     <div className="ai-tool-need">
                       {tg('ux64.toolNeed')}
                       <code>{s.toolName ?? '—'}</code>
@@ -1462,7 +1509,21 @@ export default function AIPanel({
                   </div>
                 ) : null}
                 {s.action === 'command' && s.command?.trim() ? (
-                  <div className="ai-reply-cmd">
+                  <div className="ai-reply-cmd" data-testid="ai-cmd-block">
+                    <div className="ai-cmd-head">
+                      <span className="ai-code-lang">shell</span>
+                      <RiskBadge level={s.riskLevel} />
+                      <button
+                        type="button"
+                        className="ai-meta-btn ai-cmd-copy"
+                        data-testid="ai-cmd-copy"
+                        title={tg('common.copy')}
+                        aria-label={tg('common.copy')}
+                        onClick={() => copyText(s.command!)}
+                      >
+                        <Icon name="clipboard-list" size={14} />
+                      </button>
+                    </div>
                     <code className="ai-reply-cmd-code">{s.command}</code>
                     {commandActions({
                       command: s.command,
@@ -1487,17 +1548,7 @@ export default function AIPanel({
                     })}
                   </div>
                 ) : null}
-                {s.action === 'end' ? (
-                  <div className="ai-reply-actions">
-                    <button
-                      type="button"
-                      className="ai-fill-cmd-btn ai-btn-decline"
-                      onClick={() => void navigator.clipboard.writeText([s.description, s.notes].filter(Boolean).join('\n'))}
-                    >
-                      <span className="ai-btn-text">{tg('ux64.copy')}</span>
-                    </button>
-                  </div>
-                ) : null}
+                {s.action === 'end' || s.action === 'command' ? <ReplyMeta text={metaText} elapsedMs={l.elapsedMs} /> : null}
               </div>
             )
           }
@@ -1528,6 +1579,7 @@ export default function AIPanel({
                 onDecline={() => markDecision(i, 'skipped')}
               />
               {l.parseMiss ? <div className="ai-parse-fallback">{tg('ux64.parseFallback')}</div> : null}
+              <ReplyMeta text={l.content} elapsedMs={l.elapsedMs} />
             </div>
           )
         })}
@@ -1605,61 +1657,162 @@ export default function AIPanel({
       ) : null}
 
       <div className="ai-input-row">
-        <div className="ai-toolbar">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', margin: 0 }}>
-            <input
-              type="checkbox"
-              checked={includeTerminal}
-              onChange={(e) => setIncludeTerminal(e.target.checked)}
-              disabled={!activeSessionId}
-            />
-            {tg('ai.attachOutput')}
-          </label>
-          <button
-            type="button"
-            className="ai-fill-cmd-btn"
-            disabled={!activeSessionId || busy || snapshotBusy}
-            title={
-              activeSessionId
-                ? tg('ai.sendConsoleTip')
-                : tg('ai.needTab')
-            }
-            onClick={() => void sendConsoleToAi()}
-          >
-            {snapshotBusy ? tg('ai.readingTerm') : tg('ai.sendConsole')}
-          </button>
-          {!activeSessionId && <span style={{ color: 'var(--muted)', fontSize: 12 }}>{tg('ai.needSsh')}</span>}
-        </div>
         <div className="ai-composer" data-testid="ai-composer">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={tg('ai.placeholder')}
-          title={tg('ai.inputTip')}
-          onMouseUp={() => {
-            const ta = inputRef.current
-            if (!ta) return
-            const { selectionStart, selectionEnd } = ta
-            if (selectionStart === selectionEnd) return
-            const slice = ta.value.slice(selectionStart, selectionEnd)
-            if (slice) void navigator.clipboard.writeText(slice)
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            setInputMenu({ x: e.clientX, y: e.clientY })
-          }}
-          onKeyDown={(e) => {
-            // 聊天输入：默认按 Enter 发送；按 Shift+Enter 换行。
-            if (e.key === 'Enter' && !e.shiftKey) {
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={tg('ai.placeholder')}
+            title={tg('ai.inputTip')}
+            onMouseUp={() => {
+              const ta = inputRef.current
+              if (!ta) return
+              const { selectionStart, selectionEnd } = ta
+              if (selectionStart === selectionEnd) return
+              const slice = ta.value.slice(selectionStart, selectionEnd)
+              if (slice) void navigator.clipboard.writeText(slice)
+            }}
+            onContextMenu={(e) => {
               e.preventDefault()
-              void send()
-            }
-          }}
-        />
-        <Button variant="primary" className="ai-composer-send" data-testid="ai-send" disabled={busy || !input.trim()} onClick={() => void send()}>
-          {busy ? tg('ai.busy') : tg('ai.send')}
-        </Button>
+              setInputMenu({ x: e.clientX, y: e.clientY })
+            }}
+            onKeyDown={(e) => {
+              // 聊天输入：默认按 Enter 发送；按 Shift+Enter 换行。
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void send()
+              }
+            }}
+          />
+          <div className="ai-composer-bar" data-testid="ai-composer-bar">
+            {modelList.length > 0 ? (
+              <label
+                className="ai-chip ai-model-chip"
+                title={`${tg('ai.model')}: ${modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}`}
+              >
+                <select
+                  data-testid="ai-provider-select"
+                  value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
+                  onChange={(e) => onModelChange(e.target.value)}
+                  disabled={busy}
+                  aria-label={tg('ai.model')}
+                >
+                  {modelList.map((m) => (
+                    <option key={m} value={m} title={m}>
+                      {shortModelName(m)}
+                    </option>
+                  ))}
+                </select>
+                <Icon name="chevron-down" size={12} />
+              </label>
+            ) : null}
+            <div className="ai-chip-wrap" ref={safetyRef}>
+              <button
+                type="button"
+                className={`ai-chip ai-safety-chip safety-band-${safetyBandTone(ladderBand)}`}
+                data-testid="ai-safety-chip"
+                data-band={ladderBand}
+                aria-haspopup="dialog"
+                aria-expanded={safetyOpen}
+                title={tg('ai.safetyChipTip')}
+                onClick={() => setSafetyOpen((v) => !v)}
+              >
+                <Icon name="lock" size={12} />
+                <span>{tg(`safety.band.${ladderBand}` as 'safety.band.confirm')}</span>
+                <Icon name="chevron-down" size={12} />
+              </button>
+              {safetyOpen ? (
+                <div className="ai-safety-pop" role="dialog" aria-label={tg('ai.safetyChipTip')} data-testid="ai-safety-pop">
+              <div className="ai-safety-row" data-testid="safety-scope">
+                <span
+                  className={`safety-band-badge safety-band-${safetyBandTone(ladderBand)} is-active`}
+                  data-testid="safety-band-badge"
+                  data-band={ladderBand}
+                  title={tg('safety.ladderHint')}
+                >
+                  {tg(`safety.band.${ladderBand}` as 'safety.band.confirm')}
+                </span>
+                <label>
+                  {tg('safety.session')}
+                  <select
+                    data-testid="safety-session"
+                    value={isSafetyTier(sessionTier) ? sessionTier : ''}
+                    onChange={(e) => saveScope('safetyTierSessions', persistKey, e.target.value)}
+                  >
+                    <option value="">{tg('safety.follow')}</option>
+                    {SAFETY_TIERS.map((id) => (
+                      <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {tg('safety.host')}
+                  <select
+                    data-testid="safety-host"
+                    value={isSafetyTier(hostTier) ? hostTier : ''}
+                    disabled={!hostKey}
+                    onChange={(e) => saveScope('safetyTierHosts', hostKey, e.target.value)}
+                  >
+                    <option value="">{tg('safety.follow')}</option>
+                    {SAFETY_TIERS.map((id) => (
+                      <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className={`ai-chip ai-attach-chip${includeTerminal && activeSessionId ? ' is-on' : ''}`}
+              data-testid="ai-attach-output"
+              aria-pressed={includeTerminal && Boolean(activeSessionId)}
+              disabled={!activeSessionId}
+              title={activeSessionId ? tg('ai.attachOutput') : tg('ai.needSsh')}
+              aria-label={tg('ai.attachOutput')}
+              onClick={() => setIncludeTerminal((v) => !v)}
+            >
+              <Icon name="monitor" size={12} />
+            </button>
+            <button
+              type="button"
+              className="ai-chip ai-console-chip"
+              data-testid="ai-send-console"
+              disabled={!activeSessionId || busy || snapshotBusy}
+              title={activeSessionId ? tg('ai.sendConsoleTip') : tg('ai.needTab')}
+              aria-label={tg('ai.sendConsole')}
+              onClick={() => void sendConsoleToAi()}
+            >
+              <Icon name="file-text" size={12} />
+              <span>{snapshotBusy ? tg('ai.readingTerm') : tg('ai.consoleChip')}</span>
+            </button>
+            <span className="ai-composer-spacer" />
+            {busy ? (
+              <button
+                type="button"
+                className="ai-composer-send is-stop"
+                data-testid="ai-stop"
+                title={tg('ai.stopTip')}
+                aria-label={tg('ai.stop')}
+                onClick={stopGeneration}
+              >
+                <Icon name="square" size={12} />
+              </button>
+            ) : (
+              <Button
+                variant="primary"
+                className="ai-composer-send"
+                data-testid="ai-send"
+                disabled={!input.trim()}
+                title={tg('ai.send')}
+                aria-label={tg('ai.send')}
+                onClick={() => void send()}
+              >
+                <Icon name="arrow-up" size={14} strokeWidth={2} />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
       {inputMenu ? (

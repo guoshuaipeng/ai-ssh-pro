@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -71,7 +71,7 @@ for (const level of ['low', 'medium', 'high'] as const) {
 const panel = readFileSync('src/renderer/src/components/AIPanel.tsx', 'utf8')
 const css = readFileSync('src/renderer/src/styles.css', 'utf8')
 assert.ok(panel.includes('ai-dark-card'))
-assert.ok(panel.includes('ai-card-head'))
+assert.ok(panel.includes('ai-cmd-head'))
 assert.ok(panel.includes('ai-reply-cmd-code'))
 assert.ok(panel.includes('ai-tool-step'))
 assert.ok(panel.includes('data-testid="ai-reply-empty"'))

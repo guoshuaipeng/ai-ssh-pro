@@ -10,6 +10,6 @@ assert.match(chunk, /setSessionMenu\(null\)/)
 assert.match(chunk, /showToast\(tg\('g3\.monitor'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.56')
+assert.equal(pkg.version, '0.6.57')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-monitor-profile-toast/)
 console.log('test-monitor-profile-toast ok')

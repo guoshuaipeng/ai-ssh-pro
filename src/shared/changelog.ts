@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.57': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 对话面板改为简洁对话流：回复不再套卡片，模型、安全档、附带终端输出都在输入框里',
+        en: 'Cleaner AI chat: replies read as plain text; model, safety level and terminal output live in the composer'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    }
+  ],
   '0.6.56': [
     {
       icon: '▷',

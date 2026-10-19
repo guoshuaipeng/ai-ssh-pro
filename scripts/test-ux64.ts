@@ -98,7 +98,7 @@ ok(!panel.includes('autoApproved'), 'panel does not render auto-approved command
 ok(!panel.includes('className="msg assistant"'), 'assistant bubbles are not bare text')
 ok(panel.includes('ai-structured'), 'assistant replies use card chrome')
 ok(panel.includes('ai-dark-card'), 'assistant replies use a dark card')
-ok(panel.includes('ai-card-head'), 'risk sits in the card header')
+ok(panel.includes('ai-cmd-head'), 'M19: risk tag sits in the command block head')
 ok(panel.includes('data-testid="ai-reply-empty"'), 'first reply is a calm empty hint')
 ok(panel.includes('ai-tool-step'), 'tool steps are a compact strip')
 ok(!panel.includes('opacity: 0.85'), 'the empty hint is not a grey wall')
