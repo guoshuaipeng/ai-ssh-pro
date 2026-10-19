@@ -12,6 +12,6 @@ assert.match(i18n, /palette\.reconnectAllStarted': '正在重连 \{n\} 个会话
 assert.match(i18n, /palette\.reconnectAllStarted': 'Reconnecting \{n\} session\(s\) \(\{hosts\}\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.51')
+assert.equal(pkg.version, '0.6.52')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-reconnect-all-started-toast/)
 console.log('test-reconnect-all-started-toast ok')

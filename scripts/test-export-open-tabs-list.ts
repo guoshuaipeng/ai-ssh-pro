@@ -35,6 +35,6 @@ assert.match(app, /action === 'exportOpenTabsList'/)
 assert.match(app, /formatOpenTabsList/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.51')
+assert.equal(pkg.version, '0.6.52')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-export-open-tabs-list/)
 console.log('test-export-open-tabs-list ok')

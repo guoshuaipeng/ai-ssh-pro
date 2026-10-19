@@ -1871,3 +1871,65 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
   font-size: 12px;
   padding: 2px 6px;
 }
+
+/* ── M-polish-14 (0.6.52): evidence-based polish from the dark/light screenshot pass ── */
+
+/* G1 Settings nav: flat, left-aligned list rows (was a stack of bordered, centred buttons). */
+.settings-nav { gap: 2px; padding: var(--space-2); }
+.settings-nav button {
+  justify-content: flex-start;
+  text-align: left;
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: var(--fw-medium);
+  box-shadow: none;
+}
+.settings-nav button:hover:not(:disabled) { background: var(--color-row-hover-bg); color: var(--color-text-primary); }
+.settings-nav button.is-on {
+  background: var(--color-row-selected-bg);
+  color: var(--color-text-primary);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.settings-nav button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+
+/* G2 Fieldsets: tokenised hairline group instead of the UA 2px groove (glared in dark). */
+fieldset {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+legend {
+  padding: 0 var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--color-text-secondary);
+}
+
+/* G3 Empty state inside a dialog: no card-in-card (the dialog is already the elevated surface). */
+.modal-panel .modal-body .empty-state {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+/* G4 Command palette: one hairline under the input; focus tints it instead of stacking a 2px bar. */
+.cmdp-input:focus-visible {
+  /* The global input focus ring (M8) doubled up here; the palette input is borderless. */
+  outline: none;
+  box-shadow: none;
+  border-bottom-color: var(--color-accent);
+}
+.cmdp-group { color: var(--color-text-muted); opacity: 1; }
+
+/* G5 Ops home column head: the status line yields first so filter chips keep their words. */
+.l7b-head-status { flex: 0 1 auto; min-width: 0; font-size: var(--fs-xs); color: var(--color-text-muted); }
+.l7c-summary { flex: none; }
+@container (max-width: 1100px) {
+  .l7-health .l7b-head-status { display: none; }
+}

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.52
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-14（截图取证打磨）.** 用本地 Electron 截图（深/浅主题 × 运维首页宽/窄、终端、SFTP、设置、弹窗、CmdK、AI）对照 DataAI，修 5 处可见差距：设置导航由带边框居中按钮改为扁平左对齐列表行（选中 inset accent 条）；fieldset 去掉浏览器默认 2px 白边，改 hairline + 次级 legend；弹窗内空态不再卡片套卡片；命令面板输入框去掉叠加的全局焦点环（双线）并在分组标题下不重复分组名；运维首页窄面板健康列状态行先让位、≤1100 隐藏，“排除只读”不再被截断。新增 `scripts/screenshot-key-screens.mjs` 与仅截图模式可用的 `menu` 钩子。tipSuggest 不变。版本 0.6.52。 / Screenshot-driven polish: settings nav, fieldsets, dialog empty states, palette focus line, ops-home narrow head.
+
 ## v0.6.51
 
 Released 2026-10-19 (CST).

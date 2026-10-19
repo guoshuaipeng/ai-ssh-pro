@@ -11,7 +11,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.51')
+assert.equal(pkg.version, '0.6.52')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -48,7 +48,7 @@ assert.match(css, /button\.layout-toggle-btn\s*\{[^}]*min-height:\s*32px/)
 assert.match(css, /button\.layout-toggle-btn\s*\{[^}]*transition:/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.51'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.52'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.38'), changelog.indexOf('## v0.6.37'))
 assert.ok(note.includes('M-polish-2') || note.includes('质感专项'))

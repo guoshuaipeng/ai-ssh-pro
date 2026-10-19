@@ -6472,6 +6472,10 @@ export default function App() {
         } else showToast('No profile for SFTP screenshot')
         return
       }
+      if (detail.op === 'menu') {
+        handleTitlebarMenuAction(detail.action as TitlebarMenuAction)
+        return
+      }
       if (detail.op === 'sftpMockFill') {
         // Handled by SftpPanel listeners; App no-ops so the event can still bubble.
         return
@@ -6494,7 +6498,7 @@ export default function App() {
     }
     window.addEventListener(SCREENSHOT_EVENT, onShot)
     return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
-  }, [ensureAiVisible, openSftpFromHost, openSftpTransfer, persistSessionState, folders, locale])
+  }, [ensureAiVisible, openSftpFromHost, openSftpTransfer, persistSessionState, folders, locale, handleTitlebarMenuAction])
   const closeTour = useCallback(() => {
     try {
       localStorage.setItem(TOUR_DONE_KEY, '1')

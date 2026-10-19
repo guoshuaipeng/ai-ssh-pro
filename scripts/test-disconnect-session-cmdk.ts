@@ -22,6 +22,6 @@ assert.ok(i18n.includes("'confirm.disconnectSession'"))
 assert.ok(i18n.includes("'sess.disconnectedToast'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.51')
+assert.equal(pkg.version, '0.6.52')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-disconnect-session-cmdk/)
 console.log('test-disconnect-session-cmdk ok')

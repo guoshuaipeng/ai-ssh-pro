@@ -230,7 +230,10 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
               primary={{ label: t('pf4.paletteClear'), onClick: () => setQ('') }}
             />
           ) : null}
-          {laid.rows.map((row, rowAt) => {
+          {(() => {
+            // Rows under a group header don't repeat the group name; notes (e.g. host) still show.
+            const grouped = laid.rows.some((r) => r.kind === 'header')
+            return laid.rows.map((row, rowAt) => {
             if (row.kind === 'header') {
               const key = CAT_KEY[row.id]
               return (
@@ -253,11 +256,14 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
                 onClick={() => run(e)}
               >
                 <span className="cmdp-label">{e.label}</span>
-                <span className="cmdp-group">{e.note ? e.note : t(CAT_KEY[e.category] ?? 'palette.cat.help')}</span>
+                {e.note || !grouped ? (
+                  <span className="cmdp-group">{e.note ? e.note : t(CAT_KEY[e.category] ?? 'palette.cat.help')}</span>
+                ) : null}
                 {e.shortcut ? <kbd className="cmdp-kbd">{e.shortcut}</kbd> : null}
               </button>
             )
-          })}
+            })
+          })()}
         </div>
         <div className="cmdp-foot">{t('cmdp.hint')} · {t('cmdp.snipHint')}</div>
       </div>

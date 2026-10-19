@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.52': [
+    {
+      icon: '▷',
+      text: {
+        zh: '设置导航、命令面板与弹窗空态更清爽',
+        en: 'Cleaner settings nav, command palette and dialog empty states'
+      },
+      where: { zh: '设置 / 命令面板', en: 'Settings / Command palette' }
+    }
+  ],
   '0.6.51': [
     {
       icon: '▷',

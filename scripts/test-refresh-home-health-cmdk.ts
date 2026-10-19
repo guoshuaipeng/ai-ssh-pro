@@ -13,6 +13,6 @@ assert.match(app, /action === 'refreshHomeHealth'/)
 assert.match(app, /l7b\.needHome/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.51')
+assert.equal(pkg.version, '0.6.52')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-refresh-home-health-cmdk/)
 console.log('test-refresh-home-health-cmdk ok')

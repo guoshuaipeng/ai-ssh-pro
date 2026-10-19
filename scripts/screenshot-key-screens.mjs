@@ -1,0 +1,254 @@
+import { spawn } from 'node:child_process'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, existsSync, copyFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { createRequire } from 'node:module'
+
+const repo = resolve(import.meta.dirname, '..')
+// Key-screen visual QA (dark + light): node scripts/screenshot-key-screens.mjs [outDir]  (needs npm run build)
+const outDir = resolve(process.argv[2] || join(process.env.TEMP || tmpdir(), 'aiss-key-screens'))
+const tempDir = join(process.env.TEMP || tmpdir(), 'aiss-key-screens-tmp')
+const mainJs = join(repo, 'out', 'main', 'index.js')
+if (!existsSync(mainJs)) throw new Error('run npm run build first')
+mkdirSync(outDir, { recursive: true })
+mkdirSync(tempDir, { recursive: true })
+
+const root = mkdtempSync(join(tmpdir(), 'aissh-demo-'))
+const home = join(root, 'home')
+const appData = join(root, 'AppData', 'Roaming')
+const userData = join(appData, 'ai-ssh-pro')
+for (const d of [home, appData, userData]) mkdirSync(d, { recursive: true })
+const now = Date.now()
+writeFileSync(
+  join(userData, 'ai-ssh-pro.json'),
+  JSON.stringify({
+    savedSessions: {
+      folders: [
+        { id: 'f-web', name: 'Demo · Web' },
+        { id: 'f-db', name: 'Demo · Database' }
+      ],
+      profiles: [
+        { id: 'p1', label: 'demo-web-01', host: '10.0.0.11', port: 22, username: 'ops', folderId: 'f-web' },
+        { id: 'p2', label: 'demo-mysql', host: '10.0.1.21', port: 22, username: 'dba', folderId: 'f-db' }
+      ]
+    },
+    recentConnections: [
+      {
+        id: 'ops@10.0.0.11:22',
+        host: '10.0.0.11',
+        port: 22,
+        username: 'ops',
+        label: 'demo-web-01',
+        lastConnectedAt: now - 60_000,
+        pinned: true
+      }
+    ],
+    locale: 'zh-CN'
+  })
+)
+
+const wrapperDir = join(root, 'wrapper')
+mkdirSync(wrapperDir)
+writeFileSync(join(wrapperDir, 'package.json'), JSON.stringify({ name: 'ai-ssh-pro', version: '0.0.0-demo', type: 'module', main: 'main.mjs' }))
+writeFileSync(
+  join(wrapperDir, 'main.mjs'),
+  `
+import { app, BrowserWindow } from 'electron'
+import { writeFileSync, copyFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+app.setPath('appData', ${JSON.stringify(appData)})
+app.setPath('userData', ${JSON.stringify(userData)})
+const outDir = ${JSON.stringify(outDir)}
+const tempDir = ${JSON.stringify(tempDir)}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const W = [1400, 860], N = [960, 760]
+const base = [
+  { name: 'home-wide', size: W, steps: [{ op: 'menu', action: 'opsHome' }], wait: 1200 },
+  { name: 'home-narrow', size: N, steps: [{ op: 'menu', action: 'opsHome' }], wait: 1200 },
+  { name: 'terminal', size: W, steps: [{ op: 'menu', action: 'demoHost' }], wait: 3200 },
+  { name: 'sftp', size: W, steps: [{ op: 'sftpDual' }], wait: 2600 },
+  { name: 'settings', size: W, steps: [{ op: 'menu', action: 'settings' }], wait: 1200 },
+  { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
+  { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
+  { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'ai' }], wait: 1400 }
+]
+const shots = [
+  ...base.map((s) => ({ ...s, theme: 'github-dark', file: 'dark-' + s.name + '.png' })),
+  ...base.map((s) => ({ ...s, theme: 'light', file: 'light-' + s.name + '.png' }))
+]
+
+async function seed(win) {
+  await win.webContents.executeJavaScript(\`
+    localStorage.setItem('aiss.screenshot.hooks', '1');
+    localStorage.setItem('aiss.prefs.onboarding.quickDone', '1');
+    localStorage.setItem('aiss.tourDone', '1');
+    localStorage.setItem('aiss.prefs.welcomeDismissed', '1');
+    localStorage.setItem('aiss.prefs.welcomeCompleted', '1');
+    localStorage.setItem('aiss.prefs.onboarding.fresh', '0');
+    localStorage.setItem('aiss.prefs.firstWeekTipsDismissed', 'true');
+    true
+  \`, true)
+  await win.webContents.executeJavaScript(\`
+    (async () => {
+      if (!window.aiss?.ai?.setSettings) return false
+      await window.aiss.ai.setSettings({
+        providers: [{
+          id: 'dashscope',
+          name: 'Screenshot Demo',
+          baseURL: 'https://example.invalid/v1',
+          apiKey: 'sk-screenshot-demo',
+          modelList: ['demo-model']
+        }],
+        activeProviderId: 'dashscope',
+        model: 'demo-model'
+      })
+      window.dispatchEvent(new Event('aiss-ai-settings-saved'))
+      return true
+    })()
+  \`, true)
+}
+
+async function fire(win, detail) {
+  await win.webContents.executeJavaScript(
+    'window.dispatchEvent(new CustomEvent("aiss-screenshot", { detail: ' + JSON.stringify(detail) + ' }))',
+    true
+  )
+}
+
+async function runPrep(win, prep) {
+  for (const step of prep || []) {
+    if (step === 'closeModals') {
+      await fire(win, { op: 'closeModals' })
+      await sleep(300)
+      continue
+    }
+    const detail =
+      step === 'dismissProduct' ? { op: 'dismissProduct' } :
+      step === 'knownHosts' ? { op: 'knownHosts' } :
+      step === 'sftp' ? { op: 'sftp' } :
+      step === 'sftpDual' ? { op: 'sftpDual' } :
+      step === 'aiConfirm' ? { op: 'aiConfirm', preview: 'systemctl status nginx --no-pager' } :
+      step === 'themeLight' ? { op: 'theme', id: 'light' } :
+      null
+    if (detail) {
+      await fire(win, detail)
+      await sleep(detail.op === 'aiConfirm' ? 800 : detail.op === 'sftpDual' ? 1400 : 300)
+      if (detail.op === 'aiConfirm') {
+        await fire(win, detail)
+        await sleep(600)
+      }
+      if (detail.op === 'knownHosts') {
+        await sleep(400)
+      }
+    }
+  }
+}
+
+async function probe(win) {
+  return await win.webContents.executeJavaScript(\`
+    (() => {
+      const theme = document.documentElement.getAttribute('data-ui-theme') || ''
+      return JSON.stringify({
+        theme,
+        ux60: !!document.querySelector('[data-testid=ux60]'),
+        tour: !!document.querySelector('.tour-root'),
+        cmdp: !!document.querySelector('.cmdp-backdrop'),
+        kh: !!document.querySelector('[data-testid=known-hosts-modal]') || !!document.querySelector('[data-testid=known-hosts-modal-backdrop]'),
+        aiDock: !!document.querySelector('[data-testid=ai-pending-confirm]'),
+        aiEmpty: !!document.querySelector('[data-testid=ai-empty-state]'),
+        sftpTab: !!document.querySelector('.tab-kind-sftp') || !!document.querySelector('[data-testid=sftp-root]') || !!document.querySelector('.sftp-layout'),
+        sftpDual: !!document.querySelector('[data-testid=sftp-dual]'),
+        sftpMock: document.querySelector('[data-testid=sftp-dual]')?.getAttribute('data-screenshot-mock') === '1',
+        sftpLocalRows: document.querySelectorAll('[data-testid=sftp-pane-local] tbody tr').length,
+        sftpRemoteRows: document.querySelectorAll('[data-testid=sftp-pane-remote] tbody tr').length,
+
+        light: theme === 'light' || theme === 'sand'
+      })
+    })()
+  \`, true)
+}
+
+let done = false
+app.on('browser-window-created', (_e, win) => {
+  if (done) return
+  done = true
+  win.webContents.on('render-process-gone', (_e, d) => console.log('[cov] gone', JSON.stringify(d)))
+  win.webContents.on('console-message', (_e, level, msg) => { if (level >= 2) console.log('[cov] console', String(msg).slice(0, 300)) })
+  win.webContents.once('did-finish-load', async () => {
+    try {
+      win.setContentSize(1400, 860)
+      await sleep(4000)
+      await seed(win)
+      await fire(win, { op: 'dismissProduct' })
+      await sleep(600)
+      mkdirSync(tempDir, { recursive: true })
+      win.webContents.setBackgroundThrottling(false)
+      win.show(); win.focus()
+      // Hide transient toasts without touching React-owned nodes.
+      await win.webContents.insertCSS('.toast-stack { visibility: hidden !important; }')
+      let theme = ''
+      for (const s of shots) {
+        if (s.theme !== theme) { await fire(win, { op: 'theme', id: s.theme }); theme = s.theme; await sleep(500) }
+        if (win.isMaximized()) win.unmaximize()
+        win.setMinimumSize(640, 480)
+        for (let k = 0; k < 8; k++) {
+          win.setContentSize(s.size[0], s.size[1])
+          await sleep(200)
+          const [cw, ch] = win.getContentSize()
+          if (cw === s.size[0] && ch === s.size[1]) break
+        }
+        await sleep(400)
+        for (const st of s.steps) { await fire(win, st); await sleep(500) }
+        await sleep(s.wait || 800)
+        const p = await probe(win)
+        const dom = await win.webContents.executeJavaScript('(document.getElementById(\"root\")?.innerHTML.length || 0) + \" \" + location.href.slice(0, 80)', true).catch((e) => 'ERR ' + e)
+        console.log('[cov] dom', dom)
+        console.log('[cov]', s.file, p)
+        // Make sure the frame we grab is the one after the steps (capturePage can return a stale frame).
+        await Promise.race([win.webContents.executeJavaScript('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))', true), sleep(600)])
+        win.webContents.invalidate()
+        await sleep(350)
+        await Promise.race([win.webContents.capturePage(), sleep(1500)])
+        await sleep(150)
+        const png = (await win.webContents.capturePage()).toPNG()
+        console.log('[cov] size', JSON.stringify(win.getContentSize()))
+        const dest = join(outDir, s.file)
+        writeFileSync(dest, png)
+        if (s.close) {
+          await fire(win, { op: 'closeModals' })
+          win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+          win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+          await sleep(400)
+        }
+      }      console.log('[cov] done ->', outDir, 'and', tempDir)
+    } catch (e) {
+      console.error('[cov] failed', e)
+      app.exit(1)
+      return
+    }
+    app.exit(0)
+  })
+})
+setTimeout(() => { console.error('[cov] timeout'); app.exit(2) }, 240000)
+await import(${JSON.stringify(pathToFileURL(mainJs).href)})
+`
+)
+
+const electron = createRequire(import.meta.url)('electron')
+const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: appData, LOCALAPPDATA: join(root, 'AppData', 'Local') }
+for (const k of Object.keys(env)) if (k.startsWith('AISS_') || k === 'ELECTRON_RENDERER_URL') delete env[k]
+const child = spawn(electron, [wrapperDir], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+child.stdout.on('data', (d) => { const s = String(d); if (s.includes('[cov]')) process.stdout.write(s) })
+child.stderr.on('data', (d) => { const s = String(d); if (s.includes('[cov]') || s.includes('Error')) process.stderr.write(s) })
+const killTree = () => {
+  if (process.platform === 'win32') spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'])
+  else child.kill('SIGKILL')
+}
+const guard = setTimeout(killTree, 250000)
+child.on('exit', (code) => {
+  clearTimeout(guard)
+  try { rmSync(root, { recursive: true, force: true }) } catch {}
+  console.log('[cov] exit', code)
+  process.exit(code ?? 1)
+})

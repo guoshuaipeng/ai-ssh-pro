@@ -165,7 +165,7 @@ const opsButtons = toolbar.slice(opsStart, toolbar.indexOf(']', opsStart))
 assert.equal((opsButtons.match(/id: '/g) ?? []).length, 3, 'no new toolbar primary')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.51')
+assert.equal(pkg.version, '0.6.52')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-png6-import-value\.ts/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')

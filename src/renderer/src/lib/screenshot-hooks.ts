@@ -19,6 +19,8 @@ export type ScreenshotOp =
   | { op: "theme"; id: "light" | "github-dark" | "sand" | "slate" }
   | { op: "dismissProduct" }
   | { op: "closeModals" }
+  /** Visual QA: run a titlebar menu action (opsHome, settings, commandPalette, demoHost…). */
+  | { op: "menu"; action: string }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 
