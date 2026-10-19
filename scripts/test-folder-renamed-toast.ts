@@ -11,6 +11,6 @@ assert.ok(i18n.includes("app.folderRenamed': '已重命名为「{name}」'"))
 assert.ok(i18n.includes("app.folderRenamed': 'Renamed to"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.42')
+assert.equal(pkg.version, '0.6.43')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-folder-renamed-toast/)
 console.log('test-folder-renamed-toast ok')

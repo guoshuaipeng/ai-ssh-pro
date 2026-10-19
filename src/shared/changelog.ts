@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.43': [
+    {
+      icon: '▷',
+      text: {
+        zh: '空态与 Toast 更安静，焦点环与选中对比更清晰',
+        en: 'Calmer empty states and toasts; clearer focus rings and selection'
+      },
+      where: { zh: '界面质感', en: 'UI feel' }
+    }
+  ],
   '0.6.42': [
     {
       icon: '▷',

@@ -10,6 +10,6 @@ assert.match(chunk, /showToast\(tg\('ai\.noLastAsk'\), \{ kind: 'error' \}\)/)
 assert.match(chunk, /queueMicrotask\(\(\) => inputRef\.current\?\.focus\(\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.42')
+assert.equal(pkg.version, '0.6.43')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-refill-ask-empty-toast/)
 console.log('test-refill-ask-empty-toast ok')

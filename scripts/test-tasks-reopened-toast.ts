@@ -13,6 +13,6 @@ assert.ok(i18n.includes("l7.tasksReopened': '已重新打开入门任务'"))
 assert.ok(i18n.includes("l7.tasksReopened': 'Getting started tasks reopened'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.42')
+assert.equal(pkg.version, '0.6.43')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-tasks-reopened-toast/)
 console.log('test-tasks-reopened-toast ok')

@@ -13,6 +13,6 @@ assert.ok(i18n.includes("toolbar.openGithub': '在浏览器打开 GitHub 仓库'
 assert.ok(i18n.includes("toolbar.openGithub': 'Open the GitHub repository in a browser'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.42')
+assert.equal(pkg.version, '0.6.43')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-github-open-toast/)
 console.log('test-github-open-toast ok')

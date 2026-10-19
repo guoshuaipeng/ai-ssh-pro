@@ -117,6 +117,6 @@ const opsEnd = toolbar.indexOf(']', opsStart)
 assert.equal((toolbar.slice(opsStart, opsEnd).match(/id: '/g) ?? []).length, 3)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.42')
+assert.equal(pkg.version, '0.6.43')
 
 console.log('test-polish-1-full ok')

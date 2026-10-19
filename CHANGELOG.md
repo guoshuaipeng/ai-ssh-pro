@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.43
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-5（空态/焦点/Toast/选中）.** 空态改为静音卡片（描边 + elevated 底 + accent 图标井）；Toast 圆角与 success/warn 边色；输入/告警面板 `:focus-visible` 统一；激活标签 kind 图标走 accent；移除未用 `ai-sparkle.png`。tipSuggest 不变。版本 0.6.43。 / **Feel track M-polish-5 (empty / focus / toast / selection).** Empty states use calm cards (border + elevated + accent icon well). Toast radius and success/warn border tints. Shared `:focus-visible` on inputs/alert panel. Active tab kind icon uses accent. Drop unused `ai-sparkle.png`. tipSuggest unchanged. Package 0.6.43.
+
 ## v0.6.42
 
 Released 2026-10-19 (CST).

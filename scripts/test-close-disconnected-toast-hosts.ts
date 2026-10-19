@@ -11,6 +11,6 @@ assert.match(i18n, /tab\.list\.closedToast': '已关闭 \{n\} 个断开的会话
 assert.match(i18n, /tab\.list\.closedToast': 'Closed \{n\} disconnected session\(s\) \(\{hosts\}\)'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.42')
+assert.equal(pkg.version, '0.6.43')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-close-disconnected-toast-hosts/)
 console.log('test-close-disconnected-toast-hosts ok')

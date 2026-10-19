@@ -12,6 +12,6 @@ assert.ok(i18n.includes("localShell.opened': '已打开本机 Shell'"))
 assert.ok(i18n.includes("localShell.opened': 'Local shell opened'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.42')
+assert.equal(pkg.version, '0.6.43')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-local-shell-toast/)
 console.log('test-local-shell-toast ok')
