@@ -1029,6 +1029,17 @@ export default function App() {
   const connectManyRef = useRef<(hosts: BatchHost[]) => Promise<void>>(async () => {})
 
   const activeTab = tabs.find((t) => t.tabId === activeTabId) ?? null
+  // M22: per-tab temporary AI policy, memory only. Dropped when the tab closes or disconnects.
+  const [tempPolicyByTab, setTempPolicyByTab] = useState<Record<string, AiPolicy>>({})
+  useEffect(() => {
+    setTempPolicyByTab((prev) => {
+      const ids = Object.keys(prev)
+      if (ids.length === 0) return prev
+      const keep = ids.filter((id) => tabs.some((t) => t.tabId === id && t.status === 'connected'))
+      if (keep.length === ids.length) return prev
+      return Object.fromEntries(keep.map((id) => [id, prev[id]]))
+    })
+  }, [tabs])
   const activeTabProfile = activeTab?.profileId ? sessionState.profiles.find((p) => p.id === activeTab.profileId) ?? null : null
   const activeIsSession = !activeTab?.view || activeTab.view === 'session'
   const activeSessionId =
@@ -8185,6 +8196,12 @@ export default function App() {
                       const id = inventoryLink?.profileId
                       if (id) setProfileProtection([id], level)
                     }}
+                    aiPolicy={profiles.find((p) => p.id === inventoryLink?.profileId)?.aiPolicy}
+                    onAiPolicyChange={
+                      inventoryLink?.profileId && !profiles.find((p) => p.id === inventoryLink?.profileId)?.demo
+                        ? (policy) => setHostAiPolicy(inventoryLink.profileId!, policy)
+                        : undefined
+                    }
                     onAuditChange={(on) => {
                       setAuditEnabled(on)
                       setAuditOn(on)
@@ -9215,6 +9232,18 @@ export default function App() {
               elevated={activeSessionId ? guardForSession(activeSessionId).elevated : false}
               hostPolicy={activeTabProfile?.aiPolicy}
               onSetHostPolicy={activeTabProfile && !activeTabProfile.demo ? (policy) => setHostAiPolicy(activeTabProfile.id, policy) : undefined}
+              tempPolicy={activeTabId ? tempPolicyByTab[activeTabId] : undefined}
+              onSetTempPolicy={
+                activeTabId
+                  ? (policy) =>
+                      setTempPolicyByTab((prev) => {
+                        const next = { ...prev }
+                        if (policy) next[activeTabId] = policy
+                        else delete next[activeTabId]
+                        return next
+                      })
+                  : undefined
+              }
               production={activeSessionId ? guardForSession(activeSessionId).level === 'production' && !guardForSession(activeSessionId).elevated : false}
               hostName={activeTab?.connectOpts.host ?? null}
               onSwitchToConversation={(key) => {

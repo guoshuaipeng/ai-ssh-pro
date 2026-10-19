@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.60
+
+Released 2026-10-19 (CST).
+
+- **M22 主机“安全”卡片 + 安全芯片显示实际生效策略.** 主机设置新增“安全”卡片：保护级别（普通 / 生产 / 只读）+ AI 执行策略（跟随全局或三选一）+“实际生效：X（受生产保护限制）”。AI 输入区安全芯片显示 `resolveAiPolicy` 算出的实际生效策略，被保护降级时带标记并在提示中说明原因；弹层中可为此标签页临时调整策略（仅内存、按标签页，关闭或断开即清除，主进程同样遵守，仍受保护限制），并有一行来源说明（临时 / 此主机 / 全局）。 Host Safety card and an AI chip that shows the effective policy, cap reason, a per-tab temporary override and its source.
+
 ## v0.6.59
 
 Released 2026-10-19 (CST).

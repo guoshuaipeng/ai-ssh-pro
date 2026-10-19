@@ -9,6 +9,7 @@ import type {
 import EmptyState from './EmptyState'
 import NotesMarkdownPreview from './NotesMarkdownPreview'
 import ProtectionSection from './ProtectionSection'
+import HostSafetyCard from './HostSafetyCard'
 import { tg } from '../lib/i18n'
 import Icon, { Twist } from './Icon'
 import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, TREE_CHEVRON_SIZE } from './emptyIcons'
@@ -44,6 +45,9 @@ type Props = {
   autoRecord?: boolean
   onAutoRecord?: (on: boolean) => void
   onRecordings?: () => void
+  /** M22: this host's AI policy (undefined = follow global) for the 安全 card. */
+  aiPolicy?: import('@shared/ai-policy').AiPolicy
+  onAiPolicyChange?: (policy: import('@shared/ai-policy').AiPolicy | undefined) => void
 }
 
 type InventoryApi = {
@@ -100,7 +104,7 @@ function emptyForm(link?: HostInventoryLink): {
   }
 }
 
-export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool, protectionLevel, auditOn, suggestProd, scrollToGuard, onProtectionChange, onAuditChange, onOpenAudit, onElevate, onOpenGate, autoRecord, onAutoRecord, onRecordings }: Props) {
+export default function HostInventoryModal({ onClose, link, onUpserted, onConnect, onOpenTool, protectionLevel, auditOn, suggestProd, scrollToGuard, onProtectionChange, onAuditChange, onOpenAudit, onElevate, onOpenGate, autoRecord, onAutoRecord, onRecordings, aiPolicy, onAiPolicyChange }: Props) {
   /** 从会话右键打开：只编辑该主机，不显示档案列表 */
   const focused = Boolean(
     link && (link.hostInventoryId?.trim() || link.profileId?.trim() || link.host?.trim())
@@ -806,6 +810,14 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     <div className="inv20-form" onChange={() => setMetaDirty(true)}>{metaFields}</div>
                   )}
                 </section>
+                {onProtectionChange && onAiPolicyChange ? (
+                  <HostSafetyCard
+                    level={protectionLevel ?? 'normal'}
+                    aiPolicy={aiPolicy}
+                    onLevel={onProtectionChange}
+                    onAiPolicy={onAiPolicyChange}
+                  />
+                ) : null}
                 {onProtectionChange && onAuditChange && onOpenAudit && onElevate ? (
                   <details className="inv20-advanced" data-testid="host-profile-advanced">
                     <summary>{tg('settings.advanced')}</summary>

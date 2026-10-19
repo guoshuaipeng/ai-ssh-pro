@@ -13,6 +13,6 @@ assert.match(app, /action === 'setDryRunReminder'/)
 assert.match(app, /REMINDER_FILTER_EVENT/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.59')
+assert.equal(pkg.version, '0.6.60')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-dry-run-reminder-cmdk/)
 console.log('test-dry-run-reminder-cmdk ok')

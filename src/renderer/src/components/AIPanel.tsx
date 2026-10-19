@@ -20,6 +20,7 @@ import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
+import { policyCapNote } from './HostSafetyCard'
 import Button from './ui/Button'
 import Icon from './Icon'
 import type { ProtectionLevel } from '@shared/protection'
@@ -47,6 +48,9 @@ type Props = {
   hostPolicy?: AiPolicy
   /** M21: change the bound host's policy; absent when the tab has no saved host. */
   onSetHostPolicy?: (policy: AiPolicy | undefined) => void
+  /** M22: in-memory override for this tab only (cleared on close / disconnect). */
+  tempPolicy?: AiPolicy
+  onSetTempPolicy?: (policy: AiPolicy | undefined) => void
   hostName?: string | null
   onOpenSettings?: () => void
   /** When Agree needs an SSH tab: focus a live session or open New connection. */
@@ -401,6 +405,8 @@ export default function AIPanel({
   elevated = false,
   hostPolicy,
   onSetHostPolicy,
+  tempPolicy,
+  onSetTempPolicy,
   hostName = null,
   onOpenSettings,
   onNeedSession,
@@ -830,6 +836,7 @@ export default function AIPanel({
           protection,
           elevated,
           ...(hostPolicy ? { hostPolicy } : {}),
+          ...(tempPolicy ? { tempPolicy } : {}),
           hostId: inventoryLookup?.profileId || hostInventoryId || undefined,
           hostName: hostName || inventoryLookup?.host,
           sessionId: persistKey || undefined
@@ -1267,6 +1274,7 @@ export default function AIPanel({
       hostName={hostName || inventoryLookup?.host}
       production={production}
       hostPolicy={hostPolicy}
+      tempPolicy={tempPolicy}
       protection={{ level: protection, elevated }}
       settings={safetySettings}
     />
@@ -1276,8 +1284,11 @@ export default function AIPanel({
   const aiPolicy = resolveAiPolicy({
     settings: safetySettings,
     hostPolicy,
+    tempOverride: tempPolicy,
     protection: activeSessionId ? { level: protection, elevated } : null
   })
+  const policyCap = aiPolicy.cappedBy ? policyCapNote(aiPolicy.cappedBy) : ''
+  const policyChipTitle = `${tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}${policyCap} · ${tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}`
   const ladderBand = safetyLadderBand(policyTier(aiPolicy.effective))
 
   const pendingLine =
@@ -1800,16 +1811,21 @@ export default function AIPanel({
             <div className="ai-chip-wrap" ref={safetyRef}>
               <button
                 type="button"
-                className={`ai-chip ai-safety-chip safety-band-${safetyBandTone(ladderBand)}`}
+                className={`ai-chip ai-safety-chip safety-band-${safetyBandTone(ladderBand)}${aiPolicy.source === 'temp' ? ' is-temp' : ''}`}
                 data-testid="ai-safety-chip"
                 data-band={ladderBand}
+                data-policy={aiPolicy.effective}
+                data-source={aiPolicy.source}
+                data-capped={aiPolicy.cappedBy ?? ''}
                 aria-haspopup="dialog"
                 aria-expanded={safetyOpen}
-                title={tg('ai.safetyChipTip')}
+                aria-label={`${tg('ai.safetyChipTip')}: ${policyChipTitle}`}
+                title={policyChipTitle}
                 onClick={() => setSafetyOpen((v) => !v)}
               >
                 <Icon name="lock" size={12} />
                 <span>{tg(`policy.${aiPolicy.effective}` as 'policy.ask')}</span>
+                {aiPolicy.cappedBy ? <span className="ai-chip-cap" data-testid="ai-safety-cap" aria-hidden="true">·</span> : null}
                 <Icon name="chevron-down" size={12} />
               </button>
               {safetyOpen ? (
@@ -1838,6 +1854,30 @@ export default function AIPanel({
                     ))}
                   </select>
                 </label>
+                <label>
+                  {tg('policy.tempTab')}
+                  <select
+                    data-testid="safety-temp"
+                    value={isAiPolicy(tempPolicy) ? tempPolicy : ''}
+                    disabled={!onSetTempPolicy || !activeSessionId}
+                    onChange={(e) => onSetTempPolicy?.(isAiPolicy(e.target.value) ? e.target.value : undefined)}
+                  >
+                    <option value="">{tg('policy.tempNone')}</option>
+                    {AI_POLICIES.map((id) => (
+                      <option key={id} value={id}>{tg(`policy.${id}` as 'policy.ask')}</option>
+                    ))}
+                  </select>
+                </label>
+                <p className="ai-policy-effective" data-testid="ai-policy-effective" data-capped={aiPolicy.cappedBy ?? ''}>
+                  {tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}
+                  {policyCap ? <span className="ai-policy-cap">{policyCap}</span> : null}
+                </p>
+                <p className="ai-policy-source" data-testid="ai-policy-source" data-source={aiPolicy.source}>
+                  {tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}
+                  {aiPolicy.source !== 'global' && aiPolicy.chosen !== aiPolicy.effective
+                    ? ` · ${tg('policy.chosen', { policy: tg(`policy.${aiPolicy.chosen}` as 'policy.ask') })}`
+                    : ''}
+                </p>
               </div>
                 </div>
               ) : null}

@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.60': [
+    {
+      icon: '▷',
+      text: {
+        zh: '主机设置新增“安全”卡片：保护级别、AI 执行策略（跟随全局或三选一），并显示实际生效的策略及限制原因',
+        en: 'Host settings get a Safety card: protection level, AI policy (global or one of three), and the policy actually in effect with the reason it is limited'
+      },
+      where: { zh: '主机档案', en: 'Host profile' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 输入区安全芯片显示实际生效的策略；弹层可为此标签页临时调整（关闭或断开后恢复），并说明来源',
+        en: 'The AI safety chip shows the policy in effect; its popover adds a temporary per-tab override (resets on close or disconnect) and a source line'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    }
+  ],
   '0.6.59': [
     {
       icon: '▷',

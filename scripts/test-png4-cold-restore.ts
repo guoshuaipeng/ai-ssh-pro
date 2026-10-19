@@ -12,7 +12,7 @@ const zh = (key: Parameters<typeof translate>[1]) => translate('zh-CN', key)
 const en = (key: Parameters<typeof translate>[1]) => translate('en', key)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.59')
+assert.equal(pkg.version, '0.6.60')
 
 function memoryStore() {
   const mem = new Map<string, string>()

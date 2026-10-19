@@ -2812,7 +2812,18 @@ const zhCN = {
   'policy.autoHint': '中低风险改动直接执行；高风险仍要你同意。生产主机上自动降为改动前问我。',
   'policy.autoHighRisk': '放手执行时，高风险命令也直接执行',
   'policy.autoHighRiskHint': '默认关闭。生产主机和只读主机永远不会自动执行高风险。',
-  'policy.overrides': '{n} 台主机单独设置 ›'
+  'policy.overrides': '{n} 台主机单独设置 ›',
+  'policy.followGlobal': '跟随全局（{policy}）',
+  'policy.effective': '实际生效：{policy}',
+  'policy.capProduction': '（受生产保护限制）',
+  'policy.capReadonly': '（受只读保护限制）',
+  'policy.tempTab': '临时（仅此标签页）',
+  'policy.tempNone': '不调整',
+  'policy.source.temp': '来源：此标签页临时调整（关闭或断开后恢复）',
+  'policy.source.host': '来源：此主机设置',
+  'policy.source.global': '来源：全局设置',
+  'policy.chosen': '所选：{policy}',
+  'hostSafety.title': '安全'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -5629,7 +5640,18 @@ const en: Record<MessageKey, string> = {
   'policy.autoHint': 'Low and medium-risk changes run on their own; high risk still asks. Drops to Ask before changes on production hosts.',
   'policy.autoHighRisk': 'Under Hands-off, run high-risk commands too',
   'policy.autoHighRiskHint': 'Off by default. Never applies to production or read-only hosts.',
-  'policy.overrides': '{n} hosts override ›'
+  'policy.overrides': '{n} hosts override ›',
+  'policy.followGlobal': 'Use global ({policy})',
+  'policy.effective': 'In effect: {policy}',
+  'policy.capProduction': ' (limited by production guard)',
+  'policy.capReadonly': ' (limited by read-only guard)',
+  'policy.tempTab': 'Temporary (this tab)',
+  'policy.tempNone': 'No change',
+  'policy.source.temp': 'Source: temporary for this tab (resets on close or disconnect)',
+  'policy.source.host': 'Source: this host',
+  'policy.source.global': 'Source: global setting',
+  'policy.chosen': 'chosen: {policy}',
+  'hostSafety.title': 'Safety'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

@@ -17,7 +17,7 @@ import { SHARED_MENUS } from '../src/shared/menus'
 import { DEFAULT_RECONNECT_POLICY } from '../src/shared/reconnect-policy'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.59')
+assert.equal(pkg.version, '0.6.60')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-known-hosts-io/)
 
 assert.deepEqual(splitKnownHostNames('example.com'), [{ host: 'example.com', port: 22 }])
