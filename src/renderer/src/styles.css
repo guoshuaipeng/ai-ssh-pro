@@ -6652,3 +6652,40 @@ button.primary.danger:focus-visible {
     display: none;
   }
 }
+
+/* Fix: AI safety popover stays inside the composer (rows stack instead of one long nowrap row) */
+.ai-composer-bar .ai-chip-wrap {
+  position: static;
+}
+.ai-composer-bar .ai-safety-pop {
+  left: 0;
+  right: 0;
+  min-width: 0;
+}
+.ai-safety-pop .ai-safety-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+.ai-safety-pop .ai-safety-row .safety-band-badge {
+  align-self: flex-start;
+}
+.ai-safety-pop .ai-safety-row label {
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ai-safety-pop .ai-safety-row select {
+  flex: 0 1 auto;
+  max-width: 60%;
+}
+/* Fix: global AI policy radios — one per row, left aligned, hint wraps */
+.settings-channel .n1-sources.policy-radios {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.settings-channel .n1-choice.policy-choice {
+  display: flex;
+  align-items: flex-start;
+  white-space: normal;
+}
