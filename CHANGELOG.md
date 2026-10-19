@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.62
+
+Released 2026-10-19 (CST).
+
+- **M24 修正“信任”档迁移.** 旧的 trusted（信任）档在界面上一直显示为“需确认”，迁移时改为映射到 ask（改动前问我），不再映射到 auto（放手执行），避免悄悄放宽权限；全局、按主机与按会话的旧档位都按此迁移。autopilot（全自动）仍迁移为放手执行。 Legacy “Trusted” migrates to Ask before changes, not Hands-off.
+
 ## v0.6.61
 
 Released 2026-10-19 (CST).

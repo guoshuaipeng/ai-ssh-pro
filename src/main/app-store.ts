@@ -318,7 +318,7 @@ function normalizeAi(merged: AiSettings): AiSettings {
   const safetyTierSessions = normalizeTierMap(anyMerged.safetyTierSessions)
   const autopilotAllowHosts = normalizeAllowHosts(anyMerged.autopilotAllowHosts)
   const autopilotAllowHighRisk = anyMerged.autopilotAllowHighRisk === true
-  // M21: three policies. Old tiers migrate (observe→suggest, confirm→ask, trusted/autopilot→auto);
+  // M21: three policies. Old tiers migrate (observe→suggest, confirm/trusted→ask, autopilot→auto);
   // safetyTier is kept as a mirror so older readers and the gate keep working.
   const aiPolicy = migrateAiPolicy(anyMerged.aiPolicy) ?? migrateAiPolicy(anyMerged.safetyTier) ?? DEFAULT_AI_POLICY
   const aiAutoHighRisk =

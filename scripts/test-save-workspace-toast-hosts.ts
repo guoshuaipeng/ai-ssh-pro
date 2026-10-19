@@ -11,6 +11,6 @@ assert.match(i18n, /ws\.savedNow': '工作区已保存（\{n\} 个标签：\{hos
 assert.match(i18n, /ws\.savedNow': 'Workspace saved \(\{n\} tabs: \{hosts\}\)'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.61')
+assert.equal(pkg.version, '0.6.62')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-save-workspace-toast-hosts/)
 console.log('test-save-workspace-toast-hosts ok')

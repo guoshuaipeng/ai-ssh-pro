@@ -15,12 +15,15 @@ export function isAiPolicy(v: unknown): v is AiPolicy {
   return v === 'suggest' || v === 'ask' || v === 'auto'
 }
 
-/** Old four tiers → three policies. observe→suggest, confirm→ask, trusted/autopilot→auto. */
+/**
+ * Old four tiers → three policies. observe→suggest, confirm→ask, trusted→ask, autopilot→auto.
+ * M24: 信任 (trusted) was shown to users as 需确认, so it maps to ask — never silently widened to auto.
+ */
 export function migrateAiPolicy(v: unknown): AiPolicy | undefined {
   if (isAiPolicy(v)) return v
   if (v === 'observe') return 'suggest'
-  if (v === 'confirm') return 'ask'
-  if (v === 'trusted' || v === 'autopilot') return 'auto'
+  if (v === 'confirm' || v === 'trusted') return 'ask'
+  if (v === 'autopilot') return 'auto'
   return undefined
 }
 

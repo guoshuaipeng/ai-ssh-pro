@@ -13,6 +13,6 @@ assert.match(app, /action === 'cut'/)
 assert.match(app, /execCommand/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.61')
+assert.equal(pkg.version, '0.6.62')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-cut-menu/)
 console.log('test-cut-menu ok')

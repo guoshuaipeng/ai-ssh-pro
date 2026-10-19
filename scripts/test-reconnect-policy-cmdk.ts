@@ -13,6 +13,6 @@ assert.match(app, /action === 'reconnectPolicy'/)
 assert.match(app, /openUnifiedSettings\('connections', 'l9-reconnect'\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.61')
+assert.equal(pkg.version, '0.6.62')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-reconnect-policy-cmdk/)
 console.log('test-reconnect-policy-cmdk ok')

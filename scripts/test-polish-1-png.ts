@@ -199,6 +199,6 @@ assert.ok(app.includes('pickProductOverlay'))
 assert.ok(!app.includes('window.confirm'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.61')
+assert.equal(pkg.version, '0.6.62')
 
 console.log('test-polish-1-png ok')

@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.62': [
+    {
+      icon: '▷',
+      text: {
+        zh: '旧的“信任”档位迁移为“改动前问我”，不再变成“放手执行”，权限不会被悄悄放宽',
+        en: 'The old “Trusted” tier now migrates to “Ask before changes” instead of “Hands-off”, so permissions are never silently widened'
+      },
+      where: { zh: '设置 → AI', en: 'Settings → AI' }
+    }
+  ],
   '0.6.61': [
     {
       icon: '▷',

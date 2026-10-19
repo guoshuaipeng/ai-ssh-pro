@@ -20,7 +20,8 @@ assert.deepEqual([...AI_POLICIES], ['suggest', 'ask', 'auto'])
 // migration of the four old tiers
 assert.equal(migrateAiPolicy('observe'), 'suggest')
 assert.equal(migrateAiPolicy('confirm'), 'ask')
-assert.equal(migrateAiPolicy('trusted'), 'auto')
+assert.equal(migrateAiPolicy('trusted'), 'ask', 'M24: 信任 never widens to auto')
+assert.equal(globalAiPolicy({ safetyTier: 'trusted' }), 'ask')
 assert.equal(migrateAiPolicy('autopilot'), 'auto')
 assert.equal(migrateAiPolicy('bogus'), undefined)
 assert.equal(globalAiPolicy({}), 'ask', 'default is ask')
@@ -71,10 +72,11 @@ const profiles = [
   { id: 'b', host: '10.0.0.2', label: 'db' },
   { id: 'c', host: 'ci.local', label: 'ci' },
   { id: 'd', host: '10.0.0.4', label: 'kept', aiPolicy: 'ask' as const },
-  { id: 'e', host: '10.0.0.5', label: 'sess-loose' }
+  { id: 'e', host: '10.0.0.5', label: 'sess-loose' },
+  { id: 'f', host: '10.0.0.6', label: 'trusted-host' }
 ]
 const legacy = {
-  safetyTierHosts: { a: 'trusted', d: 'observe' },
+  safetyTierHosts: { a: 'trusted', d: 'observe', f: 'trusted' },
   safetyTierSessions: { a: 'observe', b: 'observe', e: 'autopilot' },
   autopilotAllowHosts: ['ci.local']
 }
@@ -87,7 +89,8 @@ assert.equal(by.b, 'suggest', 'session-only stricter than global moves over')
 assert.equal(by.c, 'auto', 'allow-listed host → host auto')
 assert.equal(by.d, 'ask', 'existing profile policy kept')
 assert.equal(by.e, undefined, 'looser session-only override is dropped')
-assert.equal(moved.changed, 3)
+assert.equal(by.f, 'ask', 'M24: a trusted host migrates to ask, not auto')
+assert.equal(moved.changed, 4)
 
 // wiring: every surface goes through resolveAiPolicy
 const agent = norm('src/main/ai-interactive-agent.ts')

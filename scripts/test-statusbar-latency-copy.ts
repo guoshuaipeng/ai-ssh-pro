@@ -18,6 +18,6 @@ assert.ok(i18n.includes("'sb.latencyCopied'"))
 assert.ok(i18n.includes("'sb.latencyTipCopy'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.61')
+assert.equal(pkg.version, '0.6.62')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-statusbar-latency-copy/)
 console.log('test-statusbar-latency-copy ok')
