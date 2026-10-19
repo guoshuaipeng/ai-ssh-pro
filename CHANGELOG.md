@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.38
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-2（图标描边 + 工具栏密度 + 轻动效）.** 标题栏/侧栏/CmdK 图标统一 16px、描边 1.5（`CHROME_ICON_*`，默认 Icon 同权）；工具栏组间距收成 `--space-1`，命中仍 ≥32px。按钮、标签、列表行与 CmdK 项用 `--duration-fast`（150ms）过渡；非激活标签悬停走行悬停色；`:focus-visible` 仍走焦点令牌。tipSuggest 不变。版本 0.6.38。 / **Feel track M-polish-2 (icon stroke + toolbar density + light motion).** Titlebar / sidebar / CmdK icons unify at 16px stroke 1.5 (`CHROME_ICON_*`, Icon default matches). Toolbar group gap is `--space-1`; hit targets stay ≥32px. Buttons, tabs, list rows, and CmdK items ease with `--duration-fast` (150ms); inactive tab hover uses row-hover; `:focus-visible` stays on focus tokens. tipSuggest unchanged. Package 0.6.38.
+
 ## v0.6.37
 
 Released 2026-10-19 (CST).

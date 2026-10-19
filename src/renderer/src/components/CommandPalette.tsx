@@ -12,6 +12,7 @@ import { paletteItemIndexes, paletteKeyStep, secondNavOrder } from '@shared/pale
 import { loadPaletteUsage, recordPaletteUse } from '../lib/palette-usage'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
+import { EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
 import { BUILTIN_SNIPPETS, localizeBuiltin } from '@shared/builtin-pack'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
@@ -223,7 +224,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
             <EmptyState
               compact
               testId="palette-empty"
-              icon={<Icon name="search" size={32} strokeWidth={1.5} />}
+              icon={<Icon name="search" size={EMPTY_ICON_SIZE_COMPACT} strokeWidth={EMPTY_ICON_STROKE} />}
               title={t('pf4.paletteTitle', { q: q.trim().slice(0, 12) })}
               desc={t('pf4.paletteDesc')}
               primary={{ label: t('pf4.paletteClear'), onClick: () => setQ('') }}

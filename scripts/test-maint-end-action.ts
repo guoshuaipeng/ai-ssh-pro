@@ -19,6 +19,6 @@ assert.ok(i18n.includes("l2d.noneActive': '当前没有进行中的维护窗口'
 assert.ok(i18n.includes("l2d.noneActive': 'No active maintenance window'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.37')
+assert.equal(pkg.version, '0.6.38')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-maint-end-action/)
 console.log('test-maint-end-action ok')

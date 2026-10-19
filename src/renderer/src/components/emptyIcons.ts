@@ -3,6 +3,11 @@ import type { IconName } from '@shared/icon-registry'
 /** Linear stroke for empty-state glyphs and the shared app mark. */
 export const EMPTY_ICON_STROKE = 1.5
 
+/** Titlebar / sidebar chrome glyph size (hit target stays 32px). */
+export const CHROME_ICON_SIZE = 16
+/** Same visual weight as empty-state stroke. */
+export const CHROME_ICON_STROKE = EMPTY_ICON_STROKE
+
 /** Default icon slot. Compact slot is 32. CSS maps these to --space-7 / --space-6. */
 export const EMPTY_ICON_SIZE = 48
 export const EMPTY_ICON_SIZE_COMPACT = 32

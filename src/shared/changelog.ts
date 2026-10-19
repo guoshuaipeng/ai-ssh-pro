@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.38': [
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏图标统一 16px / 描边 1.5，工具栏更紧凑仍好点',
+        en: 'Titlebar icons unify at 16px / stroke 1.5; denser toolbar, same hit targets'
+      },
+      where: { zh: '标题栏', en: 'Title bar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '按钮、标签与 CmdK 有轻量悬停过渡，焦点环仍清晰',
+        en: 'Buttons, tabs, and CmdK ease on hover; focus rings stay clear'
+      },
+      where: { zh: '全局 chrome', en: 'App chrome' }
+    }
+  ],
   '0.6.37': [
     {
       icon: '▷',

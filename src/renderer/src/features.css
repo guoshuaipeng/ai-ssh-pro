@@ -1470,7 +1470,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .alert-line-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; white-space: nowrap; }
 .alert-line-btn:disabled { opacity: 0.4; cursor: default; }
 .alert-line-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.aiss-icon { display: inline-block; vertical-align: middle; flex: none; }
+.aiss-icon { display: inline-block; vertical-align: middle; flex: none; stroke: currentColor; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .alert-line-age, .alert-line-value { font-size: 12px; color: var(--muted); white-space: nowrap; }
 

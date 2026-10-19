@@ -8,6 +8,6 @@ assert.ok(n >= 2, `expected >=2 m2.run toasts, got ${n}`)
 assert.match(app, /openM2\('playbook-run', tg\('m2\.run'\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.37')
+assert.equal(pkg.version, '0.6.38')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-playbook-run-opened-toast/)
 console.log('test-playbook-run-opened-toast ok')

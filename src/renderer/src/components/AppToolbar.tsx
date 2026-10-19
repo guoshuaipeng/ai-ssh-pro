@@ -16,6 +16,7 @@ import type { IconName } from '@shared/icon-registry'
 import aiSparkleUrl from '../assets/ai-sparkle.png'
 import Icon, { Twist } from './Icon'
 import BrandMark from './BrandMark'
+import { CHROME_ICON_SIZE, CHROME_ICON_STROKE } from './emptyIcons'
 
 type Props = {
   onMenuAction: (action: TitlebarMenuAction) => void
@@ -50,8 +51,8 @@ function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
   const pane = kind === 'sidebar' ? 'M5.25 2.5v11' : 'M5.25 2.5v11M10.75 2.5v11'
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
-      <rect x="1.75" y="2.5" width="12.5" height="11" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.15" />
-      <path d={pane} stroke="currentColor" strokeWidth="1.15" />
+      <rect x="1.75" y="2.5" width="12.5" height="11" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.35" />
+      <path d={pane} stroke="currentColor" strokeWidth="1.35" />
     </svg>
   )
 }
@@ -206,7 +207,7 @@ export default function AppToolbar({
               aria-expanded={hamburgerOpen}
               onClick={() => setHamburgerOpen((v) => !v)}
             >
-              <Icon name="menu" />
+              <Icon name="menu" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
             </button>
             {hamburgerOpen ? (
               <div className="titlebar-hamburger-menu" role="menu">
@@ -250,7 +251,7 @@ export default function AppToolbar({
                 aria-expanded={recentOpen}
                 onClick={() => setRecentOpen((v) => !v)}
               >
-                <Icon name="history" size={20} strokeWidth={1.5} /> <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={12} /></span>
+                <Icon name="history" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> <span className="tb-label">{t('toolbar.recent')}</span> <span aria-hidden><Twist open size={12} /></span>
               </button>
               {recentOpen ? (
                 <div className="titlebar-popover">
@@ -282,7 +283,7 @@ export default function AppToolbar({
                 aria-label={t(b.title)}
                 onClick={() => onMenuAction(b.id)}
               >
-                <Icon name={b.icon} size={20} strokeWidth={1.5} /> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
+                <Icon name={b.icon} size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> {iconOnlyTools ? null : <span className="tb-label">{t(b.label)}</span>}
               </button>
             )
           })}
@@ -298,7 +299,7 @@ export default function AppToolbar({
             aria-label={t('toolbar.searchField')}
             onClick={() => onMenuAction('commandPalette')}
           >
-            <Icon name="search" size={16} strokeWidth={1.5} />
+            <Icon name="search" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
             <span className="tb-label tb-search-ph">{searchIconOnly ? t('toolbar.searchFieldShort') : t('toolbar.searchField')}</span>
           </button>
           <div className="titlebar-popover-wrap" ref={moreRef}>

@@ -208,6 +208,9 @@
   --duration-fast: 150ms;
   --duration-normal: 200ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --icon-size-chrome: 16px;
+  --icon-size-tab: 12px;
+  --icon-stroke-chrome: 1.5;
 }
 
 [data-ui-theme='light'] {
@@ -477,6 +480,9 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   line-height: var(--lh-tight);
   white-space: nowrap;
   flex-shrink: 0;
+  transition: background var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
 }
 
 .titlebar-btn:hover:not(:disabled) {
@@ -498,7 +504,7 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-1) var(--space-3);
   padding: var(--space-2) var(--space-3);
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
@@ -554,7 +560,7 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   min-height: 32px;
   min-width: 32px;
   padding: 0;
-  padding-inline: 8px;
+  padding-inline: var(--space-2);
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
@@ -564,6 +570,10 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   white-space: nowrap;
   overflow: visible;
   flex-shrink: 0;
+  transition: background var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    opacity var(--duration-fast) var(--easing-standard);
 }
 
 .titlebar-icon-btn:hover:not(:disabled) {
@@ -576,9 +586,10 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   cursor: default;
 }
 
-.titlebar-icon-btn svg {
-  width: 20px;
-  height: 20px;
+.titlebar-icon-btn svg,
+.titlebar-icon-btn .aiss-icon {
+  width: var(--icon-size-chrome);
+  height: var(--icon-size-chrome);
   flex-shrink: 0;
 }
 
@@ -1790,17 +1801,24 @@ body.layout-resizing {
 .tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   height: 30px;
-  padding: 0 8px 0 12px;
+  padding: 0 var(--space-2) 0 var(--space-3);
   border: 1px solid transparent;
   /* UX-55 D5: every tab reserves the same 2px top edge; prod/ro only change the color. */
   border-top: 2px solid transparent;
   border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   background: transparent;
   max-width: 280px;
   color: var(--text);
+  transition: background var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    opacity var(--duration-fast) var(--easing-standard);
+}
+.tab:hover:not(.active) {
+  background: var(--color-row-hover-bg);
 }
 
 /* Polish-9: kind is the linear icon. No per-kind left bar. */
@@ -1812,6 +1830,8 @@ body.layout-resizing {
 
 .tab-kind-icon svg {
   display: block;
+  width: var(--icon-size-tab);
+  height: var(--icon-size-tab);
 }
 
 .tab-title {
@@ -3135,7 +3155,7 @@ body.layout-resizing {
   user-select: none;
   font-weight: var(--fw-semibold);
   font-size: var(--fs-sm);
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition: background var(--duration-fast) var(--easing-standard), border-color var(--duration-fast) var(--easing-standard), color var(--duration-fast) var(--easing-standard);
 }
 
 .session-folder-row:hover {
@@ -3189,7 +3209,7 @@ body.layout-resizing {
   user-select: none;
   line-height: var(--lh-snug);
   font-size: var(--fs-sm);
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: background var(--duration-fast) var(--easing-standard), border-color var(--duration-fast) var(--easing-standard), box-shadow var(--duration-fast) var(--easing-standard);
 }
 
 .profile-row:hover {
@@ -5141,7 +5161,7 @@ body.split-resizing {
   background: var(--color-bg-elevated);
   color: var(--text);
   border: 1px solid var(--color-border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-modal);
   overflow: hidden;
 }
@@ -5166,15 +5186,17 @@ body.split-resizing {
   flex-wrap: nowrap;
   width: 100%;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   min-width: 0;
-  padding: 7px 10px;
+  padding: var(--space-2) var(--space-3);
+  min-height: 32px;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-standard);
 }
 .cmdp-item.is-active {
   background: var(--color-row-hover-bg);
@@ -5307,8 +5329,8 @@ button.app-toolbar-version:hover:not(:disabled) {
   cursor: pointer;
 }
 .app-toolbar-update-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.toolbar-group { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; }
-.toolbar-divider { width: 1px; height: 18px; background: var(--border); margin: 0; flex: none; }
+.toolbar-group { display: inline-flex; align-items: center; gap: var(--space-1); flex-wrap: nowrap; }
+.toolbar-divider { width: 1px; height: 16px; background: var(--border); margin: 0 var(--space-1); flex: none; }
 .app-toolbar-layout {
   display: inline-flex;
   align-items: center;
@@ -5335,6 +5357,9 @@ button.layout-toggle-btn {
   color: var(--color-text-muted);
   opacity: 0.45;
   flex: none;
+  transition: background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard),
+    opacity var(--duration-fast) var(--easing-standard);
 }
 button.layout-toggle-btn:hover:not(:disabled) {
   opacity: 1;

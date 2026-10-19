@@ -7476,8 +7476,8 @@ export default function App() {
               onClick={() => handleTitlebarMenuAction('toggleSplit')}
             >
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
-                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.2" />
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" />
+                <path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.35" />
               </svg>
             </button>
             {tabs.length > 0 ? (

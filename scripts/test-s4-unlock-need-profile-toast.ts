@@ -10,6 +10,6 @@ assert.match(chunk, /if \(!g\.profile\) \{\s*showToast\(tg\('s4\.needProfile'\)/
 assert.match(chunk, /elevateProfile\(g\.profile\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.37')
+assert.equal(pkg.version, '0.6.38')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-s4-unlock-need-profile-toast/)
 console.log('test-s4-unlock-need-profile-toast ok')

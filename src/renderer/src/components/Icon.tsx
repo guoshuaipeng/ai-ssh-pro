@@ -4,12 +4,12 @@ type Props = {
   name: IconName
   size?: number
   title?: string
-  /** Empty states use 1.5; chrome may stay at the default. */
+  /** Chrome + empty share 1.5; pass strokeWidth only for rare emphasis. */
   strokeWidth?: number
 }
 
 /** Linear icon. Color follows currentColor; do not set a fill. */
-export default function Icon({ name, size = 16, title, strokeWidth = 1.75 }: Props) {
+export default function Icon({ name, size = 16, title, strokeWidth = 1.5 }: Props) {
   return (
     <svg
       className="aiss-icon"

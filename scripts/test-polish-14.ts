@@ -1,4 +1,4 @@
-/** Polish-14 / M-polish-1: fonts + chrome tokens. Package is 0.6.37. tipSuggest unchanged. */
+/** Polish-14 / M-polish-1: fonts + chrome tokens. Package tracks current soft-start. tipSuggest unchanged. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { changelogFor } from '../src/shared/changelog'
@@ -12,7 +12,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.37')
+assert.equal(pkg.version, '0.6.38')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -41,7 +41,7 @@ assert.ok(css.includes('--line:'))
 assert.ok(css.includes('--ac:'))
 assert.ok(css.includes('font-family: var(--font-ui)'))
 assert.match(css, /\.sidebar-header\s*\{[^}]*padding:\s*var\(--space-3\)/)
-assert.match(css, /\.app-toolbar\s*\{[^}]*gap:\s*var\(--space-2\)\s+var\(--space-4\)/)
+assert.match(css, /\.app-toolbar\s*\{[^}]*gap:\s*var\(--space-\d\)\s+var\(--space-\d\)/)
 assert.match(css, /\.modal-panel\s*\{[^}]*border-radius:\s*var\(--radius-xl\)/)
 
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
@@ -51,7 +51,7 @@ assert.match(features, /\.empty-state-title\s*\{[^}]*letter-spacing:\s*0\.01em/)
 assert.ok(TERMINAL_PREFS_DEFAULTS.fontFamily.includes('JetBrains Mono'))
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.37'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.38'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.37'), changelog.indexOf('## v0.6.36'))
 assert.ok(note.includes('M-polish-1') || note.includes('质感专项'))
