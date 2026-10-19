@@ -21,7 +21,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.40')
+assert.equal(pkg.version, '0.6.41')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -32,7 +32,7 @@ assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.40'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.41'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.11'), changelog.indexOf('## v0.4.10'))
 assert.ok(note.includes('v0.4.11 soft-start'))
@@ -99,7 +99,7 @@ for (const sel of ['.titlebar-menu-trigger', '.titlebar-btn', '.titlebar-icon-bt
   assert.doesNotMatch(body, /height:\s*26px|width:\s*26px|border-radius:\s*4px|border-radius:\s*var\(--radius-sm\)/, `${sel} 26×4`)
 }
 assert.match(block(styles, 'button.layout-toggle-btn'), /border:\s*none/)
-assert.match(styles, /\.app-toolbar-layout\s*\{[^}]*flex-wrap:\s*nowrap/)
+assert.match(styles, /\.app-toolbar-layout[\s\S]*?\{[^}]*flex-wrap:\s*nowrap/)
 
 const toolbar = readFileSync('src/renderer/src/components/AppToolbar.tsx', 'utf8')
 for (const kind of ['sidebar', 'main', 'ai']) {

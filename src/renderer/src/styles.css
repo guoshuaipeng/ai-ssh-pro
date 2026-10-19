@@ -5405,14 +5405,25 @@ button.app-toolbar-version:hover:not(:disabled) {
 .app-toolbar-update-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .toolbar-group { display: inline-flex; align-items: center; gap: var(--space-1); flex-wrap: nowrap; }
 .toolbar-divider { width: 1px; height: 16px; background: var(--border); margin: 0 var(--space-1); flex: none; }
+/* Layout toggles (sidebar/main/AI) live outside .app-titlebar-corner so narrow
+   windows shrink/clip connect·ops·search first; sparkle never vanishes under win controls. */
+.app-titlebar-layout-pin,
 .app-toolbar-layout {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  flex: none;
+  flex: 0 0 auto;
+  flex-shrink: 0;
   flex-wrap: nowrap;
+  min-width: max-content;
   -webkit-app-region: no-drag;
   app-region: no-drag;
+}
+.app-titlebar-layout-pin {
+  margin-left: var(--space-1);
+}
+.layout-toggle-btn.layout-toggle-ai {
+  flex-shrink: 0;
 }
 .layout-toggle-ai-icon { display: block; object-fit: contain; flex-shrink: 0; }
 button.layout-toggle-btn {
@@ -5453,8 +5464,8 @@ button.layout-toggle-btn.is-on {
   height: 32px;
   min-height: 32px;
   max-height: 32px;
-  flex: 0 1 180px;
-  min-width: 128px;
+  flex: 0 1 140px;
+  min-width: 36px;
   max-width: 280px;
   padding: 0 12px;
   border: 1px solid var(--color-border-default);

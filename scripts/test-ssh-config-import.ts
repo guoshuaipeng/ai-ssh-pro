@@ -15,7 +15,7 @@ import { translate } from '../src/renderer/src/lib/i18n'
 import { SHARED_MENUS } from '../src/shared/menus'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.40')
+assert.equal(pkg.version, '0.6.41')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ssh-config-import/)
 
 assert.equal(expandTilde('~/.ssh/id_ed25519', '/home/u'), '/home/u/.ssh/id_ed25519')

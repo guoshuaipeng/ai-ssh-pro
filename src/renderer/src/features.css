@@ -1189,6 +1189,19 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .titlebar-hamburger-wrap { position: relative; }
 .titlebar-hamburger-menu { position: absolute; top: 100%; left: 0; z-index: 50; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: 8px; padding: 6px; min-width: 220px; max-width: 360px; box-shadow: var(--shadow-menu); }
 .titlebar-compact-4 .titlebar-menus { display: none; }
+/* UX-17 / pin: search yields hard at compact-3+; layout pin stays visible */
+.titlebar-compact-3 .titlebar-search-btn,
+.titlebar-compact-4 .titlebar-search-btn {
+  flex: 0 0 32px;
+  min-width: 32px;
+  max-width: 32px;
+  padding-inline: 0;
+  justify-content: center;
+}
+.titlebar-compact-3 .titlebar-search-btn .aiss-icon,
+.titlebar-compact-4 .titlebar-search-btn .aiss-icon,
+.titlebar-compact-3 .titlebar-search-btn svg,
+.titlebar-compact-4 .titlebar-search-btn svg { margin: 0; }
 
 /* D1 dual-pane SFTP */
 .sftp-dual { display: flex; flex-direction: column; min-height: 0; min-width: 0; }

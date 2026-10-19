@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.41': [
+    {
+      icon: '▷',
+      text: {
+        zh: '窄窗口下标题栏 AI 星芒仍可见（布局开关钉在窗控旁）',
+        en: 'AI sparkle stays visible in a narrow title bar (layout toggles pinned by window controls)'
+      },
+      where: { zh: '标题栏', en: 'Title bar' }
+    }
+  ],
   '0.6.40': [
     {
       icon: '▷',

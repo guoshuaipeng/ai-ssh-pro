@@ -339,32 +339,32 @@ export default function AppToolbar({
             ) : null}
           </div>
         </div>
-        <span className="toolbar-divider" aria-hidden />
-        <div className="app-toolbar-layout" role="group" aria-label={t('toolbar.layout')}>
-          {layoutToggles.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`layout-toggle-btn${item.on ? ' is-on' : ''}`}
-              data-testid={`layout-toggle-${item.kind}`}
-              title={(() => {
-                const base = item.on ? t(item.hide) : t(item.show)
-                // AI sparkle: advertise Focus AI (Ctrl+Shift+A); other panes use their toggle chord when any.
-                const keys = item.kind === 'ai' ? keysFor('focusAiPanel') : keysFor(item.id)
-                return keys ? `${base} (${keys})` : base
-              })()}
-              aria-label={(() => {
-                const base = item.on ? t(item.hide) : t(item.show)
-                const keys = item.kind === 'ai' ? keysFor('focusAiPanel') : keysFor(item.id)
-                return keys ? `${base} (${keys})` : base
-              })()}
-              aria-pressed={item.on}
-              onClick={() => onMenuAction(item.id)}
-            >
-              <LayoutToggleIcon kind={item.kind} />
-            </button>
-          ))}
-        </div>
+      </div>
+      {/* Pinned layout toggles: outside corner so narrow windows clip search/ops first, never AI sparkle. */}
+      <div className="app-titlebar-layout-pin app-toolbar-layout" role="group" aria-label={t('toolbar.layout')} data-testid="titlebar-layout-pin">
+        {layoutToggles.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`layout-toggle-btn${item.on ? ' is-on' : ''}${item.kind === 'ai' ? ' layout-toggle-ai' : ''}`}
+            data-testid={`layout-toggle-${item.kind}`}
+            title={(() => {
+              const base = item.on ? t(item.hide) : t(item.show)
+              // AI sparkle: advertise Focus AI (Ctrl+Shift+A); other panes use their toggle chord when any.
+              const keys = item.kind === 'ai' ? keysFor('focusAiPanel') : keysFor(item.id)
+              return keys ? `${base} (${keys})` : base
+            })()}
+            aria-label={(() => {
+              const base = item.on ? t(item.hide) : t(item.show)
+              const keys = item.kind === 'ai' ? keysFor('focusAiPanel') : keysFor(item.id)
+              return keys ? `${base} (${keys})` : base
+            })()}
+            aria-pressed={item.on}
+            onClick={() => onMenuAction(item.id)}
+          >
+            <LayoutToggleIcon kind={item.kind} />
+          </button>
+        ))}
       </div>
     </header>
   )

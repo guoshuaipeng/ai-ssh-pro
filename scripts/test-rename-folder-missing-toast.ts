@@ -11,6 +11,6 @@ assert.match(chunk, /showToast\(tg\('app\.folderMissing'\)\)/)
 assert.match(chunk, /folders\.find\(\(f\) => f\.id === folderId\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.40')
+assert.equal(pkg.version, '0.6.41')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-rename-folder-missing-toast/)
 console.log('test-rename-folder-missing-toast ok')

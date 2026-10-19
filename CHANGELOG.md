@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.41
+
+Released 2026-10-19 (CST).
+
+- **窄窗仍可见 AI 星芒（布局开关钉住）.** 侧栏/主区/AI 三个布局开关移出 `.app-titlebar-corner`，钉在窗控留白左侧（`app-titlebar-layout-pin`，`flex-shrink: 0`）；窄窗时先压缩搜索/运维组，星芒不再被 titleBarOverlay 裁掉。tipSuggest 不变。版本 0.6.41。 / **AI sparkle stays visible when narrow.** Layout toggles (sidebar / main / AI) leave `.app-titlebar-corner` and pin beside the window-control inset (`app-titlebar-layout-pin`, `flex-shrink: 0`). Search/ops yield first; sparkle is not clipped under titleBarOverlay. tipSuggest unchanged. Package 0.6.41.
+
 ## v0.6.40
 
 Released 2026-10-19 (CST).

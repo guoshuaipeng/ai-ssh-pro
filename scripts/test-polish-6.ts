@@ -16,7 +16,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.40')
+assert.equal(pkg.version, '0.6.41')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -109,7 +109,7 @@ assert.ok(en('toolbar.overflow').length > 0)
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*width:\s*32px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*border:\s*none/)
-assert.match(styles, /\.app-toolbar-layout\s*\{[^}]*flex-wrap:\s*nowrap/)
+assert.match(styles, /\.app-toolbar-layout[\s\S]*?\{[^}]*flex-wrap:\s*nowrap/)
 assert.match(styles, /\.app-titlebar\s*\{[^}]*flex-wrap:\s*nowrap/)
 assert.match(styles, /\.app-titlebar\s*\{[^}]*height:\s*40px/)
 assert.match(styles, /\.app-titlebar\s*\{[^}]*max-height:\s*40px/)

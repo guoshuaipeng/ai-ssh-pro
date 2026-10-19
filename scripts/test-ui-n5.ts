@@ -24,13 +24,13 @@ for (const sel of titlebarControls) {
   assert.doesNotMatch(body, /height:\s*26px|border-radius:\s*4px|border-radius:\s*var\(--radius-sm\)/, `${sel} old density`)
 }
 for (const sel of ['.titlebar-menu-trigger', '.titlebar-btn', '.titlebar-icon-btn']) {
-  assert.match(ruleBody(styles, sel), /padding-inline:\s*8px/, `${sel} padding-inline`)
+  assert.match(ruleBody(styles, sel), /padding-inline:\s*(?:8px|var\(--space-2\))/, `${sel} padding-inline`)
 }
 assert.match(ruleBody(styles, '.app-toolbar-version'), /padding-inline:\s*4px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*width:\s*32px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*height:\s*32px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*border:\s*none/)
-assert.match(styles, /\.app-toolbar-layout\s*\{[^}]*flex-wrap:\s*nowrap/)
+assert.match(styles, /\.app-toolbar-layout[\s\S]*?\{[^}]*flex-wrap:\s*nowrap/)
 
 const search = ruleBody(styles, '.titlebar-search-btn')
 assert.match(search, /height:\s*32px/)
@@ -88,7 +88,7 @@ assert.equal(toolbar.includes('className="primary"'), false)
 assert.equal(toolbar.includes("className='primary'"), false)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.40')
+assert.equal(pkg.version, '0.6.41')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

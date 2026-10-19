@@ -13,6 +13,6 @@ assert.ok(i18n.includes("app.folderMissing': '找不到该分组'"))
 assert.ok(i18n.includes("app.folderMissing': 'That group is no longer in the list'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.40')
+assert.equal(pkg.version, '0.6.41')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-delete-folder-missing-toast/)
 console.log('test-delete-folder-missing-toast ok')

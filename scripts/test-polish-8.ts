@@ -24,7 +24,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.40')
+assert.equal(pkg.version, '0.6.41')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -39,7 +39,7 @@ const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog
 const published48 = changelog.slice(changelog.indexOf('## v0.4.8'), changelog.indexOf('## v0.4.7'))
 const published47 = changelog.slice(changelog.indexOf('## v0.4.7'), changelog.indexOf('## v0.4.6'))
 const published46 = changelog.slice(changelog.indexOf('## v0.4.6'), changelog.indexOf('## v0.4.5'))
-assert.equal(unreleased.replace('## Unreleased', '').trim().startsWith('## v0.6.40'), true)
+assert.equal(unreleased.replace('## Unreleased', '').trim().startsWith('## v0.6.41'), true)
 assert.ok(unreleased.includes('v0.4.9 soft-start'))
 assert.ok(unreleased.includes('Polish-8'))
 assert.ok(unreleased.includes('Public HOLD'))
@@ -68,7 +68,8 @@ assert.ok(changelogFor('0.4.8').some((entry) => entry.action === 'openAi'))
 
 const toolbar = readFileSync('src/renderer/src/components/AppToolbar.tsx', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
-assert.ok(toolbar.includes('className="app-toolbar-layout"'))
+assert.ok(toolbar.includes('app-toolbar-layout'))
+assert.ok(toolbar.includes('app-titlebar-layout-pin'))
 assert.ok(toolbar.includes('LayoutToggleIcon'))
 assert.ok(toolbar.includes('data-testid={`layout-toggle-${item.kind}`}'))
 for (const kind of ['sidebar', 'main', 'ai']) {
@@ -82,7 +83,7 @@ assert.ok(toolbar.includes("toggles?.toggleSidebar ?? true"))
 assert.ok(toolbar.includes("toggles?.toggleAi ?? false"))
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*width:\s*32px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*border:\s*none/)
-assert.match(styles, /\.app-toolbar-layout\s*\{[^}]*flex-wrap:\s*nowrap/)
+assert.match(styles, /\.app-toolbar-layout[\s\S]*?\{[^}]*flex-wrap:\s*nowrap/)
 assert.match(styles, /\.app-titlebar\s*\{[^}]*flex-wrap:\s*nowrap/)
 assert.match(styles, /\.tab-bar-scroll > \.tab\s*\{[^}]*flex:\s*0\s*0\s*auto/)
 
