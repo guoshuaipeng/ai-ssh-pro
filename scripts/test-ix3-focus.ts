@@ -340,7 +340,7 @@ assert.match(ix3Bullet, /Public HOLD/)
 assert.match(ix3Bullet, /0\.4\.4/)
 assert.match(ix3Bullet, /term\.focus\(\)/)
 
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ix3-focus\.ts/)
 
 assert.match(css, /\.sftp-pane\.is-active:focus-visible/)

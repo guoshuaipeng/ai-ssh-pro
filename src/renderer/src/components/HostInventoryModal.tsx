@@ -11,7 +11,7 @@ import NotesMarkdownPreview from './NotesMarkdownPreview'
 import ProtectionSection from './ProtectionSection'
 import { tg } from '../lib/i18n'
 import Icon, { Twist } from './Icon'
-import { TREE_CHEVRON_SIZE } from './emptyIcons'
+import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, TREE_CHEVRON_SIZE } from './emptyIcons'
 import { confirmDialog, toastUndo } from '../lib/dialogs'
 import { hostProfileComfortLayout } from '@shared/host-profile-layout'
 export type HostInventoryLink = {
@@ -693,7 +693,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                     )
                   }}
                 >
-                  <Icon name="play" size={14} /> {tg('ux20.connect')}
+                  <Icon name="play" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> {tg('ux20.connect')}
                 </button>
                 <button type="button" onClick={() => onOpenTool?.('sftp', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.sftp')}</button>
                 <button type="button" onClick={() => onOpenTool?.('monitor', { host: form.host, port: Number(form.port) || 22, username: form.username, label: form.title, profileId: form.profileId || link?.profileId, hostInventoryId: form.id || undefined })}>{tg('tab.monitor')}</button>

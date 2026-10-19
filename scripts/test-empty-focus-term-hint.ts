@@ -15,6 +15,6 @@ assert.ok(i18n.includes("'ux08.keyFocusTerm'"))
 assert.ok((i18n.match(/'ux08\.keyFocusTerm'/g) || []).length >= 2)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-empty-focus-term-hint/)
 console.log('test-empty-focus-term-hint ok')

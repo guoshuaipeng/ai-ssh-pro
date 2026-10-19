@@ -15,6 +15,6 @@ assert.ok(i18n.includes("a5.opened': '已打开 AI 复盘摘要'"))
 assert.ok(i18n.includes("a5.opened': 'Opened AI postmortem summary'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-postmortem-ai-opened-toast/)
 console.log('test-postmortem-ai-opened-toast ok')

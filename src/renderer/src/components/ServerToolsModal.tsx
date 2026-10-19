@@ -13,6 +13,7 @@ import {
 import { formatBytes } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
 import Icon from './Icon'
+import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import { askConfirm, askText } from '../lib/dialogs'
 import Modal from './Modal'
@@ -171,7 +172,7 @@ function DiskTab({ sessionId, busy, guard, t }: TabProps) {
   }, [load])
   if (!list) return <p className="quiet-load" {...QUIET_LOAD_ATTRS}>{t('rm.loading')}</p>
   if (!list.length) {
-    return <EmptyState compact icon={<Icon name="list-tree" size={32} strokeWidth={1.5} />} title={t('st.dfEmpty')} testId="toolbox-df-empty" />
+    return <EmptyState compact icon={<Icon name="list-tree" size={EMPTY_ICON_SIZE_COMPACT} strokeWidth={EMPTY_ICON_STROKE} />} title={t('st.dfEmpty')} testId="toolbox-df-empty" />
   }
   return (
     <div className="st-table-wrap" data-testid="toolbox-df">
@@ -284,7 +285,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisabl
                   </td>
                   <td className="st-actions st-actions--hover">
                     <button type="button" className="st-icon-btn" onClick={() => void kill(p, 'TERM')} disabled={busy || writesDisabled} title={writesDisabled ? t('s4.sftpDisabled') : t('st.termHint')} aria-label={t('st.term')}>
-                      <Icon name="square" size={12} />
+                      <Icon name="square" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                     </button>
                     <details className="st-more">
                       <summary className="st-icon-btn" title="…" aria-label="…">⋯</summary>

@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { SshSessionManager } from './ssh-manager'
 import { probeJumpChain } from './jump-probe'
 import { attachShowFallback, shouldCreateOnSecondInstance } from './window-show'
+import { FORCE_EXIT_MS, shouldQuitOnAllWindowsClosed } from './app-quit'
 import { detectKeyFileKind } from './key-kind'
 import {
   getAiSettings,
@@ -1216,16 +1217,15 @@ if (!gotSingleInstanceLock) {
   app.exit(0)
 } else {
   applyProductAppName()
-  /** 无窗口空闲一段时间后再退出，避免关窗后立刻再点图标撞上「锁还在、进程已死」 */
-  const IDLE_QUIT_MS = 120_000
-  let idleQuitTimer: ReturnType<typeof setTimeout> | null = null
+  /** Closing the last window exits on Win/Linux. No 120s idle keep-alive (left GPU/utility processes). */
   let isQuitting = false
   let lastWindowClosedAt: number | null = null
+  let forceExitTimer: ReturnType<typeof setTimeout> | null = null
 
-  const clearIdleQuitTimer = () => {
-    if (idleQuitTimer) {
-      clearTimeout(idleQuitTimer)
-      idleQuitTimer = null
+  const clearForceExitTimer = () => {
+    if (forceExitTimer) {
+      clearTimeout(forceExitTimer)
+      forceExitTimer = null
     }
   }
 
@@ -1252,59 +1252,69 @@ if (!gotSingleInstanceLock) {
     }
   }
 
-  const scheduleIdleQuit = () => {
-    clearIdleQuitTimer()
-    idleQuitTimer = setTimeout(() => {
-      idleQuitTimer = null
-      if (BrowserWindow.getAllWindows().some((w) => !w.isDestroyed())) return
-      isQuitting = true
-      try {
-        app.releaseSingleInstanceLock()
-      } catch {
-        /* ignore */
-      }
-      app.quit()
-    }, IDLE_QUIT_MS)
+  const beginQuit = () => {
+    if (isQuitting) return
+    isQuitting = true
+    destroyBrandTray()
+    cleanupSessions()
+    try {
+      app.releaseSingleInstanceLock()
+    } catch {
+      /* ignore */
+    }
+    // If helper processes hang after cleanup, force-exit.
+    clearForceExitTimer()
+    forceExitTimer = setTimeout(() => {
+      forceExitTimer = null
+      app.exit(0)
+    }, FORCE_EXIT_MS)
+    app.quit()
   }
 
   const focusOrCreateMainWindow = () => {
+    if (isQuitting) return
     const fromRef = getMainBrowserWindow()
     const existing =
       fromRef && !fromRef.isDestroyed()
         ? fromRef
         : BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null
     if (existing) {
-      clearIdleQuitTimer()
       if (existing.isMinimized()) existing.restore()
       existing.show()
       existing.focus()
       return
     }
-    // 关窗后约 1.5s 内没有窗口：当作重叠启动 / 锁通知，不要重建。
+    // Overlapping second-instance while the last window just closed: do not recreate.
     if (!shouldCreateOnSecondInstance(lastWindowClosedAt, Date.now())) return
-    clearIdleQuitTimer()
     if (app.isReady()) createWindow()
   }
 
   app.on('second-instance', () => {
-    // 关窗后进程仍在：再点图标只唤起/重建窗口，不会出现「要点两次」
     focusOrCreateMainWindow()
   })
 
   app.on('before-quit', () => {
     isQuitting = true
-    clearIdleQuitTimer()
+    destroyBrandTray()
+    cleanupSessions()
+    if (!forceExitTimer) {
+      forceExitTimer = setTimeout(() => {
+        forceExitTimer = null
+        app.exit(0)
+      }, FORCE_EXIT_MS)
+    }
+  })
+
+  app.on('will-quit', () => {
+    clearForceExitTimer()
     destroyBrandTray()
     cleanupSessions()
   })
 
   app.on('window-all-closed', () => {
     lastWindowClosedAt = Date.now()
-    if (process.platform === 'darwin') return
-    cleanupSessions()
-    // 菜单退出过程中不要再排程；否则关窗后进程保活，第一次点击即可开窗
-    if (isQuitting) return
-    scheduleIdleQuit()
+    if (!shouldQuitOnAllWindowsClosed(process.platform)) return
+    beginQuit()
   })
 
   app.whenReady().then(() => {

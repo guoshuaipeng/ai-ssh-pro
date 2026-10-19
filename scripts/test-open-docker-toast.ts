@@ -16,6 +16,6 @@ assert.ok(i18n.includes("docker.opening': '正在打开 Docker · {host}'"))
 assert.ok(i18n.includes("docker.opening': 'Opening Docker · {host}'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-open-docker-toast/)
 console.log('test-open-docker-toast ok')

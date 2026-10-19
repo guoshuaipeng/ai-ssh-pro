@@ -46,7 +46,7 @@ export type IconName = (typeof ICON_NAMES)[number]
 
 /** One path (or several, space-separated commands) per name. */
 export const ICON_PATHS: Record<IconName, string> = {
-  sparkles: 'M12 3l1.2 3.6L17 8l-3.8 1.4L12 13l-1.2-3.6L7 8l3.8-1.4L12 3zM18 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z',
+  sparkles: 'M8 2.6 9.1 6.4 13 7.4 9.1 8.6 8 12.4 6.9 8.6 3 7.4 6.9 6.4 8 2.6Z',
   play: 'M8 5v14l11-7-11-7z',
   'play-circle': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM10 9l6 3-6 3V9z',
   'chevron-down': 'M6 9l6 6 6-6',

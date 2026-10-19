@@ -13,6 +13,6 @@ assert.match(app, /action === 'gateTimeline'/)
 assert.match(app, /gate-timeline/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-gate-timeline-cmdk/)
 console.log('test-gate-timeline-cmdk ok')

@@ -26,7 +26,7 @@ const runner = read('src/renderer/src/lib/folder-sync-run.ts')
 const pkg = JSON.parse(read('package.json')) as { version: string }
 const changelog = read('CHANGELOG.md').replace(/\r\n/g, '\n')
 
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.ok(changelogFor('0.4.2').length >= 4)
 assert.ok(changelogFor('0.4.1').length >= 4)
 assert.ok(changelog.includes('## v0.4.2\n') && changelog.includes('## v0.4.1\n') && changelog.includes('## v0.4.0\n'))

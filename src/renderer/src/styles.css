@@ -4,7 +4,7 @@
   --bg-panel: #161b22;
   --color-border-default: #30363d;
   --text: #e6edf3;
-  --muted: #8b949e;
+  --muted: #8e97ab;
   --color-accent: #58a6ff;
   --accent-dim: #388bfd66;
   --color-danger: #f85149;
@@ -27,7 +27,7 @@
   --bg-panel: #252a33;
   --color-border-default: #3a4150;
   --text: #e8ecf1;
-  --muted: #9aa3b2;
+  --muted: #929bb0;
   --color-accent: #7aa2f7;
   --accent-dim: #7aa2f766;
   --color-danger: #f7768e;
@@ -45,7 +45,7 @@
   --bg-panel: #121a2b;
   --color-border-default: #243044;
   --text: #e2e8f0;
-  --muted: #94a3b8;
+  --muted: #8b9cb3;
   --color-accent: #38bdf8;
   --accent-dim: #38bdf866;
   --color-danger: #fb7185;
@@ -63,7 +63,7 @@
   --bg-panel: #171e18;
   --color-border-default: #2a362c;
   --text: #e6ede6;
-  --muted: #8b9a8e;
+  --muted: #8f9d92;
   --color-accent: #3fb950;
   --accent-dim: #3fb95066;
   --color-danger: #f85149;
@@ -121,10 +121,10 @@
   --color-bg-overlay: rgba(0, 0, 0, 0.55);
   --overlay-scrim: var(--color-bg-overlay);
   --color-bg-code: var(--term-chrome);
-  --color-border-muted: var(--tab-active);
+  --color-border-muted: color-mix(in srgb, var(--color-border-default) 55%, transparent);
   --color-border-strong: var(--scroll-thumb);
   --color-text-primary: var(--text);
-  --color-text-secondary: #c9d1d9;
+  --color-text-secondary: #b4bccf;
   --color-text-muted: var(--muted);
   --color-text-disabled: var(--scroll-thumb);
   /* UI-N2: dark themes paint light accent and danger fills, so the label ink is dark. Light/sand override to white. */
@@ -210,7 +210,7 @@
   --duration-normal: 200ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --icon-size-chrome: 16px;
-  --icon-size-tab: 12px;
+  --icon-size-tab: 16px;
   --icon-stroke-chrome: 1.5;
 }
 
@@ -220,7 +220,7 @@
   --color-accent-hover: #0757ba;
   --color-danger-muted: #cf222e33;
   --color-focus-ring-offset: var(--bg);
-  --color-text-secondary: var(--text);
+  --color-text-secondary: #57606a;
   --color-text-on-accent: #ffffff;
   --color-text-on-danger: #ffffff;
   --color-focus-ring: var(--color-accent);
@@ -231,7 +231,7 @@
   --color-warn: #9a6700;
   --color-accent-hover: #8f3d07;
   --color-danger-muted: #b91c1c33;
-  --color-text-secondary: var(--text);
+  --color-text-secondary: #57534e;
   --color-text-on-accent: #ffffff;
   --color-text-on-danger: #ffffff;
   --color-focus-ring: var(--color-accent);

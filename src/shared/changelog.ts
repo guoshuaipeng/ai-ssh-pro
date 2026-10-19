@@ -12,6 +12,40 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.40': [
+    {
+      icon: '▷',
+      text: {
+        zh: '关闭窗口即退出应用，不再后台空闲保活残留进程',
+        en: 'Closing the window quits the app; no idle keep-alive leftover processes'
+      },
+      where: { zh: '窗口关闭', en: 'Window close' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 面板开关图标与 DataAI 同款线性星芒',
+        en: 'AI panel toggle uses the same linear spark as DataAI'
+      },
+      where: { zh: '标题栏', en: 'Title bar' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '标签与对话框图标与标题栏同权（16px / 描边 1.5）',
+        en: 'Tab and dialog icons match titlebar weight (16px / stroke 1.5)'
+      },
+      where: { zh: '标签条 / 对话框', en: 'Tabs / Dialogs' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '次要字色与弱化字色层级更清楚，亮色主题不再糊成主色',
+        en: 'Secondary and muted text separate more clearly; light themes no longer flatten to primary'
+      },
+      where: { zh: '全局主题', en: 'Themes' }
+    }
+  ],
   '0.6.39': [
     {
       icon: '▷',

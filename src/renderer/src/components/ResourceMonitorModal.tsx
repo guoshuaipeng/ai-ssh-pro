@@ -6,6 +6,7 @@ import { useI18n } from '../lib/i18n'
 import { friendlyErrorMessage } from '../lib/friendly-error'
 import Modal from './Modal'
 import Icon from './Icon'
+import { CHROME_ICON_SIZE, CHROME_ICON_STROKE } from './emptyIcons'
 import type { BatchSessionOption } from './BatchExecuteModal'
 
 type Props = {
@@ -205,7 +206,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
                       <div className="rm-bar rm-bar-sm">
                         <div className={`rm-fill rm-${level(d.percent)}`} style={{ width: `${d.percent}%` }} />
                       </div>{' '}
-                      {d.percent >= 85 ? <Icon name="triangle-alert" size={12} /> : null}{' '}
+                      {d.percent >= 85 ? <Icon name="triangle-alert" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> : null}{' '}
                       {d.percent}%
                     </td>
                   </tr>

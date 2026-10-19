@@ -104,7 +104,7 @@ import SessionCommandBar from './components/SessionCommandBar'
 import EmptyState from './components/EmptyState'
 import WelcomePanel from './components/WelcomePanel'
 import Icon, { Twist } from './components/Icon'
-import { CHROME_ICON_STROKE, STATUS_ICON_SIZE, TREE_CHEVRON_SIZE } from './components/emptyIcons'
+import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, STATUS_ICON_SIZE, TAB_ICON_SIZE, TREE_CHEVRON_SIZE } from './components/emptyIcons'
 import { statusSlotIconName } from './lib/status-icons'
 import HostPicker from './components/HostPicker'
 import WelcomeTour, { TOUR_DONE_KEY } from './components/WelcomeTour'
@@ -7343,7 +7343,7 @@ export default function App() {
                 ) : (
                 <>
                 <span className="tab-kind-icon">
-                  <Icon name={tabKindIcon(t.view)} size={12} />
+                  <Icon name={tabKindIcon(t.view)} size={TAB_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                 </span>
                 {/* pin affordance: tab-pin-btn */}
                 {isSession && t.sessionId && broadcastSessions.includes(t.sessionId) ? (
@@ -7401,7 +7401,7 @@ export default function App() {
                     }
                   }}
                 >
-                  <Icon name="pin" size={12} />
+                  <Icon name="pin" size={TAB_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                 </span>
                 <span
                   role="button"
@@ -7583,9 +7583,9 @@ export default function App() {
                             }}
                           >
                             <span className="tab-kind-icon">
-                              <Icon name={tabKindIcon(t.view)} size={12} />
+                              <Icon name={tabKindIcon(t.view)} size={TAB_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                             </span>
-                            {t.pinned ? <Icon name="pin" size={12} /> : null}
+                            {t.pinned ? <Icon name="pin" size={TAB_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> : null}
                             <span className="tab-overflow-label">{labelFor(t)}</span>
                             <span
                               role="button"
@@ -7601,7 +7601,7 @@ export default function App() {
                             </span>
                             {current ? (
                               <span className="tab-overflow-check" aria-label={tr('tab.list.current')}>
-                                <Icon name="check" size={14} />
+                                <Icon name="check" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
                               </span>
                             ) : null}
                           </button>

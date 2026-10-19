@@ -13,6 +13,9 @@ export const TREE_CHEVRON_SIZE = 12
 /** Status bar shares chrome size so weight matches the titlebar. */
 export const STATUS_ICON_SIZE = CHROME_ICON_SIZE
 
+/** Tab pin / kind icons — same weight as titlebar chrome. */
+export const TAB_ICON_SIZE = CHROME_ICON_SIZE
+
 /** Default icon slot. Compact slot is 32. CSS maps these to --space-7 / --space-6. */
 export const EMPTY_ICON_SIZE = 48
 export const EMPTY_ICON_SIZE_COMPACT = 32

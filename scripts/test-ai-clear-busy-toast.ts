@@ -11,6 +11,6 @@ assert.ok(i18n.includes("ai.clearBusy': '请先停止生成再清空对话'"))
 assert.ok(i18n.includes("ai.clearBusy': 'Stop generation before clearing chat'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ai-clear-busy-toast/)
 console.log('test-ai-clear-busy-toast ok')

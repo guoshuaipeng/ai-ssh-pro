@@ -25,6 +25,6 @@ assert.match(app, /pushClosedTab/)
 assert.match(app, /popClosedTab/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-reopen-closed-tab/)
 console.log('test-reopen-closed-tab ok')

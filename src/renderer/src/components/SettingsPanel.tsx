@@ -32,6 +32,7 @@ import AboutBlock from './AboutBlock'
 import ReconnectPolicySection from './ReconnectPolicySection'
 import EmptyState from './EmptyState'
 import Icon from './Icon'
+import { EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
 
 const SECTION_KEY: Record<SettingsSection, MessageKey> = {
   general: 'settings.general',
@@ -197,7 +198,7 @@ export default function SettingsPanel({
           {visible.length === 0 ? (
             <EmptyState
               testId="settings-search-empty"
-              icon={<Icon name="search" size={32} strokeWidth={1.5} />}
+              icon={<Icon name="search" size={EMPTY_ICON_SIZE_COMPACT} strokeWidth={EMPTY_ICON_STROKE} />}
               title={t('settings.none', { q })}
               desc={t('settings.searchEmptyDesc')}
               primary={{ label: t('pf4.paletteClear'), onClick: () => setQ(''), testId: 'settings-search-clear' }}

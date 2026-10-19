@@ -15,7 +15,7 @@ export default function Icon({ name, size = 16, title, strokeWidth = 1.5 }: Prop
       className="aiss-icon"
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox={name === 'sparkles' ? '0 0 16 16' : '0 0 24 24'}
       fill="none"
       stroke="currentColor"
       strokeWidth={strokeWidth}

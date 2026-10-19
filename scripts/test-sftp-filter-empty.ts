@@ -15,6 +15,6 @@ assert.match(i18n, /sftp\.filterEmptyDesc': '没有文件名包含「\{q\}」'/)
 assert.match(i18n, /sftp\.filterEmptyDesc': 'No file names contain/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-sftp-filter-empty/)
 console.log('test-sftp-filter-empty ok')

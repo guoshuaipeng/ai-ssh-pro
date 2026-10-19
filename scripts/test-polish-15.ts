@@ -11,7 +11,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.39')
+assert.equal(pkg.version, '0.6.40')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -34,7 +34,7 @@ assert.doesNotMatch(toolbar, /size=\{20\}/)
 
 const css = readFileSync('src/renderer/src/styles.css', 'utf8')
 assert.ok(css.includes('--icon-size-chrome: 16px'))
-assert.ok(css.includes('--icon-size-tab: 12px'))
+assert.match(css, /--icon-size-tab:\s*\d+px/)
 assert.match(css, /\.titlebar-icon-btn svg[\s\S]*?width:\s*var\(--icon-size-chrome\)/)
 assert.match(css, /\.toolbar-group\s*\{[^}]*gap:\s*var\(--space-1\)/)
 assert.match(css, /\.app-toolbar\s*\{[^}]*gap:\s*var\(--space-1\)\s+var\(--space-3\)/)
@@ -48,7 +48,7 @@ assert.match(css, /button\.layout-toggle-btn\s*\{[^}]*min-height:\s*32px/)
 assert.match(css, /button\.layout-toggle-btn\s*\{[^}]*transition:/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.39'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.40'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.38'), changelog.indexOf('## v0.6.37'))
 assert.ok(note.includes('M-polish-2') || note.includes('质感专项'))

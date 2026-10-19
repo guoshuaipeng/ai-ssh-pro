@@ -13,7 +13,6 @@ import { useI18n, type MessageKey } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
 import { PRODUCT_NAME } from '@shared/product'
 import type { IconName } from '@shared/icon-registry'
-import aiSparkleUrl from '../assets/ai-sparkle.png'
 import Icon, { Twist } from './Icon'
 import BrandMark from './BrandMark'
 import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, TREE_CHEVRON_SIZE } from './emptyIcons'
@@ -46,7 +45,8 @@ const OPS_BUTTONS: ReadonlyArray<{ id: TitlebarMenuAction; icon: IconName; label
 
 function LayoutToggleIcon({ kind }: { kind: 'sidebar' | 'main' | 'ai' }) {
   if (kind === 'ai') {
-    return <img src={aiSparkleUrl} width={14} height={14} alt="" aria-hidden className="layout-toggle-ai-icon" />
+    // Same glyph as DataAI IconSpark (linear spark, currentColor, stroke 1.5).
+    return <Icon name="sparkles" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
   }
   const pane = kind === 'sidebar' ? 'M5.25 2.5v11' : 'M5.25 2.5v11M10.75 2.5v11'
   return (

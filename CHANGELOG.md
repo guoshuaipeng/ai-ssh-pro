@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v0.6.40
+
+Released 2026-10-19 (CST).
+
+- **关窗即退出（Win/Linux）.** 去掉关窗后 120s 空闲保活；最后一扇窗关闭即 `beginQuit`：拆托盘、断开 SSH/本机 shell、释放单实例锁，必要时 `FORCE_EXIT_MS` 后 `app.exit(0)`，避免残留 AI-SSH-Pro.exe / GPU / utility。macOS 仍可无窗保活。 / **Quit on last window (Win/Linux).** Removed the 120s idle keep-alive. Closing the last window runs `beginQuit`: destroy tray, disconnect SSH/local shell, release the single-instance lock, and `app.exit(0)` after `FORCE_EXIT_MS` if helpers hang. macOS still stays alive with no windows.
+- **AI 开关图标对齐 DataAI IconSpark.** 标题栏 AI 布局切换不再用 PNG；`sparkles` 路径与 DataAI 一致（16 视口、描边 1.5、`currentColor`）。 / **AI toggle matches DataAI IconSpark.** Titlebar AI layout toggle drops the PNG; `sparkles` uses the same path as DataAI (16 viewBox, stroke 1.5, currentColor).
+- **质感专项 M-polish-4（对话框/标签图标 + muted 层级）.** 标签 kind/pin 与对话框操作图标统一 16px / 描边 1.5；暗色 secondary `#b4bccf`、muted 略对齐 DataAI；亮色/sand secondary 不再绑主色。tipSuggest 不变。版本 0.6.40。 / **Feel track M-polish-4.** Tab/dialog icons at 16px / stroke 1.5; muted hierarchy closer to DataAI. tipSuggest unchanged. Package 0.6.40.
+
+
 ## v0.6.39
 
 Released 2026-10-19 (CST).
