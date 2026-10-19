@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -26,7 +26,7 @@ assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.49'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.50'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.10'), changelog.indexOf('## v0.4.9'))
 assert.ok(note.includes('v0.4.10 soft-start'))
@@ -83,7 +83,7 @@ assert.equal(css.includes('.tab.tab-kind-monitor'), false)
 assert.equal(css.includes('.tab.tab-kind-docker'), false)
 assert.equal(css.includes('.tab.tab-kind-sftp'), false)
 assert.match(styles, /\.tab-kind-icon\s*\{[^}]*var\(--color-text-muted\)/)
-assert.match(styles, /\.tab\.active \.tab-kind-icon\s*\{[^}]*var\(--color-text-secondary\)/)
+assert.match(styles, /\.tab\.active \.tab-kind-icon\s*\{[^}]*var\(--color-accent\)/)
 
 const elevated = [
   [styles, '.modal-panel', '--shadow-modal'],

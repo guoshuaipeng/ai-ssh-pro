@@ -51,10 +51,11 @@ export function tabLabel(
   }
   const key = t.view ? VIEW_TITLE[t.view] : undefined
   if (key) {
-    // openToolTab sets "Monitor · host" / "Toolbox · host"; keep that over the bare menu label.
-    const bare = tr(key)
-    if (t.title?.trim() && t.title.trim() !== bare) return t.title.trim()
-    return bare
+    // openToolTab sets "Monitor · host" / "Toolbox · host"; keep that host-qualified title.
+    // A plain default title (stored in whatever language was active at open time) must follow the UI language.
+    const title = t.title?.trim()
+    if (title && title.includes(' · ')) return title
+    return tr(key)
   }
   return t.title
 }

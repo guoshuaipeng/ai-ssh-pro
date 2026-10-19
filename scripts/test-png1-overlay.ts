@@ -311,7 +311,8 @@ assert.ok(app.includes("open={product === 'systemUpdate'}"))
 assert.ok(app.includes("open={product === 'releaseNotes'}"))
 assert.equal(app.includes('open={whatsNewOpen}'), false)
 assert.equal(app.includes('open={updateModalOpen && Boolean(updateInfo)}'), false)
-assert.ok(app.includes('open={product === \'tour\'}') || app.includes('open={product === "tour"}'))
+assert.ok(app.includes('<WelcomeTour open={tourOpen}'))
+assert.ok(app.includes("admitProductOverlay(product, 'tour')") && app.includes('tour: tourOpen'))
 assert.ok(app.includes("product === 'tasks'"))
 assert.ok(app.includes("const showWelcome = product === 'welcome'"))
 assert.equal((app.match(/data-product-layer/g) ?? []).length, 1)
@@ -329,7 +330,7 @@ const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog
 assert.ok(unreleased.includes('（PNG-1）'))
 assert.ok(unreleased.includes('Public HOLD'))
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 
 console.log('test-png1-overlay ok')
 

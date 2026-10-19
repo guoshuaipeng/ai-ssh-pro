@@ -10,7 +10,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-18.ts'), true)
@@ -42,7 +42,7 @@ const features = readFileSync('src/renderer/src/features.css', 'utf8')
 assert.match(features, /\.titlebar-compact-3\s+\.titlebar-search-btn/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.49'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.50'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.41'), changelog.indexOf('## v0.6.40'))
 assert.ok(note.includes('layout') || note.includes('星芒') || note.includes('sparkle') || note.includes('窄窗'))

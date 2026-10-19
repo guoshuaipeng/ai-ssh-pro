@@ -14,6 +14,6 @@ assert.ok(i18n.includes("tags.cleared': '已清除标签'"))
 assert.ok(i18n.includes("tags.cleared': 'Tags cleared'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-tags-saved-toast/)
 console.log('test-tags-saved-toast ok')

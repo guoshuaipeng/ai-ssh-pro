@@ -10,6 +10,6 @@ assert.match(chunk, /openConnectionEditor\(p\)/)
 assert.match(chunk, /showToast\(tg\('pf5\.editConn'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-session-edit-conn-toast/)
 console.log('test-session-edit-conn-toast ok')

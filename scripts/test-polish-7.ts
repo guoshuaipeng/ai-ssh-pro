@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -89,8 +89,9 @@ assert.ok(card.includes('var(--color-border-default)'))
 assert.equal(card.includes('#'), false)
 
 const empty = css.slice(css.indexOf('.ai-reply-empty {'), css.indexOf('.ai-reply-empty p'))
-assert.ok(empty.includes('background: transparent'))
-assert.ok(empty.includes('border: none'))
+assert.ok(empty.includes('background: var(--color-bg-elevated)'))
+assert.match(empty, /border:\s*1px solid var\(--color-border-[a-z]+\)/)
+assert.equal(empty.includes('#'), false)
 
 const strip = css.slice(css.indexOf('.msg.assistant.ai-tool-strip {'), css.indexOf('.ai-tool-step'))
 assert.ok(strip.includes('flex-wrap: nowrap'))

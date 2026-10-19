@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.50': [
+    {
+      icon: '▷',
+      text: {
+        zh: '切换语言后标签名即时跟随；空态图标比例修正',
+        en: 'Tab names follow the UI language; empty-state icon proportions fixed'
+      },
+      where: { zh: '标签栏与空态', en: 'Tab strip and empty states' }
+    }
+  ],
   '0.6.49': [
     {
       icon: '▷',

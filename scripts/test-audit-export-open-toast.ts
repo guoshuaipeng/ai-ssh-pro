@@ -13,6 +13,6 @@ assert.ok(i18n.includes("audit.exportOpen': '打开审计导出…'"))
 assert.ok(i18n.includes("audit.exportOpen': 'Opening audit export…'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-audit-export-open-toast/)
 console.log('test-audit-export-open-toast ok')

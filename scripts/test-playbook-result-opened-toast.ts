@@ -10,6 +10,6 @@ const chunk = app.slice(start, start + 200)
 assert.match(chunk, /showToast\(tg\('m2\.playbooks'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-playbook-result-opened-toast/)
 console.log('test-playbook-result-opened-toast ok')

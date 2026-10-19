@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.49')
+assert.equal(pkg.version, '0.6.50')
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-17.ts'), true)
@@ -55,7 +55,7 @@ assert.doesNotMatch(css, /\[data-ui-theme='light'\][\s\S]{0,400}--color-text-sec
 assert.match(css, /--color-border-muted:\s*color-mix/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.49'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.50'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.40'), changelog.indexOf('## v0.6.39'))
 assert.ok(note.includes('M-polish-4') || note.includes('质感专项'))

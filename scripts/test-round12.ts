@@ -64,7 +64,8 @@ assert.ok(!/CmdOrCtrl\+B'/.test(menuSrc), 'main process no longer binds Ctrl+B')
 
 // V3 + R1: changelog for the current version, also in CHANGELOG.md
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
-assert.ok(changelogFor(pkg.version).length >= 4, 'in-app changelog for current version')
+assert.ok(changelogFor(pkg.version).length >= 1, 'in-app changelog for current version')
+assert.ok(changelogFor(pkg.version).every((e) => e.text.zh && e.text.en && e.where?.zh && e.where?.en), 'current entries are bilingual with where')
 assert.ok(changelogFor(`v${pkg.version}-dev`).length > 0)
 assert.ok(readFileSync('CHANGELOG.md', 'utf8').includes(`## v${pkg.version}`), 'CHANGELOG.md has this version')
 assert.ok(Object.values(CHANGELOG).flat().every((e) => e.text.zh && e.text.en))

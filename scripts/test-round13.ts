@@ -118,7 +118,8 @@ ok(enKeys.get('ux09.title') === 'Pick a host to open {feature}' && enKeys.get('u
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 ok((CHANGELOG['0.3.13'] ?? []).length >= 4, '0.3.13 changelog entries')
 for (const e of CHANGELOG['0.3.13'] ?? []) if (e.action) ok(ids.has(e.action), `changelog action ${e.action} exists`)
-ok(changelogFor(pkg.version).length >= 4, 'changelog for package version')
+ok(changelogFor(pkg.version).length >= 1, 'changelog for package version')
+ok(readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8').includes(`## v${pkg.version}`), 'CHANGELOG.md has package version')
 ok(readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8').includes('## v0.3.13'), 'CHANGELOG.md has v0.3.13')
 
 console.log(`test-round13 ok: ${n} assertions`)

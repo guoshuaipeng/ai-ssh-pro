@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.50
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-12（测试清账）.** 清理 11 个长期失败的旧测试，test:parts 全绿。修复其间暴露的 3 处真实问题：运维首页密度模型 `DENSITY.threeCol` 对齐 0.6.42 的容器折叠阈值（1100）；视图标签不再保留打开时语言的默认标题（切语言后“Ops home”残留），仅保留带“· 主机”的工具标题；空态图标井 40px 装 48px 图标溢出，改为 `--space-7` 井 + `--space-5` 图标（紧凑 `--space-6`/`--space-4`）。其余为过时断言（版本号钉死、changelog 条数、M5 有意改动、0.6.36 引导/标签菜单）。tipSuggest 不变。版本 0.6.50。 / Stale tests fixed; tab language, density model and empty-state icon well corrected.
+
 ## v0.6.49
 
 Released 2026-10-19 (CST).
