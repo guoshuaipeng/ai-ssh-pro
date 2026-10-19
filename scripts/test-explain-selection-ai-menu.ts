@@ -17,6 +17,6 @@ assert.match(panel, /requestSelectionExplain/)
 assert.match(panel, /currentTerminalSelection/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.50')
+assert.equal(pkg.version, '0.6.51')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-explain-selection-ai-menu/)
 console.log('test-explain-selection-ai-menu ok')

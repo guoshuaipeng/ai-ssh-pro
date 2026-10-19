@@ -9,6 +9,7 @@ import { snapshotsEnabled } from '@shared/snapshots'
 import { showToast } from '../lib/toast'
 import Icon from './Icon'
 import Button from './ui/Button'
+import PanelHeader from './ui/PanelHeader'
 
 type Props = {
   tabId: string
@@ -217,77 +218,82 @@ export default function RemoteTextEditor({
 
   return (
     <div className="workspace-panel workspace-panel--remote-file" data-testid="remote-text-editor">
-      <div className="workspace-panel-toolbar">
-        <div className="remote-file-toolbar-left">
-          <h2 className="workspace-panel-title">{dirty ? `● ${fileName}` : fileName}</h2>
-          <span className="remote-file-path" title={remotePath}>
-            {remotePath}
-          </span>
-        </div>
-        <div className="workspace-panel-actions">
-          {mode === 'edit' ? (
-            <>
-              <label className="remote-file-autosave" title={tg('d4.showDiff')}>
-                <input
-                  type="checkbox"
-                  checked={showDiffPref}
-                  onChange={(e) => {
-                    setShowDiffPref(e.target.checked)
-                    localStorage.setItem(SHOW_DIFF_KEY, e.target.checked ? '1' : '0')
-                  }}
-                />
-                {tg('d4.showDiff')}
-              </label>
-              <label className="remote-file-autosave" title={tg('d4.bak')}>
-                <input
-                  type="checkbox"
-                  checked={bakPref}
-                  onChange={(e) => {
-                    setBakPref(e.target.checked)
-                    localStorage.setItem(BAK_KEY, e.target.checked ? '1' : '0')
-                  }}
-                />
-                {tg('d4.bak')}
-              </label>
-              <span className="l7-muted">{tg('w3.bakHint')}</span>
-              {onOpenHistory ? (
-                <button type="button" title={tg('w3.history')} data-testid="w3-history" onClick={onOpenHistory}>
-                  <Icon name="history" size={16} />
+      <PanelHeader
+        leadClassName="remote-file-toolbar-left"
+        title={dirty ? `● ${fileName}` : fileName}
+        aside={
+          <>
+            <span className="remote-file-path" title={remotePath}>
+              {remotePath}
+            </span>
+          </>
+        }
+        actions={
+          <>
+            {mode === 'edit' ? (
+              <>
+                <label className="remote-file-autosave" title={tg('d4.showDiff')}>
+                  <input
+                    type="checkbox"
+                    checked={showDiffPref}
+                    onChange={(e) => {
+                      setShowDiffPref(e.target.checked)
+                      localStorage.setItem(SHOW_DIFF_KEY, e.target.checked ? '1' : '0')
+                    }}
+                  />
+                  {tg('d4.showDiff')}
+                </label>
+                <label className="remote-file-autosave" title={tg('d4.bak')}>
+                  <input
+                    type="checkbox"
+                    checked={bakPref}
+                    onChange={(e) => {
+                      setBakPref(e.target.checked)
+                      localStorage.setItem(BAK_KEY, e.target.checked ? '1' : '0')
+                    }}
+                  />
+                  {tg('d4.bak')}
+                </label>
+                <span className="l7-muted">{tg('w3.bakHint')}</span>
+                {onOpenHistory ? (
+                  <button type="button" title={tg('w3.history')} data-testid="w3-history" onClick={onOpenHistory}>
+                    <Icon name="history" size={16} />
+                  </button>
+                ) : null}
+                <button type="button" disabled={loading || saving} onClick={() => void load()}>
+                  {tg('ui.264')}
                 </button>
-              ) : null}
-              <button type="button" disabled={loading || saving} onClick={() => void load()}>
-                {tg('ui.264')}
-              </button>
-              <Button variant="primary"
-                disabled={loading || saving || !dirty || Boolean(meta?.truncated) || remoteWritesBlocked}
-                title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
-                onClick={() => requestSave()}
-              >
-                {saving ? tg('ui.185') : tg('ui.265')}
-              </Button>
-            </>
-          ) : (
-            <>
-              <span className="d4-stats">
-                {tg('d4.stats', { a: stats.add, d: stats.del })}
-              </span>
-              <button type="button" onClick={() => setMode('edit')}>
-                {tg('d4.backEdit')}
-              </button>
-              <Button variant="primary"
-                disabled={saving || remoteWritesBlocked}
-                title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
-                onClick={() => void doSave()}
-              >
-                {saving ? tg('ui.185') : tg('d4.saveServer')}
-              </Button>
-            </>
-          )}
-          <button type="button" onClick={() => void requestClose()} disabled={saving}>
-            {tg('ui.27')}
-          </button>
-        </div>
-      </div>
+                <Button variant="primary"
+                  disabled={loading || saving || !dirty || Boolean(meta?.truncated) || remoteWritesBlocked}
+                  title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
+                  onClick={() => requestSave()}
+                >
+                  {saving ? tg('ui.185') : tg('ui.265')}
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="d4-stats">
+                  {tg('d4.stats', { a: stats.add, d: stats.del })}
+                </span>
+                <button type="button" onClick={() => setMode('edit')}>
+                  {tg('d4.backEdit')}
+                </button>
+                <Button variant="primary"
+                  disabled={saving || remoteWritesBlocked}
+                  title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
+                  onClick={() => void doSave()}
+                >
+                  {saving ? tg('ui.185') : tg('d4.saveServer')}
+                </Button>
+              </>
+            )}
+            <button type="button" onClick={() => void requestClose()} disabled={saving}>
+              {tg('ui.27')}
+            </button>
+          </>
+        }
+      />
 
       <div className="remote-file-statusbar">
         <span>{dirty ? tg('ui.266') : tg('ui.267')}</span>

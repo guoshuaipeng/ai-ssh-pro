@@ -52,6 +52,7 @@ import { cwdFromPwd, PWD_TIMEOUT_MS } from '@shared/sftp-host'
 import { listedPathMatchesRequest, selectedDriveId, type LocalDrive } from '@shared/local-drives'
 import { SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import Button from './ui/Button'
+import PanelHeader from './ui/PanelHeader'
 
 type Props = {
   /** D8: close confirm and queue belong to this tab only. */
@@ -1571,95 +1572,101 @@ export default function SftpPanel({
       role="region"
       aria-label={`${tg('sftp.title')}${sessionTitle ? ` · ${sessionTitle}` : ''}`}
     >
-      <div className="workspace-panel-toolbar sftp-toolbar" data-testid="sftp-toolbar">
-        <div className="workspace-panel-actions sftp-toolbar-actions" data-nowrap={centerLayout.toolbarNowrap ? '1' : '0'}>
-          {narrow ? (
-            <div className="sftp-pane-toggle" role="tablist">
-              <button type="button" className={pane === 'local' ? 'is-on' : ''} onClick={() => setPane('local')}>
-                {tg('d1.local')}
-              </button>
-              <button type="button" className={pane === 'remote' ? 'is-on' : ''} onClick={() => setPane('remote')}>
-                {tg('d1.remote')}
-              </button>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className="sftp-session-cwd"
-            data-testid="sftp-session-cwd"
-            disabled={!sessionId}
-            title={tg('d7.sessionCwdTip')}
-            onClick={() => void goSessionCwd()}
-          >
-            <span className="sftp-label sftp-label-keep">{tg('d7.sessionCwd')}</span>
-          </button>
-          <button
-            type="button"
-            title={compact ? tg('ux46.comfort') : tg('ux46.compact')}
-            onClick={() => {
-              const next: SftpDensityPref = densityPref === 'comfort' ? 'auto' : 'comfort'
-              saveSftpDensity(next)
-              setDensityPref(next)
-              window.dispatchEvent(new CustomEvent(SFTP_DENSITY_EVENT))
-            }}
-          >
-            <span className="sftp-label sftp-label-keep">{densityPref === 'comfort' ? tg('ux46.comfort') : tg('ux46.compact')}</span>
-          </button>
-          <span className="sftp-queue-summary">
-            {summary.active > 0 ? tg('d1.summary', { n: summary.active, speed: formatSpeed(summary.speed) }) : tg('d1.queue')}
-          </span>
-          <details
-            className="sftp-advanced"
-            data-testid="sftp-advanced"
-            open={advancedOpen}
-            onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
-          >
-            <summary>{tg('sftp.advanced')}</summary>
-            <div className="sftp-advanced-body">
-              <button type="button" disabled={!sessionId} title={tg('d2.title')} onClick={() => { setSyncProfile(null); setSyncOpen(true) }}>
-                <span className="sftp-ico" aria-hidden>↻</span>
-                <span className="sftp-label">{tg('d2.title')}</span>
-              </button>
-              <button
-                type="button"
-                data-testid="sftp-compare"
-                title={tg('d5.compare')}
-                disabled={!onCompare}
-                onClick={() => {
-                  const local = localShown.filter((e) => localSel[e.path] && !e.isDirectory)
-                  const remote = remoteShown.filter((e) => remoteSel[e.path] && !e.isDirectory)
-                  if (local.length !== 1 || remote.length !== 1) {
-                    showToast(tg('d5.needPair'))
-                    return
-                  }
-                  onCompare?.({
-                    localPath: local[0]!.path,
-                    remotePath: remote[0]!.path,
-                    localName: local[0]!.name,
-                    remoteName: remote[0]!.name,
-                    localSize: local[0]!.size,
-                    remoteSize: remote[0]!.size
-                  })
-                }}
-              >
-                <span className="sftp-ico" aria-hidden>⇄</span>
-                <span className="sftp-label">{tg('d5.compare')}</span>
-              </button>
-              <label className="sftp-autoresume">
-                <input
-                  type="checkbox"
-                  checked={autoResume}
-                  onChange={(e) => {
-                    const next = saveSmartPrefs({ ...loadSmartPrefs(), autoResume: e.target.checked })
-                    setAutoResume(next.autoResume)
+      <PanelHeader
+        className="sftp-toolbar"
+        testId="sftp-toolbar"
+        actionsClassName="sftp-toolbar-actions"
+        actionsProps={{ 'data-nowrap': centerLayout.toolbarNowrap ? '1' : '0' }}
+        actions={
+          <>
+            {narrow ? (
+              <div className="sftp-pane-toggle" role="tablist">
+                <button type="button" className={pane === 'local' ? 'is-on' : ''} onClick={() => setPane('local')}>
+                  {tg('d1.local')}
+                </button>
+                <button type="button" className={pane === 'remote' ? 'is-on' : ''} onClick={() => setPane('remote')}>
+                  {tg('d1.remote')}
+                </button>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="sftp-session-cwd"
+              data-testid="sftp-session-cwd"
+              disabled={!sessionId}
+              title={tg('d7.sessionCwdTip')}
+              onClick={() => void goSessionCwd()}
+            >
+              <span className="sftp-label sftp-label-keep">{tg('d7.sessionCwd')}</span>
+            </button>
+            <button
+              type="button"
+              title={compact ? tg('ux46.comfort') : tg('ux46.compact')}
+              onClick={() => {
+                const next: SftpDensityPref = densityPref === 'comfort' ? 'auto' : 'comfort'
+                saveSftpDensity(next)
+                setDensityPref(next)
+                window.dispatchEvent(new CustomEvent(SFTP_DENSITY_EVENT))
+              }}
+            >
+              <span className="sftp-label sftp-label-keep">{densityPref === 'comfort' ? tg('ux46.comfort') : tg('ux46.compact')}</span>
+            </button>
+            <span className="sftp-queue-summary">
+              {summary.active > 0 ? tg('d1.summary', { n: summary.active, speed: formatSpeed(summary.speed) }) : tg('d1.queue')}
+            </span>
+            <details
+              className="sftp-advanced"
+              data-testid="sftp-advanced"
+              open={advancedOpen}
+              onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
+            >
+              <summary>{tg('sftp.advanced')}</summary>
+              <div className="sftp-advanced-body">
+                <button type="button" disabled={!sessionId} title={tg('d2.title')} onClick={() => { setSyncProfile(null); setSyncOpen(true) }}>
+                  <span className="sftp-ico" aria-hidden>↻</span>
+                  <span className="sftp-label">{tg('d2.title')}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="sftp-compare"
+                  title={tg('d5.compare')}
+                  disabled={!onCompare}
+                  onClick={() => {
+                    const local = localShown.filter((e) => localSel[e.path] && !e.isDirectory)
+                    const remote = remoteShown.filter((e) => remoteSel[e.path] && !e.isDirectory)
+                    if (local.length !== 1 || remote.length !== 1) {
+                      showToast(tg('d5.needPair'))
+                      return
+                    }
+                    onCompare?.({
+                      localPath: local[0]!.path,
+                      remotePath: remote[0]!.path,
+                      localName: local[0]!.name,
+                      remoteName: remote[0]!.name,
+                      localSize: local[0]!.size,
+                      remoteSize: remote[0]!.size
+                    })
                   }}
-                />
-                {tg('d1.autoResume')}
-              </label>
-            </div>
-          </details>
-        </div>
-      </div>
+                >
+                  <span className="sftp-ico" aria-hidden>⇄</span>
+                  <span className="sftp-label">{tg('d5.compare')}</span>
+                </button>
+                <label className="sftp-autoresume">
+                  <input
+                    type="checkbox"
+                    checked={autoResume}
+                    onChange={(e) => {
+                      const next = saveSmartPrefs({ ...loadSmartPrefs(), autoResume: e.target.checked })
+                      setAutoResume(next.autoResume)
+                    }}
+                  />
+                  {tg('d1.autoResume')}
+                </label>
+              </div>
+            </details>
+          </>
+        }
+      />
       <div className={`sftp-panes${narrow ? ' is-narrow' : ''}`} data-sftp-split={centerLayout.listPreviewSplit ? 'clear' : 'flat'}>
         {showLocal ? renderPane('local') : null}
         {!narrow ? (

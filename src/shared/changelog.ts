@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.51': [
+    {
+      icon: '▷',
+      text: {
+        zh: '所有面板工具栏统一为共享面板头',
+        en: 'All panel toolbars now share one header primitive'
+      },
+      where: { zh: '工作区面板', en: 'Workspace panels' }
+    }
+  ],
   '0.6.50': [
     {
       icon: '▷',

@@ -321,9 +321,7 @@ export default function OpsHomeTab({
   if (hosts.length === 0 && scope.mode === 'all') {
     return (
       <div ref={rootRef} className="workspace-panel l7-root" data-testid="ops-home" data-ops-quiet={quietLayout.foldSecondary ? '1' : '0'} data-ops-card-cap={quietLayout.cardCap}>
-        <div className="workspace-panel-toolbar l7-head">
-          <h2 className="workspace-panel-title">{t('l7.title')}</h2>
-        </div>
+        <PanelHeader className="l7-head" title={t('l7.title')} />
         <div className="workspace-panel-body">
           <EmptyState
             testId="l7-empty"

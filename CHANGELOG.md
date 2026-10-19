@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.51
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-13（工具栏收口）.** 最后 6 处手写工具栏（文件历史、多主机看板、远程编辑器、同步冲突、SFTP 工具栏、运维首页无主机分支）改用 `PanelHeader`，手写工具栏清零。`PanelHeader` 新增可选 `titleTooltip` / `aside` + `leadClassName` / `actionsProps`，`title` 可省略（纯操作栏）。文件历史“打开目录”改为带 aria-label 的图标按钮。testid 不变。tipSuggest 不变。版本 0.6.51。 / Last hand-rolled panel toolbars moved onto PanelHeader.
+
 ## v0.6.50
 
 Released 2026-10-19 (CST).

@@ -20,6 +20,6 @@ assert.ok(i18n.includes("settings.themeOpened': '已打开界面主题设置'"))
 assert.ok(i18n.includes("settings.themeOpened': 'Opened UI theme settings'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.50')
+assert.equal(pkg.version, '0.6.51')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-settings-menu-opened-toasts/)
 console.log('test-settings-menu-opened-toasts ok')

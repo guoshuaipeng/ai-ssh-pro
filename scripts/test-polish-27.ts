@@ -12,7 +12,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   build?: { win?: Record<string, unknown> }
   scripts: { test: string; 'test:parts'?: string }
 }
-assert.equal(pkg.version, '0.6.50')
+assert.equal(pkg.version, '0.6.51')
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-27.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
@@ -40,11 +40,11 @@ assert.doesNotMatch(icon + glyph, /\d+px/)
 
 // 4) Version pins no longer freeze: legacy tests track the package version.
 for (const f of ['test-round18.ts', 'test-round19.ts', 'test-polish-1.ts', 'test-core-a-context.ts']) {
-  assert.ok(readFileSync('scripts/' + f, 'utf8').includes('0.6.50'), `${f} tracks the package version`)
+  assert.ok(readFileSync('scripts/' + f, 'utf8').includes(`'${pkg.version}'`) || readFileSync('scripts/' + f, 'utf8').includes(`"${pkg.version}"`), `${f} tracks the package version`)
 }
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.50'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.51'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.50'), changelog.indexOf('## v0.6.49'))
 assert.ok(note.includes('M-polish-12'))

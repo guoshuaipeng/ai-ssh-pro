@@ -8,6 +8,7 @@ import EmptyState from './EmptyState'
 import Icon from './Icon'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import { friendlyErrorMessage } from '../lib/friendly-error'
+import PanelHeader from './ui/PanelHeader'
 
 type Props = {
   sessions: BatchSessionOption[]
@@ -169,35 +170,37 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
 
   return (
     <div className="workspace-panel workspace-panel--o1" data-testid="multi-host-dashboard">
-      <div className="workspace-panel-toolbar">
-        <div className="workspace-panel-actions">
-          {scopeSlot}
-          <label className="o1-sort">
-            {t('o1.sort')}{' '}
-            <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label={t('o1.sort')}>
-              <option value="name">{t('o1.sortName')}</option>
-              <option value="alert">{t('o2.sortAlert')}</option>
-              <option value="cpu">CPU</option>
-              <option value="mem">{t('rm.mem')}</option>
-              <option value="disk">{t('o1.disk')}</option>
-            </select>
-          </label>
-          {onOpenAlertRules ? (
-            <button type="button" onClick={onOpenAlertRules}>{t('o2.rulesTitle')}</button>
-          ) : null}
-          {onOpenInspect ? (
-            <button type="button" onClick={onOpenInspect}>{t('a3.short')}</button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => {
-              for (const s of targets) void loadOne(s.sessionId)
-            }}
-          >
-            {t('rm.refresh')}
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        actions={
+          <>
+            {scopeSlot}
+            <label className="o1-sort">
+              {t('o1.sort')}{' '}
+              <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label={t('o1.sort')}>
+                <option value="name">{t('o1.sortName')}</option>
+                <option value="alert">{t('o2.sortAlert')}</option>
+                <option value="cpu">CPU</option>
+                <option value="mem">{t('rm.mem')}</option>
+                <option value="disk">{t('o1.disk')}</option>
+              </select>
+            </label>
+            {onOpenAlertRules ? (
+              <button type="button" onClick={onOpenAlertRules}>{t('o2.rulesTitle')}</button>
+            ) : null}
+            {onOpenInspect ? (
+              <button type="button" onClick={onOpenInspect}>{t('a3.short')}</button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                for (const s of targets) void loadOne(s.sessionId)
+              }}
+            >
+              {t('rm.refresh')}
+            </button>
+          </>
+        }
+      />
       <div className="workspace-panel-body">
         {targets.length === 0 ? (
           <EmptyState

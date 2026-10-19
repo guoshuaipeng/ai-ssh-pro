@@ -187,17 +187,24 @@ export default function FileHistoryTab({ profileId, hostLabel, path, level, sess
 
   return (
     <div className="workspace-panel w3-history" data-testid="file-history">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title" title={path}>{tg('w3.tabFile', { name: path.split('/').pop() || path })}</h2>
-        <div className="workspace-panel-actions">
-          <Button variant="primary" data-testid="w3-rollback" disabled={!canRollback || busy} title={!selected ? tg('w3.pickSnapshot') : !rollbackAllowed(level) ? tg('s4.rollbackDisabled') : undefined} onClick={() => void rollback()}>
-            {busy ? tg('w3.rollingBack') : currentState === 'missing' ? tg('w3.restore') : tg('w3.rollback')}
-          </Button>
-          <button type="button" title={tg('w3.openDir')} onClick={() => void window.aiss.snapshots.openDir()}>
-            <Icon name="history" size={16} />
-          </button>
-        </div>
-      </div>
+      <PanelHeader
+        title={tg('w3.tabFile', { name: path.split('/').pop() || path })}
+        titleTooltip={path}
+        actions={
+          <>
+            <Button variant="primary" data-testid="w3-rollback" disabled={!canRollback || busy} title={!selected ? tg('w3.pickSnapshot') : !rollbackAllowed(level) ? tg('s4.rollbackDisabled') : undefined} onClick={() => void rollback()}>
+              {busy ? tg('w3.rollingBack') : currentState === 'missing' ? tg('w3.restore') : tg('w3.rollback')}
+            </Button>
+            <Button
+              variant="icon"
+              icon="history"
+              title={tg('w3.openDir')}
+              aria-label={tg('w3.openDir')}
+              onClick={() => void window.aiss.snapshots.openDir()}
+            />
+          </>
+        }
+      />
       <div className="w3-split">
         <div className="w3-list" data-testid="w3-versions">
           <button type="button" className={aId === 'current' ? 'is-a' : ''} onClick={() => setAId('current')}>

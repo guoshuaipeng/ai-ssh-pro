@@ -14,6 +14,6 @@ assert.ok(i18n.includes("'sb.muteBellTip'"))
 assert.ok((i18n.match(/'sb\.muteBell'/g) || []).length >= 2)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.50')
+assert.equal(pkg.version, '0.6.51')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-statusbar-mute-bell/)
 console.log('test-statusbar-mute-bell ok')

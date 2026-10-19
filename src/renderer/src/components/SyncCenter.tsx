@@ -239,10 +239,10 @@ export function SyncConflicts({
   }
   return (
     <div className="workspace-panel" data-testid="sync-conflicts">
-      <div className="workspace-panel-toolbar">
-        <h2 className="workspace-panel-title">{tg('m2.conflicts')}</h2>
-        <button type="button" onClick={onClose}>{tg('common.close')}</button>
-      </div>
+      <PanelHeader
+        title={tg('m2.conflicts')}
+        actions={<button type="button" onClick={onClose}>{tg('common.close')}</button>}
+      />
       <div className="workspace-panel-body">
         {rows.length === 0 ? <p>{tg('m2.noConflicts')}</p> : null}
         {rows.map((row) => (
