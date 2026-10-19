@@ -22,6 +22,8 @@ export default function Button({
   className,
   children,
   type = 'button',
+  title,
+  'aria-label': ariaLabel,
   ...rest
 }: Props) {
   const classes = ['ui-btn']
@@ -33,7 +35,8 @@ export default function Button({
   if (className) classes.push(className)
 
   return (
-    <button type={type} className={classes.join(' ')} {...rest}>
+    // title / aria-label are forwarded explicitly: an icon-only Button gets its name from the caller.
+    <button type={type} className={classes.join(' ')} title={title} aria-label={ariaLabel} {...rest}>
       {icon ? <Icon name={icon} size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} /> : null}
       {children}
     </button>

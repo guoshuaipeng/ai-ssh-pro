@@ -5,7 +5,7 @@ import { friendlyErrorMessage } from '../lib/friendly-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { normalizeAiChatMessage } from '@shared/ai-chat-history'
 import { parseAiAssistantReply } from '@shared/ipc'
-import { commandBundle, highlightKeyNumbers, layoutOpsReply, type OpsLayout } from '@shared/ai-reply-cards'
+import { commandBundle, highlightKeyNumbers, layoutOpsReply, splitFences, splitInlineCode, type OpsLayout } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import { lastAssistantText } from '@shared/ai-last-reply'
@@ -17,7 +17,7 @@ import { visibleWorkingGoal } from '@shared/working-memory-view'
 import { effectiveSafetyTier, isSafetyTier, releaseSessionInFlight, SAFETY_TIERS, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
-import { SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
+import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
 import Button from './ui/Button'
 
@@ -77,7 +77,51 @@ function riskClass(level: string): string {
   return 'ai-risk-medium'
 }
 
+/** Prose with `inline code` chips; metric highlighting runs on the non-code parts. */
 function HighlightedText({ text }: { text: string }): ReactNode {
+  const segs = splitInlineCode(text)
+  if (!segs.some((s) => s.kind === 'code')) return <MetricText text={text} />
+  return (
+    <>
+      {segs.map((s, i) =>
+        s.kind === 'code' ? (
+          <code key={i} className="ai-inline-code">
+            {s.text}
+          </code>
+        ) : (
+          <MetricText key={i} text={s.text} />
+        )
+      )}
+    </>
+  )
+}
+
+function AiCodeBlock({ code, lang }: { code: string; lang: string }) {
+  return (
+    <div className="ai-code-block" data-testid="ai-code-block" data-lang={lang || undefined}>
+      <div className="ai-code-head">
+        <span className="ai-code-lang">{lang || 'text'}</span>
+        <button
+          type="button"
+          className="ai-code-copy"
+          onClick={() =>
+            void navigator.clipboard.writeText(code).then(
+              () => showToast(tg('ctx.copied')),
+              () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+            )
+          }
+        >
+          {tg('common.copy')}
+        </button>
+      </div>
+      <pre className="ai-code-pre">
+        <code>{code}</code>
+      </pre>
+    </div>
+  )
+}
+
+function MetricText({ text }: { text: string }): ReactNode {
   const parts = highlightKeyNumbers(text)
   return (
     <>
@@ -124,6 +168,31 @@ function OpsReply({
   onDecline?: () => void
   commandBar?: (command: string) => ReactNode
 }) {
+  const fences = splitFences(text)
+  if (fences.some((f) => f.kind === 'code')) {
+    const firstText = fences.findIndex((f) => f.kind === 'text')
+    return (
+      <div className="ai-md-stack">
+        {fences.map((f, i) =>
+          f.kind === 'code' ? (
+            <AiCodeBlock key={i} code={f.code} lang={f.lang} />
+          ) : (
+            <OpsReply
+              key={i}
+              text={f.text}
+              badge={badge && i === firstText}
+              confirm={confirm}
+              decision={decision}
+              canRun={canRun}
+              onAgree={onAgree}
+              onDecline={onDecline}
+              commandBar={commandBar}
+            />
+          )
+        )}
+      </div>
+    )
+  }
   const layout: OpsLayout = layoutOpsReply(text)
   const structured = layout.blocks.some((b) => b.kind !== 'prose')
   if (!structured) {
@@ -272,7 +341,27 @@ export default function AIPanel({
   useEffect(() => {
     const onShot = (ev: Event) => {
       if (!screenshotHooksEnabled()) return
-      const detail = (ev as CustomEvent<{ op?: string; preview?: string; requestId?: string; action?: string }>).detail
+      const detail = (ev as CustomEvent<{ op?: string; preview?: string; requestId?: string; action?: string; empty?: boolean }>).detail
+      if (detail?.op === 'aiChat') {
+        screenshotForceKeyRef.current = true
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setLines(
+          detail.empty
+            ? []
+            : SCREENSHOT_AI_CHAT_DEMO.map((d): UserLine | AssistantLine =>
+                d.role === 'user'
+                  ? { role: 'user', content: d.content }
+                  : {
+                      role: 'assistant',
+                      content: d.content,
+                      requestId: d.requestId,
+                      structured: d.end ? { action: 'end', description: d.end.description, riskLevel: d.end.riskLevel } : undefined
+                    }
+              )
+        )
+        return
+      }
       if (!detail || detail.op !== 'aiConfirm') return
       // Demo userdata often has no API key; empty-state UI hides the confirm dock.
       screenshotForceKeyRef.current = true
@@ -1541,6 +1630,7 @@ export default function AIPanel({
           </button>
           {!activeSessionId && <span style={{ color: 'var(--muted)', fontSize: 12 }}>{tg('ai.needSsh')}</span>}
         </div>
+        <div className="ai-composer" data-testid="ai-composer">
         <textarea
           ref={inputRef}
           value={input}
@@ -1567,9 +1657,10 @@ export default function AIPanel({
             }
           }}
         />
-        <Button variant="primary" data-testid="ai-send" disabled={busy || !input.trim()} onClick={() => void send()}>
+        <Button variant="primary" className="ai-composer-send" data-testid="ai-send" disabled={busy || !input.trim()} onClick={() => void send()}>
           {busy ? tg('ai.busy') : tg('ai.send')}
         </Button>
+        </div>
       </div>
       {inputMenu ? (
         <div

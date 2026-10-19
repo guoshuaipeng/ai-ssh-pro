@@ -73,9 +73,20 @@ const base = [
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
   { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'ai' }], wait: 1400 }
 ]
+// AISS_SHOT_SET=chrome: overlays + AI chat + protection-edge tabs (radius/shadow/chat QA).
+const chrome = [
+  { name: 'terminal', size: W, steps: [{ op: 'menu', action: 'demoHost' }], wait: 3200 },
+  { name: 'sftp', size: W, steps: [{ op: 'sftpDual' }], wait: 2600 },
+  { name: 'ai-chat', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }], wait: 1600 },
+  { name: 'ai-empty', size: W, steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }], wait: 1200 },
+  { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
+  { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
+  { name: 'menu', size: W, steps: [{ click: '.titlebar-menu-trigger' }], wait: 700, close: true }
+]
+const list = ${JSON.stringify(process.env.AISS_SHOT_SET || '')} === 'chrome' ? chrome : base
 const shots = [
-  ...base.map((s) => ({ ...s, theme: 'github-dark', file: 'dark-' + s.name + '.png' })),
-  ...base.map((s) => ({ ...s, theme: 'light', file: 'light-' + s.name + '.png' }))
+  ...list.map((s) => ({ ...s, theme: 'github-dark', file: 'dark-' + s.name + '.png' })),
+  ...list.map((s) => ({ ...s, theme: 'light', file: 'light-' + s.name + '.png' }))
 ]
 
 async function seed(win) {
@@ -199,7 +210,11 @@ app.on('browser-window-created', (_e, win) => {
           if (cw === s.size[0] && ch === s.size[1]) break
         }
         await sleep(400)
-        for (const st of s.steps) { await fire(win, st); await sleep(500) }
+        for (const st of s.steps) {
+          if (st.click) await win.webContents.executeJavaScript('document.querySelector(' + JSON.stringify(st.click) + ')?.click(); true', true)
+          else await fire(win, st)
+          await sleep(500)
+        }
         await sleep(s.wait || 800)
         const p = await probe(win)
         const dom = await win.webContents.executeJavaScript('(document.getElementById(\"root\")?.innerHTML.length || 0) + \" \" + location.href.slice(0, 80)', true).catch((e) => 'ERR ' + e)
@@ -221,7 +236,8 @@ app.on('browser-window-created', (_e, win) => {
           win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
           await sleep(400)
         }
-      }      console.log('[cov] done ->', outDir, 'and', tempDir)
+      }
+      console.log('[cov] done ->', outDir, 'and', tempDir)
     } catch (e) {
       console.error('[cov] failed', e)
       app.exit(1)

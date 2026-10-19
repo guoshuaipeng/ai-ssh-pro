@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.53
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-15（浮层层级 + AI 对话对齐 DataAI）.** 新增圆角档 `--radius-2xl: 14px` 与语义 token `--radius-dialog`（弹窗 / 命令面板 / 欢迎卡 14px）、`--radius-popover`（菜单 / 弹出层 10px），15 处菜单与弹出层统一；阴影改为 DataAI 的层级（sm < menu < modal < palette，深色加 1px 顶部高光），新增 `--shadow-palette`，浅色 / sand 主题改用更轻的冷色阴影。AI 对话：回复里的 ``` 代码块渲染为带语言标签与“复制”的代码块，`行内代码` 渲染为等宽小块（之前原样显示反引号）；输入框与发送按钮合并为一个圆角 composer（聚焦 accent 边）；用户气泡改为 accent 浅色（浅色主题下与助手卡片不再同灰）；“当前会话”行与标题对齐；安全档位下拉不再截断为“跟随全”。保护级别顶边（prod 红 / 只读黄）保留含义，改为不包圆角的内嵌 2px 细条，非活动标签 55% 淡化；修复生产保护横幅被终端层盖住（终端文字压在横幅上）。截图脚本新增 `AISS_SHOT_SET=chrome` 与仅截图模式可用的 `aiChat` 钩子。tipSuggest 不变。版本 0.6.53。 / Overlay radius + elevation scale, AI chat code blocks / composer / bubbles, softer protection edge, guard banner no longer under the terminal.
+
 ## v0.6.52
 
 Released 2026-10-19 (CST).

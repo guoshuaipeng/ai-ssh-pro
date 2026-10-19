@@ -179,15 +179,21 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 10px;
+  --radius-2xl: 14px;
+  /* M15 overlay radius scale (DataAI parity): dialogs + palette 14px, menus / popovers 10px. */
+  --radius-dialog: var(--radius-2xl);
+  --radius-popover: var(--radius-xl);
   --radius-pill: 999px;
   --radius-full: 50%;
   /* P13-4: shared list/table row height */
   --list-row-height: 32px;
   --list-row-height-compact: 24px;
-  /* UI-N4: menus use --shadow-menu, dialogs and the palette use --shadow-modal, small floats use --shadow-sm. */
+  /* Elevation scale (M15, DataAI parity): sm = small floats, menu = menus / popovers,
+     modal = dialogs, palette = command palette. Dark themes add a 1px top highlight. */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-menu: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-modal: 0 16px 40px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-palette: 0 24px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   /* UI-N1: short aliases read ui-tokens. One source, no hex fallback. */
   --danger: var(--color-danger);
   --accent: var(--color-accent);
@@ -215,6 +221,11 @@
 }
 
 [data-ui-theme='light'] {
+  /* M15: light surfaces need softer, cooler elevation (the dark 0.45 black reads as a smudge). */
+  --shadow-sm: 0 2px 8px rgba(31, 35, 40, 0.1);
+  --shadow-menu: 0 8px 24px rgba(31, 35, 40, 0.14), 0 0 0 1px rgba(31, 35, 40, 0.04);
+  --shadow-modal: 0 16px 40px rgba(31, 35, 40, 0.18);
+  --shadow-palette: 0 24px 56px rgba(31, 35, 40, 0.22);
   --color-ok: #1a7f37;
   --color-warn: #9a6700;
   --color-accent-hover: #0757ba;
@@ -227,6 +238,11 @@
 }
 
 [data-ui-theme='sand'] {
+  /* M15: light surfaces need softer, cooler elevation (the dark 0.45 black reads as a smudge). */
+  --shadow-sm: 0 2px 8px rgba(31, 35, 40, 0.1);
+  --shadow-menu: 0 8px 24px rgba(31, 35, 40, 0.14), 0 0 0 1px rgba(31, 35, 40, 0.04);
+  --shadow-modal: 0 16px 40px rgba(31, 35, 40, 0.18);
+  --shadow-palette: 0 24px 56px rgba(31, 35, 40, 0.22);
   --color-ok: #1a7f37;
   --color-warn: #9a6700;
   --color-accent-hover: #8f3d07;
@@ -395,7 +411,7 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   overflow-y: auto;
   padding: var(--space-1);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-popover);
   background: var(--color-bg-elevated);
   box-shadow: var(--shadow-menu);
   z-index: 12000;
@@ -598,7 +614,7 @@ body.platform-darwin .app-titlebar {
 .modal-panel {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-dialog);
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -1716,7 +1732,7 @@ button.statusbar-slot:focus-visible {
   z-index: 80;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-popover);
   padding: var(--space-1);
   display: flex;
   flex-direction: column;
@@ -2527,7 +2543,7 @@ button.statusbar-slot:focus-visible {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 10px 6px;
+  padding: 0;
   font-size: var(--fs-sm);
   line-height: var(--lh-tight);
   color: var(--color-text-secondary);
@@ -3197,7 +3213,7 @@ button.statusbar-slot:focus-visible {
   overflow: auto;
   padding: var(--space-1);
   border: 1px solid var(--color-border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-popover);
   background: var(--color-bg-elevated);
   box-shadow: var(--shadow-menu);
 }
@@ -3280,7 +3296,7 @@ button.statusbar-slot:focus-visible {
   overflow-y: auto;
   padding: 4px;
   border: 1px solid var(--color-border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-popover);
   background: var(--color-bg-elevated);
   box-shadow: var(--shadow-menu);
   z-index: 10001;
@@ -5094,8 +5110,8 @@ body.split-resizing {
   background: var(--color-bg-elevated);
   color: var(--text);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-modal);
+  border-radius: var(--radius-dialog);
+  box-shadow: var(--shadow-palette);
   overflow: hidden;
 }
 .cmdp-input {
@@ -5666,7 +5682,7 @@ button.primary.danger:focus-visible {
   padding: 6px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-menu);
 }
 .sftp-panes[data-sftp-split='clear'] {
@@ -5847,4 +5863,127 @@ button.primary.danger:focus-visible {
 }
 .ui-panel-header .l7-meta {
   margin-left: var(--space-2);
+}
+
+/* ---- M15 AI chat (DataAI parity): bubbles, composer, header rhythm, code blocks ---- */
+.msg {
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+/* User turns read as "mine": accent-tinted, tail corner bottom-right. Was the same grey as cards in light themes. */
+.msg.user {
+  max-width: 88%;
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-bg-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 26%, transparent);
+  border-radius: var(--radius-xl) var(--radius-xl) var(--radius-sm) var(--radius-xl);
+}
+.msg.assistant.ai-structured {
+  border-radius: var(--radius-xl);
+}
+/* Header: selects show their full text ("跟随全局" was clipped to "跟随全"); when the panel is
+   too narrow for both, the row wraps instead of truncating. */
+.ai-safety-row {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+.ai-safety-row label {
+  flex: 0 0 auto;
+}
+/* Composer: one rounded field with the send button inside (was a bare textarea over a full-width button). */
+.ai-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-code);
+  transition: border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard);
+}
+.ai-composer:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+.ai-input-row .ai-composer textarea {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 56px;
+  max-height: 40vh;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: var(--lh-normal);
+}
+.ai-input-row .ai-composer textarea:focus,
+.ai-input-row .ai-composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.ai-composer .ai-composer-send {
+  flex: none;
+}
+/* Markdown in replies: fenced code blocks and inline code. */
+.ai-md-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ai-md-stack .ai-reply-desc {
+  margin-bottom: 0;
+}
+.ai-code-block {
+  min-width: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-code);
+  overflow: hidden;
+}
+.ai-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 24px;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+.ai-code-lang {
+  font-family: var(--font-mono);
+}
+.ai-code-copy {
+  height: 20px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.ai-code-copy:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+.ai-code-pre {
+  margin: 0;
+  padding: var(--space-2);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-code);
+  line-height: var(--lh-normal);
+  white-space: pre;
+  color: var(--color-text-primary);
+}
+.ai-inline-code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
 }

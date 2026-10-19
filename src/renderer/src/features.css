@@ -81,7 +81,7 @@
   list-style: none;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-menu);
   max-height: 220px;
   overflow: auto;
@@ -346,7 +346,7 @@
   z-index: 40;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: 8px;
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-menu);
 }
 
@@ -397,7 +397,7 @@
   padding: 4px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-menu);
   display: flex;
   flex-direction: column;
@@ -566,7 +566,7 @@
   width: min(520px, 100%);
   margin: 0 auto;
   padding: var(--space-6) var(--space-5);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-dialog);
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-default);
   box-shadow: var(--shadow-modal);
@@ -686,7 +686,7 @@
   background: var(--color-bg-elevated);
   color: var(--text);
   border: 1px solid var(--color-border-default);
-  border-radius: 10px;
+  border-radius: var(--radius-popover);
   padding: 14px 16px 12px;
   box-shadow: var(--shadow-modal);
 }
@@ -967,7 +967,7 @@
 .inv20-head-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; white-space: nowrap; }
 .inv20-head-actions button { white-space: nowrap; }
 .inv20-more { position: relative; }
-.inv20-more-menu { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 200px; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); padding: 6px; box-shadow: var(--shadow-menu); }
+.inv20-more-menu { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 200px; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-popover); padding: 6px; box-shadow: var(--shadow-menu); }
 .inv20-more-menu button { display: block; width: 100%; text-align: left; }
 .inv20-more-hint { font-size: 11px; color: var(--muted); padding: 4px 8px; word-break: break-all; }
 .inv20-body { display: flex; flex: 1; min-height: 0; }
@@ -1064,7 +1064,7 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
 .st-more { position: relative; display: inline-block; }
 .st-more > summary { list-style: none; cursor: pointer; }
 .st-more > summary::-webkit-details-marker { display: none; }
-.st-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: 6px; padding: 4px; min-width: 160px; box-shadow: var(--shadow-menu); }
+.st-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-popover); padding: 4px; min-width: 160px; box-shadow: var(--shadow-menu); }
 .st-host-label, .rm-host-label { font-size: 13px; color: var(--muted); margin-right: 8px; }
 
 /* ===== UX-43 monitor sparklines ===== */
@@ -1083,12 +1083,12 @@ tr:hover .st-actions--hover, tr:focus-within .st-actions--hover, tr.is-selected 
 }
 .session-command-collapse { margin-right: 4px; }
 .session-command-more { position: relative; }
-.session-command-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: 6px; padding: 4px; box-shadow: var(--shadow-menu); }
+.session-command-more-menu { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-popover); padding: 4px; box-shadow: var(--shadow-menu); }
 .terminal-pane-xterm { padding: 8px 12px; box-sizing: border-box; }
 
 /* ===== UX-22 context menu ===== */
 .ctx-menu-root { position: fixed; z-index: 10000; }
-.ctx-menu { list-style: none; margin: 0; padding: 4px; min-width: 200px; max-height: calc(100vh - 16px); overflow: auto; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-menu); }
+.ctx-menu { list-style: none; margin: 0; padding: 4px; min-width: 200px; max-height: calc(100vh - 16px); overflow: auto; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-popover); box-shadow: var(--shadow-menu); }
 .ctx-menu-item { position: relative; }
 .ctx-menu-item > button { display: flex; align-items: center; gap: var(--space-2); width: 100%; height: 32px; min-height: 32px; padding: 0 var(--space-2); border: none; background: transparent; color: inherit; text-align: left; border-radius: var(--radius-md); cursor: pointer; font-size: var(--fs-base); white-space: nowrap; box-sizing: border-box; transition: background var(--duration-fast) var(--easing-standard); }
 .ctx-menu-item > button:hover:not(:disabled) { background: var(--color-row-hover-bg); }
@@ -1194,7 +1194,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .titlebar-compact-4 .titlebar-search-btn .tb-label,
 .titlebar-compact-4 .titlebar-search-btn kbd { display: none; }
 .titlebar-hamburger-wrap { position: relative; }
-.titlebar-hamburger-menu { position: absolute; top: 100%; left: 0; z-index: 50; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: 8px; padding: 6px; min-width: 220px; max-width: 360px; box-shadow: var(--shadow-menu); }
+.titlebar-hamburger-menu { position: absolute; top: 100%; left: 0; z-index: 50; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-popover); padding: 6px; min-width: 220px; max-width: 360px; box-shadow: var(--shadow-menu); }
 .titlebar-compact-4 .titlebar-menus { display: none; }
 /* UX-17 / pin: search yields hard at compact-3+; layout pin stays visible */
 .titlebar-compact-3 .titlebar-search-btn,
@@ -1410,8 +1410,26 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .update-source { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
 
 /* M1 L7 / L2 / L4 — center tabs, no wrap at 1366 */
-.tab.tab-guard-prod { border-top-color: var(--color-danger); }
-.tab.tab-guard-ro { border-top-color: var(--color-warn); }
+/* Protection-level edge (prod = danger, read-only = warn); the tab tooltip names the level.
+   M15: drawn as an inset 2px bar that stops at the corner radius (no red cap wrapping the
+   rounded corners), muted on idle tabs, near-full on the active one. Every tab still reserves
+   the same transparent 2px top border (UX-55 D5). */
+.tab.tab-guard-prod, .tab.tab-guard-ro { position: relative; }
+.tab.tab-guard-prod::before, .tab.tab-guard-ro::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: var(--radius-md);
+  right: var(--radius-md);
+  height: 2px;
+  border-radius: 0 0 var(--radius-xs) var(--radius-xs);
+  background: var(--tab-guard-edge);
+  pointer-events: none;
+}
+.tab.tab-guard-prod { --tab-guard-edge: color-mix(in srgb, var(--color-danger) 55%, transparent); }
+.tab.tab-guard-ro { --tab-guard-edge: color-mix(in srgb, var(--color-warn) 55%, transparent); }
+.tab.active.tab-guard-prod { --tab-guard-edge: color-mix(in srgb, var(--color-danger) 85%, transparent); }
+.tab.active.tab-guard-ro { --tab-guard-edge: color-mix(in srgb, var(--color-warn) 85%, transparent); }
 
 .l7-root, .l2-root { min-width: 0; min-height: 0; }
 .l7-head, .l2-head { flex-wrap: nowrap; gap: 8px; }
@@ -1419,7 +1437,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l7-meta { margin-left: 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .l7-head-actions, .l2-head .workspace-panel-actions { position: relative; flex-wrap: nowrap; }
 .l7-head-actions button, .l2-head button, .l7-rail > button, .l2-actions button, .l4-links button { white-space: nowrap; }
-.l7-more, .l2-prefs { position: absolute; right: 0; top: 100%; z-index: 30; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px; box-shadow: var(--shadow-menu); }
+.l7-more, .l2-prefs { position: absolute; right: 0; top: 100%; z-index: 30; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-popover); padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px; box-shadow: var(--shadow-menu); }
 .l2-prefs { min-width: 240px; }
 .l2-prefs label { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: normal; }
 .l7-body {
@@ -1567,6 +1585,10 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .term-guard-banner span { overflow: hidden; text-overflow: ellipsis; }
 .term-guard-banner.is-prod { background: var(--color-danger-muted); }
 .term-guard-banner.is-ro { background: var(--color-warn-muted); }
+/* M15: the banner sits in .terminal-stack flow while terminal layers are absolute (inset: 0),
+   so the active xterm painted over it. Lift the banner and start the layers below it. */
+.terminal-stack > .term-guard-banner { position: relative; z-index: 2; }
+.terminal-stack:has(> .term-guard-banner) > .terminal-layer { top: 24px; }
 .term-guard-banner.is-paused { background: color-mix(in srgb, var(--color-warn) 25%, transparent); }
 .alert-bell { margin-left: auto; position: relative; flex: none; white-space: nowrap; }
 .alert-bell-count { margin-left: 4px; background: var(--danger); color: white; border-radius: 8px; padding: 0 5px; font-size: 11px; }
@@ -1717,7 +1739,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .s2b-table { width: 100%; table-layout: fixed; }
 .s2b-table th, .s2b-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ux60-layer { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; padding: 16px; pointer-events: none; }
-.ux60-card { pointer-events: auto; width: min(480px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-modal); }
+.ux60-card { pointer-events: auto; width: min(480px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-dialog); padding: 16px; box-shadow: var(--shadow-modal); }
 .ux60-head { justify-content: space-between; }
 .ux60-actions button { white-space: nowrap; }
 .w5-warn { color: var(--color-warn); }

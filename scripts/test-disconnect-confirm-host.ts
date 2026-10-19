@@ -11,6 +11,6 @@ assert.match(i18n, /confirm\.disconnectSessionBody': '将断开 \{host\}/)
 assert.match(i18n, /confirm\.disconnectSessionBody': 'Disconnect SSH to \{host\}/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.52')
+assert.equal(pkg.version, '0.6.53')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-disconnect-confirm-host/)
 console.log('test-disconnect-confirm-host ok')

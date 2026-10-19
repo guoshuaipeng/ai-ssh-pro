@@ -15,6 +15,6 @@ assert.ok(i18n.includes("'ai.copyLastReply'"))
 assert.ok((i18n.match(/'ai\.copyLastReply'/g) || []).length >= 2)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.52')
+assert.equal(pkg.version, '0.6.53')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ai-copy-last-menu/)
 console.log('test-ai-copy-last-menu ok')

@@ -177,6 +177,57 @@ export function highlightKeyNumbers(raw: string): HighlightPart[] {
   return out.length > 0 ? out : [{ kind: 'text', text: input }]
 }
 
+export type FenceSegment = { kind: 'text'; text: string } | { kind: 'code'; code: string; lang: string }
+
+/**
+ * Split ``` fenced blocks out of a chat reply (models answer in Markdown even when asked not to).
+ * The opening fence may carry a language; an unclosed fence (still streaming) runs to the end.
+ */
+export function splitFences(raw: string): FenceSegment[] {
+  const out: FenceSegment[] = []
+  if (!raw) return out
+  let buf: string[] = []
+  let code: string[] | null = null
+  let lang = ''
+  const flushText = () => {
+    const text = buf.join('\n').replace(/^\n+|\n+$/g, '')
+    buf = []
+    if (text.trim()) out.push({ kind: 'text', text })
+  }
+  for (const line of raw.replace(/\r\n/g, '\n').split('\n')) {
+    const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line)
+    if (code === null) {
+      if (fence) {
+        flushText()
+        code = []
+        lang = (fence[1] ?? '').toLowerCase()
+      } else buf.push(line)
+    } else if (fence && !fence[1]) {
+      out.push({ kind: 'code', code: code.join('\n'), lang })
+      code = null
+    } else code.push(line)
+  }
+  if (code !== null) out.push({ kind: 'code', code: code.join('\n'), lang })
+  flushText()
+  return out
+}
+
+export type InlineSegment = { kind: 'text' | 'code'; text: string }
+
+/** Split `inline code` spans (single line, non-empty) from prose. */
+export function splitInlineCode(raw: string): InlineSegment[] {
+  const out: InlineSegment[] = []
+  let last = 0
+  for (const m of raw.matchAll(/`([^`\n]+)`/g)) {
+    const index = m.index ?? 0
+    if (index > last) out.push({ kind: 'text', text: raw.slice(last, index) })
+    out.push({ kind: 'code', text: m[1] ?? '' })
+    last = index + m[0].length
+  }
+  if (last < raw.length) out.push({ kind: 'text', text: raw.slice(last) })
+  return out
+}
+
 /** Command steps always need Agree / Decline. Risk level does not bypass confirmation. */
 export function commandAutoRunAllowed(_riskLevel?: string | null): false {
   return false

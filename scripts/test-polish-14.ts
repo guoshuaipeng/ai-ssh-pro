@@ -12,7 +12,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.52')
+assert.equal(pkg.version, '0.6.53')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -42,7 +42,8 @@ assert.ok(css.includes('--ac:'))
 assert.ok(css.includes('font-family: var(--font-ui)'))
 assert.match(css, /\.sidebar-header\s*\{[^}]*padding:\s*var\(--space-3\)/)
 assert.match(css, /\.app-toolbar\s*\{[^}]*gap:\s*var\(--space-\d\)\s+var\(--space-\d\)/)
-assert.match(css, /\.modal-panel\s*\{[^}]*border-radius:\s*var\(--radius-xl\)/)
+// M15 (0.6.53): dialogs moved to the overlay radius scale (14px, DataAI parity).
+assert.match(css, /\.modal-panel\s*\{[^}]*border-radius:\s*var\(--radius-dialog\)/)
 
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
 assert.match(features, /\.empty-state\s*\{[^}]*gap:\s*var\(--space-3\)/)
@@ -51,7 +52,7 @@ assert.match(features, /\.empty-state-title\s*\{[^}]*letter-spacing:\s*0\.01em/)
 assert.ok(TERMINAL_PREFS_DEFAULTS.fontFamily.includes('JetBrains Mono'))
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.52'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.53'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.37'), changelog.indexOf('## v0.6.36'))
 assert.ok(note.includes('M-polish-1') || note.includes('质感专项'))

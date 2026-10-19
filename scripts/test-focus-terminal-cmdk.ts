@@ -17,6 +17,6 @@ assert.match(pane, /aiss-focus-terminal/)
 assert.match(pane, /term\.focus\(\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.52')
+assert.equal(pkg.version, '0.6.53')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-focus-terminal-cmdk/)
 console.log('test-focus-terminal-cmdk ok')

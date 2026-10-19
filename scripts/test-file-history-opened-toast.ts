@@ -10,6 +10,6 @@ assert.match(chunk, /openM2\('file-history'/)
 assert.match(chunk, /showToast\(tg\('w3\.history'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.52')
+assert.equal(pkg.version, '0.6.53')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-file-history-opened-toast/)
 console.log('test-file-history-opened-toast ok')

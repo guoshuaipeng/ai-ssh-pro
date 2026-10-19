@@ -18,7 +18,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: Record<string, unknown> } }
-assert.equal(pkg.version, '0.6.52')
+assert.equal(pkg.version, '0.6.53')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 
 const early = pinnedIds({ settings: { count: 2, last: 1 } })
@@ -202,7 +202,8 @@ assert.equal(css.includes('.tab.tab-kind-docker'), false)
 assert.equal(css.includes('inset 3px 0 0 #06b6d4'), false)
 assert.equal(css.includes('inset 3px 0 0 #a855f7'), false)
 assert.match(css, /\.modal-panel\s*\{[^}]*var\(--shadow-modal\)/)
-assert.match(css, /\.cmdp\s*\{[^}]*var\(--shadow-modal\)/)
+// M15 (0.6.53): the palette sits one step above dialogs on the elevation scale.
+assert.match(css, /\.cmdp\s*\{[^}]*var\(--shadow-palette\)/)
 assert.match(css, /\.session-context-menu\s*\{[^}]*var\(--shadow-menu\)/)
 assert.match(css, /\.titlebar-popover\s*\{[^}]*var\(--shadow-menu\)/)
 assert.ok(css.includes('min(640px, 92vw)'))
