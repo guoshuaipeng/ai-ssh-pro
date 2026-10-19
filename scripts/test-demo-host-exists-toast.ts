@@ -14,6 +14,6 @@ assert.ok(i18n.includes("l7.demoExists': '演示主机已在列表中'"))
 assert.ok(i18n.includes("l7.demoExists': 'Demo host is already in the list'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-demo-host-exists-toast/)
 console.log('test-demo-host-exists-toast ok')

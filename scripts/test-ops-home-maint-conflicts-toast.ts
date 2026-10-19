@@ -20,6 +20,6 @@ assert.ok(i18n.includes("l2d.open': 'Maintenance window'"))
 assert.ok(i18n.includes("m2.conflicts': 'Sync conflicts'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ops-home-maint-conflicts-toast/)
 console.log('test-ops-home-maint-conflicts-toast ok')

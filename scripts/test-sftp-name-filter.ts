@@ -16,6 +16,6 @@ const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 assert.ok(i18n.includes("'sftp.nameFilter'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-sftp-name-filter/)
 console.log('test-sftp-name-filter ok')

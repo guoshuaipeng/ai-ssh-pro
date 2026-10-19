@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.42': [
+    {
+      icon: '▷',
+      text: {
+        zh: '运维首页全屏/窗口同一套布局，按面板宽度收折',
+        en: 'Ops home uses one layout maximized or windowed; folds by panel width'
+      },
+      where: { zh: '运维首页', en: 'Ops home' }
+    }
+  ],
   '0.6.41': [
     {
       icon: '▷',

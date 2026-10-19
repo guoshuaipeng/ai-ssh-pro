@@ -30,6 +30,6 @@ assert.ok(i18n.includes("ctx.toolbox': '服务器工具箱'"))
 assert.ok(i18n.includes("toolbar.searchFeatures': '搜索功能…'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-conn-tools-open-toasts/)
 console.log('test-conn-tools-open-toasts ok')

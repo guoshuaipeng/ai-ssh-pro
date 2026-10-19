@@ -32,7 +32,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -43,7 +43,7 @@ assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.41'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.42'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.14'), changelog.indexOf('## v0.4.13'))
 assert.ok(note.includes('v0.4.14 soft-start'))
@@ -163,12 +163,16 @@ assert.match(styles, /\.session-folder-row\s*\{[^}]*font-weight:\s*var\(--fw-sem
 assert.equal(opsHomeCardCap(1366), OPS_HOME_QUIET_CARD_CAP)
 assert.equal(opsHomeCardCap(1920), OPS_HOME_WIDE_CARD_CAP)
 assert.equal(OPS_HOME_QUIET_CARD_CAP, 6)
-assert.equal(opsHomeQuietLayout(1366, 768).foldSecondary, true)
-assert.equal(opsHomeQuietLayout(1366, 768).noToolWall, true)
+assert.equal(opsHomeQuietLayout(1100).foldSecondary, true)
+assert.equal(opsHomeQuietLayout(1100).noToolWall, true)
+assert.equal(opsHomeQuietLayout(1101).foldSecondary, false)
+assert.equal(opsHomeQuietLayout(1366, 400).foldSecondary, false) // height must not force quiet
 assert.equal(opsHomeQuietLayout(1920, 1080).foldSecondary, false)
 const ops = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')
-assert.ok(ops.includes('opsHomeCardCap'))
+assert.ok(ops.includes('quietLayout.cardCap') || ops.includes('opsHomeQuietLayout'))
 assert.ok(ops.includes('data-ops-quiet'))
+assert.ok(ops.includes('rootRef'))
+assert.ok(ops.includes('ResizeObserver'))
 assert.ok(ops.includes('data-ops-card-cap'))
 assert.equal(ops.includes('OPS_MENU_VISIBLE_CAP'), false)
 

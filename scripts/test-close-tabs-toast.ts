@@ -19,6 +19,6 @@ assert.ok(i18n.includes("tab.closeRightDisabled': '右侧没有标签'"))
 assert.ok(i18n.includes("tab.closeRightDisabled': 'No tabs to the right'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-close-tabs-toast/)
 console.log('test-close-tabs-toast ok')

@@ -5842,12 +5842,9 @@ button.primary.danger:focus-visible {
   flex: none;
 }
 
-/* P13-6 ops home quiet */
-.l7-root[data-ops-quiet='1'] .l7-rail {
-  max-width: 160px;
-}
+/* Ops home quiet: rail fold lives in features.css (@container + data-ops-quiet). */
 .l7-root[data-ops-quiet='1'] .l7-cards {
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .field-row-browse {

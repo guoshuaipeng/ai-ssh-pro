@@ -10,6 +10,6 @@ assert.match(chunk, /setSessionMenu\(null\)/)
 assert.match(chunk, /showToast\(tg\('toolbar\.sftpTitle'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-open-sftp-from-host-toast/)
 console.log('test-open-sftp-from-host-toast ok')

@@ -8,7 +8,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 
 assert.deepEqual(tabStripChrome(false), { arrows: false, menu: false })
 assert.deepEqual(tabStripChrome(true), { arrows: true, menu: true })
@@ -86,6 +86,6 @@ assert.ok(unreleased.includes('A-TFL') && unreleased.includes('S15'))
 assert.ok(unreleased.includes('A-OM') && unreleased.includes('A-HITL'))
 assert.ok(unreleased.includes('Core-A'))
 assert.ok(unreleased.includes('Polish-2'))
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 
 console.log('test-polish-3 ok')

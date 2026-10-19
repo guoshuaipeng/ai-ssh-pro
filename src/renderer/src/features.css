@@ -1415,13 +1415,21 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l7-more, .l2-prefs { position: absolute; right: 0; top: 100%; z-index: 30; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px; box-shadow: var(--shadow-menu); }
 .l2-prefs { min-width: 240px; }
 .l2-prefs label { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: normal; }
-.l7-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 280px; gap: 12px; padding: 12px; min-height: 0; flex: 1; overflow: hidden; }
+.l7-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(160px, 220px);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
 .l7-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .l7-col-head, .l7-card-top, .l7-filters, .l2-filters, .l2-actions, .l2-status-row, .l4-row, .l4-links { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
 .l7-icon-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; white-space: nowrap; }
 .l7-col-head strong, .l7-rail strong { white-space: nowrap; }
 .l7-cards { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
-.l7-card { position: relative; width: 200px; height: 110px; box-sizing: border-box; padding: 8px; border: 1px solid var(--color-border-default); border-radius: 8px; background: var(--color-bg-app); cursor: pointer; overflow: hidden; }
+.l7-card { position: relative; width: 200px; height: 110px; box-sizing: border-box; padding: var(--space-2); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-bg-app); cursor: pointer; overflow: hidden; }
 .l7-card.is-alert { border-color: var(--danger); }
 .l7-card.is-err { opacity: 0.75; }
 .l7-card-name, .alert-line-host, .alert-line-rule, .l2-detail-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1449,12 +1457,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l7b-fields .settings-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .l7b-head-status { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .l7b-short { display: none; }
-@media (max-width: 1024px) {
-  .l7b-long { display: none; }
-  .l7b-short { display: inline; }
-  .l7-cards { flex-direction: column; }
-  .l7-card { width: 100%; min-width: 160px; }
-}
+/* l7 density: see @container on .l7-root below */
 .l7-muted, .l4-hint, .l4-disclaimer { color: var(--muted); font-size: 12px; margin: 0; }
 .l7-rail { gap: 6px; }
 .l7-rail > button, .l7-soon-link { text-align: left; }
@@ -1563,16 +1566,9 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .audit-table th, .audit-table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 .audit-table-wrap { overflow: auto; }
 
-@container (max-width: 1199px) {
-  .l7-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: auto; }
-  .l7-health { overflow: hidden; }
-  .l7-cards { flex-wrap: nowrap; overflow-x: auto; }
-  .l7-rail { display: none; }
-  .l7-rail-collapsed { display: flex; }
-}
+/* Ops home width tiers live with .l7-root container rules (1100 / 720). */
+
 @container (max-width: 1024px) {
-  .l7-card { width: 100%; height: auto; }
-  .l7-cards { flex-direction: column; overflow: visible; }
   .alert-line.is-compact .alert-line-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .term-guard-banner .banner-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; }
 }
@@ -1603,6 +1599,74 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
   .l2-ico { display: inline; }
 }
 .l7-root, .l2-root { container-type: inline-size; }
+/* Ops home: one structure; columns/density follow panel width (not maximize). */
+.l7-root[data-ops-quiet='1'] .l7-body {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+}
+.l7-root[data-ops-quiet='1'] .l7-rail {
+  display: none;
+}
+.l7-root[data-ops-quiet='1'] .l7-rail-collapsed {
+  display: flex;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+}
+.l7-col {
+  gap: var(--space-2);
+}
+.l7-cards {
+  gap: var(--space-2);
+}
+.l7-rail {
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-muted, var(--color-border-default));
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+}
+.l7-rail > strong {
+  font-size: var(--fs-xs, 11px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+.l7-rail > strong:first-child { margin-top: 0; }
+.l7-rail > button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.l7-rail > button:hover {
+  background: var(--color-row-hover-bg);
+  color: var(--color-text-primary);
+}
+@container (max-width: 1100px) {
+  .l7-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  }
+  .l7-rail { display: none; }
+  .l7-rail-collapsed { display: flex; }
+}
+@container (max-width: 720px) {
+  .l7-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+  .l7b-long { display: none; }
+  .l7b-short { display: inline; }
+  .l7-cards { flex-direction: column; }
+  .l7-card { width: 100%; min-width: 0; height: auto; min-height: 96px; }
+}
+@container (min-width: 721px) and (max-width: 1099px) {
+  .l7b-long { display: none; }
+  .l7b-short { display: inline; }
+  .l7-card { width: calc(50% - var(--space-2)); min-width: 160px; }
+}
 .l7-rail > button, .l7-rail-collapsed button { overflow: hidden; text-overflow: ellipsis; }
 .settings-shell { display: flex; min-height: 0; flex: 1; }
 .settings-nav { width: 200px; flex: none; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-right: 1px solid var(--border); overflow: auto; }

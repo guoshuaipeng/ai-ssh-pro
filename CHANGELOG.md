@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.42
+
+Released 2026-10-19 (CST).
+
+- **运维首页统一布局（面板宽度驱动）.** 密度不再看窗口高度/是否最大化；`ResizeObserver` 量面板宽。窄面板折起快捷栏进 ⋯，宽屏同结构仅列数/卡片上限变化；去掉视口 media 与旧 1199 单列硬切。tipSuggest 不变。版本 0.6.42。 / **Ops home: one layout, panel-width density.** No longer keys off window height or maximize. `ResizeObserver` measures the panel. Narrow panels fold the shortcut rail into ⋯; wide keeps the same structure with column/card-cap changes only. Viewport media and the old 1199 one-column hard cut removed. tipSuggest unchanged. Package 0.6.42.
+
 ## v0.6.41
 
 Released 2026-10-19 (CST).

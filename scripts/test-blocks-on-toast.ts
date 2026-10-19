@@ -12,6 +12,6 @@ assert.ok(i18n.includes("m2.blocksOn': '已开启输出分块'"))
 assert.ok(i18n.includes("m2.blocksOn': 'Output blocks on'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-blocks-on-toast/)
 console.log('test-blocks-on-toast ok')

@@ -11,6 +11,6 @@ assert.ok(i18n.includes("inspect.opened': '已打开多主机巡检报告'"))
 assert.ok(i18n.includes("inspect.opened': 'Opened multi-host inspection'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.41')
+assert.equal(pkg.version, '0.6.42')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ai-inspect-opened-toast/)
 console.log('test-ai-inspect-opened-toast ok')
