@@ -16,6 +16,6 @@ assert.ok(i18n.includes("m2.builtinOpen': '打开内置运维剧本…'"))
 assert.ok(i18n.includes("m2.builtinOpen': 'Opening built-in playbooks…'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.44')
+assert.equal(pkg.version, '0.6.45')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-builtin-open-toast/)
 console.log('test-builtin-open-toast ok')

@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.45': [
+    {
+      icon: '▷',
+      text: {
+        zh: '对话框与侧栏选中更干净，分割条与次要按钮更易辨认',
+        en: 'Cleaner dialogs and sidebar selection; clearer splitters and secondary actions'
+      },
+      where: { zh: '对话框 / 侧栏', en: 'Dialogs / Sidebar' }
+    }
+  ],
   '0.6.44': [
     {
       icon: '▷',

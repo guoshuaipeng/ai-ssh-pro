@@ -29,7 +29,7 @@ import { arrangeTabs, closeOthers, closeRight } from '../src/shared/tab-actions'
 import type { TimelineEvent } from '../src/shared/timeline'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: Record<string, unknown> } }
-assert.equal(pkg.version, '0.6.44')
+assert.equal(pkg.version, '0.6.45')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
 assert.ok(changelog.startsWith('# Changelog\n\n## Unreleased'))

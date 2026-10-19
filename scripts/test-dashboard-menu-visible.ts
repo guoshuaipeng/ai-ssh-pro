@@ -12,6 +12,6 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(app, /dashboard/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.44')
+assert.equal(pkg.version, '0.6.45')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-dashboard-menu-visible/)
 console.log('test-dashboard-menu-visible ok')

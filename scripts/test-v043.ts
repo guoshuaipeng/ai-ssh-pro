@@ -20,7 +20,7 @@ const css = read('src/renderer/src/features.css')
 const styles = read('src/renderer/src/styles.css')
 const main = read('src/main/index.ts')
 
-assert.equal(pkg.version, '0.6.44')
+assert.equal(pkg.version, '0.6.45')
 assert.equal('fileVersion' in pkg.build.win, false)
 assert.ok(changelog.includes('## v0.4.3\n'))
 assert.ok(changelog.includes('## v0.4.2\n'))

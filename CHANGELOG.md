@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.45
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-7（对话框/侧栏选中/分割条/次要按钮）.** 对话框头尾用 muted 描边，关闭钮 32px 命中；侧栏行悬停仅底色、选中 inset accent；布局/分屏分割条默认 muted、悬停 accent；secondary 悬停更清晰并补齐 ghost。tipSuggest 不变。版本 0.6.45。 / **Feel track M-polish-7 (modal / sidebar selection / splitters / secondary).** Modal header/footer use muted borders; close is a 32px hit. Sidebar row hover is fill-only; selection keeps inset accent. Layout/split dividers default muted and accent on hover. Secondary hover clearer; ghost button styles added. tipSuggest unchanged. Package 0.6.45.
+
 ## v0.6.44
 
 Released 2026-10-19 (CST).

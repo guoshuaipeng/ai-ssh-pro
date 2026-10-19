@@ -46,11 +46,11 @@ assert.match(features, /\.app-titlebar\s*\{[^}]*white-space:\s*nowrap/)
 
 const resizer = ruleBody(styles, '.layout-resizer')
 assert.match(resizer, /width:\s*1px/)
-assert.match(resizer, /background:\s*var\(--color-border-default\)/)
+assert.match(resizer, /background:\s*var\(--color-border-muted\)/)
 assert.doesNotMatch(resizer, /color-accent|width:\s*[3-9]px/)
 const hit = ruleBody(styles, '.layout-resizer::after')
-assert.match(hit, /width:\s*6px/)
-const resizerHover = ruleBody(styles, '.layout-resizer:hover,\nbody.layout-resizing .layout-resizer')
+assert.match(hit, /width:\s*7px/)
+const resizerHover = ruleBody(styles, '.layout-resizer:hover,\n.layout-resizer:focus-visible,\nbody.layout-resizing .layout-resizer')
 assert.match(resizerHover, /background:\s*var\(--color-accent\)/)
 
 for (const sel of [
@@ -88,7 +88,7 @@ assert.equal(toolbar.includes('className="primary"'), false)
 assert.equal(toolbar.includes("className='primary'"), false)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.44')
+assert.equal(pkg.version, '0.6.45')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

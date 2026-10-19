@@ -651,28 +651,47 @@ body.platform-darwin .app-titlebar {
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border-muted);
   flex-shrink: 0;
 }
 
 .modal-title {
   margin: 0;
-  font-size: var(--fs-lg);
+  font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
 }
 
 .modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding: 0;
   background: transparent !important;
   border: none !important;
-  color: var(--muted);
-  font-size: 22px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: 18px;
   line-height: 1;
-  padding: 4px 8px;
   cursor: pointer;
+  flex: none;
 }
 
 .modal-close:hover {
-  color: var(--text);
+  color: var(--color-text-primary);
+  background: var(--color-row-hover-bg) !important;
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 0;
 }
 
 .modal-body {
@@ -684,7 +703,7 @@ body.platform-darwin .app-titlebar {
 
 .modal-footer {
   padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-border-muted);
   flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
@@ -818,19 +837,44 @@ button.primary.danger:hover:not(:disabled),
 
 button.secondary {
   background: var(--color-bg-elevated);
-  border-color: var(--color-border-default);
+  border: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
   min-height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   border-radius: var(--radius-md);
   white-space: nowrap;
-  font-weight: var(--fw-semibold);
-  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
 }
 
 button.secondary:hover:not(:disabled) {
   border-color: var(--color-accent);
-  background: var(--color-bg-elevated);
+  background: var(--color-row-hover-bg);
+  color: var(--color-text-primary);
+}
+
+button.ghost,
+button.ghost:not(:disabled) {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-secondary);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
+}
+
+button.ghost:hover:not(:disabled) {
+  background: var(--color-row-hover-bg);
+  border-color: transparent;
+  color: var(--color-text-primary);
+}
+
+button.ghost:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 label {
@@ -1396,9 +1440,10 @@ label {
   width: 1px;
   flex-shrink: 0;
   cursor: col-resize;
-  background: var(--color-border-default);
+  background: var(--color-border-muted);
   position: relative;
   z-index: 2;
+  transition: background var(--duration-fast) var(--easing-standard);
 }
 
 .layout-resizer::after {
@@ -1406,12 +1451,13 @@ label {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -2.5px;
-  width: 6px;
+  left: -3px;
+  width: 7px;
   background: transparent;
 }
 
 .layout-resizer:hover,
+.layout-resizer:focus-visible,
 body.layout-resizing .layout-resizer {
   background: var(--color-accent);
 }
@@ -3204,8 +3250,8 @@ button.statusbar-slot:focus-visible {
 
 .session-folder-row:hover {
   background: var(--color-row-hover-bg);
-  border-color: var(--color-border-default);
-  color: var(--text);
+  border-color: transparent;
+  color: var(--color-text-primary);
 }
 
 .session-folder-row:active {
@@ -3265,8 +3311,11 @@ button.statusbar-slot:focus-visible {
 }
 
 .profile-row:hover {
-  background: var(--row-hover-bg);
-  border-color: var(--row-hover-border);
+  background: var(--color-row-hover-bg);
+  border-color: transparent;
+}
+.profile-row.is-selected:hover {
+  border-color: var(--color-accent);
 }
 
 .profile-row:active {
@@ -3274,9 +3323,10 @@ button.statusbar-slot:focus-visible {
 }
 
 .profile-row.is-selected {
-  background: var(--row-selected-bg);
-  border-color: var(--accent);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: var(--color-row-selected-bg);
+  border-color: transparent;
+  box-shadow: inset 2px 0 0 var(--color-accent);
+  color: var(--color-text-primary);
 }
 
 .session-context-menu {
@@ -4846,16 +4896,18 @@ button.danger {
   color: var(--muted);
 }
 .split-divider {
-  flex: 0 0 5px;
-  background: var(--border);
+  flex: 0 0 4px;
+  background: var(--color-border-muted);
   cursor: col-resize;
   touch-action: none;
+  transition: background var(--duration-fast) var(--easing-standard);
 }
 .split-vertical .split-divider {
   cursor: row-resize;
 }
-.split-divider:hover {
-  background: var(--accent);
+.split-divider:hover,
+.split-divider:focus-visible {
+  background: var(--color-accent);
 }
 /* IX-6: each split side has a tab strip. The focused side paints a 2px accent on top. */
 .split-pane {
