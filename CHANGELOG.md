@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.46
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-8（工作区工具栏/侧栏头/表单焦点）.** 工作区面板工具栏与分屏工具条走 space/muted token；侧栏标题层级对齐；input/select/textarea 统一 focus-visible。tipSuggest 不变。版本 0.6.46。 / **Feel track M-polish-8 (workspace toolbar / sidebar head / form focus).** Workspace and split toolbars use space/muted tokens; sidebar title hierarchy matches chrome; inputs share focus-visible. tipSuggest unchanged. Package 0.6.46.
+
 ## v0.6.45
 
 Released 2026-10-19 (CST).

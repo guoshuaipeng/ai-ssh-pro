@@ -12,6 +12,6 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(app, /action === 'dryRunPlaybook'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.45')
+assert.equal(pkg.version, '0.6.46')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-dry-run-playbook-cmdk/)
 console.log('test-dry-run-playbook-cmdk ok')

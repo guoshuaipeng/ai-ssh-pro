@@ -14,6 +14,6 @@ assert.ok(i18n.includes("recent.needCreds': '已填入最近连接，请补全�
 assert.ok(i18n.includes("recent.needCreds': 'Filled from recent — enter password or key'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.45')
+assert.equal(pkg.version, '0.6.46')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-recent-need-creds-toast/)
 console.log('test-recent-need-creds-toast ok')

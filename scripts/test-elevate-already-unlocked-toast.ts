@@ -15,6 +15,6 @@ assert.ok(i18n.includes("l4.alreadyUnlocked': '保护已处于临时解除状态
 assert.ok(i18n.includes("l4.alreadyUnlocked': 'Protection is already temporarily unlocked'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.45')
+assert.equal(pkg.version, '0.6.46')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-elevate-already-unlocked-toast/)
 console.log('test-elevate-already-unlocked-toast ok')

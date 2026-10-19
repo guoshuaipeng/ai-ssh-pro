@@ -15,6 +15,6 @@ assert.match(app, /withPaneToggle\(p, 'ai', true\)/)
 assert.match(app, /setRightPane\('ai'\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.45')
+assert.equal(pkg.version, '0.6.46')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-focus-ai-panel/)
 console.log('test-focus-ai-panel ok')

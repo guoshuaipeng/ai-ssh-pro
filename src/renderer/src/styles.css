@@ -643,6 +643,7 @@ body.platform-darwin .app-titlebar {
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-modal);
+  overflow: hidden;
 }
 
 .modal-header {
@@ -779,11 +780,19 @@ input,
 select,
 textarea {
   font: inherit;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
   padding: 6px 10px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
 }
 
 button {
@@ -1422,12 +1431,16 @@ label {
 .sidebar-header {
   flex-shrink: 0;
   padding: var(--space-3) var(--space-3) var(--space-2);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-panel);
+  border-bottom: 1px solid var(--color-border-muted);
+  background: var(--color-bg-surface);
 }
 
 .sidebar-header h3 {
   margin: 0 0 var(--space-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
 }
 
 .sidebar-scroll {
@@ -2216,17 +2229,21 @@ button.statusbar-slot:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-muted);
   flex-shrink: 0;
-  background: var(--bg-panel);
+  background: var(--color-bg-surface);
+  min-height: 40px;
+  box-sizing: border-box;
 }
 
 .workspace-panel-title {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
 }
 
 .workspace-panel-actions {
@@ -4888,12 +4905,15 @@ button.danger {
 .split-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--muted);
+  border-bottom: 1px solid var(--color-border-muted);
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  background: var(--color-bg-surface);
+  min-height: 28px;
+  box-sizing: border-box;
 }
 .split-divider {
   flex: 0 0 4px;

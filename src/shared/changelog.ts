@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.46': [
+    {
+      icon: '▷',
+      text: {
+        zh: '工作区工具栏与表单焦点更统一',
+        en: 'Workspace toolbars and form focus feel more consistent'
+      },
+      where: { zh: '工作区 / 表单', en: 'Workspace / Forms' }
+    }
+  ],
   '0.6.45': [
     {
       icon: '▷',

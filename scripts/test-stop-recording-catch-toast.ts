@@ -12,6 +12,6 @@ assert.match(chunk, /setError\(msg\)/)
 assert.match(chunk, /showToast\(msg, \{ kind: 'error' \}\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.45')
+assert.equal(pkg.version, '0.6.46')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-stop-recording-catch-toast/)
 console.log('test-stop-recording-catch-toast ok')
