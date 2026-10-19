@@ -87,7 +87,9 @@ const base = [
   { name: 'settings', size: W, steps: [{ op: 'menu', action: 'settings' }], wait: 1200 },
   { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
-  { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'ai' }], wait: 1400 }
+  { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'ai' }], wait: 1400 },
+  // M18: 4 tabs open (ops home, playbooks, terminal, audit) for the tab bar.
+  { name: 'tabs', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'playbooks' }, { op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'auditLog' }], wait: 2400 }
 ]
 // AISS_SHOT_SET=chrome: overlays + AI chat + protection-edge tabs (radius/shadow/chat QA).
 const chrome = [

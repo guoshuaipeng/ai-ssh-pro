@@ -31,7 +31,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -42,7 +42,7 @@ assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v', changelog.indexOf('## Unreleased')))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.14'), changelog.indexOf('## v0.4.13'))
 assert.ok(note.includes('v0.4.14 soft-start'))
@@ -134,7 +134,7 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.ok(app.includes('tab-scroll-left'))
 assert.ok(app.includes('tab-scroll-right'))
 assert.ok(app.includes('tabStripWheelDelta'))
-assert.match(styles, /\.tab-bar-scroll > \.tab\s*\{[^}]*min-width:\s*188px/)
+assert.match(styles, /\.tab-bar-scroll > \.tab\s*\{[^}]*min-width:\s*96px[^}]*max-width:\s*220px/)
 
 // --- P13-4 list row unify ---
 assert.equal(LIST_ROW_HEIGHT_PX, 32)

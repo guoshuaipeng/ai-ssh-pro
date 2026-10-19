@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.56
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-18（标签栏快修）.** 标签页按标题宽度显示（最窄 96px、最宽 220px，超出省略号），不再统一拉到 188px；关闭 × 紧跟标题（间距 `--space-1`）。隐藏的固定钉 / ⋯ 不再占位（固定与更多操作仍在右键菜单，已固定标签保留钉图标）。 Tabs size to content (96–220px, ellipsis) with × right after the title; hidden pin/⋯ no longer reserve width (still on right-click; pinned tabs keep the pin glyph).
+
 ## v0.6.55
 
 Released 2026-10-19 (CST).

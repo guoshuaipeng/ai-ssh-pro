@@ -10,7 +10,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   build?: { win?: Record<string, unknown> }
   scripts: { test: string; 'test:parts'?: string }
 }
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-24.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
@@ -53,7 +53,7 @@ assert.ok(update.includes("variant=\"ghost\""))
 assert.ok(update.includes("variant=\"primary\""))
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v', changelog.indexOf('## Unreleased')))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 assert.ok(changelogFor('0.6.47').length >= 1)
 

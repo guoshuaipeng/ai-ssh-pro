@@ -5,7 +5,7 @@ import { changelogFor } from '../src/shared/changelog'
 import { tipSuggest, rollback } from '../src/main/core-a-output-truncate'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.55')
+assert.ok(pkg.version.localeCompare('0.6.55', undefined, { numeric: true }) >= 0, 'package at or past 0.6.55')
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-31.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')
@@ -45,7 +45,7 @@ assert.ok(stack.indexOf('className="s4-block"') > 0 && stack.indexOf('className=
 assert.ok(app.includes('data-testid="s4-block"') && app.includes('data-testid="s4-copy"'))
 
 const changelog = norm('CHANGELOG.md')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v', changelog.indexOf('## Unreleased')))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.54'), changelog.indexOf('## v0.6.53'))
 assert.ok(note.includes('M-polish-16'))

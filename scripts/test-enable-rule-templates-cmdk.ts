@@ -13,6 +13,6 @@ assert.match(app, /action === 'enableRuleTemplates'/)
 assert.match(app, /rulesSeg:\s*'templates'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-enable-rule-templates-cmdk/)
 console.log('test-enable-rule-templates-cmdk ok')

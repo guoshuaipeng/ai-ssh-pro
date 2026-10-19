@@ -14,6 +14,6 @@ assert.ok(i18n.includes("'sb.splitTip'"))
 assert.ok((i18n.match(/'sb\.splitOn'/g) || []).length >= 2)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-statusbar-split/)
 console.log('test-statusbar-split ok')

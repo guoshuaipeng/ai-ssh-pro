@@ -1638,13 +1638,14 @@ button.statusbar-slot:focus-visible {
   mask-image: linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent);
 }
 .tab-bar-scroll > .tab {
-  /* Polish-8: size to the label. Do not shrink the row down to 服… / 17…. */
+  /* Polish-8 / M18: size to the label (VS Code / DataAI): 96px floor, 220px cap with ellipsis. */
   flex: 0 0 auto;
-  min-width: 188px;
-  max-width: 280px;
+  min-width: 96px;
+  max-width: 220px;
+  justify-content: flex-start;
 }
 .tab-bar-scroll > .tab.active {
-  min-width: 188px;
+  min-width: 96px;
   flex-shrink: 0;
 }
 .tab-bar-scroll > .tab:has(.tab-rename-input) {
@@ -6001,3 +6002,11 @@ button.primary.danger:focus-visible {
 .ai-reply-empty .ai-starter-prompt {
   text-align: left;
 }
+
+/* ---- M18 (0.6.56): tab × sits right after the title ---- */
+/* Hidden pin / ⋯ used to reserve ~40px between the title and ×; they no longer take width.
+   Pin and the tab menu stay on right-click (tab-pin / context menu); a pinned tab keeps its pin glyph. */
+.tab > .tab-title { flex: 0 1 auto; }
+.tab > .tab-more { display: none; }
+.tab > .tab-pin-btn:not(.is-on) { display: none; }
+.tab > .tab-close { margin-left: 0; }

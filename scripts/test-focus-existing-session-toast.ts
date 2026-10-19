@@ -14,6 +14,6 @@ assert.ok(i18n.includes("sess.focusedExisting': '已切换到已打开的会话'
 assert.ok(i18n.includes("sess.focusedExisting': 'Switched to open session'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-focus-existing-session-toast/)
 console.log('test-focus-existing-session-toast ok')

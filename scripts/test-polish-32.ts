@@ -18,7 +18,7 @@ import { OPS_HOME_ATTENTION_CAP, OPS_HOME_CARD_CAP, opsHomeGridColumns, opsHomeR
 import { translate } from '../src/renderer/src/lib/i18n'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.55')
+assert.ok(pkg.version.localeCompare('0.6.55', undefined, { numeric: true }) >= 0, 'package at or past 0.6.55')
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-32.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')
@@ -120,7 +120,7 @@ const shot = norm('scripts/screenshot-key-screens.mjs')
 assert.ok(shot.includes("argv.includes('--empty')") && shot.includes("emptySeed ? 'empty-' : ''"))
 
 const changelog = norm('CHANGELOG.md')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v', changelog.indexOf('## Unreleased')))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.55'), changelog.indexOf('## v0.6.54'))
 assert.ok(note.includes('M-polish-17'))

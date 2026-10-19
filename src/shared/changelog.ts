@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.56': [
+    {
+      icon: '▷',
+      text: {
+        zh: '标签页按标题宽度显示，关闭按钮紧跟标题',
+        en: 'Tabs size to their title and the close button sits right after it'
+      },
+      where: { zh: '顶部标签栏', en: 'Tab bar' }
+    }
+  ],
   '0.6.55': [
     {
       icon: '▷',

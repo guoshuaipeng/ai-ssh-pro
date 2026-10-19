@@ -15,6 +15,6 @@ assert.ok(i18n.includes("palette.reconnectedAll': 'Reconnected {n}/{total} sessi
 assert.ok(i18n.includes("palette.reconnectAllFailed': 'Could not reconnect {n} dropped session(s) ({hosts})'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-reconnect-all-done-hosts/)
 console.log('test-reconnect-all-done-hosts ok')

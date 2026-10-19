@@ -19,7 +19,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 
 assert.equal(tabOverflowMark(0), '⌄')
 assert.equal(tabOverflowMark(3), '⌄ 3')
@@ -50,12 +50,13 @@ assert.equal(tabStripRevealDelta({ tabLeft: -10, tabRight: 400, clientWidth: 200
 assert.equal(tabStripRevealDelta({ tabLeft: 0, tabRight: 10, clientWidth: 0 }), 0)
 
 assert.equal(tabItemFlex(), '0 0 auto')
-assert.ok(TAB_MIN_WIDTH_PX >= 180)
+assert.equal(TAB_MIN_WIDTH_PX, 96)
+assert.equal(TAB_MAX_WIDTH_PX, 220)
 assert.ok(TAB_MAX_WIDTH_PX >= TAB_MIN_WIDTH_PX)
 assert.equal(tabWidthKeepsLabel(TAB_MIN_WIDTH_PX), true)
-assert.equal(tabWidthKeepsLabel(172), false)
-assert.equal(tabWidthKeepsLabel(112), false)
-assert.equal(tabWidthKeepsLabel(96), false)
+assert.equal(tabWidthKeepsLabel(172), true)
+assert.equal(tabWidthKeepsLabel(96), true)
+assert.equal(tabWidthKeepsLabel(80), false)
 
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
@@ -127,6 +128,6 @@ assert.equal(en('tab.scrollRight'), 'Scroll tabs right')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))
 assert.ok(unreleased.includes('P3-TO'))
 assert.ok(unreleased.includes('⌄'))
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 
 console.log('test-tab-overflow ok')

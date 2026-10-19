@@ -6,7 +6,7 @@ import { tipSuggest, rollback } from '../src/main/core-a-output-truncate'
 import { splitFences, splitInlineCode, layoutOpsReply } from '../src/shared/ai-reply-cards'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.55')
+assert.equal(pkg.version, '0.6.56')
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-30.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')
@@ -139,7 +139,7 @@ assert.ok(ai.includes("if (detail?.op === 'aiChat')"))
 assert.ok(ai.indexOf("if (detail?.op === 'aiChat')") > ai.indexOf('if (!screenshotHooksEnabled()) return'), 'aiChat demo is gated by screenshot hooks')
 
 const changelog = norm('CHANGELOG.md')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v', changelog.indexOf('## Unreleased')))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.53'), changelog.indexOf('## v0.6.52'))
 assert.ok(note.includes('M-polish-15'))

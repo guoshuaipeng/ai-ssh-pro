@@ -99,14 +99,13 @@ export const TAB_STRIP_NUDGE = 160
 export const TAB_WHEEL_LINE_PX = 48
 
 /**
- * Floor for one session tab. 188px fits an IPv4 host ("172.19.161.123") plus the
- * kind icon, the hover ⋯, and the close control at the 13px UI face, so the label
- * stays recognizable. Tabs do not shrink below this; the strip scrolls.
+ * Floor for one tab. M18: tabs size to their title (VS Code / DataAI); 96px keeps a
+ * two-glyph label + icon + close clickable. Tabs do not shrink below this; the strip scrolls.
  */
-export const TAB_MIN_WIDTH_PX = 188
+export const TAB_MIN_WIDTH_PX = 96
 
 /** Cap so one very long title does not eat the row. Past this, only that title ellipsizes. */
-export const TAB_MAX_WIDTH_PX = 280
+export const TAB_MAX_WIDTH_PX = 220
 
 /** `flex` for a tab in the strip: grow 0, shrink 0, basis auto. */
 export function tabItemFlex(): '0 0 auto' {
