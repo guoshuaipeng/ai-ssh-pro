@@ -11,6 +11,6 @@ assert.ok(i18n.includes("mcp.guideOpened': '已打开 MCP 安装指南'"))
 assert.ok(i18n.includes("mcp.guideOpened': 'Opened MCP setup guide'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-mcp-guide-opened-toast/)
 console.log('test-mcp-guide-opened-toast ok')

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.49
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-11（chrome 间距 token 化）.** 标题栏、菜单下拉、标签溢出菜单、右键菜单、命令面板、Toast、弹窗遮罩、侧栏提示等 51 处 padding/gap/font-size 由硬编码 px 改为 `--space-*` / `--fs-*`（等值替换，渲染不变）。tipSuggest 不变。版本 0.6.49。 / Visible chrome spacing and type sizes now come from tokens.
+
 ## v0.6.48
 
 Released 2026-10-19 (CST).

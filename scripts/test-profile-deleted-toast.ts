@@ -13,6 +13,6 @@ assert.ok(i18n.includes("app.profilesDeleted': '已删除 {n} 个连接'"))
 assert.ok(i18n.includes("app.profilesDeleted': 'Deleted {n} connection(s)'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-profile-deleted-toast/)
 console.log('test-profile-deleted-toast ok')

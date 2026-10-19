@@ -50,7 +50,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-w9\.ts/)
 
 assert.ok(BUILTIN_SNIPPETS.length >= 1, 'W9-1 shipped snippets')
@@ -209,6 +209,6 @@ for (const mark of order) {
   at = next
 }
 assert.ok(unreleased.includes('S4') && unreleased.includes('A-HITL') && unreleased.includes('不自动执行'))
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 
 console.log('test-w9 ok')

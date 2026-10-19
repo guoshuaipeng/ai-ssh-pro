@@ -310,13 +310,13 @@ body {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: var(--space-2);
   width: 100%;
   min-width: 0;
   height: 40px;
   min-height: 40px;
   max-height: 40px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   box-sizing: border-box;
   overflow: visible;
   /* Windows titleBarOverlay 窗控按钮约占右侧固定宽度（勿用 titlebar-area-width，那是可绘制区宽度） */
@@ -365,7 +365,7 @@ body {
   min-height: 32px;
   min-width: 32px;
   padding: 0;
-  padding-inline: 8px;
+  padding-inline: var(--space-2);
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
@@ -393,7 +393,7 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   max-width: 360px;
   max-height: calc(100vh - 48px);
   overflow-y: auto;
-  padding: 4px;
+  padding: var(--space-1);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   background: var(--color-bg-elevated);
@@ -411,7 +411,7 @@ button.titlebar-menu-trigger:hover:not(:disabled),
   box-sizing: border-box;
   min-height: 32px;
   padding: 0;
-  padding-inline: 8px;
+  padding-inline: var(--space-2);
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
@@ -592,7 +592,7 @@ body.platform-darwin .app-titlebar {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: var(--space-4);
 }
 
 .modal-panel {
@@ -832,7 +832,7 @@ label {
 
 .workspace-panel-body--focused {
   overflow: hidden;
-  padding: 10px 12px 12px;
+  padding: 10px var(--space-3) var(--space-3);
 }
 
 .workspace-panel-body--focused .workspace-panel-inner {
@@ -1451,7 +1451,7 @@ button.statusbar-slot:focus-visible {
   flex: none;
   height: 18px;
   margin: 0;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1567,7 +1567,7 @@ button.statusbar-slot:focus-visible {
   align-items: stretch;
   flex-wrap: nowrap;
   gap: 2px;
-  padding: 6px 8px 0;
+  padding: 6px var(--space-2) 0;
   background: var(--bg-panel);
   /* Hairline sits in the 36px box so the content row stays 30px (6px pad + 30px tabs). */
   box-shadow: inset 0 -1px 0 var(--border);
@@ -1589,7 +1589,7 @@ button.statusbar-slot:focus-visible {
   /* 30px of tabs. The extra 16px holds a classic scrollbar so .tab-bar can clip it (TO-1). */
   height: 46px;
   margin-bottom: -16px;
-  padding-bottom: 16px;
+  padding-bottom: var(--space-4);
   overflow-x: auto;
   overflow-y: hidden;
   /* Beat the global `* { scrollbar-width: thin }` and the 8px webkit bar. */
@@ -1664,7 +1664,7 @@ button.statusbar-slot:focus-visible {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
-.tab-overflow-label-text { font-size: 11px; margin-right: 4px; white-space: nowrap; }
+.tab-overflow-label-text { font-size: var(--fs-xs); margin-right: 4px; white-space: nowrap; }
 .tab-overflow-btn {
   flex: none;
   flex-shrink: 0;
@@ -1676,7 +1676,7 @@ button.statusbar-slot:focus-visible {
   padding: 0 6px;
   line-height: 22px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .tab-split-btn {
   flex: none;
@@ -1717,7 +1717,7 @@ button.statusbar-slot:focus-visible {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
   border-radius: 8px;
-  padding: 4px;
+  padding: var(--space-1);
   display: flex;
   flex-direction: column;
   width: 280px;
@@ -1728,16 +1728,16 @@ button.statusbar-slot:focus-visible {
   box-shadow: var(--shadow-menu);
 }
 .tab-overflow-title {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted);
-  padding: 4px 8px 6px;
+  padding: var(--space-1) var(--space-2) 6px;
   white-space: nowrap;
 }
 .tab-overflow-menu button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   height: 28px;
   width: 100%;
   white-space: nowrap;
@@ -1762,7 +1762,7 @@ button.statusbar-slot:focus-visible {
 .tab-overflow-x {
   opacity: 0;
   flex: none;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 }
 .tab-overflow-row:hover .tab-overflow-x,
 .tab-overflow-row.is-hot .tab-overflow-x,
@@ -1770,12 +1770,12 @@ button.statusbar-slot:focus-visible {
 .tab-overflow-foot {
   border-top: 1px solid var(--border);
   margin-top: 4px;
-  padding-top: 4px;
+  padding-top: var(--space-1);
 }
 .tab-overflow-empty {
-  padding: 8px;
+  padding: var(--space-2);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   white-space: nowrap;
 }
 .main { min-width: 0; }
@@ -1867,7 +1867,7 @@ button.statusbar-slot:focus-visible {
   height: 18px;
   margin: 0;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1;
   opacity: 0.75;
   color: var(--muted);
@@ -1907,7 +1907,7 @@ button.statusbar-slot:focus-visible {
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1;
   border-radius: var(--radius-md);
 }
@@ -2140,7 +2140,7 @@ button.statusbar-slot:focus-visible {
 }
 
 .workspace-panel-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   max-width: 280px;
   overflow: hidden;
@@ -2152,19 +2152,19 @@ button.statusbar-slot:focus-visible {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 14px 16px 20px;
+  padding: 14px var(--space-4) 20px;
 }
 
 .workspace-panel-body--inventory {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 10px 12px 12px;
+  padding: 10px var(--space-3) var(--space-3);
 }
 
 .workspace-panel-body--editor {
   overflow: auto;
-  padding: 12px 14px 16px;
+  padding: var(--space-3) 14px var(--space-4);
 }
 
 .workspace-panel-inner {
@@ -2173,7 +2173,7 @@ button.statusbar-slot:focus-visible {
 
 .workspace-panel-body--settings {
   overflow: auto;
-  padding: 16px 20px 28px;
+  padding: var(--space-4) 20px 28px;
 }
 
 .workspace-panel-inner--settings {
@@ -3060,11 +3060,11 @@ button.statusbar-slot:focus-visible {
 }
 
 .sidebar-info-banner {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--color-info);
   margin-bottom: 10px;
   line-height: 1.45;
-  padding: 8px;
+  padding: var(--space-2);
   border-radius: 6px;
   border: 1px solid color-mix(in srgb, var(--color-info) 45%, transparent);
   background: var(--color-info-muted);
@@ -3195,7 +3195,7 @@ button.statusbar-slot:focus-visible {
   min-width: 148px;
   max-height: calc(100vh - 16px);
   overflow: auto;
-  padding: 4px;
+  padding: var(--space-1);
   border: 1px solid var(--color-border-default);
   border-radius: 8px;
   background: var(--color-bg-elevated);
@@ -3208,8 +3208,8 @@ button.statusbar-slot:focus-visible {
   width: 100%;
   box-sizing: border-box;
   min-height: 32px;
-  padding: 0 8px;
-  font-size: 13px;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-base);
   text-align: left;
   border: none;
   border-radius: var(--radius-md);
@@ -3235,12 +3235,12 @@ button.statusbar-slot:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .session-context-menu-caret {
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1;
 }
 
@@ -4146,7 +4146,7 @@ body:has(.debug-window-root) #root {
 
 .workspace-panel-body--docker {
   overflow: auto;
-  padding: 12px 16px 20px;
+  padding: var(--space-3) var(--space-4) 20px;
 }
 
 .workspace-panel-body--docker-logs {
@@ -4155,7 +4155,7 @@ body:has(.debug-window-root) #root {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding-bottom: 12px;
+  padding-bottom: var(--space-3);
 }
 
 .docker-panel-error {
@@ -5102,8 +5102,8 @@ body.split-resizing {
   flex: none;
   border: 0;
   border-bottom: 1px solid var(--color-border-default);
-  padding: 12px 14px;
-  font-size: 15px;
+  padding: var(--space-3) 14px;
+  font-size: var(--fs-lg);
   background: transparent;
   color: inherit;
   outline: none;
@@ -5115,7 +5115,7 @@ body.split-resizing {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 4px;
+  padding: var(--space-1);
 }
 .cmdp-item {
   display: flex;
@@ -5150,11 +5150,11 @@ body.split-resizing {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   opacity: 0.6;
 }
 .cmdp-kbd {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 1px 5px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -5162,7 +5162,7 @@ body.split-resizing {
 }
 .cmdp-empty,
 .cmdp-foot {
-  padding: 10px 12px;
+  padding: 10px var(--space-3);
   font-size: var(--fs-sm, 12px);
   color: var(--color-text-secondary);
   opacity: 1;
@@ -5237,7 +5237,7 @@ body.split-resizing {
   background: none;
   border: none;
   padding: 0;
-  padding-inline: 4px;
+  padding-inline: var(--space-1);
   margin-right: 6px;
   border-radius: var(--radius-md);
   font-size: var(--fs-xs);
@@ -5260,12 +5260,12 @@ button.app-toolbar-version:hover:not(:disabled) {
   align-items: center;
   gap: 5px;
   margin-right: 8px;
-  padding: 1px 8px;
+  padding: 1px var(--space-2);
   border-radius: 10px;
   border: 1px solid var(--accent);
   background: transparent;
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 .app-toolbar-update-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
@@ -5432,17 +5432,17 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
   z-index: 10050;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   pointer-events: none; /* P12-5: empty stack area must not block main CTAs */
 }
 .toast {
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 220px;
   max-width: 420px;
-  padding: 10px 12px;
+  padding: 10px var(--space-3);
   border-radius: 10px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-strong, var(--color-border-default));
@@ -5460,7 +5460,7 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
   border: 1px solid var(--accent);
   color: var(--accent);
   border-radius: var(--radius-sm, 4px);
-  padding: 2px 8px;
+  padding: 2px var(--space-2);
   cursor: pointer;
 }
 
@@ -5556,8 +5556,8 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
 .host-status-ms { flex: none; font-size: 10.5px; color: var(--muted); margin-left: 6px; }
 
 /* host context menu (H1) */
-.session-context-menu-item { display: flex; justify-content: space-between; gap: 16px; }
-.session-context-menu-hint { opacity: 0.55; font-size: 11px; }
+.session-context-menu-item { display: flex; justify-content: space-between; gap: var(--space-4); }
+.session-context-menu-hint { opacity: 0.55; font-size: var(--fs-xs); }
 .sidebar-scroll:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: -2px;

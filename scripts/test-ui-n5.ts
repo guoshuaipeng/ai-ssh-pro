@@ -26,7 +26,7 @@ for (const sel of titlebarControls) {
 for (const sel of ['.titlebar-menu-trigger', '.titlebar-btn', '.titlebar-icon-btn']) {
   assert.match(ruleBody(styles, sel), /padding-inline:\s*(?:8px|var\(--space-2\))/, `${sel} padding-inline`)
 }
-assert.match(ruleBody(styles, '.app-toolbar-version'), /padding-inline:\s*4px/)
+assert.match(ruleBody(styles, '.app-toolbar-version'), /padding-inline:\s*(4px|var\(--space-1\))/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*width:\s*32px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*height:\s*32px/)
 assert.match(styles, /button\.layout-toggle-btn\s*\{[^}]*border:\s*none/)
@@ -88,7 +88,7 @@ assert.equal(toolbar.includes('className="primary"'), false)
 assert.equal(toolbar.includes("className='primary'"), false)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

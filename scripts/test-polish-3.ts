@@ -8,7 +8,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 
 assert.deepEqual(tabStripChrome(false), { arrows: false, menu: false })
 assert.deepEqual(tabStripChrome(true), { arrows: true, menu: true })
@@ -35,7 +35,7 @@ assert.match(scrollRule, /overflow-x:\s*auto/)
 assert.match(scrollRule, /overflow-y:\s*hidden/)
 assert.match(scrollRule, /scrollbar-width:\s*none\s*!important/)
 assert.match(scrollRule, /margin-bottom:\s*-16px/)
-assert.match(scrollRule, /padding-bottom:\s*16px/)
+assert.match(scrollRule, /padding-bottom:\s*(16px|var\(--space-4\))/)
 assert.match(styles, /\.tab-bar-scroll::-webkit-scrollbar\s*\{[^}]*display:\s*none\s*!important/)
 assert.match(styles, /\.tab-bar\s*\{[^}]*flex-wrap:\s*nowrap/)
 assert.match(styles, /\.tab-bar\s*\{[^}]*height:\s*36px/)
@@ -86,6 +86,6 @@ assert.ok(unreleased.includes('A-TFL') && unreleased.includes('S15'))
 assert.ok(unreleased.includes('A-OM') && unreleased.includes('A-HITL'))
 assert.ok(unreleased.includes('Core-A'))
 assert.ok(unreleased.includes('Polish-2'))
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 
 console.log('test-polish-3 ok')

@@ -13,6 +13,6 @@ assert.match(app, /action === 'builtinSnippets'/)
 assert.match(app, /previewBuiltin:\s*true/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-builtin-snippets-cmdk/)
 console.log('test-builtin-snippets-cmdk ok')

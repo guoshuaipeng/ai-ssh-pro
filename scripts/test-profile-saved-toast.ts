@@ -11,6 +11,6 @@ assert.ok(i18n.includes("app.profileSaved': '已保存连接「{name}」'"))
 assert.ok(i18n.includes("app.profileSaved': 'Saved connection"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-profile-saved-toast/)
 console.log('test-profile-saved-toast ok')

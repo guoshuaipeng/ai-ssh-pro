@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.49': [
+    {
+      icon: '▷',
+      text: {
+        zh: '标题栏、菜单与命令面板间距统一走设计 token',
+        en: 'Titlebar, menus and command palette spacing use design tokens'
+      },
+      where: { zh: '标题栏与菜单', en: 'Titlebar and menus' }
+    }
+  ],
   '0.6.48': [
     {
       icon: '▷',

@@ -21,6 +21,6 @@ assert.ok(i18n.includes("'confirm.disconnectAllSessions'"))
 assert.ok(i18n.includes("'sess.disconnectedAllToast'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-disconnect-all-sessions/)
 console.log('test-disconnect-all-sessions ok')

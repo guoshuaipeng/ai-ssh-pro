@@ -17,6 +17,6 @@ assert.ok(i18n.includes("toolbar.hideAi': '隐藏右侧 AI 面板'"))
 assert.ok(i18n.includes("toolbar.showAi': 'Show AI panel'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.48')
+assert.equal(pkg.version, '0.6.49')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-pane-toggle-toast/)
 console.log('test-pane-toggle-toast ok')
