@@ -28,7 +28,7 @@ for (const k of order) {
   assert.ok(i > at, `composer order: ${k}`)
   at = i
 }
-assert.ok(composer.includes('data-testid="safety-scope"') && composer.includes('data-testid="safety-session"') && composer.includes('data-testid="safety-host"'), 'session + host tiers live in the safety popover')
+assert.ok(composer.includes('data-testid="safety-scope"') && composer.includes('data-testid="safety-host"'), 'host policy lives in the safety popover (M21 dropped the session tier)')
 assert.ok(composer.includes('aria-pressed={includeTerminal'), 'attach output is a toggle chip')
 assert.ok(composer.includes('data-testid="ai-stop"') && composer.includes('onClick={stopGeneration}'), 'send turns into stop while busy')
 assert.equal(ai.includes('className="ai-toolbar"'), false, 'old checkbox toolbar removed')

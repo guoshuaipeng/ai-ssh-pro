@@ -1,4 +1,5 @@
 import { normalizeTags } from '../shared/workspace-features'
+import { DEFAULT_AI_POLICY, migrateAiPolicy, policyTier } from '../shared/ai-policy'
 import Store from 'electron-store'
 import type {
   SavedSessionProfile,
@@ -28,7 +29,7 @@ import {
 } from '../shared/workspace-features'
 import { decryptOptional, encryptOptional, encryptSecret, decryptSecret, isEncryptedSecret } from './secret-crypto'
 import { archiveAndClearThreadContext } from './core-a-memory'
-import { normalizeAllowHosts, normalizeSafetyTier, normalizeTierMap } from '../shared/safety-tier'
+import { normalizeAllowHosts, normalizeTierMap } from '../shared/safety-tier'
 
 type AiChatHistoryStore = Record<string, AiChatMessage[]>
 
@@ -74,7 +75,8 @@ export const AI_SETTINGS_DEFAULTS: AiSettings = {
   sshParseInstructions: '',
   useOpenClaw: true,
   autoApproveLowRisk: false,
-  safetyTier: 'confirm'
+  safetyTier: 'confirm',
+  aiPolicy: 'ask'
 }
 
 function encryptJump(j: SshJumpHostOptions | undefined): SshJumpHostOptions | undefined {
@@ -309,11 +311,17 @@ function normalizeAi(merged: AiSettings): AiSettings {
       : (AI_SETTINGS_DEFAULTS.useOpenClaw ?? true)
   // UX-64: the old low-risk switch stays off. The safety tier is the policy that can skip Agree.
   const autoApproveLowRisk = false
-  const safetyTier = normalizeSafetyTier(anyMerged.safetyTier)
   const safetyTierHosts = normalizeTierMap(anyMerged.safetyTierHosts)
   const safetyTierSessions = normalizeTierMap(anyMerged.safetyTierSessions)
   const autopilotAllowHosts = normalizeAllowHosts(anyMerged.autopilotAllowHosts)
   const autopilotAllowHighRisk = anyMerged.autopilotAllowHighRisk === true
+  // M21: three policies. Old tiers migrate (observe→suggest, confirm→ask, trusted/autopilot→auto);
+  // safetyTier is kept as a mirror so older readers and the gate keep working.
+  const aiPolicy = migrateAiPolicy(anyMerged.aiPolicy) ?? migrateAiPolicy(anyMerged.safetyTier) ?? DEFAULT_AI_POLICY
+  const aiAutoHighRisk =
+    typeof anyMerged.aiAutoHighRisk === 'boolean'
+      ? anyMerged.aiAutoHighRisk
+      : anyMerged.aiPolicy === undefined && anyMerged.safetyTier === 'autopilot' && autopilotAllowHighRisk
 
   return {
     providers,
@@ -323,7 +331,9 @@ function normalizeAi(merged: AiSettings): AiSettings {
     sshParseInstructions,
     useOpenClaw,
     autoApproveLowRisk,
-    safetyTier,
+    safetyTier: policyTier(aiPolicy),
+    aiPolicy,
+    ...(aiAutoHighRisk ? { aiAutoHighRisk } : {}),
     ...(safetyTierHosts ? { safetyTierHosts } : {}),
     ...(safetyTierSessions ? { safetyTierSessions } : {}),
     ...(autopilotAllowHosts ? { autopilotAllowHosts } : {}),
@@ -367,6 +377,8 @@ function normalizeSavedSessionsRaw(raw: unknown): SavedSessionsState {
     const tags = normalizeTags(o.tags)
     if (Array.isArray(o.tags) && tags.length) row.tags = tags
     if (o.protection === 'normal' || o.protection === 'production' || o.protection === 'readonly') row.protection = o.protection
+    const aiPolicy = migrateAiPolicy(o.aiPolicy)
+    if (aiPolicy) row.aiPolicy = aiPolicy
     if (o.authMode === 'password' || o.authMode === 'key' || o.authMode === 'agent') row.authMode = o.authMode
     if (typeof o.certificatePath === 'string' && o.certificatePath.trim()) row.certificatePath = o.certificatePath.trim()
     if (o.autoRecord === true) row.autoRecord = true

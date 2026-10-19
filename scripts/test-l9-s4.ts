@@ -35,7 +35,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.equal(DEFAULT_RECONNECT_POLICY.keepAliveSec, 60)
 
 const standard = { ...DEFAULT_RECONNECT_POLICY, mode: 'standard' as const }

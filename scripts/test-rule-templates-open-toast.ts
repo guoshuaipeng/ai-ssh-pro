@@ -13,6 +13,6 @@ assert.ok(i18n.includes("l2c.templatesOpen': '打开告警规则模板…'"))
 assert.ok(i18n.includes("l2c.templatesOpen': 'Opening alert rule templates…'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-rule-templates-open-toast/)
 console.log('test-rule-templates-open-toast ok')

@@ -10,6 +10,6 @@ assert.match(i18n, /sess\.disconnectedAllToast': '已断开 \{n\} 个会话（\{
 assert.match(i18n, /sess\.disconnectedAllToast': 'Disconnected \{n\} session\(s\) \(\{hosts\}\)'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-disconnect-all-toast-hosts/)
 console.log('test-disconnect-all-toast-hosts ok')

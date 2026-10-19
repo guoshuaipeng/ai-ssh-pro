@@ -6444,3 +6444,49 @@ button.primary.danger:focus-visible {
 .ai-turn-elsewhere .link-btn {
   margin-left: auto;
 }
+
+/* M21: global AI policy — three radios, advanced switch, host overrides */
+.policy-radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.policy-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.policy-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.policy-choice-name {
+  font-weight: 600;
+}
+.safety-band-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: currentColor;
+  opacity: 0.8;
+}
+.policy-advanced {
+  margin-left: var(--space-4);
+}
+.policy-overrides {
+  align-self: flex-start;
+}
+.policy-override-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.policy-override-list li {
+  display: flex;
+  gap: var(--space-2);
+}

@@ -24,6 +24,9 @@ export type SafetySettings = {
   safetyTierSessions?: Record<string, unknown> | null
   autopilotAllowHosts?: readonly string[] | null
   autopilotAllowHighRisk?: boolean | null
+  /** M21 policy fields (see ai-policy.ts). */
+  aiPolicy?: unknown
+  aiAutoHighRisk?: boolean | null
 }
 
 export type SafetyScope = {

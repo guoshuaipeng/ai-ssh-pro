@@ -17,6 +17,6 @@ assert.match(blocks, /blocks\.show/)
 assert.match(blocks, /aiss-toggle-block-strip/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-toggle-block-strip/)
 console.log('test-toggle-block-strip ok')

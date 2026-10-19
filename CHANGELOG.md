@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.59
+
+Released 2026-10-19 (CST).
+
+- **M21 AI 执行策略统一为三种.** 只看不改 / 改动前问我 / 放手执行（suggest / ask / auto，默认改动前问我）；放手执行下有“高风险也直接执行”开关，生产与只读主机永不生效。新增唯一解析函数 `resolveAiPolicy({settings, hostPolicy, tempOverride, protection}) → {chosen, effective, source, cappedBy}`，设置页、AI 输入区安全芯片、命令条与主进程代理共用。旧档位迁移：observe→suggest、confirm→ask、trusted/autopilot→auto（保留高风险开关）；按主机档位迁入主机档案，按会话档位只在更严时并入主机，允许列表中的主机设为放手执行，然后清空旧字段。设置页为三个单选 + 高级开关 + “N 台主机单独设置 ›”。修正“三级 / 四档”文案。 Three AI policies with one resolver shared by settings, the AI chip, the command bar and the main process; old tiers migrate onto hosts.
+
 ## v0.6.58
 
 Released 2026-10-19 (CST).

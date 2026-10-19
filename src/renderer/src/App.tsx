@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { globalAiPolicy, hasLegacyHostPolicies, migrateLegacyHostPolicies, type AiPolicy } from '@shared/ai-policy'
 import { createPortal } from 'react-dom'
 import { moveById, normalizeTabTitle, LATENCY_POLL_MS, classifyLatency } from '@shared/workspace-features'
 import type {
@@ -494,6 +495,8 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
+  const sessionStateRef = useRef(sessionState)
+  sessionStateRef.current = sessionState
   const { folders, profiles } = sessionState
 
   const [host, setHost] = useState('')
@@ -1026,6 +1029,7 @@ export default function App() {
   const connectManyRef = useRef<(hosts: BatchHost[]) => Promise<void>>(async () => {})
 
   const activeTab = tabs.find((t) => t.tabId === activeTabId) ?? null
+  const activeTabProfile = activeTab?.profileId ? sessionState.profiles.find((p) => p.id === activeTab.profileId) ?? null : null
   const activeIsSession = !activeTab?.view || activeTab.view === 'session'
   const activeSessionId =
     activeIsSession && activeTab?.status === 'connected' ? activeTab.sessionId : null
@@ -1302,9 +1306,25 @@ export default function App() {
   useEffect(() => {
     void window.aiss.sessions
       .list()
-      .then((state) => {
+      .then(async (state) => {
         setSessionState(state)
         setSessionsReady(true)
+        // M21: one-time move of old per-host / per-session tiers and the autopilot allow list
+        // onto host profiles, then clear the legacy settings fields.
+        try {
+          const ai = await window.aiss.ai.getSettings()
+          if (!hasLegacyHostPolicies(ai)) return
+          const moved = migrateLegacyHostPolicies(ai, state.profiles, globalAiPolicy(ai))
+          if (moved.changed > 0) {
+            const next = { ...state, profiles: moved.profiles }
+            setSessionState(next)
+            await window.aiss.sessions.save(next)
+          }
+          await window.aiss.ai.setSettings({ safetyTierHosts: {}, safetyTierSessions: {}, autopilotAllowHosts: [] })
+          window.dispatchEvent(new CustomEvent('aiss-ai-settings-saved'))
+        } catch (e) {
+          console.warn('[app] ai policy migration skipped', e)
+        }
       })
       .catch((e) => {
         console.error('[app] sessions.list failed', e)
@@ -1401,6 +1421,24 @@ export default function App() {
     setSessionState(next)
     await window.aiss.sessions.save(next)
   }, [])
+
+  /** M21: per-host AI policy lives on the profile (undefined = follow global). */
+  const setHostAiPolicy = useCallback(
+    (profileId: string, policy: AiPolicy | undefined) => {
+      const next = {
+        ...sessionStateRef.current,
+        profiles: sessionStateRef.current.profiles.map((p) => {
+          if (p.id !== profileId) return p
+          const row = { ...p }
+          if (policy) row.aiPolicy = policy
+          else delete row.aiPolicy
+          return row
+        })
+      }
+      void persistSessionState(next)
+    },
+    [persistSessionState]
+  )
 
   const openSession = useCallback(
     async (
@@ -9175,6 +9213,8 @@ export default function App() {
               }
               protection={activeSessionId ? guardForSession(activeSessionId).level : 'normal'}
               elevated={activeSessionId ? guardForSession(activeSessionId).elevated : false}
+              hostPolicy={activeTabProfile?.aiPolicy}
+              onSetHostPolicy={activeTabProfile && !activeTabProfile.demo ? (policy) => setHostAiPolicy(activeTabProfile.id, policy) : undefined}
               production={activeSessionId ? guardForSession(activeSessionId).level === 'production' && !guardForSession(activeSessionId).elevated : false}
               hostName={activeTab?.connectOpts.host ?? null}
               onSwitchToConversation={(key) => {

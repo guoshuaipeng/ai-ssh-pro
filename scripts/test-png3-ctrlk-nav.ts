@@ -11,7 +11,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-png3-ctrlk-nav\.ts/)
 
 assert.equal(PALETTE_PIN_MIN, 3)

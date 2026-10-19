@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.59': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 执行策略统一为三种：只看不改 / 改动前问我 / 放手执行；放手执行下可单独打开“高风险也直接执行”（生产主机永不生效）',
+        en: 'AI policy is now three choices: Look only / Ask before changes / Hands-off, with an optional “high risk too” switch under Hands-off (never on production)'
+      },
+      where: { zh: '设置 → AI', en: 'Settings → AI' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '旧的按主机 / 按会话档位与全自动允许列表自动迁移为主机自己的策略',
+        en: 'Old per-host / per-session tiers and the autopilot allow list move onto each host automatically'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    }
+  ],
   '0.6.58': [
     {
       icon: '▷',

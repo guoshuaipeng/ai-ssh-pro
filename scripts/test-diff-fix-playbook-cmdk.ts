@@ -14,6 +14,6 @@ assert.match(app, /aiss-diff-create/)
 assert.match(app, /l8b\.needDiffPlaybook/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-diff-fix-playbook-cmdk/)
 console.log('test-diff-fix-playbook-cmdk ok')

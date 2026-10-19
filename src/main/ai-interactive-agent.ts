@@ -48,8 +48,9 @@ import {
   type HitlLoopState,
   type TranscriptTurn
 } from './core-a-context'
-import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTierEngaged, effectiveSafetyTier, type SafetyMode } from '../shared/safety-tier'
+import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTierEngaged, type SafetyMode } from '../shared/safety-tier'
 import { getInventoryStore } from './inventory-store'
+import { isAiPolicy, policyTier, resolveAiPolicy } from '../shared/ai-policy'
 import { aiWriteVerdict, capSafetyModeForProtection, aiEffectiveLevel, protectionFromSafetyContext, stricterProtection } from '../shared/ai-write-guard'
 import { getSessionProtection } from './ai-protection-registry'
 import type { HostServiceKind } from '../shared/inventory'
@@ -1177,24 +1178,28 @@ export async function runOpenClawCoreAgentChat(
         protectionFromSafetyContext(payload.safetyContext),
         getSessionProtection(targetSessionId)
       )
-      if (safetyTierEngaged(settings) && parsed.action === 'command') {
+      // M21: one resolver for global / host / temp policy, capped by protection.
+      const policy = resolveAiPolicy({
+        settings,
+        hostPolicy: payload.safetyContext?.hostPolicy,
+        tempOverride: payload.safetyContext?.tempPolicy,
+        protection: hostProtection
+      })
+      if ((safetyTierEngaged(settings) || isAiPolicy(settings.aiPolicy)) && parsed.action === 'command') {
         const hostId =
           payload.safetyContext?.hostId ||
           payload.inventoryLookup?.profileId ||
           payload.historyKey ||
           payload.hostInventoryId
         const decision = planCommandConfirm({
-          tier: effectiveSafetyTier(settings, {
-            hostId,
-            sessionId: payload.safetyContext?.sessionId || payload.historyKey
-          }),
+          tier: policyTier(policy.effective),
           command: parsed.command ?? '',
           riskLevel: parsed.riskLevel,
           production: aiEffectiveLevel(hostProtection) !== 'normal',
           hostId,
           hostName: payload.safetyContext?.hostName || payload.inventoryLookup?.host,
-          allowHosts: settings.autopilotAllowHosts,
-          allowHighRisk: settings.autopilotAllowHighRisk === true,
+          allowHosts: [],
+          allowHighRisk: policy.autoHighRisk,
           book: inFlight
         })
         commandKind = decision.kind
@@ -1210,7 +1215,7 @@ export async function runOpenClawCoreAgentChat(
           kind: 'execution',
           round: step,
           label: 'safety tier',
-          detail: `mode=${decision.mode} capped=${safetyMode} protection=${hostProtection.level}${hostProtection.elevated ? '+elevated' : ''} tier=${decision.tier} applied=${decision.appliedTier} kind=${decision.kind} warn=${String(decision.warn)} write=${String(decision.write)}`
+          detail: `mode=${decision.mode} capped=${safetyMode} policy=${policy.chosen}>${policy.effective}(${policy.source}${policy.cappedBy ? ` capped:${policy.cappedBy}` : ''}) protection=${hostProtection.level}${hostProtection.elevated ? '+elevated' : ''} tier=${decision.tier} applied=${decision.appliedTier} kind=${decision.kind} warn=${String(decision.warn)} write=${String(decision.write)}`
         })
       }
       if (parsed.action === 'command' && safetyMode === undefined && aiEffectiveLevel(hostProtection) === 'readonly') {

@@ -31,7 +31,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -112,7 +112,8 @@ assert.equal(zh('safety.band.autopilot'), '全自动')
 assert.ok(zh('safety.confirm').includes('确认'))
 assert.ok(en('safety.band.confirm').length > 0)
 const safetySettings = readFileSync('src/renderer/src/components/SafetyTierSettings.tsx', 'utf8')
-assert.ok(safetySettings.includes('safety-ladder'))
+// M21: the ladder became three policy radios, each still tagged with its band.
+assert.ok(safetySettings.includes('data-testid="ai-policy-radios"'))
 assert.ok(safetySettings.includes('safetyLadderBand'))
 const aiPanel = readFileSync('src/renderer/src/components/AIPanel.tsx', 'utf8')
 assert.ok(aiPanel.includes('safety-band-badge'))

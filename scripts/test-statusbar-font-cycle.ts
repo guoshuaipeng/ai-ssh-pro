@@ -12,6 +12,6 @@ const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 assert.match(i18n, /Shift\+/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-statusbar-font-cycle/)
 console.log('test-statusbar-font-cycle ok')

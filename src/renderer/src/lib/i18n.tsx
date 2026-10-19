@@ -2777,7 +2777,7 @@ const zhCN = {
   's1b.col.source': '来源',
   's1b.col.result': '结果',
   'safety.tier': '代理安全档',
-  'safety.hint': '三级差：只读 / 需确认 / 全自动。默认需确认（偏手动）。风险徽章仍标低、中、高；高风险不会自动执行。',
+  'safety.hint': '三种策略：只看不改 / 改动前问我 / 放手执行。默认改动前问我。只读命令总是直接执行；高风险命令默认要再确认；生产主机从不自动改动。',
   'safety.observe': '只读（观察）',
   'safety.observeHint': '只自动执行只读命令。写入、删除和重启只给建议，不提供执行。',
   'safety.confirm': '需确认',
@@ -2801,8 +2801,18 @@ const zhCN = {
   'safety.band.readonly': '只读',
   'safety.band.confirm': '需确认',
   'safety.band.autopilot': '全自动',
-  'safety.ladderHint': '三级差一眼可读：只读、需确认、全自动。默认需确认。风险操作必确认。',
-  'safety.saved': '已保存'
+  'safety.ladderHint': '三种策略：只看不改、改动前问我、放手执行。默认改动前问我。高风险操作仍需确认。',
+  'safety.saved': '已保存',
+  'policy.title': 'AI 执行策略',
+  'policy.suggest': '只看不改',
+  'policy.ask': '改动前问我',
+  'policy.auto': '放手执行',
+  'policy.suggestHint': '只执行只读命令。会改动主机的命令只给建议，不提供执行。',
+  'policy.askHint': '默认。只读命令直接执行；任何改动都先问你，高风险再确认一次。',
+  'policy.autoHint': '中低风险改动直接执行；高风险仍要你同意。生产主机上自动降为改动前问我。',
+  'policy.autoHighRisk': '放手执行时，高风险命令也直接执行',
+  'policy.autoHighRiskHint': '默认关闭。生产主机和只读主机永远不会自动执行高风险。',
+  'policy.overrides': '{n} 台主机单独设置 ›'
 } as const
 
 export type MessageKey = keyof typeof zhCN
@@ -5584,7 +5594,7 @@ const en: Record<MessageKey, string> = {
   's1b.col.source': 'Source',
   's1b.col.result': 'Result',
   'safety.tier': 'Agent safety tier',
-  'safety.hint': 'Three bands: Read-only / Confirm / Autopilot. Default is Confirm (manual-leaning). Risk badges still say low, medium, or high. High risk does not run on its own.',
+  'safety.hint': 'Three policies: Look only / Ask before changes / Hands-off. Default is Ask before changes. Read-only commands always run; high-risk commands confirm again by default; production hosts never change on their own.',
   'safety.observe': 'Read-only (Observe)',
   'safety.observeHint': 'Auto-run read-only commands. Writes, deletes, and reboots are suggestions, with no execute button.',
   'safety.confirm': 'Confirm required',
@@ -5608,8 +5618,18 @@ const en: Record<MessageKey, string> = {
   'safety.band.readonly': 'Read-only',
   'safety.band.confirm': 'Confirm',
   'safety.band.autopilot': 'Autopilot',
-  'safety.ladderHint': 'Three clear bands: Read-only, Confirm, Autopilot. Default is Confirm. Risky ops still confirm.',
-  'safety.saved': 'Saved'
+  'safety.ladderHint': 'Three policies: Look only, Ask before changes, Hands-off. Default is Ask before changes. High-risk ops still confirm.',
+  'safety.saved': 'Saved',
+  'policy.title': 'AI execution policy',
+  'policy.suggest': 'Look only',
+  'policy.ask': 'Ask before changes',
+  'policy.auto': 'Hands-off',
+  'policy.suggestHint': 'Runs read-only commands only. Anything that changes the host is a suggestion with no Run.',
+  'policy.askHint': 'Default. Read-only commands run; every change asks first, high risk asks twice.',
+  'policy.autoHint': 'Low and medium-risk changes run on their own; high risk still asks. Drops to Ask before changes on production hosts.',
+  'policy.autoHighRisk': 'Under Hands-off, run high-risk commands too',
+  'policy.autoHighRiskHint': 'Off by default. Never applies to production or read-only hosts.',
+  'policy.overrides': '{n} hosts override ›'
 }
 
 const catalogs: Record<LocaleId, Record<MessageKey, string>> = {

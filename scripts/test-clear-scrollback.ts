@@ -20,6 +20,6 @@ const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 assert.ok(i18n.includes("'term.scrollbackCleared'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-clear-scrollback/)
 console.log('test-clear-scrollback ok')

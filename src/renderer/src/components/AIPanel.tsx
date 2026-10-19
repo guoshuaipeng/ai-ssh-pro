@@ -14,7 +14,8 @@ import { lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExp
 import { confirmDialog, isDialogOpen } from '../lib/dialogs'
 import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
-import { effectiveSafetyTier, isSafetyTier, releaseSessionInFlight, SAFETY_TIERS, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
+import { releaseSessionInFlight, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
+import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } from '@shared/ai-policy'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
@@ -42,6 +43,10 @@ type Props = {
   protection?: ProtectionLevel
   /** M20: inside the elevation window. */
   elevated?: boolean
+  /** M21: the bound host's own AI policy (undefined = follow global). */
+  hostPolicy?: AiPolicy
+  /** M21: change the bound host's policy; absent when the tab has no saved host. */
+  onSetHostPolicy?: (policy: AiPolicy | undefined) => void
   hostName?: string | null
   onOpenSettings?: () => void
   /** When Agree needs an SSH tab: focus a live session or open New connection. */
@@ -394,6 +399,8 @@ export default function AIPanel({
   production = false,
   protection = 'normal',
   elevated = false,
+  hostPolicy,
+  onSetHostPolicy,
   hostName = null,
   onOpenSettings,
   onNeedSession,
@@ -822,6 +829,7 @@ export default function AIPanel({
           production,
           protection,
           elevated,
+          ...(hostPolicy ? { hostPolicy } : {}),
           hostId: inventoryLookup?.profileId || hostInventoryId || undefined,
           hostName: hostName || inventoryLookup?.host,
           sessionId: persistKey || undefined
@@ -1238,16 +1246,6 @@ export default function AIPanel({
     }
   }, [safetyOpen])
 
-  const saveScope = (field: 'safetyTierSessions' | 'safetyTierHosts', id: string | null | undefined, value: string) => {
-    const key = id?.trim() ?? ''
-    if (!key) return
-    const current = { ...(safetySettings[field] ?? {}) }
-    if (!value) delete current[key]
-    else if (isSafetyTier(value)) current[key] = value
-    setSafetySettings((prev) => ({ ...prev, [field]: current }))
-    void window.aiss.ai.setSettings({ [field]: current })
-  }
-
   const commandActions = (opts: {
     command: string
     riskLevel?: string | null
@@ -1268,15 +1266,19 @@ export default function AIPanel({
       hostId={inventoryLookup?.profileId || hostInventoryId}
       hostName={hostName || inventoryLookup?.host}
       production={production}
+      hostPolicy={hostPolicy}
+      protection={{ level: protection, elevated }}
       settings={safetySettings}
     />
   )
 
-  const hostKey = inventoryLookup?.profileId || hostInventoryId || ''
-  const sessionTier = persistKey ? safetySettings.safetyTierSessions?.[persistKey] : undefined
-  const hostTier = hostKey ? safetySettings.safetyTierHosts?.[hostKey] : undefined
-  const effectiveTier = effectiveSafetyTier(safetySettings, { hostId: hostKey, sessionId: persistKey })
-  const ladderBand = safetyLadderBand(effectiveTier)
+  // M21: the chip shows the policy that actually applies (global / host, capped by protection).
+  const aiPolicy = resolveAiPolicy({
+    settings: safetySettings,
+    hostPolicy,
+    protection: activeSessionId ? { level: protection, elevated } : null
+  })
+  const ladderBand = safetyLadderBand(policyTier(aiPolicy.effective))
 
   const pendingLine =
     pendingConfirm == null
@@ -1807,7 +1809,7 @@ export default function AIPanel({
                 onClick={() => setSafetyOpen((v) => !v)}
               >
                 <Icon name="lock" size={12} />
-                <span>{tg(`safety.band.${ladderBand}` as 'safety.band.confirm')}</span>
+                <span>{tg(`policy.${aiPolicy.effective}` as 'policy.ask')}</span>
                 <Icon name="chevron-down" size={12} />
               </button>
               {safetyOpen ? (
@@ -1817,34 +1819,22 @@ export default function AIPanel({
                   className={`safety-band-badge safety-band-${safetyBandTone(ladderBand)} is-active`}
                   data-testid="safety-band-badge"
                   data-band={ladderBand}
+                  data-policy={aiPolicy.effective}
                   title={tg('safety.ladderHint')}
                 >
-                  {tg(`safety.band.${ladderBand}` as 'safety.band.confirm')}
+                  {tg(`policy.${aiPolicy.effective}` as 'policy.ask')}
                 </span>
-                <label>
-                  {tg('safety.session')}
-                  <select
-                    data-testid="safety-session"
-                    value={isSafetyTier(sessionTier) ? sessionTier : ''}
-                    onChange={(e) => saveScope('safetyTierSessions', persistKey, e.target.value)}
-                  >
-                    <option value="">{tg('safety.follow')}</option>
-                    {SAFETY_TIERS.map((id) => (
-                      <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
-                    ))}
-                  </select>
-                </label>
                 <label>
                   {tg('safety.host')}
                   <select
                     data-testid="safety-host"
-                    value={isSafetyTier(hostTier) ? hostTier : ''}
-                    disabled={!hostKey}
-                    onChange={(e) => saveScope('safetyTierHosts', hostKey, e.target.value)}
+                    value={isAiPolicy(hostPolicy) ? hostPolicy : ''}
+                    disabled={!onSetHostPolicy}
+                    onChange={(e) => onSetHostPolicy?.(isAiPolicy(e.target.value) ? e.target.value : undefined)}
                   >
                     <option value="">{tg('safety.follow')}</option>
-                    {SAFETY_TIERS.map((id) => (
-                      <option key={id} value={id}>{tg(`safety.${id}` as 'safety.confirm')}</option>
+                    {AI_POLICIES.map((id) => (
+                      <option key={id} value={id}>{tg(`policy.${id}` as 'policy.ask')}</option>
                     ))}
                   </select>
                 </label>

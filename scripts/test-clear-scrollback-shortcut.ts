@@ -22,6 +22,6 @@ assert.match(app, /action === 'clearScrollback'/)
 assert.match(app, /aiss-clear-scrollback/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-clear-scrollback-shortcut/)
 console.log('test-clear-scrollback-shortcut ok')

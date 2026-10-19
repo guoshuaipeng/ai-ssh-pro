@@ -14,6 +14,6 @@ assert.ok(i18n.includes("settings.hostStatusOff': '已隐藏主机在线状态'"
 assert.ok(i18n.includes("settings.hostStatusOff': 'Host online status hidden'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.58')
+assert.equal(pkg.version, '0.6.59')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-host-status-toast/)
 console.log('test-host-status-toast ok')

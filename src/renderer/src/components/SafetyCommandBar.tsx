@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { SafetyMode, SafetySettings } from '@shared/safety-tier'
+import { isAiPolicy, policyTier, resolveAiPolicy } from '@shared/ai-policy'
+import { aiEffectiveLevel, type AiHostProtection } from '@shared/ai-write-guard'
 import {
-  effectiveSafetyTier,
   isInteractiveCommand,
   planCommandConfirm,
   safetyTierEngaged,
@@ -24,6 +25,10 @@ type Props = {
   hostId?: string | null
   hostName?: string | null
   production?: boolean
+  /** M21: host policy, per-tab temp override and protection for resolveAiPolicy. */
+  hostPolicy?: string | null
+  tempPolicy?: string | null
+  protection?: AiHostProtection | null
   settings: SafetySettings
   agreeLabel?: string
   onAgree: (command: string) => void
@@ -62,6 +67,9 @@ export default function SafetyCommandBar({
   hostId,
   hostName,
   production,
+  hostPolicy,
+  tempPolicy,
+  protection,
   settings,
   agreeLabel,
   onAgree,
@@ -69,17 +77,19 @@ export default function SafetyCommandBar({
   onAskAgain
 }: Props) {
   const book = sessionInFlightBook(sessionKey)
-  const engaged = safetyTierEngaged(settings)
+  const engaged = safetyTierEngaged(settings) || isAiPolicy(settings.aiPolicy)
+  const level = protection ?? { level: production ? ('production' as const) : ('normal' as const) }
+  const policy = resolveAiPolicy({ settings, hostPolicy, tempOverride: tempPolicy, protection: level })
   const local = engaged
     ? planCommandConfirm({
-        tier: effectiveSafetyTier(settings, { hostId, sessionId: sessionKey }),
+        tier: policyTier(policy.effective),
         command,
         riskLevel,
-        production,
+        production: production || aiEffectiveLevel(level) !== 'normal',
         hostId,
         hostName,
-        allowHosts: settings.autopilotAllowHosts,
-        allowHighRisk: settings.autopilotAllowHighRisk === true,
+        allowHosts: [],
+        allowHighRisk: policy.autoHighRisk,
         book
       })
     : null

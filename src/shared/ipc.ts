@@ -400,6 +400,8 @@ export type SavedSessionProfile = {
   demoRenamed?: boolean
   /** S2: client-side protection. Demo hosts default to production when unset. */
   protection?: 'normal' | 'production' | 'readonly'
+  /** M21: per-host AI policy. Missing = follow the global policy. */
+  aiPolicy?: 'suggest' | 'ask' | 'auto'
   /** Multi-hop ProxyJump. jumpHost stays as the first hop for older readers. */
   jumpChain?: import('./jump-chain').JumpHop[]
   authMode?: 'password' | 'key' | 'agent'
@@ -493,6 +495,9 @@ export type AiChatPayload = {
     production?: boolean
     /** M20: full effective level (normal / production / readonly), incl. demo default and tab temp read-only. */
     protection?: 'normal' | 'production' | 'readonly'
+    /** M21: host AI policy and the per-tab temporary override. */
+    hostPolicy?: 'suggest' | 'ask' | 'auto'
+    tempPolicy?: 'suggest' | 'ask' | 'auto'
     /** M20: inside the elevation window. */
     elevated?: boolean
     hostId?: string
@@ -577,6 +582,10 @@ export type AiSettings = {
   autopilotAllowHosts?: string[]
   /** 显式允许非生产主机在全自动下执行高风险。默认关闭。生产主机忽略。 */
   autopilotAllowHighRisk?: boolean
+  /** M21: global AI policy (只看不改 / 改动前问我 / 放手执行). Replaces safetyTier. */
+  aiPolicy?: 'suggest' | 'ask' | 'auto'
+  /** M21: under auto, also run high-risk commands. Never on a production host. */
+  aiAutoHighRisk?: boolean
 }
 
 export type AiAssistantAction = 'tool_call' | 'command' | 'end'

@@ -1,50 +1,54 @@
 import { useCallback, useEffect, useState } from 'react'
-import { SAFETY_TIERS, type SafetyTier } from '@shared/safety-tier'
-import {
-  SAFETY_LADDER_BANDS,
-  safetyBandTone,
-  safetyLadderBand,
-  type SafetyLadderBand
-} from '@shared/safety-visibility'
+import { AI_POLICIES, DEFAULT_AI_POLICY, globalAiPolicy, isAiPolicy, policyTier, type AiPolicy } from '@shared/ai-policy'
+import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import { tg, type MessageKey } from '../lib/i18n'
 
-const TIER_KEY: Record<SafetyTier, MessageKey> = {
-  observe: 'safety.observe',
-  confirm: 'safety.confirm',
-  trusted: 'safety.trusted',
-  autopilot: 'safety.autopilot'
+const POLICY_KEY: Record<AiPolicy, MessageKey> = {
+  suggest: 'policy.suggest',
+  ask: 'policy.ask',
+  auto: 'policy.auto'
 }
 
-const HINT_KEY: Record<SafetyTier, MessageKey> = {
-  observe: 'safety.observeHint',
-  confirm: 'safety.confirmHint',
-  trusted: 'safety.trustedHint',
-  autopilot: 'safety.autopilotHint'
+const HINT_KEY: Record<AiPolicy, MessageKey> = {
+  suggest: 'policy.suggestHint',
+  ask: 'policy.askHint',
+  auto: 'policy.autoHint'
 }
 
-const BAND_KEY: Record<SafetyLadderBand, MessageKey> = {
-  readonly: 'safety.band.readonly',
-  confirm: 'safety.band.confirm',
-  autopilot: 'safety.band.autopilot'
-}
+type HostOverride = { id: string; label: string; policy: AiPolicy }
 
-/** Global safety tier. Host and session overrides live on the AI panel. */
+/**
+ * M21: the global AI policy — three choices, one advanced switch under 放手执行, and a
+ * count of hosts that set their own policy (edited on the host's 安全 card / AI chip).
+ */
 export default function SafetyTierSettings() {
-  const [tier, setTier] = useState<SafetyTier>('confirm')
-  const [hosts, setHosts] = useState('')
-  const [allowHigh, setAllowHigh] = useState(false)
+  const [policy, setPolicy] = useState<AiPolicy>(DEFAULT_AI_POLICY)
+  const [autoHigh, setAutoHigh] = useState(false)
+  const [overrides, setOverrides] = useState<HostOverride[]>([])
+  const [showOverrides, setShowOverrides] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
 
   const load = useCallback(() => {
     void window.aiss.ai.getSettings().then((s) => {
-      setTier(s.safetyTier ?? 'confirm')
-      setHosts((s.autopilotAllowHosts ?? []).join('\n'))
-      setAllowHigh(s.autopilotAllowHighRisk === true)
+      setPolicy(globalAiPolicy(s))
+      setAutoHigh(s.aiAutoHighRisk === true)
     })
+    void window.aiss.sessions
+      .list()
+      .then((state) => {
+        setOverrides(
+          state.profiles
+            .filter((p) => isAiPolicy(p.aiPolicy))
+            .map((p) => ({ id: p.id, label: p.label || p.host, policy: p.aiPolicy as AiPolicy }))
+        )
+      })
+      .catch(() => setOverrides([]))
   }, [])
 
   useEffect(() => {
     load()
+    window.addEventListener('aiss-ai-settings-saved', load)
+    return () => window.removeEventListener('aiss-ai-settings-saved', load)
   }, [load])
 
   const flash = () => {
@@ -53,78 +57,71 @@ export default function SafetyTierSettings() {
     window.dispatchEvent(new CustomEvent('aiss-ai-settings-saved'))
   }
 
-  const saveTier = (next: SafetyTier) => {
-    setTier(next)
-    void window.aiss.ai.setSettings({ safetyTier: next }).then(flash)
+  const savePolicy = (next: AiPolicy) => {
+    setPolicy(next)
+    void window.aiss.ai.setSettings({ aiPolicy: next }).then(flash)
   }
-
-  const band = safetyLadderBand(tier)
 
   return (
     <fieldset className="settings-channel" data-testid="safety-tier">
-      <legend>{tg('safety.tier')}</legend>
+      <legend>{tg('policy.title')}</legend>
       <p className="l7-muted">{tg('safety.hint')}</p>
-      <div className="safety-ladder" data-testid="safety-ladder" role="list" aria-label={tg('safety.ladderHint')}>
-        {SAFETY_LADDER_BANDS.map((id) => (
-          <span
-            key={id}
-            role="listitem"
-            className={`safety-band-badge safety-band-${safetyBandTone(id)}${band === id ? ' is-active' : ''}`}
-            data-band={id}
-            data-active={band === id ? '1' : '0'}
-          >
-            {tg(BAND_KEY[id])}
-          </span>
-        ))}
+      <div className="n1-sources policy-radios" role="radiogroup" aria-label={tg('policy.title')} data-testid="ai-policy-radios">
+        {AI_POLICIES.map((id) => {
+          const band = safetyLadderBand(policyTier(id))
+          return (
+            <label key={id} className={`n1-choice policy-choice${policy === id ? ' is-active' : ''}`} data-band={band} data-policy={id}>
+              <input type="radio" name="ai-policy" checked={policy === id} onChange={() => savePolicy(id)} />
+              <span className={`safety-band-dot safety-band-${safetyBandTone(band)}`} aria-hidden="true" />
+              <span className="policy-choice-text">
+                <span className="policy-choice-name">{tg(POLICY_KEY[id])}</span>
+                <span className="l7-muted policy-choice-hint">{tg(HINT_KEY[id])}</span>
+              </span>
+            </label>
+          )
+        })}
       </div>
-      <p className="l7-muted">{tg('safety.ladderHint')}</p>
-      <div className="n1-sources" role="radiogroup" aria-label={tg('safety.tier')}>
-        {SAFETY_TIERS.map((id) => (
-          <label key={id} className="n1-choice" data-band={safetyLadderBand(id)}>
-            <input
-              type="radio"
-              name="safety-tier"
-              checked={tier === id}
-              onChange={() => saveTier(id)}
-            />
-            {tg(TIER_KEY[id])}
-          </label>
-        ))}
-      </div>
-      <p className="l7-muted">{tg(HINT_KEY[tier])}</p>
-      {tier === 'autopilot' ? (
-        <>
-          <label className="n1-mirror">
-            {tg('safety.allowHosts')}
-            <textarea
-              data-testid="safety-allow-hosts"
-              value={hosts}
-              rows={3}
-              spellCheck={false}
-              onChange={(e) => setHosts(e.target.value)}
-              onBlur={() => {
-                const list = hosts.split(/\r?\n/).map((row) => row.trim()).filter(Boolean)
-                void window.aiss.ai.setSettings({ autopilotAllowHosts: list }).then(() => {
-                  flash()
-                  load()
-                })
-              }}
-            />
-          </label>
+      {policy === 'auto' ? (
+        <div className="policy-advanced" data-testid="ai-policy-advanced">
           <label className="settings-row">
             <input
               type="checkbox"
-              data-testid="safety-allow-high"
-              checked={allowHigh}
+              role="switch"
+              data-testid="ai-auto-high-risk"
+              aria-checked={autoHigh}
+              checked={autoHigh}
               onChange={(e) => {
                 const next = e.target.checked
-                setAllowHigh(next)
-                void window.aiss.ai.setSettings({ autopilotAllowHighRisk: next }).then(flash)
+                setAutoHigh(next)
+                void window.aiss.ai.setSettings({ aiAutoHighRisk: next }).then(flash)
               }}
             />
-            {tg('safety.allowHigh')}
+            {tg('policy.autoHighRisk')}
           </label>
-          <p className="l7-muted">{tg('safety.allowHighHint')}</p>
+          <p className="l7-muted">{tg('policy.autoHighRiskHint')}</p>
+        </div>
+      ) : null}
+      {overrides.length > 0 ? (
+        <>
+          <button
+            type="button"
+            className="link-btn policy-overrides"
+            data-testid="ai-policy-overrides"
+            aria-expanded={showOverrides}
+            onClick={() => setShowOverrides((v) => !v)}
+          >
+            {tg('policy.overrides', { n: overrides.length })}
+          </button>
+          {showOverrides ? (
+            <ul className="policy-override-list" data-testid="ai-policy-override-list">
+              {overrides.map((o) => (
+                <li key={o.id}>
+                  <span>{o.label}</span>
+                  <span className="l7-muted">{tg(POLICY_KEY[o.policy])}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </>
       ) : null}
       {hint ? <p className="l7-muted">{hint}</p> : null}
