@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>运维首页 redesign</title>
+<style>
+/* Tokens copied from src/renderer/src/styles.css (github-dark / light + scale). */
+:root,[data-ui-theme='github-dark']{--bg:#0f1117;--bg-panel:#161b22;--color-border-default:#30363d;--text:#e6edf3;--muted:#8e97ab;--color-accent:#58a6ff;--accent-dim:#388bfd66;--color-danger:#f85149;--tab-active:#21262d;--row-hover-bg:rgba(88,166,255,.14);
+ --color-text-secondary:#b4bccf;--color-ok:#3fb950;--color-warn:#d29922;--color-warn-muted:#d2992233;--color-danger-muted:#f8514933;--color-text-on-accent:#0d1117;
+ --shadow-sm:0 4px 12px rgba(0,0,0,.35);--shadow-menu:0 12px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.04)}
+[data-ui-theme='light']{--bg:#f4f6f8;--bg-panel:#fff;--color-border-default:#d0d7de;--text:#1f2328;--muted:#656d76;--color-accent:#0969da;--accent-dim:#0969da33;--color-danger:#cf222e;--tab-active:#eaeef2;--row-hover-bg:rgba(9,105,218,.1);
+ --color-text-secondary:#57606a;--color-ok:#1a7f37;--color-warn:#9a6700;--color-warn-muted:#9a670026;--color-danger-muted:#cf222e22;--color-text-on-accent:#fff;
+ --shadow-sm:0 2px 8px rgba(31,35,40,.1);--shadow-menu:0 8px 24px rgba(31,35,40,.14),0 0 0 1px rgba(31,35,40,.04)}
+:root{--color-bg-app:var(--bg);--color-bg-surface:var(--bg-panel);--color-bg-elevated:var(--tab-active);--color-border-muted:color-mix(in srgb,var(--color-border-default) 55%,transparent);
+ --color-text-primary:var(--text);--color-text-muted:var(--muted);
+ --font-sans:'Inter','Noto Sans SC','Noto Sans CJK SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;--font-mono:'JetBrains Mono','Cascadia Code',ui-monospace,monospace;
+ --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;
+ --radius-sm:4px;--radius-md:6px;--radius-lg:8px;--radius-xl:10px;--radius-pill:999px;
+ --fs-xs:11px;--fs-sm:12px;--fs-base:13px;--fs-md:14px;--fs-lg:15px;--fs-xl:20px;--lh-normal:1.5}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font-family:var(--font-sans);font-size:var(--fs-base);color:var(--color-text-primary);background:var(--color-bg-app);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+/* --- simplified app chrome (context only, unchanged by the redesign) --- */
+.chrome-title{height:40px;flex:none;border-bottom:1px solid var(--color-border-default);background:var(--color-bg-surface);display:flex;align-items:center;gap:var(--space-4);padding:0 var(--space-3);font-size:var(--fs-sm);color:var(--color-text-secondary)}
+.chrome-title b{color:var(--text);font-size:var(--fs-base)}
+.chrome-body{flex:1;display:flex;min-height:0}
+.chrome-side{width:240px;flex:none;background:var(--color-bg-surface);border-right:1px solid var(--color-border-default);padding:var(--space-3);font-size:var(--fs-sm);color:var(--color-text-secondary)}
+.chrome-side h4{margin:0 0 var(--space-2);color:var(--text);font-size:var(--fs-sm)}
+.chrome-side .search{height:28px;border:1px solid var(--color-border-default);border-radius:var(--radius-md);margin-bottom:var(--space-3)}
+.chrome-side div.row{padding:6px 4px}
+.chrome-main{flex:1;display:flex;flex-direction:column;min-width:0}
+.chrome-tabs{height:36px;flex:none;border-bottom:1px solid var(--color-border-default);display:flex;align-items:flex-end;padding:0 var(--space-2);gap:4px}
+.chrome-tabs span{height:30px;padding:0 var(--space-3);display:flex;align-items:center;border:1px solid var(--color-border-default);border-bottom:none;border-radius:var(--radius-md) var(--radius-md) 0 0;background:var(--bg);font-size:var(--fs-sm)}
+.chrome-status{height:24px;flex:none;border-top:1px solid var(--color-border-default);background:var(--color-bg-surface);font-size:var(--fs-xs);color:var(--muted);display:flex;align-items:center;padding:0 var(--space-3)}
+/* --- redesigned ops home --- */
+.oh{flex:1;overflow:auto;container-type:inline-size}
+.oh-inner{max-width:1080px;margin:0 auto;padding:var(--space-5) var(--space-6) var(--space-6);display:flex;flex-direction:column;gap:var(--space-5)}
+@container (max-width:760px){.oh-inner{padding:var(--space-4) var(--space-5) var(--space-5);gap:var(--space-4)}}
+.oh-head{display:flex;align-items:flex-end;gap:var(--space-4)}
+.oh-head h1{margin:0;font-size:var(--fs-xl);font-weight:600;letter-spacing:-.01em}
+.oh-head .meta{margin-top:var(--space-1);color:var(--color-text-muted);font-size:var(--fs-sm);display:flex;gap:var(--space-2);align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+.dot.ok{background:var(--color-ok)}.dot.bad{background:var(--color-danger)}.dot.warn{background:var(--color-warn)}.dot.off{background:var(--muted)}
+.oh-head .grow{flex:1}
+.btn{height:30px;padding:0 var(--space-3);border-radius:var(--radius-md);border:1px solid var(--color-border-default);background:var(--color-bg-surface);color:var(--text);font:inherit;font-size:var(--fs-sm);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.primary{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-text-on-accent);font-weight:600}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--color-text-secondary)}
+.btn.icon{width:30px;padding:0;justify-content:center}
+.kbd{font-family:var(--font-mono);font-size:10px;opacity:.7}
+.task{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border:1px solid var(--color-border-muted);border-radius:var(--radius-lg);color:var(--color-text-secondary);font-size:var(--fs-sm)}
+.task .bar{width:96px;height:4px;border-radius:2px;background:var(--color-bg-elevated);overflow:hidden}.task .bar i{display:block;width:40%;height:100%;background:var(--color-accent)}
+.task .grow{flex:1}
+section h2{margin:0;font-size:var(--fs-md);font-weight:600}
+.sec-head{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3);min-height:28px}
+.sec-head .count{color:var(--color-text-muted);font-size:var(--fs-sm);font-weight:400}
+.sec-head .grow{flex:1}
+.seg{display:inline-flex;padding:2px;border-radius:var(--radius-md);background:var(--color-bg-elevated);gap:2px}
+.seg span{padding:2px var(--space-2);border-radius:var(--radius-sm);font-size:var(--fs-sm);color:var(--color-text-muted)}
+.seg span.on{background:var(--color-bg-surface);color:var(--text);box-shadow:var(--shadow-sm)}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 var(--space-2);border-radius:var(--radius-pill);font-size:var(--fs-sm);background:var(--color-warn-muted);color:var(--color-warn)}
+.chip a{color:inherit;font-weight:600;text-decoration:none}
+.link{color:var(--color-accent);font-size:var(--fs-sm);text-decoration:none;white-space:nowrap}
+.card{background:var(--color-bg-surface);border:1px solid var(--color-border-default);border-radius:var(--radius-xl)}
+/* attention list */
+.att .row{display:grid;grid-template-columns:auto 160px 1fr auto auto;align-items:center;gap:var(--space-3);padding:0 var(--space-4);height:44px;border-top:1px solid var(--color-border-muted)}
+.att .row:first-child{border-top:none}
+.att .row.hover{background:var(--row-hover-bg)}
+.att .host{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.att .msg{color:var(--color-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.att .time{color:var(--color-text-muted);font-size:var(--fs-sm);white-space:nowrap}
+.att .acts{display:flex;gap:var(--space-1);visibility:hidden}.att .row.hover .acts{visibility:visible}
+.att .acts .btn{height:26px}
+@container (max-width:760px){.att .row{grid-template-columns:auto 1fr auto;height:auto;padding:var(--space-2) var(--space-3);row-gap:2px}.att .host{grid-column:2}.att .msg{grid-column:2;grid-row:2;font-size:var(--fs-sm)}.att .time{grid-column:3;grid-row:1;justify-self:end}.att .acts{grid-column:3;grid-row:2;justify-self:end}}
+.sev{font-size:var(--fs-xs);padding:1px 6px;border-radius:var(--radius-pill);font-weight:600}
+/* hosts */
+.hosts{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--space-3)}
+.tile{padding:var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);min-height:112px}
+.tile.hover{border-color:var(--color-accent);box-shadow:var(--shadow-sm)}
+.tile .top{display:flex;align-items:center;gap:var(--space-2)}
+.tile .name{font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .lat{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--color-text-muted)}
+.tile .tag{font-size:var(--fs-xs);color:var(--color-text-muted);border:1px solid var(--color-border-default);border-radius:var(--radius-pill);padding:0 6px}
+.m{display:grid;grid-template-columns:36px 1fr 36px;align-items:center;gap:var(--space-2);font-size:var(--fs-xs);color:var(--color-text-muted)}
+.m .track{height:4px;border-radius:2px;background:var(--color-bg-elevated);overflow:hidden}.m .track i{display:block;height:100%;background:var(--color-ok)}
+.m .track i.warn{background:var(--color-warn)}
+.m b{font-weight:500;color:var(--color-text-secondary);font-family:var(--font-mono);text-align:right}
+.tile .off{color:var(--color-text-muted);font-size:var(--fs-sm);flex:1;display:flex;align-items:center}
+.tile .acts{display:flex;gap:var(--space-1);margin-top:auto}
+.tile .acts .btn{height:24px;font-size:var(--fs-xs);padding:0 var(--space-2)}
+.tile.add{align-items:center;justify-content:center;border-style:dashed;color:var(--color-text-muted);background:transparent}
+/* shortcuts */
+.quick{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.quick .btn{height:32px}
+.quick .sep{width:1px;background:var(--color-border-default);margin:4px var(--space-1)}
+.sub{color:var(--color-text-muted);font-size:var(--fs-sm);align-self:center}
+/* annotation tags (mockup only) */
+.note{font:600 10px var(--font-sans);color:var(--color-accent);border:1px dashed var(--color-accent);border-radius:4px;padding:0 4px;opacity:.85}
+</style></head>
+<body>
+<div class="chrome-title"><b>AI-SSH-Pro</b><span>文件</span><span>编辑</span><span>查看</span><span>会话</span><span>运维</span><span>AI</span><span>帮助</span></div>
+<div class="chrome-body">
+<aside class="chrome-side"><h4>已保存会话</h4><div class="search"></div><div class="row">› 最近连接 (1)</div><div class="row">› Demo · Web</div><div class="row">› Demo · Database</div></aside>
+<div class="chrome-main">
+<div class="chrome-tabs"><span>运维首页</span></div>
+<main class="oh"><div class="oh-inner">
+
+  <header class="oh-head">
+    <div>
+      <h1>运维首页</h1>
+      <div class="meta"><span class="dot ok"></span>1 台在线<span>·</span><span class="dot bad"></span>1 台无法连接<span>·</span>2 条待处理<span>·</span>更新于 1 分钟前</div>
+    </div>
+    <div class="grow"></div>
+    <button class="btn icon ghost" title="刷新 (F5)">⟳</button>
+    <button class="btn icon ghost" title="更多">⋯</button>
+    <button class="btn primary">＋ 新建连接 <span class="kbd">Ctrl+Shift+N</span></button>
+  </header>
+
+  <div class="task"><span>首周任务 2/5</span><span class="bar"><i></i></span><span class="grow">下一步：给一台主机开启生产保护</span><a class="link">继续</a><button class="btn icon ghost" title="收起">×</button></div>
+
+  <section>
+    <div class="sec-head"><h2>需要处理 <span class="count">2</span></h2>
+      <span class="seg"><span class="on">进行中</span><span>全部</span><span>已忽略</span></span>
+      <span class="grow"></span>
+      <span class="chip">告警已静默至 17:02 · <a>取消</a></span>
+      <a class="link">告警工作台 →</a></div>
+    <div class="card att">
+      <div class="row hover"><span class="dot bad"></span><span class="host">demo-db-01</span><span class="msg">无法连接 · 连接超时（3 次重试后停止）</span><span class="time">3 分钟前</span><span class="acts"><button class="btn">重试</button><button class="btn">编辑连接</button><button class="btn ghost">忽略</button></span></div>
+      <div class="row"><span class="dot warn"></span><span class="host">demo-web-01</span><span class="msg">磁盘 /var 使用率 87%（阈值 85%）</span><span class="time">12 分钟前</span><span class="acts"><button class="btn">AI 解读</button><button class="btn">连接终端</button><button class="btn ghost">忽略</button></span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>主机 <span class="count">2</span></h2>
+      <button class="btn ghost">全部连接 ▾</button><button class="btn ghost">☐ 排除只读</button>
+      <span class="grow"></span><a class="link">在看板中查看全部 →</a></div>
+    <div class="hosts">
+      <div class="card tile hover"><div class="top"><span class="dot ok"></span><span class="name">demo-web-01</span><span class="tag">prod</span><span class="lat">12 ms</span></div>
+        <div class="m"><span>负载</span><span class="track"><i style="width:23%"></i></span><b>0.42</b></div>
+        <div class="m"><span>内存</span><span class="track"><i style="width:41%"></i></span><b>41%</b></div>
+        <div class="m"><span>磁盘</span><span class="track"><i class="warn" style="width:87%"></i></span><b>87%</b></div>
+        <div class="acts"><button class="btn">终端</button><button class="btn">SFTP</button><button class="btn ghost">看板</button></div></div>
+      <div class="card tile"><div class="top"><span class="dot bad"></span><span class="name">demo-db-01</span><span class="lat">—</span></div>
+        <div class="off">无法连接 · 3 分钟前</div></div>
+      <div class="card tile add">＋ 新建连接</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>快捷</h2><span class="grow"></span><a class="link">全部剧本 →</a></div>
+    <div class="quick">
+      <button class="btn">▷ 运行剧本…</button><button class="btn">打开 SFTP</button><button class="btn">同步文件夹…</button>
+      <span class="sep"></span><span class="sub">最近剧本</span><button class="btn ghost">滚动重启 nginx</button><button class="btn ghost">磁盘清理</button>
+    </div>
+  </section>
+
+</div></main>
+<div class="chrome-status">就绪 · 终端 14px</div>
+</div></div>
+<script>const q=new URLSearchParams(location.search);document.documentElement.dataset.uiTheme=q.get('theme')||'github-dark';</script>
+</body></html>
