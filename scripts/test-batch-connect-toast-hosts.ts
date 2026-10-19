@@ -13,6 +13,6 @@ assert.ok(i18n.includes("l10.done': 'Connected {n} hosts ({hosts})'"))
 assert.ok(i18n.includes("l10.summary': 'Connected {ok}, {fail} failed ({hosts})'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-batch-connect-toast-hosts/)
 console.log('test-batch-connect-toast-hosts ok')

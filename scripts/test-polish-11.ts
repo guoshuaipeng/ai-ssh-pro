@@ -38,7 +38,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -49,7 +49,7 @@ assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.43'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.44'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.12'), changelog.indexOf('## v0.4.11'))
 assert.ok(note.includes('v0.4.12 soft-start'))
@@ -179,9 +179,9 @@ assert.equal(bar.includes('modal-backdrop'), false)
 
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
-assert.match(styles, /\.app-statusbar\s*\{[^}]*height:\s*24px/)
-assert.match(styles, /\.app-statusbar\s*\{[^}]*min-height:\s*22px/)
-assert.match(styles, /\.app-statusbar\s*\{[^}]*max-height:\s*24px/)
+assert.match(styles, /\.app-statusbar\s*\{[^}]*height:\s*28px/)
+assert.match(styles, /\.app-statusbar\s*\{[^}]*min-height:\s*28px/)
+assert.match(styles, /\.app-statusbar\s*\{[^}]*max-height:\s*28px/)
 assert.match(styles, /\.app-statusbar\s*\{[^}]*flex-wrap:\s*nowrap/)
 assert.equal(STATUS_VISIBLE_CAP, 3)
 const crowded = statusBarSlots({

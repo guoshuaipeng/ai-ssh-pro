@@ -10,6 +10,6 @@ assert.ok(i18n.includes("term.scrollbackCleared': '已清空 {host} 的回滚缓
 assert.ok(i18n.includes("term.scrollbackCleared': 'Cleared scrollback for {host}'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-scrollback-cleared-host/)
 console.log('test-scrollback-cleared-host ok')

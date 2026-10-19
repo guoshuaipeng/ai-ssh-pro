@@ -13,6 +13,6 @@ assert.ok(i18n.includes("conn.pasteEmpty': '请先粘贴 SSH 连接信息'"))
 assert.ok(i18n.includes("conn.pasteEmpty': 'Paste SSH connection details first'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-parse-fill-empty-toast/)
 console.log('test-parse-fill-empty-toast ok')

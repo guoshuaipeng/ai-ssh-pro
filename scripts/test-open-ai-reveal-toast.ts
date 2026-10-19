@@ -15,6 +15,6 @@ assert.ok(i18n.includes("ai.focusShortcutTip': '聚焦 AI 面板'"))
 assert.ok(i18n.includes("ai.focusShortcutTip': 'Focus AI panel'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-open-ai-reveal-toast/)
 console.log('test-open-ai-reveal-toast ok')

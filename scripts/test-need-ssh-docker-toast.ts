@@ -10,6 +10,6 @@ const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 assert.ok(i18n.includes('app.needSshDocker'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-need-ssh-docker-toast/)
 console.log('test-need-ssh-docker-toast ok')

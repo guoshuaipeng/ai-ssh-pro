@@ -73,9 +73,9 @@ assert.match(ruleBody(styles, '.titlebar-more-menu button'), /border-radius:\s*v
 assert.doesNotMatch(ruleBody(styles, '.titlebar-more-menu button'), /border-radius:\s*4px/)
 
 const status = ruleBody(styles, '.app-statusbar')
-assert.match(status, /height:\s*24px/)
-assert.match(status, /min-height:\s*22px/)
-assert.match(status, /max-height:\s*24px/)
+assert.match(status, /height:\s*28px/)
+assert.match(status, /min-height:\s*28px/)
+assert.match(status, /max-height:\s*28px/)
 assert.match(status, /background:\s*var\(--color-bg-surface\)/)
 
 assert.equal(css.match(/var\(\s*--[a-z0-9-]+\s*,\s*#/gi), null)
@@ -88,7 +88,7 @@ assert.equal(toolbar.includes('className="primary"'), false)
 assert.equal(toolbar.includes("className='primary'"), false)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

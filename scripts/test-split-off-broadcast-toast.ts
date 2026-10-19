@@ -12,6 +12,6 @@ assert.ok(i18n.includes("sb.splitOffAlsoBroadcast': '已退出分屏并关闭广
 assert.ok(i18n.includes("sb.splitOffAlsoBroadcast': 'Split off; broadcast disabled'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-split-off-broadcast-toast/)
 console.log('test-split-off-broadcast-toast ok')

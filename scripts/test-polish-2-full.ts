@@ -18,7 +18,7 @@ const zh = (key: Parameters<typeof translate>[1], vars?: Record<string, string |
 const en = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate('en', key, vars)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; build?: { win?: Record<string, unknown> } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 
 const early = pinnedIds({ settings: { count: 2, last: 1 } })
@@ -206,7 +206,7 @@ assert.match(css, /\.cmdp\s*\{[^}]*var\(--shadow-modal\)/)
 assert.match(css, /\.session-context-menu\s*\{[^}]*var\(--shadow-menu\)/)
 assert.match(css, /\.titlebar-popover\s*\{[^}]*var\(--shadow-menu\)/)
 assert.ok(css.includes('min(640px, 92vw)'))
-assert.match(css, /\.app-statusbar\s*\{[^}]*height:\s*24px/)
+assert.match(css, /\.app-statusbar\s*\{[^}]*height:\s*28px/)
 assert.ok(css.includes('.tab-guard-prod'))
 
 const agent = readFileSync('src/main/ai-interactive-agent.ts', 'utf8')

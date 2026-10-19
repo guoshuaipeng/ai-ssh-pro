@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.44
+
+Released 2026-10-19 (CST).
+
+- **质感专项 M-polish-6（状态栏/CmdK 焦点/主机选择空态）.** 状态栏高度 28px、可点槽位悬停与 focus-visible；CmdK 搜索底边焦点环；主机选择器无匹配结果改用 EmptyState。tipSuggest 不变。版本 0.6.44。 / **Feel track M-polish-6 (status bar / CmdK focus / host-picker empty).** Status bar 28px with hover and focus-visible on clickable slots. CmdK search gets an inset focus underline. Host picker empty search uses EmptyState. tipSuggest unchanged. Package 0.6.44.
+
 ## v0.6.43
 
 Released 2026-10-19 (CST).

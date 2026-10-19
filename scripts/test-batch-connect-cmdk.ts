@@ -13,6 +13,6 @@ assert.match(app, /action === 'batchConnect'/)
 assert.match(app, /l10\.none/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-batch-connect-cmdk/)
 console.log('test-batch-connect-cmdk ok')

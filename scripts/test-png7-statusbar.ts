@@ -15,13 +15,13 @@ function ruleBody(source: string, selector: string): string {
 
 const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const status = ruleBody(styles, '.app-statusbar')
-assert.match(status, /height:\s*24px/)
-assert.match(status, /min-height:\s*22px/)
-assert.match(status, /max-height:\s*24px/)
+assert.match(status, /height:\s*28px/)
+assert.match(status, /min-height:\s*28px/)
+assert.match(status, /max-height:\s*28px/)
 assert.match(status, /background:\s*var\(--color-bg-surface\)/)
 assert.match(status, /flex-wrap:\s*nowrap/)
 assert.match(status, /overflow:\s*hidden/)
-assert.match(styles, /@media \(max-width:\s*1366px\)\s*\{[^}]*\.app-statusbar\s*\{[^}]*height:\s*24px/)
+assert.match(styles, /@media \(max-width:\s*1366px\)\s*\{[^}]*\.app-statusbar\s*\{[^}]*height:\s*28px/)
 assert.match(styles, /@media \(max-width:\s*1366px\)\s*\{[\s\S]*?\.main\s*\{\s*min-width:\s*0/)
 assert.match(styles, /\.statusbar-slot--disconnect/)
 assert.match(styles, /\.statusbar-reconnect/)
@@ -108,7 +108,7 @@ assert.match(i18n, /'pf5\.reconnect': '重连'/)
 assert.match(i18n, /'pf5\.reconnect': 'Reconnect'/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

@@ -92,7 +92,7 @@ const features = readFileSync('src/renderer/src/features.css', 'utf8')
   .replace(/\.tab\.tab-guard-prod\s*\{[^}]*\}/, '')
 assert.equal(features.match(/#(161a20|1d222a|2a3039|3b82f6|22c55e|f59e0b|ef4444|e11d48|0f1115)\b/gi), null)
 assert.match(css, /\.layout-resizer\s*\{[^}]*width:\s*1px/)
-assert.match(css, /\.app-statusbar\s*\{[^}]*height:\s*24px/)
+assert.match(css, /\.app-statusbar\s*\{[^}]*height:\s*28px/)
 assert.match(css, /\.titlebar-menu-dropdown\s*\{[^}]*var\(--shadow-menu\)/)
 assert.match(css, /\.sftp-pane\.is-active\s*\{[^}]*outline:\s*none/)
 assert.ok(css.includes('--surface-1: var(--color-bg-surface)'))
@@ -117,6 +117,6 @@ const opsEnd = toolbar.indexOf(']', opsStart)
 assert.equal((toolbar.slice(opsStart, opsEnd).match(/id: '/g) ?? []).length, 3)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 
 console.log('test-polish-1-full ok')

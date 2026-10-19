@@ -125,7 +125,9 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
               }}
             />
             <div className="cmdp-list" role="listbox">
-              {list.length === 0 ? <div className="cmdp-empty">{t('ux09.empty')}</div> : null}
+              {list.length === 0 ? (
+                <EmptyState compact testId="host-picker-empty" title={t('ux09.empty')} />
+              ) : null}
               {list.map((p, i) => (
                 <div key={p.id} className={`cmdp-item host-picker-item${i === sel ? ' is-active' : ''}`} onMouseEnter={() => setSel(i)}>
                   <button type="button" role="option" aria-selected={i === sel} className="host-picker-main" onClick={() => void pick(p)}>

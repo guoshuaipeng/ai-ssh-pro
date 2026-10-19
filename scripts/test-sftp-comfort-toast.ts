@@ -16,6 +16,6 @@ assert.ok(i18n.includes("sb.sftpComfortOff': '已恢复 SFTP 默认密度'"))
 assert.ok(i18n.includes("sb.sftpComfortOff': 'SFTP density restored'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.43')
+assert.equal(pkg.version, '0.6.44')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-sftp-comfort-toast/)
 console.log('test-sftp-comfort-toast ok')
