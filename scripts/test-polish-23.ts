@@ -9,7 +9,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   build?: { win?: Record<string, unknown> }
   scripts: { test: string; 'test:parts'?: string }
 }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-23.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
@@ -26,7 +26,7 @@ assert.ok(styles.includes('input:focus-visible'))
 assert.ok(styles.includes('textarea:focus-visible'))
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.54'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.46'), changelog.indexOf('## v0.6.45'))
 assert.ok(note.includes('M-polish-8') || note.includes('工作区'))

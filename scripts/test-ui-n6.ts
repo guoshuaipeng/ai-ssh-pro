@@ -142,7 +142,8 @@ const sftp = readFileSync('src/renderer/src/components/SftpPanel.tsx', 'utf8')
 assert.match(sftp, /: 'sftp'/)
 assert.match(readFileSync('src/renderer/src/components/HostPicker.tsx', 'utf8'), /icon="host"/)
 assert.match(readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8'), /icon="host"/)
-assert.match(readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8'), /icon="alert"/)
+// M17: the alert empty card became a one-line all-clear with a check glyph.
+assert.match(readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8'), /data-testid="l7-inbox-empty"[\s\S]{0,120}<Icon name="check"/)
 
 const zh = (key: Parameters<typeof translate>[1]) => translate('zh-CN', key)
 assert.equal(zh('ux08.sidebarTitle'), '还没有连接')
@@ -157,7 +158,7 @@ assert.equal(toolbar.includes('className="primary"'), false)
 assert.equal(toolbar.includes("className='primary'"), false)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.4.4'))

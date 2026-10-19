@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { FiredAlert } from '../../../shared/alert-rules'
 import { primaryAlert } from '../../../shared/alert-locate'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
+import { metricHostKey, readCachedMetrics, staleAge, staleHintKey, writeCachedMetrics, type CachedMetrics } from '../../../shared/metric-cache'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
@@ -36,7 +37,9 @@ type CardState = {
   title: string
   snap: ResourceSnapshot | null
   error: string | null
-  loading: boolean
+  /** Last-known metrics shown until the first live read lands (never a loading state). */
+  cached: CachedMetrics | null
+  cacheKey: string
   history: number[]
 }
 
@@ -102,7 +105,8 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
             title: s.title,
             snap: null,
             error: null,
-            loading: true,
+            cached: readCachedMetrics(metricHostKey(s)),
+            cacheKey: metricHostKey(s),
             history: []
           }
         )
@@ -114,13 +118,21 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
     try {
       const r = await window.aiss.workspace.resources(sessionId)
       setCards((prev) =>
-        prev.map((c) =>
+        prev.map((c) => {
+          if (c.sessionId !== sessionId) return c
+          writeCachedMetrics(c.cacheKey, {
+            cpu: r.cpuPercent ?? null,
+            mem: r.mem?.percent ?? null,
+            disk: r.disks?.length ? Math.max(...r.disks.map((d) => d.percent)) : null,
+            load: r.load ?? null
+          })
+          return c
+        }).map((c) =>
           c.sessionId === sessionId
             ? {
                 ...c,
                 snap: r,
                 error: null,
-                loading: false,
                 history: [...c.history, r.cpuPercent ?? 0].slice(-60)
               }
             : c
@@ -128,7 +140,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
       )
     } catch (e) {
       const msg = friendlyErrorMessage(e)
-      setCards((prev) => prev.map((c) => (c.sessionId === sessionId ? { ...c, error: msg, loading: false } : c)))
+      setCards((prev) => prev.map((c) => (c.sessionId === sessionId ? { ...c, error: msg } : c)))
     }
   }, [])
 
@@ -230,7 +242,19 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
                       {alertSet.has(c.sessionId) ? <span className="o1-alert-badge" data-testid="o1-alert-badge">{t('o2.badge')}</span> : null}
                       <MiniSpark values={c.history} />
                     </header>
-                    {c.loading && !c.snap ? <p className="o1-muted">{t('rm.loading')}</p> : null}
+                    {!c.snap && !c.error ? (
+                      <>
+                        {/* M17: no loading state — last-known numbers (muted hint) or a calm "—". */}
+                        <Bar label="CPU" percent={c.cached?.cpu ?? null} />
+                        <Bar label={t('rm.mem')} percent={c.cached?.mem ?? null} />
+                        <Bar label={t('o1.disk')} percent={c.cached?.disk ?? null} />
+                        {c.cached ? (
+                          <p className="o1-muted o1-stale" data-testid="o1-stale-hint">
+                            {t(staleHintKey(staleAge(c.cached.at, Date.now())), { n: staleAge(c.cached.at, Date.now()).n })}
+                          </p>
+                        ) : null}
+                      </>
+                    ) : null}
                     {c.error ? (
                       <p className="o1-err">
                         {c.error}{' '}

@@ -9,6 +9,6 @@ const chunk = app.slice(start, start + 750)
 assert.match(chunk, /if \(!tabId\) \{\s*showToast\(tg\('app\.needSshSftp'\), \{ kind: 'error' \}\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-open-sftp-from-host-fail-toast/)
 console.log('test-open-sftp-from-host-fail-toast ok')

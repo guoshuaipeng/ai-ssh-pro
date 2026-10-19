@@ -16,10 +16,9 @@ import { DEFAULT_SAFETY_TIER } from '../src/shared/safety-tier'
 import { TAB_FADE_PX, TAB_MIN_WIDTH_PX, tabOverflowCues, tabWidthKeepsLabel } from '../src/shared/tab-overflow'
 import { LIST_ROW_HEIGHT_COMPACT_PX, LIST_ROW_HEIGHT_PX, listRowHeight } from '../src/shared/list-row'
 import {
-  OPS_HOME_QUIET_CARD_CAP,
-  OPS_HOME_WIDE_CARD_CAP,
-  opsHomeCardCap,
-  opsHomeQuietLayout
+  OPS_HOME_CARD_CAP,
+  OPS_HOME_MAX_WIDTH,
+  opsHomeRowLayout
 } from '../src/shared/ops-home-density'
 import { translate } from '../src/renderer/src/lib/i18n'
 
@@ -32,7 +31,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
@@ -43,7 +42,7 @@ assert.equal(rawPkg.includes(tipSuggest), false)
 assert.equal(rawPkg.includes(rollback), false)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.54'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.4.14'), changelog.indexOf('## v0.4.13'))
 assert.ok(note.includes('v0.4.14 soft-start'))
@@ -160,20 +159,16 @@ assert.match(styles, /--fs-sm:/)
 assert.match(styles, /\.session-folder-row\s*\{[^}]*font-weight:\s*var\(--fw-semibold\)/)
 
 // --- P13-6 ops home density ---
-assert.equal(opsHomeCardCap(1366), OPS_HOME_QUIET_CARD_CAP)
-assert.equal(opsHomeCardCap(1920), OPS_HOME_WIDE_CARD_CAP)
-assert.equal(OPS_HOME_QUIET_CARD_CAP, 6)
-assert.equal(opsHomeQuietLayout(1100).foldSecondary, true)
-assert.equal(opsHomeQuietLayout(1100).noToolWall, true)
-assert.equal(opsHomeQuietLayout(1101).foldSecondary, false)
-assert.equal(opsHomeQuietLayout(1366, 400).foldSecondary, false) // height must not force quiet
-assert.equal(opsHomeQuietLayout(1920, 1080).foldSecondary, false)
+// M17: one cap and one column at every width (density is CSS-only).
+assert.equal(OPS_HOME_CARD_CAP, 8)
+assert.equal(OPS_HOME_MAX_WIDTH, 1080)
+assert.equal(opsHomeRowLayout(1920), 'one-line')
+assert.equal(opsHomeRowLayout(700), 'two-line')
 const ops = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')
-assert.ok(ops.includes('quietLayout.cardCap') || ops.includes('opsHomeQuietLayout'))
-assert.ok(ops.includes('data-ops-quiet'))
-assert.ok(ops.includes('rootRef'))
-assert.ok(ops.includes('ResizeObserver'))
-assert.ok(ops.includes('data-ops-card-cap'))
+assert.ok(ops.includes('pickHealthHosts(cardSource, (h) => h.alerting, OPS_HOME_CARD_CAP)'))
+assert.equal(ops.includes('data-ops-quiet'), false)
+assert.equal(ops.includes('ResizeObserver'), false, 'no JS width fork')
+assert.doesNotMatch(ops, /window\.innerHeight/)
 assert.equal(ops.includes('OPS_MENU_VISIBLE_CAP'), false)
 
 console.log('test-polish-13 ok')

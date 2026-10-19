@@ -7,7 +7,8 @@ import { createRequire } from 'node:module'
 
 const repo = resolve(import.meta.dirname, '..')
 // Key-screen visual QA (dark + light):
-//   node scripts/screenshot-key-screens.mjs [outDir] [--set chrome] [--only ai-chat,ai-empty] [--themes dark|light] [--no-build]
+//   node scripts/screenshot-key-screens.mjs [outDir] [--set chrome] [--only ai-chat,ai-empty] [--themes dark|light] [--no-build] [--empty]
+//   --empty seeds no saved hosts (ops-home no-host state); files are prefixed `empty-`.
 // Builds with electron-vite first unless --no-build (reuse out/). --only / --themes keep iteration runs short.
 const argv = process.argv.slice(2)
 const VALUE_FLAGS = ['--only', '--set', '--themes']
@@ -17,6 +18,7 @@ const csv = (v) => (v || '').split(',').map((x) => x.trim()).filter(Boolean)
 const only = csv(opt('--only'))
 const themes = csv(opt('--themes') || 'dark,light')
 const shotSet = opt('--set') || process.env.AISS_SHOT_SET || ''
+const emptySeed = argv.includes('--empty')
 const outDir = resolve(positional[0] || join(process.env.TEMP || tmpdir(), 'aiss-key-screens'))
 if (!argv.includes('--no-build')) {
   const b = spawnSync('npx electron-vite build', { cwd: repo, stdio: 'inherit', shell: true })
@@ -42,12 +44,12 @@ writeFileSync(
         { id: 'f-web', name: 'Demo · Web' },
         { id: 'f-db', name: 'Demo · Database' }
       ],
-      profiles: [
+      profiles: emptySeed ? [] : [
         { id: 'p1', label: 'demo-web-01', host: '10.0.0.11', port: 22, username: 'ops', folderId: 'f-web' },
         { id: 'p2', label: 'demo-mysql', host: '10.0.1.21', port: 22, username: 'dba', folderId: 'f-db' }
       ]
     },
-    recentConnections: [
+    recentConnections: emptySeed ? [] : [
       {
         id: 'ops@10.0.0.11:22',
         host: '10.0.0.11',
@@ -99,11 +101,12 @@ const chrome = [
 ]
 const ONLY = ${JSON.stringify(only)}
 const THEMES = ${JSON.stringify(themes)}
+const PREFIX = ${JSON.stringify(emptySeed ? 'empty-' : '')}
 const picked = (${JSON.stringify(shotSet)} === 'chrome' ? chrome : base).filter((s) => !ONLY.length || ONLY.includes(s.name))
 if (!picked.length) { console.error('--only matched no shots: ' + ONLY.join(',')); process.exit(2) }
 const shots = [
-  ...(THEMES.includes('dark') ? picked.map((s) => ({ ...s, theme: 'github-dark', file: 'dark-' + s.name + '.png' })) : []),
-  ...(THEMES.includes('light') ? picked.map((s) => ({ ...s, theme: 'light', file: 'light-' + s.name + '.png' })) : [])
+  ...(THEMES.includes('dark') ? picked.map((s) => ({ ...s, theme: 'github-dark', file: PREFIX + 'dark-' + s.name + '.png' })) : []),
+  ...(THEMES.includes('light') ? picked.map((s) => ({ ...s, theme: 'light', file: PREFIX + 'light-' + s.name + '.png' })) : [])
 ]
 
 async function seed(win) {
@@ -115,6 +118,8 @@ async function seed(win) {
     localStorage.setItem('aiss.prefs.welcomeCompleted', '1');
     localStorage.setItem('aiss.prefs.onboarding.fresh', '0');
     localStorage.setItem('aiss.prefs.firstWeekTipsDismissed', 'true');
+    // Last-known metrics for the demo host (M17 cache): cards render them at once with the stale hint.
+    localStorage.setItem('aiss.metricCache.v1', JSON.stringify({ p1: { cpu: 23, mem: 41, disk: 87, load: null, at: Date.now() - 180000 } }));
     true
   \`, true)
   await win.webContents.executeJavaScript(\`

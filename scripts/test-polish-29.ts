@@ -9,7 +9,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   build?: { win?: Record<string, unknown> }
   scripts: { test: string; 'test:parts'?: string }
 }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-29.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
@@ -40,9 +40,9 @@ assert.match(rule('.cmdp-input:focus-visible'), /border-bottom-color:\s*var\(--c
 const palette = readFileSync('src/renderer/src/components/CommandPalette.tsx', 'utf8')
 assert.ok(palette.includes("const grouped = laid.rows.some((r) => r.kind === 'header')"))
 assert.ok(palette.includes('e.note || !grouped'))
-// G5 ops home head: status yields first; hidden in the narrow tier
-assert.match(rule('.l7b-head-status'), /flex:\s*0 1 auto/)
-assert.match(batch, /@container \(max-width: 1100px\)\s*\{\s*\.l7-health \.l7b-head-status\s*\{\s*display:\s*none/)
+// G5 ops home head → M17: the status line moved under the page title (wraps, never hidden).
+assert.match(rule('.oh-status'), /flex-wrap:\s*wrap/)
+assert.equal(batch.includes('.l7b-head-status'), false)
 assert.doesNotMatch(batch, /#[0-9a-fA-F]{3,8}\b/, 'tokens only')
 assert.doesNotMatch(batch, /(padding|gap|font-size)[^;]*\b(4|8|12|16|24|32)px/, 'spacing on tokens')
 
@@ -56,7 +56,7 @@ assert.ok(shot.includes("insertCSS('.toast-stack"), 'toasts hidden via CSS, not 
 assert.ok(shot.includes("theme: 'light'") && shot.includes("theme: 'github-dark'"))
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.54'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.52'), changelog.indexOf('## v0.6.51'))
 assert.ok(note.includes('M-polish-14'))

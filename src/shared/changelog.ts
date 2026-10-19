@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.55': [
+    {
+      icon: '▷',
+      text: {
+        zh: '运维首页重新设计：需要处理、主机、快捷三块，一眼看清',
+        en: 'Redesigned ops home: Needs attention, Hosts and Quick actions at a glance'
+      },
+      where: { zh: '运维首页', en: 'Ops home' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '主机指标先显示上次的数值，不再转圈等待',
+        en: 'Host metrics show the last known values instead of a loading state'
+      },
+      where: { zh: '运维首页 / 看板 / 资源监控', en: 'Ops home / Dashboard / Monitor' }
+    }
+  ],
   '0.6.54': [
     {
       icon: '▷',

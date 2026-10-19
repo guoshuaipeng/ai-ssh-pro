@@ -8250,6 +8250,11 @@ export default function App() {
                     taskDone={TASK_IDS.length - pendingTasks(taskState).length}
                     taskTotal={TASK_IDS.length}
                     showTasks={!taskState.dismissedForever && pendingTasks(taskState).length > 0}
+                    nextTask={pendingTasks(taskState)[0]}
+                    onDismissTasks={() => {
+                      setTaskState(dismissTasksForever())
+                      toastUndo({ message: tg('l7e.tasksHidden'), undo: () => setTaskState(reopenTasks()) })
+                    }}
                     onScope={(s) => {
                       saveDashScope(s)
                       setDashScope(s)
@@ -8267,6 +8272,11 @@ export default function App() {
                     onConnect={(host) => {
                       const p = profiles.find((x) => x.id === host.profileId)
                       if (p) openOrFocusProfile(p)
+                    }}
+                    onEditHost={(profileId) => openConnectionEditor(profiles.find((x) => x.id === profileId))}
+                    onOpenHostSftp={(host) => {
+                      const p = profiles.find((x) => x.id === host.profileId)
+                      if (p) openSftpFromHost(p)
                     }}
                     onLocate={(alert) => locateAlert(alert)}
                     onExplain={(alert) => openWorkbench({ alertId: alert.id, explain: true })}

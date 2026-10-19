@@ -166,7 +166,7 @@ assert.deepEqual(
 )
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /scripts\/test-ui-n2\.ts/)
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')

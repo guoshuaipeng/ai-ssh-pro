@@ -3,13 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { changelogFor } from '../src/shared/changelog'
 import { tipSuggest, rollback } from '../src/main/core-a-output-truncate'
-import {
-  OPS_HOME_FOLD_RAIL_WIDTH,
-  OPS_HOME_QUIET_CARD_CAP,
-  OPS_HOME_WIDE_CARD_CAP,
-  opsHomeCardCap,
-  opsHomeQuietLayout
-} from '../src/shared/ops-home-density'
+import { OPS_HOME_CARD_CAP, OPS_HOME_TWO_LINE_WIDTH, opsHomeGridColumns, opsHomeRowLayout } from '../src/shared/ops-home-density'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   version: string
@@ -17,7 +11,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: { test: string; 'test:parts'?: string }
 }
 const rawPkg = readFileSync('package.json', 'utf8')
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-19.ts'), true)
@@ -25,43 +19,33 @@ assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/t
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')
 
-assert.equal(OPS_HOME_FOLD_RAIL_WIDTH, 1100)
-assert.equal(opsHomeCardCap(1366), OPS_HOME_QUIET_CARD_CAP)
-assert.equal(opsHomeCardCap(1920), OPS_HOME_WIDE_CARD_CAP)
-assert.equal(opsHomeQuietLayout(1100).foldSecondary, true)
-assert.equal(opsHomeQuietLayout(1101, 500).foldSecondary, false)
-assert.equal(opsHomeQuietLayout(1920, 600).foldSecondary, false)
+// M17 supersedes the polish-19 fold: one centred column, same structure maximized or windowed.
+assert.equal(OPS_HOME_TWO_LINE_WIDTH, 760)
+assert.equal(opsHomeRowLayout(OPS_HOME_TWO_LINE_WIDTH), 'one-line')
+assert.equal(opsHomeRowLayout(OPS_HOME_TWO_LINE_WIDTH - 1), 'two-line')
+assert.ok(opsHomeGridColumns(1920) >= opsHomeGridColumns(720))
+assert.equal(OPS_HOME_CARD_CAP, 8)
 
 const ops = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')
-assert.ok(ops.includes('rootRef'))
-assert.ok(ops.includes('ResizeObserver'))
-assert.ok(ops.includes('opsHomeQuietLayout(opsWidth)'))
 assert.doesNotMatch(ops, /window\.innerHeight/)
-assert.ok(ops.includes('data-ops-quiet'))
-assert.ok(ops.includes('l7-rail-collapsed'))
-// Import / check-update not always-visible on rail (still in ⋯ collapsed)
-const railStart = ops.indexOf('className="l7-col l7-rail"')
-const railSplit = ops.indexOf('l7-rail-split', railStart)
-const railEnd = railSplit > railStart ? railSplit : ops.indexOf('</aside>', railStart)
-assert.ok(railStart > 0 && railEnd > railStart)
-const railBody = ops.slice(railStart, railEnd)
-assert.equal(railBody.includes('onImport'), false)
-assert.equal(railBody.includes('onCheckUpdate'), false)
+assert.equal(ops.includes('l7-rail'), false)
+assert.equal(ops.includes('data-ops-quiet'), false)
+// Import / check-update stay reachable, now only in the header ⋯ menu.
+const moreMenu = ops.slice(ops.indexOf('className="l7-more" role="menu"'), ops.indexOf('data-testid="l7b-settings"'))
+assert.ok(moreMenu.includes('onImport') && moreMenu.includes('onCheckUpdate'))
 assert.ok(ops.includes("t('l7.recentPlaybooks')"))
 
 const features = readFileSync('src/renderer/src/features.css', 'utf8')
-assert.ok(features.includes(".l7-root[data-ops-quiet='1'] .l7-rail"))
-assert.ok(features.includes('@container (max-width: 1100px)'))
-assert.ok(features.includes('@container (max-width: 720px)'))
+assert.equal(features.includes("data-ops-quiet"), false)
+assert.ok(features.includes('@container (max-width: 759px)'))
 assert.doesNotMatch(features, /@media \(max-width: 1024px\)\s*\{\s*\.l7b-long/)
-assert.doesNotMatch(features, /@container \(max-width: 1199px\)\s*\{\s*\.l7-body/)
+assert.doesNotMatch(features, /\.l7-body/)
 
 const density = readFileSync('src/shared/ops-home-density.ts', 'utf8')
-assert.ok(density.includes('OPS_HOME_FOLD_RAIL_WIDTH'))
-assert.ok(density.includes('_height'))
+assert.ok(density.includes('OPS_HOME_TWO_LINE_WIDTH'))
 
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
-const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.54'))
+const unreleased = changelog.slice(changelog.indexOf('## Unreleased'), changelog.indexOf('## v0.6.55'))
 assert.equal(unreleased.replace('## Unreleased', '').trim(), '')
 const note = changelog.slice(changelog.indexOf('## v0.6.42'), changelog.indexOf('## v0.6.41'))
 assert.ok(note.includes('运维首页') || note.includes('Ops home'))

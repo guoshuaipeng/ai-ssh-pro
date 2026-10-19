@@ -12,6 +12,6 @@ assert.ok(i18n.includes("ai.chatAlreadyEmpty': '对话已是空的'"))
 assert.ok(i18n.includes("ai.chatAlreadyEmpty': 'Chat is already empty'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-clear-chat-empty-toast/)
 console.log('test-clear-chat-empty-toast ok')

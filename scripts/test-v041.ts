@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ssh2 from 'ssh2'
 import { allowsPageScrollX, l2Actions, l2Filter, l2Mode, l7Mode } from '../src/shared/density'
+import { opsHomeGridColumns } from '../src/shared/ops-home-density'
 import { HOST_MENU_MULTI, HOST_MENU_SINGLE, menuSourceFollows } from '../src/shared/host-menu'
 import { buildHostMenu, menuItemIds, type HostMenuCtx } from '../src/shared/inline-menus'
 import { chainDiagram, MAX_HOPS } from '../src/shared/jump-chain'
-import { L7_RAIL, railCollapsed, railOverflow } from '../src/shared/l7-rail'
 import { layoutPalette, bumpUsage, pinnedIds, PALETTE_CATS } from '../src/shared/palette-rank'
 import { dedupeRecent, loadRecentExpanded } from '../src/shared/recent-sidebar'
 import { CHANGELOG_RESTORE_SCOPE, planRestore, snapshotWorkspace } from '../src/shared/session-restore'
@@ -31,9 +31,12 @@ const styles = readFileSync('src/renderer/src/styles.css', 'utf8')
 const home = readFileSync('src/renderer/src/components/OpsHomeTab.tsx', 'utf8')
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
 
-assert.equal(l7Mode(1366), 'three')
-assert.equal(l7Mode(1101), 'three')
-assert.equal(l7Mode(1100), 'stacked')
+// M17: ops home is one column at every width; only rows (<760) and grid columns follow the container.
+assert.equal(l7Mode(1366), 'one-line')
+assert.equal(l7Mode(760), 'one-line')
+assert.equal(l7Mode(759), 'two-line')
+assert.equal(opsHomeGridColumns(1160), 4)
+assert.equal(opsHomeGridColumns(720), 2)
 assert.equal(l2Mode(1100), 'split')
 assert.equal(l2Mode(1099), 'stacked')
 assert.equal(l2Actions(901), 'text')
@@ -41,8 +44,9 @@ assert.equal(l2Actions(900), 'icons')
 assert.equal(l2Filter(1041), 'single')
 assert.equal(l2Filter(1040), 'search-row')
 assert.equal(allowsPageScrollX(), false)
-assert.ok(css.includes('@container (max-width: 1100px)') && css.includes('@container (max-width: 1099px)'))
-assert.match(css, /@container \(max-width: 1100px\)\s*\{[^}]*\.l7-body[^}]*\}\s*\.l7-rail\s*\{\s*display:\s*none/)
+assert.ok(css.includes('@container (max-width: 759px)') && css.includes('@container (max-width: 1099px)'))
+assert.ok(!css.includes('.l7-rail') && !css.includes('.l7-body'), 'M17: right rail and three-column body are gone')
+assert.match(css, /\.oh-grid \{ display: grid; grid-template-columns: repeat\(auto-fill, minmax\(240px, 1fr\)\)/)
 assert.ok(css.includes('@container (max-width: 1040px)') && css.includes('.l2-ico'))
 assert.ok(css.includes('container-type: inline-size'))
 
@@ -110,10 +114,8 @@ assert.ok(i18n.includes("'tab.overflow': '所有标签（{n}）· {hidden} 个�
 assert.ok(i18n.includes("'tab.overflow': 'All tabs ({n}) · {hidden} hidden'"))
 assert.ok(i18n.includes("'tab.list.title': '所有标签（{n}）'") && i18n.includes("'tab.list.title': 'All tabs ({n})'"))
 
-assert.deepEqual(railOverflow(200).visible, [...L7_RAIL])
-assert.ok(railOverflow(120).more.includes('syncFolder'))
-assert.equal(railCollapsed(1199), true)
-assert.equal(railCollapsed(1200), false)
+// M17: shortcuts live in the 快捷 row (no rail, no fold into ⋯).
+assert.ok(home.includes("t('l7e.quick')") && !home.includes('l7-rail'))
 assert.ok(home.includes('data-testid="l7-open-sftp"') && home.includes('data-testid="l7-sync-folder"'))
 assert.ok(app.includes("handleTitlebarMenuAction('sftp')") && app.includes("handleTitlebarMenuAction('folderSync')"))
 

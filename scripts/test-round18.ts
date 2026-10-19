@@ -92,7 +92,7 @@ ok(KEYMAP.some((k) => k.id === 'opsHome' && k.keys === 'Ctrl+Alt+H'), 'home shor
 ok(KEYMAP.some((k) => k.id === 'alertWorkbench' && k.keys === 'Ctrl+Alt+A'), 'workbench shortcut')
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-ok(pkg.version === '0.6.54', 'package version')
+ok(pkg.version === '0.6.55', 'package version')
 ok(changelogFor('0.4.0').some((e) => e.action === 'playbooks'), 'whats new 0.4.0 playbooks')
 ok(changelogFor('0.4.1').length >= 4, 'whats new 0.4.1')
 const changelog = readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n')
@@ -121,7 +121,7 @@ ok(bench.includes("e.key === 'Escape'"), 'UX-51b prefs close on Escape')
 ok(!/\.l2-prefs\s*\{[^}]*position:\s*static/.test(css), 'UX-51b static prefs override removed')
 const dashIdx = home.indexOf('data-testid="l7-open-dashboard"')
 const moreMenuIdx = home.indexOf('className="l7-more"')
-ok(home.includes('const primaryIsAlerts = activeCount > 0') && moreMenuIdx >= 0 && dashIdx > moreMenuIdx, 'UX-53 dashboard stays in the more menu beside one primary')
+ok((home.match(/variant="primary"/g) ?? []).length === 1 && moreMenuIdx >= 0 && dashIdx > moreMenuIdx, 'UX-53/M17 dashboard stays in the more menu beside one primary (新建连接)')
 ok(home.includes('showDemoBadge') && home.includes("h.protection === 'production'"), 'UX-53 health card keeps a single badge')
 ok(readFileSync('src/renderer/src/components/ProtectionSection.tsx', 'utf8').includes('data-testid="l4-guard"'), 'guard section')
 ok(!readFileSync('src/renderer/src/lib/protection-gate.ts', 'utf8').includes('window.confirm'), 'no native confirm')

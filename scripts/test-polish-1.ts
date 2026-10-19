@@ -88,6 +88,6 @@ assert.match(css, /:focus-visible\s*\{[^}]*--color-focus-ring/)
 assert.ok(css.includes('--color-bg-elevated') && css.includes('--space-3') && css.includes('--radius-xl'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.54', 'package version')
+assert.equal(pkg.version, '0.6.55', 'package version')
 
 console.log('test-polish-1 ok')

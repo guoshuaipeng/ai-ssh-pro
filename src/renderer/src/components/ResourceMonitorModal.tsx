@@ -9,6 +9,7 @@ import Icon from './Icon'
 import { CHROME_ICON_SIZE, CHROME_ICON_STROKE } from './emptyIcons'
 import type { BatchSessionOption } from './BatchExecuteModal'
 import Button from './ui/Button'
+import { metricHostKey, readCachedMetrics, staleAge, staleHintKey, writeCachedMetrics } from '@shared/metric-cache'
 
 type Props = {
   open: boolean
@@ -100,13 +101,22 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
     if (!sid) return
     try {
       const r = await window.aiss.workspace.resources(sid)
+      const opt = sessions.find((x) => x.sessionId === sid)
+      if (opt) {
+        writeCachedMetrics(metricHostKey(opt), {
+          cpu: r.cpuPercent ?? null,
+          mem: r.mem?.percent ?? null,
+          disk: r.disks?.length ? Math.max(...r.disks.map((d) => d.percent)) : null,
+          load: r.load ?? null
+        })
+      }
       setSnap(r)
       setHistory((h) => pushSample(h, { cpu: r.cpuPercent, mem: r.mem?.percent ?? null, at: r.at }, HISTORY_MAX))
       setError(null)
     } catch (e) {
       setError(friendlyErrorMessage(e))
     }
-  }, [])
+  }, [sessions])
 
   const active = open || !!embedded
   useEffect(() => {
@@ -122,6 +132,8 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
     setHistory([])
   }, [sessionId])
 
+  const cachedOpt = sessions.find((x) => x.sessionId === sessionId)
+  const cached = cachedOpt ? readCachedMetrics(metricHostKey(cachedOpt)) : null
   const cpuTrend = history.map((x) => x.cpu).filter((v): v is number => v != null)
   const memTrend = history.map((x) => x.mem).filter((v): v is number => v != null)
 
@@ -163,7 +175,19 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
           </div>
         )}
         {error ? <p className="rm-error">{error}</p> : null}
-        {!snap && !error && sessions.length > 0 ? <p className="rm-empty">{t('rm.loading')}</p> : null}
+        {!snap && !error && sessions.length > 0 ? (
+          // M17: never a loading state — last-known numbers with a muted stale hint, else a calm "—".
+          <>
+            <Bar label={t('rm.cpu')} percent={cached?.cpu ?? null} />
+            <Bar label={t('rm.mem')} percent={cached?.mem ?? null} />
+            <Bar label={t('o1.disk')} percent={cached?.disk ?? null} />
+            {cached ? (
+              <p className="rm-time rm-stale" data-testid="rm-stale-hint">
+                {t(staleHintKey(staleAge(cached.at, Date.now())), { n: staleAge(cached.at, Date.now()).n })}
+              </p>
+            ) : null}
+          </>
+        ) : null}
         {snap ? (
           <>
             <Bar label={t('rm.cpu')} percent={snap.cpuPercent} detail={snap.cores ? t('rm.cores', { n: snap.cores }) : undefined} />

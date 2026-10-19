@@ -15,6 +15,6 @@ assert.match(i18n, /'ux08\.keyAi':\s*"打开 AI"/)
 assert.match(i18n, /'ux08\.keyAi':\s*"Open AI"/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-empty-key-ai/)
 console.log('test-empty-key-ai ok')

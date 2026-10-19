@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   build?: { win?: Record<string, unknown> }
   scripts: { test: string; 'test:parts'?: string }
 }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.equal('fileVersion' in (pkg.build?.win ?? {}), false)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-4.ts'), true)
 assert.equal(pkg.version.split('.').length, 3, 'one semver, no extra micro build')

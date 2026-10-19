@@ -11,6 +11,6 @@ assert.match(chunk, /e\.key === 'Tab'/)
 assert.match(chunk, /showToast\(tg\('tab\.none'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ctrl-tab-empty-toast/)
 console.log('test-ctrl-tab-empty-toast ok')

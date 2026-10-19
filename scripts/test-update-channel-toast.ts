@@ -11,6 +11,6 @@ assert.ok(i18n.includes("about.updatesOpened': '已打开更新通道设置'"))
 assert.ok(i18n.includes("about.updatesOpened': 'Opened update channel settings'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-update-channel-toast/)
 console.log('test-update-channel-toast ok')

@@ -15,6 +15,6 @@ assert.ok(i18n.includes("n2.empty': '没有可导入的会话'"))
 assert.ok(i18n.includes("n2.empty': 'Nothing to import'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.54')
+assert.equal(pkg.version, '0.6.55')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-import-empty-toast/)
 console.log('test-import-empty-toast ok')
