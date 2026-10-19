@@ -12,6 +12,6 @@ assert.ok(i18n.includes("ai.busyWait': '请先停止生成再继续'"))
 assert.ok(i18n.includes("ai.busyWait': 'Stop generation before continuing'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ai-busy-wait-toast/)
 console.log('test-ai-busy-wait-toast ok')

@@ -12,6 +12,6 @@ assert.ok(i18n.includes("ai.noLastAsk': '没有可重新提问的内容'"))
 assert.ok(i18n.includes("ai.noLastAsk': 'No previous question to ask again'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ask-again-empty-toast/)
 console.log('test-ask-again-empty-toast ok')

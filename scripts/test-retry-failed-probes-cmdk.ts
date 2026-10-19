@@ -13,6 +13,6 @@ assert.match(app, /action === 'retryFailedProbes'/)
 assert.match(app, /l7c\.noFails/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-retry-failed-probes-cmdk/)
 console.log('test-retry-failed-probes-cmdk ok')

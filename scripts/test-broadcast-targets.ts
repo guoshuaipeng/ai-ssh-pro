@@ -10,7 +10,7 @@ import { translate } from '../src/renderer/src/lib/i18n'
 import { SHARED_MENUS } from '../src/shared/menus'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 
 assert.deepEqual(pruneBroadcastTargets(['a', 'b', 'c'], ['a', 'c']), ['a', 'c'])
 assert.deepEqual(pruneBroadcastTargets(['a'], ['b']), [])

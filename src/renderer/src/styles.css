@@ -6530,3 +6530,125 @@ button.primary.danger:focus-visible {
   color: var(--warn);
   font-weight: 700;
 }
+
+/* M23: tab-bound conversation header, target switcher, history, offline / general notes */
+.ai-session-context {
+  position: relative;
+}
+.ai-conv-target {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ai-conv-target:hover:not(:disabled) {
+  background: var(--color-row-hover-bg);
+}
+.ai-conv-target:disabled {
+  cursor: default;
+}
+.ai-conv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--text-muted);
+}
+.ai-conv-dot.is-connected {
+  background: var(--ok);
+}
+.ai-conv-dot.is-connecting {
+  background: var(--warn);
+}
+.ai-conv-dot.is-disconnected {
+  background: var(--danger);
+}
+.ai-conv-dot.is-none {
+  background: transparent;
+  border: 1px solid var(--text-muted);
+}
+.ai-conv-n {
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+.ai-target-menu {
+  left: 0;
+  right: auto;
+  top: calc(100% + 4px);
+  min-width: 200px;
+}
+.ai-target-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ai-target-menu button.is-active {
+  font-weight: 600;
+}
+.ai-pop-head {
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+.ai-history-pop {
+  right: 0;
+  left: auto;
+  width: 280px;
+  max-height: 360px;
+  overflow: auto;
+}
+.ai-history-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+}
+.ai-history-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-history-meta,
+.ai-history-empty {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+.ai-history-empty {
+  margin: 0;
+  padding: var(--space-2);
+}
+.ai-conv-offline,
+.ai-conv-general {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-3) var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+/* M23: narrow panel — the host name wins over the shortcut hint */
+.ai-header {
+  container-type: inline-size;
+}
+.ai-session-context .ai-session-context-host {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 340px) {
+  .ai-header-shortcut {
+    display: none;
+  }
+}

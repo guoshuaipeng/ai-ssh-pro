@@ -27,6 +27,6 @@ assert.ok(i18n.includes("menu.broadcastTargets': '选择广播目标…'"))
 assert.ok(i18n.includes("d1.queue': '传输队列'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-tools-open-toasts/)
 console.log('test-tools-open-toasts ok')

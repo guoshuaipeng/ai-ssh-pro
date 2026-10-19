@@ -20,6 +20,13 @@ import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
+import {
+  archiveTitle,
+  conversationLabel,
+  GENERAL_CONVERSATION_KEY,
+  groupArchives,
+  type AiArchiveSummary
+} from '@shared/ai-conversation'
 import { policyCapNote } from './HostSafetyCard'
 import Button from './ui/Button'
 import Icon from './Icon'
@@ -48,6 +55,12 @@ type Props = {
   hostPolicy?: AiPolicy
   /** M21: change the bound host's policy; absent when the tab has no saved host. */
   onSetHostPolicy?: (policy: AiPolicy | undefined) => void
+  /** M23: the terminal tab this conversation is bound to (null = general Q&A, never executes). */
+  conversation?: { group: string; n: number; hostLabel: string; status: 'connecting' | 'connected' | 'disconnected' } | null
+  /** M23: connected terminal tabs the conversation can move to. */
+  aiTargets?: ReadonlyArray<{ tabId: string; n: number; label: string; active: boolean }>
+  onSelectTarget?: (tabId: string) => void
+  onReconnect?: () => void
   /** M22: in-memory override for this tab only (cleared on close / disconnect). */
   tempPolicy?: AiPolicy
   onSetTempPolicy?: (policy: AiPolicy | undefined) => void
@@ -407,6 +420,10 @@ export default function AIPanel({
   onSetHostPolicy,
   tempPolicy,
   onSetTempPolicy,
+  conversation = null,
+  aiTargets = [],
+  onSelectTarget,
+  onReconnect,
   hostName = null,
   onOpenSettings,
   onNeedSession,
@@ -512,6 +529,9 @@ export default function AIPanel({
   const linesRef = useRef<Line[]>([])
   linesRef.current = lines
   const persistKey = resolveHistoryKey(historyKey, activeSessionId)
+  // M23: the bound tab's state. Offline tabs keep their history but cannot continue.
+  const convStatus: 'connected' | 'connecting' | 'disconnected' | 'none' = conversation ? conversation.status : 'none'
+  const convOffline = convStatus === 'disconnected' || convStatus === 'connecting'
   const persistKeyRef = useRef(persistKey)
   persistKeyRef.current = persistKey
   /**
@@ -685,7 +705,7 @@ export default function AIPanel({
       releaseSessionInFlight(persistKey)
       const turn = {
         key: persistKey,
-        host: hostName || inventoryLookup?.host || '',
+        host: conversation ? conversationLabel(conversation.hostLabel, conversation.n) : hostName || inventoryLookup?.host || '',
         lines: [...linesRef.current, userLine],
         pending: null as { requestId: string; action: AiAssistantReply['action'] } | null
       }
@@ -897,6 +917,10 @@ export default function AIPanel({
   const send = useCallback(async () => {
     const text = input.trim()
     if (!text || busy) return
+    if (convOffline) {
+      showToast(tg('ai.reconnectToContinue'), { kind: 'error' })
+      return
+    }
 
     let terminalExcerpt: string | undefined
     if (includeTerminal && activeSessionId) {
@@ -906,7 +930,7 @@ export default function AIPanel({
 
     setInput('')
     await submitToAi(text, terminalExcerpt)
-  }, [busy, fetchTerminalSnapshot, includeTerminal, activeSessionId, input, submitToAi])
+  }, [busy, convOffline, fetchTerminalSnapshot, includeTerminal, activeSessionId, input, submitToAi])
 
   const sendConsoleToAi = useCallback(async () => {
     if (!activeSessionId || busy || snapshotBusy) return
@@ -1172,6 +1196,111 @@ export default function AIPanel({
     })()
   }, [busy, persistKey, refreshWorkingGoal])
 
+  /** M23: 新对话 archives the current conversation (restorable from History) instead of deleting it. */
+  const archiveCurrent = useCallback(async (): Promise<boolean> => {
+    const msgs = linesToHistoryMessages(linesRef.current)
+    if (!msgs.length || !persistKey || !window.aiss.ai.chatArchive) return false
+    await window.aiss.ai.chatArchive.add({
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      group: conversation?.group ?? GENERAL_CONVERSATION_KEY,
+      hostLabel: conversation ? conversation.hostLabel : tg('ai.generalChat'),
+      key: persistKey,
+      title: archiveTitle(msgs) || tg('ai.untitledChat'),
+      savedAt: Date.now(),
+      messages: msgs
+    })
+    return true
+  }, [conversation, persistKey])
+
+  const startNewChat = useCallback(() => {
+    if (busy) {
+      showToast(tg('ai.clearBusy'), { kind: 'error' })
+      return
+    }
+    if (!linesRef.current.length) {
+      showToast(tg('ai.chatAlreadyEmpty'))
+      return
+    }
+    void (async () => {
+      const archived = await archiveCurrent()
+      setLines([])
+      setPendingConfirm(null)
+      setWorkingGoal(null)
+      if (persistKey) {
+        await window.aiss.ai.setChatHistory(persistKey, [])
+        refreshWorkingGoal(persistKey)
+      }
+      showToast(tg(archived ? 'ai.archivedChat' : 'ai.newChatStarted'))
+    })()
+  }, [archiveCurrent, busy, persistKey, refreshWorkingGoal])
+
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const historyRef = useRef<HTMLDivElement | null>(null)
+  const [archives, setArchives] = useState<AiArchiveSummary[]>([])
+  useEffect(() => {
+    if (!historyOpen) return
+    void window.aiss.ai.chatArchive?.list().then(setArchives, () => setArchives([]))
+    const onDown = (e: MouseEvent) => {
+      if (historyRef.current?.contains(e.target as Node)) return
+      setHistoryOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHistoryOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [historyOpen])
+
+  const restoreArchived = (id: string) => {
+    if (busy || !persistKey || !window.aiss.ai.chatArchive) return
+    setHistoryOpen(false)
+    void (async () => {
+      await archiveCurrent()
+      const msgs = await window.aiss.ai.chatArchive!.take(id)
+      setPendingConfirm(null)
+      setLines(historyToLines(msgs))
+      await window.aiss.ai.setChatHistory(persistKey, msgs)
+      refreshWorkingGoal(persistKey)
+    })()
+  }
+
+  const [targetOpen, setTargetOpen] = useState(false)
+  const targetRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!targetOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (targetRef.current?.contains(e.target as Node)) return
+      setTargetOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTargetOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [targetOpen])
+
+  /** M23: moving to another tab moves the AI to that host — confirm first. */
+  const pickTarget = (t: { tabId: string; label: string; active: boolean }) => {
+    setTargetOpen(false)
+    if (t.active || !onSelectTarget) return
+    void (async () => {
+      const ok = await confirmDialog({
+        title: tg('ai.targetConfirmTitle', { host: t.label }),
+        body: tg('ai.targetConfirmBody', { host: t.label }),
+        confirmText: tg('ai.targetConfirm')
+      })
+      if (ok) onSelectTarget(t.tabId)
+    })()
+  }
+
   useEffect(() => {
     const onClear = () => clearConversation()
     window.addEventListener('aiss-ai-clear-chat', onClear)
@@ -1265,7 +1394,13 @@ export default function AIPanel({
     onAgree: (command: string) => void
     onDecline: () => void
     onAskAgain?: () => void
-  }) => (
+  }) =>
+    // M23: general Q&A (no terminal bound) never offers Run / Agree.
+    !conversation ? (
+      <div className="ai-decision" data-testid="ai-no-execute">
+        {tg('ai.generalNoRun')}
+      </div>
+    ) : (
     <SafetyCommandBar
       {...opts}
       canRun={Boolean(activeSessionId)}
@@ -1331,20 +1466,59 @@ export default function AIPanel({
           <div
             className={`ai-session-context${!activeSessionId ? ' is-none' : ''}`}
             data-testid="ai-session-context"
+            data-status={convStatus}
+            ref={targetRef}
             title={
-              activeSessionId
-                ? tg('ai.contextHostTip', { host: hostName || inventoryLookup?.host || '—' })
+              conversation
+                ? tg('ai.contextHostTip', { host: conversationLabel(conversation.hostLabel, conversation.n) })
                 : tg('ai.contextNoneTip')
             }
           >
-            <span className="ai-session-context-host">
-              {activeSessionId ? hostName || inventoryLookup?.host || tg('ai.contextSession') : tg('ai.contextNone')}
-            </span>
+            <button
+              type="button"
+              className="ai-conv-target"
+              data-testid="ai-conv-target"
+              aria-haspopup="menu"
+              aria-expanded={targetOpen}
+              aria-label={tg('ai.targetSwitch')}
+              disabled={aiTargets.length === 0 || busy}
+              onClick={() => setTargetOpen((v) => !v)}
+            >
+              <span className={`ai-conv-dot is-${convStatus}`} data-testid="ai-conv-dot" aria-hidden="true" />
+              <span className="ai-session-context-host">
+                {conversation ? conversation.hostLabel : tg('ai.generalChat')}
+              </span>
+              {conversation ? (
+                <span className="ai-conv-n" data-testid="ai-conv-n">
+                  · #{conversation.n}
+                </span>
+              ) : null}
+              {aiTargets.length > 0 ? <Icon name="chevron-down" size={12} /> : null}
+            </button>
             {workingGoal ? (
               <span className="ai-working-goal" title={workingGoal} data-testid="ai-working-goal">
                 <span className="ai-working-goal-label">{tg('wm.goal')}</span>
                 <span className="ai-working-goal-text">{workingGoal}</span>
               </span>
+            ) : null}
+            {targetOpen ? (
+              <div className="titlebar-popover ai-target-menu" role="menu" data-testid="ai-target-menu" aria-label={tg('ai.targetSwitch')}>
+                <div className="ai-pop-head">{tg('ai.targetSwitch')}</div>
+                {aiTargets.map((t) => (
+                  <button
+                    key={t.tabId}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={t.active}
+                    className={t.active ? 'is-active' : ''}
+                    data-testid="ai-target-option"
+                    onClick={() => pickTarget(t)}
+                  >
+                    <span className="ai-conv-dot is-connected" aria-hidden="true" />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
           <span className="ai-header-shortcut" data-testid="ai-focus-shortcut-hint" title={tg('ai.focusShortcutTip')}>
@@ -1357,10 +1531,51 @@ export default function AIPanel({
             title={tg('ai.newChat')}
             aria-label={tg('ai.newChat')}
             disabled={busy}
-            onClick={clearConversation}
+            onClick={startNewChat}
           >
             <Icon name="plus" size={16} />
           </button>
+          <div className="titlebar-popover-wrap" ref={historyRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              type="button"
+              className="ai-icon-btn"
+              data-testid="ai-history"
+              title={tg('ai.history')}
+              aria-label={tg('ai.history')}
+              aria-haspopup="dialog"
+              aria-expanded={historyOpen}
+              onClick={() => setHistoryOpen((v) => !v)}
+            >
+              <Icon name="history" size={16} />
+            </button>
+            {historyOpen ? (
+              <div className="titlebar-popover ai-history-pop" role="dialog" aria-label={tg('ai.history')} data-testid="ai-history-pop">
+                {archives.length === 0 ? (
+                  <p className="ai-history-empty">{tg('ai.historyEmpty')}</p>
+                ) : (
+                  groupArchives(archives, conversation?.group ?? GENERAL_CONVERSATION_KEY).map((g) => (
+                    <section key={g.group} className="ai-history-group" data-testid="ai-history-group" data-group={g.group}>
+                      <div className="ai-pop-head">{g.hostLabel}</div>
+                      {g.items.map((it) => (
+                        <button
+                          key={it.id}
+                          type="button"
+                          className="ai-history-item"
+                          data-testid="ai-history-item"
+                          disabled={busy}
+                          title={it.title}
+                          onClick={() => restoreArchived(it.id)}
+                        >
+                          <span className="ai-history-title">{it.title}</span>
+                          <span className="ai-history-meta">{new Date(it.savedAt).toLocaleString()} · {it.count}</span>
+                        </button>
+                      ))}
+                    </section>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
           <div className="titlebar-popover-wrap" ref={moreRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button
               type="button"
@@ -1454,6 +1669,20 @@ export default function AIPanel({
               {tg('ai.turnSwitchBack')}
             </button>
           ) : null}
+        </div>
+      ) : null}
+      {convOffline ? (
+        <div className="ai-conv-offline" role="status" data-testid="ai-reconnect">
+          <span>{tg('ai.reconnectToContinue')}</span>
+          {onReconnect && conversation?.status === 'disconnected' ? (
+            <button type="button" className="link-btn" data-testid="ai-reconnect-btn" onClick={onReconnect}>
+              {tg('ai.reconnect')}
+            </button>
+          ) : null}
+        </div>
+      ) : !conversation ? (
+        <div className="ai-conv-general" role="note" data-testid="ai-general-mode">
+          {tg('ai.generalHint')}
         </div>
       ) : null}
       <div className="ai-messages">
@@ -1923,7 +2152,7 @@ export default function AIPanel({
                 variant="primary"
                 className="ai-composer-send"
                 data-testid="ai-send"
-                disabled={!input.trim()}
+                disabled={!input.trim() || convOffline}
                 title={tg('ai.send')}
                 aria-label={tg('ai.send')}
                 onClick={() => void send()}

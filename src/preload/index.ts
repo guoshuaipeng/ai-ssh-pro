@@ -1,4 +1,5 @@
 import { snapshotKeep, snapshotsEnabled } from '../shared/snapshots'
+import type { AiArchivedConversation, AiArchiveSummary } from '../shared/ai-conversation'
 import type { ResourceSnapshot } from '../shared/resource-monitor'
 import type { DfRow, ExecOutcome, KillSignal, ListenPort, LogRequest, ProcInfo, ServiceAction, ServiceInfo } from '../shared/server-tools'
 import type { BackupExportResult, BackupImportResult } from '../shared/ipc'
@@ -365,6 +366,11 @@ const api = {
     getChatHistory: (key: string): Promise<AiChatMessage[]> => ipcRenderer.invoke('ai:chatHistory:get', key),
     setChatHistory: (key: string, messages: AiChatMessage[]): Promise<void> =>
       ipcRenderer.invoke('ai:chatHistory:set', key, messages),
+    chatArchive: {
+      list: (): Promise<AiArchiveSummary[]> => ipcRenderer.invoke('ai:chatArchive:list'),
+      add: (entry: AiArchivedConversation): Promise<void> => ipcRenderer.invoke('ai:chatArchive:add', entry),
+      take: (id: string): Promise<AiChatMessage[]> => ipcRenderer.invoke('ai:chatArchive:take', id)
+    },
     getWorkingMemory: (key: string): Promise<string | null> => ipcRenderer.invoke('ai:workingMemory:get', key),
     onStream: (cb: (ev: AiStreamEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiStreamEvent)

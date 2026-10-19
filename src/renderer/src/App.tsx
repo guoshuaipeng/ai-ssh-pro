@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  assignConversationOrdinals,
+  conversationGroup,
+  conversationKey,
+  conversationLabel,
+  GENERAL_CONVERSATION_KEY
+} from '@shared/ai-conversation'
 import { globalAiPolicy, hasLegacyHostPolicies, migrateLegacyHostPolicies, type AiPolicy } from '@shared/ai-policy'
 import { createPortal } from 'react-dom'
 import { moveById, normalizeTabTitle, LATENCY_POLL_MS, classifyLatency } from '@shared/workspace-features'
@@ -1044,6 +1051,45 @@ export default function App() {
   const activeIsSession = !activeTab?.view || activeTab.view === 'session'
   const activeSessionId =
     activeIsSession && activeTab?.status === 'connected' ? activeTab.sessionId : null
+  // M23: one AI conversation per terminal tab. Same host in two tabs → #1 / #2.
+  const convOrdinalsRef = useRef<Record<string, number>>({})
+  const convTabs = useMemo(
+    () =>
+      tabs
+        .filter((t) => !t.view || t.view === 'session')
+        .map((t) => ({
+          tabId: t.tabId,
+          group: conversationGroup({ profileId: t.profileId, host: t.connectOpts?.host, port: t.connectOpts?.port }),
+          hostLabel: t.customTitle || (t.profileId ? sessionState.profiles.find((p) => p.id === t.profileId)?.label : undefined) || t.connectOpts?.host || t.title,
+          status: t.status
+        })),
+    [tabs, sessionState.profiles]
+  )
+  const convOrdinals = useMemo(() => {
+    const next = assignConversationOrdinals(convOrdinalsRef.current, convTabs)
+    convOrdinalsRef.current = next
+    return next
+  }, [convTabs])
+  const convFor = useCallback(
+    (tabId: string | null | undefined) => {
+      const row = convTabs.find((t) => t.tabId === tabId)
+      if (!row) return null
+      const n = convOrdinals[row.tabId] ?? 1
+      return { ...row, n, key: conversationKey(row.group, n), label: conversationLabel(row.hostLabel, n) }
+    },
+    [convTabs, convOrdinals]
+  )
+  const activeConv = activeIsSession ? convFor(activeTabId) : null
+  const aiTargets = useMemo(
+    () =>
+      convTabs
+        .filter((t) => t.status === 'connected')
+        .map((t) => {
+          const n = convOrdinals[t.tabId] ?? 1
+          return { tabId: t.tabId, n, label: conversationLabel(t.hostLabel, n), active: t.tabId === activeTabId }
+        }),
+    [convTabs, convOrdinals, activeTabId]
+  )
   const connectedSshSessions = useMemo<BatchSessionOption[]>(
     () =>
       tabs
@@ -6545,6 +6591,23 @@ export default function App() {
         handleTitlebarMenuAction(detail.action as TitlebarMenuAction)
         return
       }
+      if (detail.op === 'hostSafety') {
+        setQuickOpen(false)
+        setTourOpen(false)
+        const p = sessionStateRef.current.profiles.find((x) => !x.demo) ?? sessionStateRef.current.profiles[0]
+        if (!p) return
+        void persistSessionState({
+          ...sessionStateRef.current,
+          profiles: sessionStateRef.current.profiles.map((x) =>
+            x.id === p.id ? { ...x, protection: 'production' as const, aiPolicy: 'auto' as const } : x
+          )
+        })
+        openInventoryEditor({ profileId: p.id, host: p.host, label: p.label, hostInventoryId: p.hostInventoryId })
+        window.setTimeout(() => {
+          document.querySelector('[data-testid="host-safety-card"]')?.scrollIntoView({ block: 'center' })
+        }, 700)
+        return
+      }
       if (detail.op === 'sftpMockFill') {
         // Handled by SftpPanel listeners; App no-ops so the event can still bubble.
         return
@@ -9217,7 +9280,15 @@ export default function App() {
             <AIPanel
               onOpenSettings={() => openUnifiedSettings('ai')}
               activeSessionId={activeSessionId}
-              historyKey={activeTab?.profileId ?? activeSessionId}
+              historyKey={activeConv ? activeConv.key : GENERAL_CONVERSATION_KEY}
+              conversation={
+                activeConv
+                  ? { group: activeConv.group, n: activeConv.n, hostLabel: activeConv.hostLabel, status: activeConv.status }
+                  : null
+              }
+              aiTargets={aiTargets}
+              onSelectTarget={(tabId) => setActiveTabId(tabId)}
+              onReconnect={activeConv && activeConv.status === 'disconnected' ? () => void reconnectTab(activeConv.tabId) : undefined}
               hostInventoryId={activeTab?.hostInventoryId}
               inventoryLookup={
                 activeTab
@@ -9247,8 +9318,8 @@ export default function App() {
               production={activeSessionId ? guardForSession(activeSessionId).level === 'production' && !guardForSession(activeSessionId).elevated : false}
               hostName={activeTab?.connectOpts.host ?? null}
               onSwitchToConversation={(key) => {
-                const tab = tabs.find((t) => (!t.view || t.view === 'session') && (t.profileId === key || t.sessionId === key))
-                if (tab) setActiveTabId(tab.tabId)
+                const hit = convTabs.find((t) => convFor(t.tabId)?.key === key)
+                if (hit) setActiveTabId(hit.tabId)
               }}
               onNeedSession={() => {
                 const live = connectedSshSessions[0]

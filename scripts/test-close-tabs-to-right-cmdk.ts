@@ -22,6 +22,6 @@ assert.match(app, /action === 'closeTabsToRight'/)
 assert.match(app, /closeRight\(rows, activeTabId\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-close-tabs-to-right-cmdk/)
 console.log('test-close-tabs-to-right-cmdk ok')

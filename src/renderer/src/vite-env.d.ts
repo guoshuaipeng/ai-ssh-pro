@@ -279,6 +279,12 @@ export type AissPreload = {
     getChatHistory: (key: string) => Promise<AiChatMessage[]>
     setChatHistory: (key: string, messages: AiChatMessage[]) => Promise<void>
     getWorkingMemory: (key: string) => Promise<string | null>
+    /** M23: conversations archived by 新对话. Optional so screenshot mocks can omit it. */
+    chatArchive?: {
+      list: () => Promise<import('@shared/ai-conversation').AiArchiveSummary[]>
+      add: (entry: import('@shared/ai-conversation').AiArchivedConversation) => Promise<void>
+      take: (id: string) => Promise<AiChatMessage[]>
+    }
     onStream: (cb: (ev: AiStreamEvent) => void) => () => void
   }
   debug: {

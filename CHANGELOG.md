@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.6.61
+
+Released 2026-10-19 (CST).
+
+- **M23 AI 对话绑定终端标签页.** 每个终端标签页一段对话：已保存主机按档案、未保存主机按 hostname:port 分组；同一主机的第二个标签页为 #2（编号稳定，关闭 #1 不重排；#1 沿用原历史键，旧记录不丢）。顶栏为“● 主机 · #n ▾ 目标… ＋ 🕘 ⋯”：圆点显示连接状态，▾ 切换到其他已连接标签页（先确认，之后命令在该主机执行）。＋ 新对话改为归档当前对话（不再直接删除），🕘 历史对话按主机分组，点击即恢复（当前对话先归档）。标签页断开时显示“终端已断开 · 重新连接后继续”并禁用发送；未绑定终端时为通用问答，不在任何主机上执行命令。 Tab-bound AI conversations with #n per host, a target switcher with confirm, archive-on-new-chat with a per-host history list, a reconnect-to-continue state and general Q&A with no execution.
+
 ## v0.6.60
 
 Released 2026-10-19 (CST).

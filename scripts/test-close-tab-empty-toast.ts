@@ -15,6 +15,6 @@ assert.ok(i18n.includes("tab.none': '未打开会话'"))
 assert.ok(i18n.includes("tab.none': 'No session open'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-close-tab-empty-toast/)
 console.log('test-close-tab-empty-toast ok')

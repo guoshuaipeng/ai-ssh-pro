@@ -10,6 +10,6 @@ assert.match(chunk, /openToolTabRef\.current\('toolbox'/)
 assert.match(chunk, /showToast\(tg\('ctx\.toolbox'\)\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.60')
+assert.equal(pkg.version, '0.6.61')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-session-toolbox-opened-toast/)
 console.log('test-session-toolbox-opened-toast ok')

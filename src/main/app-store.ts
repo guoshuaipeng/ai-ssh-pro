@@ -1,4 +1,5 @@
 import { normalizeTags } from '../shared/workspace-features'
+import { pushArchive, type AiArchivedConversation, type AiArchiveSummary } from '../shared/ai-conversation'
 import { DEFAULT_AI_POLICY, migrateAiPolicy, policyTier } from '../shared/ai-policy'
 import Store from 'electron-store'
 import type {
@@ -39,6 +40,8 @@ type StoreSchema = {
   terminalPrefs: TerminalPrefs
   snippets: CommandSnippet[]
   aiChatHistory: AiChatHistoryStore
+  /** M23: conversations archived by 新对话, newest first, capped per host. */
+  aiChatArchive: AiArchivedConversation[]
   /** Newest first, capped. Commands the user chose to run; local only. */
   commandHistory: string[]
   /** Successful connects without passwords, key paths, or passphrases. */
@@ -483,6 +486,7 @@ const defaults: StoreSchema = {
   terminalPrefs: { ...TERMINAL_PREFS_DEFAULTS },
   snippets: [],
   aiChatHistory: {},
+  aiChatArchive: [],
   commandHistory: [],
   recentConnections: [],
   locale: 'zh-CN'
@@ -563,6 +567,39 @@ export function setAiChatHistory(key: string, messages: AiChatMessage[]): void {
     archiveAndClearThreadContext(k)
   } else all[k] = cleaned
   appStore.set('aiChatHistory', all)
+}
+
+/** M23: list archived conversations without their messages. */
+export function listAiChatArchive(): AiArchiveSummary[] {
+  const all = appStore.get('aiChatArchive') ?? []
+  return (Array.isArray(all) ? all : []).map(({ messages, ...rest }) => ({ ...rest, count: Array.isArray(messages) ? messages.length : 0 }))
+}
+
+export function addAiChatArchive(entry: AiArchivedConversation): void {
+  if (!entry || typeof entry.id !== 'string' || typeof entry.group !== 'string') return
+  const messages = serializeAiChatHistory(Array.isArray(entry.messages) ? entry.messages : [])
+  if (messages.length === 0) return
+  const row: AiArchivedConversation = {
+    id: entry.id,
+    group: entry.group,
+    hostLabel: String(entry.hostLabel ?? entry.group),
+    key: String(entry.key ?? entry.group),
+    title: String(entry.title ?? '').slice(0, 80),
+    savedAt: typeof entry.savedAt === 'number' ? entry.savedAt : Date.now(),
+    messages
+  }
+  const all = appStore.get('aiChatArchive') ?? []
+  appStore.set('aiChatArchive', pushArchive(Array.isArray(all) ? all : [], row))
+}
+
+/** Remove an archived conversation and hand back its messages (restore). */
+export function takeAiChatArchive(id: string): AiChatMessage[] {
+  const all = appStore.get('aiChatArchive') ?? []
+  const list = Array.isArray(all) ? all : []
+  const hit = list.find((e) => e.id === id)
+  if (!hit) return []
+  appStore.set('aiChatArchive', list.filter((e) => e.id !== id))
+  return normalizeAiChatHistory(hit.messages)
 }
 
 export function getCommandHistory(): string[] {

@@ -97,6 +97,8 @@ const chrome = [
   { name: 'sftp', size: W, steps: [{ op: 'sftpDual' }], wait: 2600 },
   { name: 'ai-chat', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }], wait: 1600 },
   { name: 'ai-empty', size: W, steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }], wait: 1200 },
+  { name: 'host-safety', size: W, steps: [{ op: 'hostSafety' }], wait: 1800 },
+  { name: 'ai-header', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }], wait: 1800 },
   { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
   { name: 'menu', size: W, steps: [{ click: '.titlebar-menu-trigger' }], wait: 700, close: true }

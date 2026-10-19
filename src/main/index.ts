@@ -1,4 +1,5 @@
 import { mt, setMainLocaleGetter } from './main-i18n'
+import type { AiArchivedConversation } from '../shared/ai-conversation'
 import { setSessionProtection } from './ai-protection-registry'
 import { isProtectionLevel } from '../shared/ai-write-guard'
 import { getLocale as getMainLocale } from './app-store'
@@ -28,6 +29,9 @@ import {
   setSnippets,
   getAiChatHistory,
   setAiChatHistory,
+  listAiChatArchive,
+  addAiChatArchive,
+  takeAiChatArchive,
   recordRecentConnection
 } from './app-store'
 import { registerWorkspaceIpc, setLocaleChangedHandler } from './workspace-ipc'
@@ -1203,6 +1207,9 @@ function registerIpc(): void {
   ipcMain.handle('ai:chatHistory:set', (_e, key: string, messages: AiChatMessage[]) => {
     setAiChatHistory(key, messages)
   })
+  ipcMain.handle('ai:chatArchive:list', () => listAiChatArchive())
+  ipcMain.handle('ai:chatArchive:add', (_e, entry: AiArchivedConversation) => addAiChatArchive(entry))
+  ipcMain.handle('ai:chatArchive:take', (_e, id: string) => takeAiChatArchive(String(id ?? '')))
   ipcMain.handle('ai:workingMemory:get', (_e, key: string) => getWorkingMemoryGoal(String(key ?? '')))
 
   ipcMain.handle('debug:openWindow', () => {

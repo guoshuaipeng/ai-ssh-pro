@@ -570,7 +570,7 @@ const root = join(import.meta.dirname, '..')
 const pkg = readFileSync(join(root, 'package.json'), 'utf8')
 ok(!pkg.includes('@mastra'), 'observational memory does not depend on the Mastra package')
 ok(!pkg.includes('langgraph') && !pkg.includes('@langchain'), 'HITL does not depend on LangGraph')
-ok(pkg.includes('"version": "0.6.60"'), 'package version')
+ok(pkg.includes('"version": "0.6.61"'), 'package version')
 const agent = readFileSync(join(root, 'src/main/ai-interactive-agent.ts'), 'utf8')
 const memory = readFileSync(join(root, 'src/main/core-a-memory.ts'), 'utf8')
 const store = readFileSync(join(root, 'src/main/app-store.ts'), 'utf8')
@@ -691,7 +691,8 @@ ok(agent.includes('actionNeedsHumanInterrupt') && !agent.includes('core-a-tfl'),
 const panel = readFileSync(join(root, 'src/renderer/src/components/AIPanel.tsx'), 'utf8')
 const i18n = readFileSync(join(root, 'src/renderer/src/lib/i18n.tsx'), 'utf8')
 // M19: the goal is an inline span in the one-row header; its slice ends at the next header control.
-const goalUi = panel.slice(panel.indexOf('data-testid="ai-working-goal"'), panel.indexOf('data-testid="ai-focus-shortcut-hint"'))
+// M23: the target switcher popover follows the goal inside the context row; stop the slice there.
+const goalUi = panel.slice(panel.indexOf('data-testid="ai-working-goal"'), panel.indexOf('{targetOpen ? ('))
 ok(goalUi.length > 0 && goalUi.includes('ai-working-goal-text'), 'the goal sits in the header context row')
 ok(panel.includes('workingGoal ? ('), 'the goal row is omitted when there is no goal')
 ok(panel.includes('title={workingGoal}'), 'the full goal is the tooltip')

@@ -23,6 +23,8 @@ export type ScreenshotOp =
   | { op: "menu"; action: string }
   /** Visual QA: open the AI chat panel; seeds a short demo conversation unless `empty`. */
   | { op: "aiChat"; empty?: boolean }
+  /** Visual QA (M22): open the first saved host's profile on its 安全 card (production + 放手执行 → capped). */
+  | { op: "hostSafety" }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

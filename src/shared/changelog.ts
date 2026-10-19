@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.61': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 对话绑定终端标签页：同一主机开两个标签页就是两段对话（#2）；顶栏可切换目标（会先确认）',
+        en: 'AI chats are bound to the terminal tab: two tabs on one host are two chats (#2); the header can switch target (asks first)'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '新对话会归档当前对话，可在“历史对话”中按主机找回；终端断开时提示重新连接后继续；未绑定终端时为通用问答，不执行命令',
+        en: 'New chat archives the current one (History, grouped by host); a disconnected tab says reconnect to continue; with no terminal it is general Q&A that never runs commands'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    }
+  ],
   '0.6.60': [
     {
       icon: '▷',
