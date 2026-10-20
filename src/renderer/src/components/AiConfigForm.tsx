@@ -1,3 +1,4 @@
+import Select from './ui/Select'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiProvider, AiSettings } from '@shared/ipc'
 import { tg, useI18n } from '../lib/i18n'
@@ -6,6 +7,14 @@ import { openContextMenu } from './ContextMenu'
 import { AI_PRESETS, keyOptional, matchPreset, type AiPreset } from '@shared/ai-presets'
 
 const MASK = '••••••••'
+
+function hostHint(baseURL: string): string | undefined {
+  try {
+    return new URL(baseURL).host || undefined
+  } catch {
+    return undefined
+  }
+}
 
 function parseModelLines(text: string): string[] {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
@@ -266,17 +275,14 @@ export default function AiConfigForm() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="field" style={{ margin: 0, flex: '1 1 280px' }}>
             <label>{tg('ui.6')}</label>
-            <select
+            <Select
+              testId="ai-provider-select"
+              ariaLabel={tg('ui.6')}
               value={providers.some((p) => p.id === activeProviderId) ? activeProviderId : providers[0]!.id}
-              onChange={(e) => selectProvider(e.target.value)}
+              onChange={(v) => selectProvider(v)}
+              options={providers.map((p) => ({ value: p.id, label: p.name, hint: hostHint(p.baseURL) }))}
               style={{ width: '100%' }}
-            >
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={() => addProvider()}>
@@ -323,19 +329,17 @@ export default function AiConfigForm() {
 
       <div className="field">
         <label>{tg('ui.11')}</label>
-        <select
+        <Select
+          testId="ai-model-select"
+          ariaLabel={tg('ui.11')}
           value={parsedModelList.includes(model) ? model : parsedModelList[0] ?? ''}
-          onChange={(e) => setModel(e.target.value)}
+          onChange={(v) => setModel(v)}
           disabled={parsedModelList.length === 0}
+          disabledReason={tg('ui.12')}
+          placeholder={tg('ui.12')}
+          options={parsedModelList.map((m) => ({ value: m, label: m }))}
           style={{ width: '100%' }}
-        >
-          {parsedModelList.length === 0 ? <option value="">{tg('ui.12')}</option> : null}
-          {parsedModelList.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+        />
         <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted)' }}>
           {tg('ui.13')}
         </p>

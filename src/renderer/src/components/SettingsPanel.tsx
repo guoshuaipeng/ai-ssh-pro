@@ -1,3 +1,4 @@
+import Select from './ui/Select'
 import { useEffect, useMemo, useState } from 'react'
 import type { StartupMode } from '@shared/startup-pref'
 import { KEYMAP } from '@shared/keymap'
@@ -210,16 +211,19 @@ export default function SettingsPanel({
               <h3>{t('settings.general')}</h3>
               <label className="settings-row">
                 <span>{t('settings.language')}</span>
-                <select
+                <Select
+                  testId="settings-language"
+                  ariaLabel={t('settings.language')}
                   value={locale}
-                  onChange={(e) => {
-                    setLocale(e.target.value === 'en' ? 'en' : 'zh-CN')
+                  onChange={(v) => {
+                    setLocale(v === 'en' ? 'en' : 'zh-CN')
                     saved()
                   }}
-                >
-                  <option value="zh-CN">中文</option>
-                  <option value="en">English</option>
-                </select>
+                  options={[
+                    { value: 'zh-CN', label: '中文' },
+                    { value: 'en', label: 'English' }
+                  ]}
+                />
               </label>
               <fieldset className="settings-row">
                 <legend>{t('settings.startupOpen')}</legend>

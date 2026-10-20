@@ -1,3 +1,4 @@
+import Select from './ui/Select'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ActiveForward } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
@@ -158,13 +159,16 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
         <div className="pf-form">
           <label>
             {t('pf.session')}
-            <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} disabled={!sessions.length}>
-              {sessions.map((s) => (
-                <option key={s.sessionId} value={s.sessionId}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
+            <Select
+              testId="pf-session"
+              ariaLabel={t('pf.session')}
+              value={sessionId}
+              onChange={setSessionId}
+              disabled={!sessions.length}
+              disabledReason={t('pf.noSessions')}
+              placeholder={t('pf.noSessions')}
+              options={sessions.map((s) => ({ value: s.sessionId, label: s.title, hint: s.readonly ? t('pf.roHint') : undefined }))}
+            />
           </label>
           {dir === 'R' ? (
             <>

@@ -1,3 +1,4 @@
+import Select from './ui/Select'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { auditWindowBounds, setAuditExportContext, type AuditExportSeed } from '@shared/audit-export'
 import { filterAudit, type AuditEvent, type AuditType, auditPolicyText } from '@shared/audit-log'
@@ -89,12 +90,19 @@ export default function AuditLogPanel({
         </div>
       ) : null}
       <div className="l2-filters">
-        <select aria-label={t('l2.rule')} value={type} onChange={(e) => setType(e.target.value as AuditType | '')}>
-          <option value="">{t('l2.all')}</option>
-          <option value="alert.execute">alert.execute</option>
-          <option value="danger">danger</option>
-          <option value="playbook.run">playbook.run</option>
-        </select>
+        <Select
+          testId="audit-type"
+          ariaLabel={t('l2.rule')}
+          value={type}
+          onChange={(v) => setType(v as AuditType | '')}
+          options={[
+            { value: '', label: t('l2.all') },
+            { value: 'alert.execute', label: 'alert.execute' },
+            { value: 'danger', label: 'danger' },
+            { value: 'playbook.run', label: 'playbook.run' },
+            { value: 'forward.remote', label: 'forward.remote' }
+          ]}
+        />
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('m2.search')} aria-label={t('m2.search')} />
         <input type="date" value={since} onChange={(e) => setSince(e.target.value)} aria-label={t('m2.since')} />
         <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} aria-label={t('m2.until')} />
