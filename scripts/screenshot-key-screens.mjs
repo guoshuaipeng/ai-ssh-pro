@@ -279,7 +279,7 @@ app.on('browser-window-created', (_e, win) => {
       win.webContents.setBackgroundThrottling(false)
       win.show(); win.focus()
       // Hide transient toasts without touching React-owned nodes.
-      await win.webContents.insertCSS('html:not(.shot-toasts) .toast-stack { visibility: hidden !important; }')
+      await win.webContents.insertCSS('.toast-stack { visibility: hidden !important; } html.shot-toasts .toast-stack { visibility: visible !important; }')
       let theme = ''
       for (const s of shots) {
         if (s.theme !== theme) { await fire(win, { op: 'theme', id: s.theme }); theme = s.theme; await sleep(500) }
