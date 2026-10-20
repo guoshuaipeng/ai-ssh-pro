@@ -1825,6 +1825,11 @@ export default function App() {
         if (!quiet && kind !== 'local') onFirstConnectRef.current()
         return sessionId
       } catch (e) {
+        // D73: the user cancelled this attempt; the tab already shows as disconnected, no error card
+        if (cancelledConnectingTabsRef.current.has(tabId)) {
+          cancelledConnectingTabsRef.current.delete(tabId)
+          return null
+        }
         const raw = e instanceof Error ? e.message : String(e)
         const msg = stripIpcPrefix(raw)
         const hop = parseHopFailure(msg)
@@ -8502,6 +8507,22 @@ export default function App() {
                   target: `${activeTab.connectOpts.username}@${activeTab.connectOpts.host}:${activeTab.connectOpts.port}`
                 })}
               </span>
+              <button
+                type="button"
+                className="session-connecting-cancel"
+                data-testid="connecting-cancel"
+                title={tr('d73.cancelTip')}
+                onClick={() => {
+                  // D73: stop waiting; keep the tab (disconnected) so Reconnect / Edit stay one click away
+                  const id = activeTab.tabId
+                  cancelledConnectingTabsRef.current.add(id)
+                  setTabs((prev) => prev.map((x) => (x.tabId === id && x.status === 'connecting' ? { ...x, status: 'disconnected' } : x)))
+                  setConnecting(false)
+                  showToast(tg('d73.cancelled'))
+                }}
+              >
+                {tr('d73.cancel')}
+              </button>
             </div>
           )}
 
