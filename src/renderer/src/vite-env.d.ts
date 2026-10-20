@@ -83,6 +83,7 @@ export type AissPreload = {
     onData: (cb: (payload: SshDataEvent) => void) => () => void
     onStatus: (cb: (payload: SshStatusEvent) => void) => () => void
     onHostKeyPrompt: (cb: (payload: SshHostKeyPromptEvent) => void) => () => void
+    onPowerResume?: (cb: () => void) => () => void
     onHostKeyExpired?: (cb: (payload: { requestId: string }) => void) => () => void
     probeJump: (opts: SshConnectOptions) => Promise<import('@shared/jump-chain').HopProbeRow[]>
     onHop: (cb: (payload: { hop: number; total: number; name: string }) => void) => () => void

@@ -113,6 +113,12 @@ const api = {
       ipcRenderer.on('ssh:status', fn)
       return () => unsub('ssh:status', fn)
     },
+    /** D40: system resumed from sleep */
+    onPowerResume: (cb: () => void): (() => void) => {
+      const fn = () => cb()
+      ipcRenderer.on('power:resume', fn)
+      return () => unsub('power:resume', fn)
+    },
     onHostKeyExpired: (cb: (payload: { requestId: string }) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as { requestId: string })
       ipcRenderer.on('ssh:hostKeyExpired', fn)

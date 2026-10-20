@@ -2036,11 +2036,7 @@ export default function App() {
   // D37: network back: retry pending tabs immediately instead of waiting for the countdown
   const netWaitToastRef = useRef(false)
   useEffect(() => {
-    const onOnline = () => {
-      netWaitToastRef.current = false
-      const ids = [...autoRetryRef.current.keys()].filter((id) => !haltedRef.current.has(id))
-      if (!ids.length) return
-      showToast(tg('d37.netBack', { n: ids.length }))
+    const retryPendingNow = (ids: string[]) => {
       for (const id of ids) {
         const cur = autoRetryRef.current.get(id)
         if (cur) clearTimeout(cur.timer)
@@ -2050,8 +2046,35 @@ export default function App() {
         })
       }
     }
+    const pendingIds = () => [...autoRetryRef.current.keys()].filter((id) => !haltedRef.current.has(id))
+    const onOnline = () => {
+      netWaitToastRef.current = false
+      const ids = pendingIds()
+      if (!ids.length) return
+      showToast(tg('d37.netBack', { n: ids.length }))
+      retryPendingNow(ids)
+    }
+    // D40: after sleep, pending tabs retry now; connected SSH tabs get a quick check and dead ones go through the normal auto-reconnect
+    const onResume = () => {
+      retryPendingNow(pendingIds())
+      const live = tabsRef.current.filter((t) => t.kind !== 'local' && t.status === 'connected' && t.sessionId && !isDemoSessionId(t.sessionId))
+      void Promise.all(live.map(async (t) => ({ t, ms: await window.aiss.workspace.ping(t.sessionId!).catch(() => null) }))).then((rows) => {
+        const dead = rows.filter((r) => r.ms === null).map((r) => r.t)
+        if (!dead.length) return
+        showToast(tg('d40.resumeDead', { n: dead.length }))
+        for (const t of dead) {
+          setTabs((prev) => prev.map((x) => (x.tabId === t.tabId ? { ...x, status: 'disconnected' as const, failRaw: tg('d40.reason') } : x)))
+          void window.aiss.ssh.disconnect(t.sessionId!).catch(() => {})
+          if (!haltedRef.current.has(t.tabId)) scheduleAutoReconnectRef.current(t.tabId)
+        }
+      })
+    }
     window.addEventListener('online', onOnline)
-    return () => window.removeEventListener('online', onOnline)
+    const offResume = window.aiss.ssh.onPowerResume?.(onResume)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      offResume?.()
+    }
   }, [cancelAutoReconnect])
 
   useEffect(() => {

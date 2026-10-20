@@ -5,7 +5,7 @@ import { setSessionProtection } from './ai-protection-registry'
 import { isProtectionLevel } from '../shared/ai-write-guard'
 import { getLocale as getMainLocale } from './app-store'
 setMainLocaleGetter(() => getMainLocale())
-import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, dialog, shell, powerMonitor } from 'electron'
 import { installApplicationMenu, setMainWindowForMenu, getMainBrowserWindow } from './application-menu'
 import { applyBrandPresence, applyProductAppName, destroyBrandTray } from './brand-presence'
 import { trayHoverTitle } from '../shared/product'
@@ -1342,6 +1342,10 @@ if (!gotSingleInstanceLock) {
     installApplicationMenu()
     setLocaleChangedHandler(() => installApplicationMenu())
     createWindow()
+    // D40: tell renderers the machine woke up so they can check sessions right away
+    powerMonitor.on('resume', () => {
+      for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('power:resume')
+    })
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
