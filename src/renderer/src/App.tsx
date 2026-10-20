@@ -43,7 +43,9 @@ import { cdCommandFor } from '@shared/session-cwd'
 import { getSessionCwd, setSessionCwd } from './lib/session-cwd-store'
 import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
-import { askAboutHistoryFailure } from './lib/failed-output'
+import { askAboutHistoryFailure, lastRunFor } from './lib/failed-output'
+import { sessionInfoText } from '@shared/session-info'
+import { isSensitiveCommand } from '@shared/workspace-features'
 import { runInCwdLine } from '@shared/history-exit'
 import HostKeyConfirmModal from './components/HostKeyConfirmModal'
 import KnownHostsModal from './components/KnownHostsModal'
@@ -8341,6 +8343,24 @@ export default function App() {
                       } else if (id === 'rename') startRename(tab.tabId)
                       else if (id === 'duplicate') {
                         void duplicateTab(tab)
+                      } else if (id === 'copyInfo') {
+                        // D49: host, user, status, cwd, last command; no secrets
+                        const text = sessionInfoText({
+                          title: tab.customTitle || tab.title,
+                          kind: tab.kind === 'local' ? 'local' : 'ssh',
+                          user: tab.connectOpts.username,
+                          host: tab.connectOpts.host,
+                          port: tab.connectOpts.port,
+                          status: tab.status,
+                          reason: tab.status === 'disconnected' && tab.failRaw ? friendlyErrorMessage(tab.failRaw) : undefined,
+                          cwd: tab.sessionId ? getSessionCwd(tab.sessionId) : null,
+                          last: tab.sessionId ? lastRunFor(tab.sessionId) : null,
+                          sensitive: isSensitiveCommand
+                        })
+                        void navigator.clipboard.writeText(text).then(
+                          () => showToast(tg('d49.copied')),
+                          () => showToast(tg('d49.copyFail'), { kind: 'error' })
+                        )
                       } else if (id === 'sftp' && tab.sessionId) openSftpTransfer(tab.sessionId, { alignCwd: true })
                       else if (id === 'monitor') openMonitorForSession(tab.sessionId ?? null)
                       else if (id === 'forward' && tab.sessionId) openToolTabRef.current('forward', tab.sessionId)

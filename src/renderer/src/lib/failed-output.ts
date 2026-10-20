@@ -10,6 +10,11 @@ const store: FailedOutputStore = new Map()
 const caps = new Map<string, Capture>()
 const lastRuns = new Map<string, LastRun>()
 
+/** D49: last finished command of a session (memory only) */
+export function lastRunFor(sessionId: string): LastRun | null {
+  return lastRuns.get(sessionId) ?? null
+}
+
 /** D46: selection text with the session's last command + exit code in front (when recent, not sensitive). */
 export function selectionWithLastRun(sessionId: string, selection: string): string {
   return withLastRun(selection, lastRuns.get(sessionId), Date.now(), isSensitiveCommand)
