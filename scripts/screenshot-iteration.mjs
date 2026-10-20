@@ -6,7 +6,9 @@ import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 
 const repo = resolve(import.meta.dirname, '..')
-const outDir = join(repo, 'docs', 'screenshots', 'iteration-2026-10-16')
+// 可选配置文件：node scripts/screenshot-iteration.mjs <config.json>，字段 outDir / store / shots / size
+const cfg = process.argv[2] ? JSON.parse((await import('node:fs')).readFileSync(process.argv[2], 'utf8')) : null
+const outDir = cfg?.outDir ? resolve(repo, cfg.outDir) : join(repo, 'docs', 'screenshots', 'iteration-2026-10-16')
 const mainJs = join(repo, 'out', 'main', 'index.js')
 if (!existsSync(mainJs)) throw new Error('run npm run build first')
 mkdirSync(outDir, { recursive: true })
@@ -31,11 +33,12 @@ const profiles = [
 const recentConnections = [
   { id: 'ops@10.0.0.11:22', host: '10.0.0.11', port: 22, username: 'ops', label: 'demo-web-01', lastConnectedAt: now - 60_000, pinned: true }
 ]
-writeFileSync(join(userData, 'ai-ssh-pro.json'), JSON.stringify({ savedSessions: { folders, profiles }, recentConnections, locale: 'zh-CN' }, null, 2))
+writeFileSync(join(userData, 'ai-ssh-pro.json'), JSON.stringify(cfg?.store ?? { savedSessions: { folders, profiles }, recentConnections, locale: 'zh-CN' }, null, 2))
+for (const [name, body] of Object.entries(cfg?.files ?? {})) writeFileSync(join(userData, name), typeof body === 'string' ? body : JSON.stringify(body, null, 2))
 
 const clickText = (re) => `([...document.querySelectorAll('button,a,[role=menuitem],.titlebar-menu-item,.menu-item')].find(b=>${re}.test((b.textContent||'').trim()))||{click:()=>{}}).click()`
 
-const shots = [
+const defaultShots = [
   { file: '01-main.png', js: "(()=>{const i=document.querySelector('input[placeholder*=\"搜索会话\"],input[placeholder*=\"Search\"]');if(!i)return;const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(i,'demo');i.dispatchEvent(new Event('input',{bubbles:true}))})()" },
   { file: '02-shortcuts-f1.png', js: "window.dispatchEvent(new KeyboardEvent('keydown',{key:'F1',bubbles:true}))" },
   { file: '03-cmdk.png', js: "window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}))" },
@@ -44,6 +47,7 @@ const shots = [
   { file: '06-settings-theme.png', js: "window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));" + clickText('/设置|Settings/') },
   { file: '07-ui-theme-toggle.png', js: "window.dispatchEvent(new KeyboardEvent('keydown',{key:'d',ctrlKey:true,altKey:true,bubbles:true}))" }
 ]
+const shots = cfg?.shots ?? defaultShots
 
 const wrapperDir = join(root, 'wrapper')
 mkdirSync(wrapperDir)
@@ -54,6 +58,7 @@ import { writeFileSync } from 'node:fs'
 app.setPath('appData', ${JSON.stringify(appData)})
 app.setPath('userData', ${JSON.stringify(userData)})
 const shots = ${JSON.stringify(shots.map((s) => ({ ...s, path: join(outDir, s.file) })))}
+const size = ${JSON.stringify(cfg?.size ?? [1400, 860])}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let done = false
 app.on('browser-window-created', (_e, win) => {
@@ -61,11 +66,12 @@ app.on('browser-window-created', (_e, win) => {
   done = true
   win.webContents.once('did-finish-load', async () => {
     try {
-      win.setContentSize(1400, 860)
+      win.setContentSize(size[0], size[1])
       await sleep(4000)
       await win.webContents.executeJavaScript("document.querySelectorAll('details').forEach(d=>d.open=true)", true).catch(()=>{})
       for (const s of shots) {
-        if (s.js) await win.webContents.executeJavaScript(s.js, true).catch((e)=>console.error('[demo] js', s.file, e))
+        if (s.js) { const r = await win.webContents.executeJavaScript(s.js, true).catch((e)=>console.error('[demo] js', s.file, e)); if (r !== undefined) console.log('[demo] js-result', s.file, JSON.stringify(r)) }
+        await sleep(s.wait ?? 0)
         await sleep(1400)
         const img = await win.webContents.capturePage()
         writeFileSync(s.path, img.toPNG())
