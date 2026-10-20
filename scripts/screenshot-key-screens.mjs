@@ -102,7 +102,7 @@ const base = [
   { name: 'tab-menu-ssh', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { eval: "(()=>{const t=[...document.querySelectorAll('[role=tab],.tab,.session-tab')].find(x=>/演示主机|Demo host/.test(x.textContent||'')&&!/SFTP/.test(x.textContent||''));if(!t)return false;const r=t.getBoundingClientRect();t.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:r.left+20,clientY:r.bottom-4}));return true})()" }], wait: 900 },
   { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
-  { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'ai' }], wait: 1400 },
+  { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }], wait: 1400 },
   // M18: 4 tabs open (ops home, playbooks, terminal, audit) for the tab bar.
   { name: 'tabs', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'playbooks' }, { op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'auditLog' }], wait: 2400 }
 ]
