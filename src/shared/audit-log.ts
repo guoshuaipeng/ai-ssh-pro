@@ -18,6 +18,8 @@ export type AuditType =
   | 'session.readonly.off'
   | 'forward.remote'
   | 'forward.dynamic'
+  | 'agentForward.change'
+  | 'session.agentForward'
 
 export type GateResult = 'allowed' | 'confirmed' | 'denied' | 'blocked' | 'cancelled' | 'unlock' | 'restore'
 

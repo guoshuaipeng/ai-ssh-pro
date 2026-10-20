@@ -6998,6 +6998,10 @@ button.primary.danger:focus-visible {
   .banner-ai-long { display: none; }
   .banner-ai-short { display: inline; }
 }
+/* C3: agent forwarding hint turns warn-colored when on */
+.agent-fwd-warn {
+  color: var(--color-warn);
+}
 /* C2: themed select (replaces native <select>) */
 .ui-select {
   display: inline-flex;

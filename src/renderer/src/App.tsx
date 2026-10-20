@@ -1,3 +1,4 @@
+import { agentForwardAuditDetail } from '@shared/agent-forward'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -582,6 +583,7 @@ export default function App() {
   const [jumpChain, setJumpChain] = useState<JumpHop[]>([])
   const [connAuth, setConnAuth] = useState<'password' | 'key' | 'agent'>('password')
   const [certificatePath, setCertificatePath] = useState('')
+  const [agentForward, setAgentForward] = useState(false)
   const [formAutoRecord, setFormAutoRecord] = useState(false)
   const [blocksOn, setBlocksOn] = useState(() => blocksEnabled())
   const [jumpFail, setJumpFail] = useState<{ hop: number; total: number; name: string; reason: string; profileId?: string } | null>(null)
@@ -1557,6 +1559,10 @@ export default function App() {
           keepAliveSec: policy.keepAliveSec,
           jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop
         })
+        // C3: every session that carries the agent is audited
+        if (opts.agentForward) {
+          appendAudit({ type: 'session.agentForward', host: opts.label || opts.host, source: 'user', outcome: 'allowed', detail: agentForwardAuditDetail('session', opts.host) })
+        }
         if (cancelledConnectingTabsRef.current.has(tabId)) {
           cancelledConnectingTabsRef.current.delete(tabId)
           void window.aiss.ssh.disconnect(sessionId)
@@ -1908,6 +1914,15 @@ export default function App() {
           jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop,
           resumeFromHop
         })
+        if (tab.connectOpts.agentForward) {
+          appendAudit({
+            type: 'session.agentForward',
+            host: tab.connectOpts.label || tab.connectOpts.host,
+            source: 'user',
+            outcome: 'allowed',
+            detail: agentForwardAuditDetail('session', tab.connectOpts.host)
+          })
+        }
         // B3: bring back forwards added from the panel. -R is skipped on read-only hosts.
         if (tab.sessionId && window.aiss.workspace.forwards.restore) {
           const prof = tab.profileId ? profilesRef.current.find((p) => p.id === tab.profileId) : undefined
@@ -1990,6 +2005,7 @@ export default function App() {
         ...(jumpChain.length ? { jumpChain, jumpHost: jump ?? hopToJump(jumpChain[0]!) } : {}),
         ...(connAuth ? { authMode: connAuth } : {}),
         ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {}),
+        ...(agentForward ? { agentForward: true } : {}),
         ...(forwards ? { forwards } : {})
       },
       editingSavedId
@@ -2018,7 +2034,8 @@ export default function App() {
     username,
     jumpChain,
     connAuth,
-    certificatePath
+    certificatePath,
+    agentForward
   ])
 
   const closeTabRef = useRef<(tabId: string, sessionId: string, status: Tab['status'], view?: TabView) => void>(() => {})
@@ -2223,6 +2240,7 @@ export default function App() {
       ...(jumpChain.length ? { jumpChain, jumpHost: jump ?? hopToJump(jumpChain[0]!) } : {}),
       ...(connAuth ? { authMode: connAuth } : {}),
       ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {}),
+      agentForward: agentForward || undefined,
       autoRecord: formAutoRecord,
       ...(forwards ? { forwards } : {}),
       protection,
@@ -2263,6 +2281,7 @@ export default function App() {
     jumpChain,
     connAuth,
     certificatePath,
+    agentForward,
     formAutoRecord,
     sessionNote
   ])
@@ -2289,6 +2308,7 @@ export default function App() {
     setJumpChain([])
     setConnAuth('password')
     setCertificatePath('')
+    setAgentForward(false)
     setFormAutoRecord(false)
     setSmartPaste('')
     setParseNotes(null)
@@ -2318,6 +2338,7 @@ export default function App() {
     setJumpChain(chainFromProfile(profile))
     setConnAuth(profile.authMode ?? (profile.privateKeyPath ? 'key' : 'password'))
     setCertificatePath(profile.certificatePath ?? '')
+    setAgentForward(profile.agentForward === true)
     setFormAutoRecord(Boolean(profile.autoRecord))
   }, [])
 
@@ -8291,6 +8312,9 @@ export default function App() {
                     setAuthModeExternal={setConnAuth}
                     certificatePath={certificatePath}
                     setCertificatePath={setCertificatePath}
+                    agentForward={agentForward}
+                    setAgentForward={setAgentForward}
+                    hostForAudit={label.trim() || host.trim()}
                     autoRecord={formAutoRecord}
                     setAutoRecord={setFormAutoRecord}
                     jumpChain={jumpChain}
@@ -8309,7 +8333,8 @@ export default function App() {
                         ...(jump ? { jumpHost: jump } : {}),
                         ...(jumpChain.length ? { jumpChain, jumpHost: jump ?? hopToJump(jumpChain[0]!) } : {}),
                         ...(connAuth ? { authMode: connAuth } : {}),
-                        ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {})
+                        ...(certificatePath.trim() ? { certificatePath: certificatePath.trim() } : {}),
+                        ...(agentForward ? { agentForward: true } : {})
                       })
                     }}
                   />

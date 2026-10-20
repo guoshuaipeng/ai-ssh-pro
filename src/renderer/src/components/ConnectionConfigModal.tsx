@@ -1,3 +1,6 @@
+import { confirmDialog } from '../lib/dialogs'
+import { appendAudit } from '@shared/audit-log'
+import { agentForwardAuditDetail, agentForwardNeedsConfirm } from '@shared/agent-forward'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import { ProtectionLevelField } from './ProtectionSection'
@@ -65,6 +68,10 @@ export type ConnectionConfigModalProps = {
   setCertificatePath?: (v: string) => void
   autoRecord?: boolean
   setAutoRecord?: (v: boolean) => void
+  /** C3: per-host agent forwarding, default off */
+  agentForward?: boolean
+  setAgentForward?: (v: boolean) => void
+  hostForAudit?: string
   jumpChain?: import('@shared/jump-chain').JumpHop[]
   setJumpChain?: (v: import('@shared/jump-chain').JumpHop[]) => void
   profiles?: import('@shared/ipc').SavedSessionProfile[]
@@ -131,6 +138,9 @@ export default function ConnectionConfigModal({
   setCertificatePath,
   autoRecord = false,
   setAutoRecord,
+  agentForward = false,
+  setAgentForward,
+  hostForAudit = '',
   jumpChain,
   setJumpChain,
   profiles = [],
@@ -420,6 +430,41 @@ export default function ConnectionConfigModal({
                     </button>
                   </div>
                   <p className="l4-hint">{tg('m2.certBrowseHint')}</p>
+                </div>
+              ) : null}
+              {setAgentForward ? (
+                <div className="field agent-fwd" data-testid="conn-agent-forward-row">
+                  <label className="l4-check">
+                    <input
+                      type="checkbox"
+                      data-testid="conn-agent-forward"
+                      checked={agentForward}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                        void (async () => {
+                          if (agentForwardNeedsConfirm(next, protection)) {
+                            const ok = await confirmDialog({
+                              title: tg('agentFwd.confirmTitle'),
+                              body: tg(protection === 'readonly' ? 'agentFwd.confirmRo' : 'agentFwd.confirmProd'),
+                              confirmText: tg('agentFwd.confirmOk'),
+                              danger: true
+                            })
+                            if (!ok) return
+                          }
+                          setAgentForward(next)
+                          appendAudit({
+                            type: 'agentForward.change',
+                            host: hostForAudit,
+                            source: 'user',
+                            outcome: 'allowed',
+                            detail: agentForwardAuditDetail(next ? 'on' : 'off', hostForAudit)
+                          })
+                        })()
+                      }}
+                    />
+                    {tg('agentFwd.label')}
+                  </label>
+                  <p className={`l4-hint${agentForward ? ' agent-fwd-warn' : ''}`}>{tg('agentFwd.hint')}</p>
                 </div>
               ) : null}
               {setAutoRecord ? (
