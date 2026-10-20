@@ -18,6 +18,7 @@ import {
   snippetFromBlock,
   upsertCommandSnippet,
   startBlock,
+  interruptRunning,
   toggleBlock,
   type TermBlock
 } from '@shared/terminal-blocks'
@@ -25,6 +26,7 @@ import { tg } from '../lib/i18n'
 import { blockMatcher, stepMatch } from '@shared/find-scope'
 import { BLOCKS_HITS_EVENT, BLOCKS_QUERY_EVENT, BLOCKS_STEP_EVENT, type BlocksQueryDetail, type BlocksStepDetail } from '../lib/find-bridge'
 import { AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
+import { BLOCK_DONE_EVENT, type BlockDoneDetail } from '../lib/ai-script-run'
 import Icon, { Twist } from './Icon'
 import { showToast } from '../lib/toast'
 import { requestAskWithContext } from '../lib/ai-prefill'
@@ -84,6 +86,25 @@ export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId:
     return () => window.removeEventListener(BLOCKS_STEP_EVENT, onStep)
   })
   const histRef = useRef<StoredBlock[]>([])
+  // D20: the strip lives per tab, so blocks survive a reconnect; the block that was running is marked interrupted
+  const prevSidRef = useRef<string | null>(sessionId)
+  useEffect(() => {
+    const prev = prevSidRef.current
+    prevSidRef.current = sessionId
+    if (prev && sessionId && prev !== sessionId) setBlocks((cur) => interruptRunning(cur))
+  }, [sessionId])
+  // D16c: announce finished blocks (with output) so a step-run can continue or pause
+  const doneRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!sessionId) return
+    for (const b of blocks) {
+      if (b.running || b.exitCode == null || doneRef.current.has(b.id)) continue
+      doneRef.current.add(b.id)
+      if ((b as { restored?: boolean }).restored) continue
+      const detail: BlockDoneDetail = { sessionId, command: b.command, code: b.exitCode, context: failedBlockContext(b) }
+      window.dispatchEvent(new CustomEvent(BLOCK_DONE_EVENT, { detail }))
+    }
+  }, [blocks, sessionId])
   // D17: restore this host's recent blocks (local only; never for production / read-only hosts)
   useEffect(() => {
     histRef.current = []
@@ -302,6 +323,9 @@ export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId:
           <div className="term-block-bar">
             <button type="button" title={tg(b.collapsed ? 'db.expand' : 'db.collapse')} aria-label={tg(b.collapsed ? 'db.expand' : 'db.collapse')} onClick={() => setBlocks((cur) => toggleBlock(cur, b.id))}><Twist open={!b.collapsed} size={12} /></button>
             <code>{b.command}</code>
+            {b.interrupted ? (
+              <span className="term-block-exit is-interrupted" data-testid="block-interrupted" title={tg('d20.interruptedTip')}>{tg('d20.interrupted')}</span>
+            ) : null}
             {b.running ? (
               <span className="term-block-exit is-running" title={tg('d11.running')}>…</span>
             ) : b.exitCode == null ? (
