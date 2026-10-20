@@ -1571,8 +1571,20 @@ export default function AIPanel({
       if (moreRef.current?.contains(e.target as Node)) return
       setMoreOpen(false)
     }
+    // D89: Esc closes; focus the first item so arrows work like other menus
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMoreOpen(false)
+        moreRef.current?.querySelector<HTMLButtonElement>('[data-testid="ai-more"]')?.focus()
+      }
+    }
     window.addEventListener('mousedown', close, true)
-    return () => window.removeEventListener('mousedown', close, true)
+    window.addEventListener('keydown', onKey)
+    window.setTimeout(() => moreRef.current?.querySelector<HTMLButtonElement>('.ai-more-menu button:not(:disabled)')?.focus(), 0)
+    return () => {
+      window.removeEventListener('mousedown', close, true)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [moreOpen])
 
   useEffect(() => {
@@ -1828,7 +1840,20 @@ export default function AIPanel({
               …
             </button>
             {moreOpen ? (
-              <div className="titlebar-popover" style={{ right: 0, left: 'auto', minWidth: 140 }}>
+              <div
+                className="titlebar-popover ai-more-menu"
+                role="menu"
+                data-testid="ai-more-menu"
+                style={{ right: 0, left: 'auto' }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+                  e.preventDefault()
+                  const items = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+                  const i = items.indexOf(document.activeElement as HTMLButtonElement)
+                  const next = e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length
+                  items[next]?.focus()
+                }}
+              >
                 <button
                   type="button"
                   role="menuitem"
@@ -1907,7 +1932,8 @@ export default function AIPanel({
                 >
                   {tg('d86.copy')}
                 </button>
-                <button type="button" role="menuitem" disabled={busy} onClick={() => { setMoreOpen(false); clearConversation() }}>
+                <div className="ai-more-sep" role="separator" />
+                <button type="button" role="menuitem" className="danger" disabled={busy} onClick={() => { setMoreOpen(false); clearConversation() }}>
                   {tg('ai.clear')}
                 </button>
                 <button type="button" role="menuitem" disabled={busy || lines.length === 0} onClick={() => { setMoreOpen(false); undoLastRound() }} title={tg('ai.undoTip')}>
