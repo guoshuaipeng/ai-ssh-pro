@@ -207,3 +207,7 @@
 .term-blocks-head { position: sticky; top: 0; z-index: 1; background: var(--panel); }
 .term-blocks-exit2 { margin-left: 0; }
 
+
+/* D16 */
+.term-block-send { color: var(--accent); font-weight: 600; }
+
