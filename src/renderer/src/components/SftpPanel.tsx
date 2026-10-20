@@ -288,6 +288,14 @@ export default function SftpPanel({
     setRemoteOpening(false)
     setCwdFallback(false)
     const now = Date.now()
+    // D9 visual QA: two failed transfers so "Retry all" shows
+    if (sessionStorage.getItem('aiss.screenshot.sftpFailed') === '1') {
+      setQueueOpen(true)
+      setTasks([
+        { id: 'shot-f1', name: 'app-2026.10.tar.gz', direction: 'upload', localPath: 'C:/tmp/app-2026.10.tar.gz', remotePath: '/home/demo/app-2026.10.tar.gz', hostKey: hostKey || '', transferred: 412_000_000, total: 980_000_000, status: 'interrupted', error: 'Connection lost', updatedAt: now },
+        { id: 'shot-f2', name: 'nginx.conf', direction: 'download', localPath: 'C:/tmp/nginx.conf', remotePath: '/etc/nginx/nginx.conf', hostKey: hostKey || '', transferred: 0, total: 4_096, status: 'error', error: 'Permission denied', updatedAt: now }
+      ])
+    }
     const remotePath = '/home/demo'
     setRemoteCwd(remotePath)
     setRemoteInput(remotePath)
