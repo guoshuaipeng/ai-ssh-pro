@@ -135,6 +135,11 @@ const api = {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as { hop: number; total: number; name: string })
       ipcRenderer.on('ssh:hop', fn)
       return () => unsub('ssh:hop', fn)
+    },
+    onStage: (cb: (payload: import('../shared/connect-stage').ConnectStageEvent) => void): (() => void) => {
+      const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as import('../shared/connect-stage').ConnectStageEvent)
+      ipcRenderer.on('ssh:stage', fn)
+      return () => unsub('ssh:stage', fn)
     }
   },
   sftp: {

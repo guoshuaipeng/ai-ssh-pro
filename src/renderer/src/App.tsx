@@ -46,6 +46,7 @@ import ShortcutsModal from './components/ShortcutsModal'
 import { askAboutHistoryFailure, lastRunFor } from './lib/failed-output'
 import SearchAllTermsModal from './components/SearchAllTermsModal'
 import ConnectingElapsed from './components/ConnectingElapsed'
+import { stageTarget, type ConnectStageEvent } from '@shared/connect-stage'
 import { cmdDrafts } from './lib/cmd-draft-store'
 import { getDraft, persistableDraft, putDraft } from '@shared/cmd-drafts'
 import { sessionInfoText } from '@shared/session-info'
@@ -1631,6 +1632,12 @@ export default function App() {
     })
   }, [])
 
+  // D77b: latest connect stage per target host:port
+  const [connectStages, setConnectStages] = useState<Record<string, ConnectStageEvent>>({})
+  useEffect(() => {
+    return window.aiss.ssh.onStage?.((e) => setConnectStages((prev) => ({ ...prev, [e.target]: e })))
+  }, [])
+
   useEffect(() => {
     return window.aiss.ssh.onHop((payload) => {
       if (batchBusyRef.current) return
@@ -1744,6 +1751,15 @@ export default function App() {
       const title = opts.label?.trim() || `${opts.username}@${opts.host}`
       cancelledConnectingTabsRef.current.delete(tabId)
       connectingSinceRef.current.set(tabId, Date.now())
+      {
+        const key = stageTarget(opts.host, opts.port)
+        setConnectStages((prev) => {
+          if (!(key in prev)) return prev
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+      }
       setTabs((prev) => [
         ...prev,
         {
@@ -8512,6 +8528,16 @@ export default function App() {
                   target: `${activeTab.connectOpts.username}@${activeTab.connectOpts.host}:${activeTab.connectOpts.port}`
                 })}
               </span>
+              {(() => {
+                const st = connectStages[stageTarget(activeTab.connectOpts.host, activeTab.connectOpts.port)]
+                if (!st) return null
+                const name = tr(`d77b.stage.${st.stage}` as 'd77b.stage.tcp')
+                return (
+                  <span className="session-connecting-stage" data-testid="connecting-stage" data-stage={st.stage}>
+                    {st.hop ? tr('d77b.hopStage', { n: st.hop, total: st.hopTotal ?? st.hop, stage: name }) : name}
+                  </span>
+                )
+              })()}
               <ConnectingElapsed
                 key={activeTab.tabId}
                 since={connectingSinceRef.current.get(activeTab.tabId) ?? Date.now()}

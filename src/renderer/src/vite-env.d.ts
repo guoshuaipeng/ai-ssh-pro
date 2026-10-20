@@ -87,6 +87,7 @@ export type AissPreload = {
     onHostKeyExpired?: (cb: (payload: { requestId: string }) => void) => () => void
     probeJump: (opts: SshConnectOptions) => Promise<import('@shared/jump-chain').HopProbeRow[]>
     onHop: (cb: (payload: { hop: number; total: number; name: string }) => void) => () => void
+    onStage?: (cb: (payload: import('../../shared/connect-stage').ConnectStageEvent) => void) => () => void
   }
   sftp: {
     list: (sessionId: string, remotePath: string) => Promise<SftpListResult>

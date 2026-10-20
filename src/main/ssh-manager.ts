@@ -32,6 +32,7 @@ import { isDemoSessionId } from '../shared/demo-host'
 import { stripEchoedMarker } from '../shared/exit-marker'
 import { ExitCaptureRegistry } from './exit-capture'
 import { readyTimeoutMs } from '../shared/connect-timeout'
+import { stageTarget, stageTimeoutSuffix, type ConnectStage, type ConnectStageEvent } from '../shared/connect-stage'
 
 /** B1: the echoed printf suffix is noise for the AI and replay. */
 const mapSnapshot = (t: string): string => stripEchoedMarker(t)
@@ -123,13 +124,32 @@ function makeHostVerifier(
   }
 }
 
-function connectClient(client: Client, config: ConnectConfig): Promise<void> {
+const STAGE_LABEL: Record<ConnectStage, [string, string]> = {
+  tcp: ['DNS / TCP 连接', 'DNS / TCP connect'],
+  handshake: ['SSH 握手', 'SSH handshake'],
+  auth: ['认证', 'authentication'],
+  shell: ['打开 shell', 'opening shell']
+}
+
+function connectClient(client: Client, config: ConnectConfig, onStage?: (s: ConnectStage) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false
+    let stage: ConnectStage = 'tcp'
+    const mark = (s: ConnectStage) => {
+      stage = s
+      onStage?.(s)
+    }
     const fail = (err: Error) => {
       if (settled) return
       settled = true
-      reject(err)
+      // D77b: say where a timeout got stuck
+      const where = stageTimeoutSuffix(err.message, stage, (s) => mt(STAGE_LABEL[s][0], STAGE_LABEL[s][1]))
+      reject(where ? new Error(err.message + mt(`（卡在：${where}）`, ` (stuck at: ${where})`)) : err)
+    }
+    if (onStage) {
+      mark('tcp')
+      client.once('connect', () => mark('handshake'))
+      client.once('handshake', () => mark('auth'))
     }
     const ok = () => {
       if (settled) return
@@ -380,6 +400,10 @@ export class SshSessionManager {
     if (!host || !username) {
       throw new Error(mt('host 与 username 不能为空', 'Host and username are required'))
     }
+    const stageKey = stageTarget(host, port)
+    const sendStage = (e: Omit<ConnectStageEvent, 'target'>) => {
+      if (!owner.isDestroyed()) owner.send('ssh:stage', { target: stageKey, ...e })
+    }
 
     const cols = opts.termCols ?? DEFAULT_COLS
     const rows = opts.termRows ?? DEFAULT_ROWS
@@ -472,7 +496,7 @@ export class SshSessionManager {
               mt('跳板机请提供密码或私钥路径；若留空，请在本机用户目录 .ssh 下放置默认私钥', 'Jump host needs a password or private key path; or put a default key in ~/.ssh')
             )
           }
-          await connectClient(client, hopConfig)
+          await connectClient(client, hopConfig, (stage) => sendStage({ stage, hop: i + 1, hopTotal: hops.length }))
           const next = i + 1 < hops.length ? hops[i + 1]! : { host, port }
           sock = await forwardOutToTarget(client, next.host, next.port || 22)
         } catch (err) {
@@ -499,7 +523,8 @@ export class SshSessionManager {
       await applyAuth(targetConfig, opts, { allowDefaultKey: opts.authMode !== 'agent' })
       if (!hasAuth(targetConfig)) throw new Error(authMissing)
       applyAgentForward(targetConfig, agentForwardEnabled(opts.agentForward), opts.agentSocket)
-      await connectClient(targetClient, targetConfig)
+      await connectClient(targetClient, targetConfig, (stage) => sendStage({ stage }))
+      sendStage({ stage: 'shell' })
       this.jumpSlots.delete(slotKey)
     } catch (e) {
       failCleanup()
