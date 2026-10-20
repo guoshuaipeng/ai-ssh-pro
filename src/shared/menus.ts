@@ -66,6 +66,7 @@ export type MenuAction =
   | 'toggleBroadcast'
   | 'toggleRecording'
   | 'toggleBlocks'
+  | 'toggleShellIntegration'
   | 'resourceMonitor'
   | 'dashboard'
   | 'opsHome'
@@ -288,7 +289,8 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('broadcastTargets', '选择广播目标…', 'Choose broadcast targets…'),
       it('toggleRecording', '录制', 'Recording', { toggle: true, needsSession: true }),
       it('sessionRecordings', '会话录制', 'Session recordings'),
-      it('toggleBlocks', '输出分块', 'Output blocks', { toggle: true })
+      it('toggleBlocks', '输出分块', 'Output blocks', { toggle: true }),
+      it('toggleShellIntegration', 'Shell 集成（bash/zsh）', 'Shell integration (bash/zsh)', { toggle: true })
     ]
   },
   {

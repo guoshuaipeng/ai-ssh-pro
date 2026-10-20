@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { tg } from '../lib/i18n'
 import Icon from './Icon'
 import { openContextMenu, type ContextMenuItem } from './ContextMenu'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type IMarker } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import type { TerminalPrefs } from '@shared/ipc'
@@ -29,6 +29,10 @@ import { setPendingUpload } from '../lib/pending-upload'
 import { getSessionCwd } from '../lib/session-cwd-store'
 import { noteSubmitted } from '../lib/ai-events'
 import { setSessionCwd } from '../lib/session-cwd-store'
+import { COMMAND_SUBMITTED_EVENT } from '../lib/ai-events'
+import { blockNavIndex, blockNavKey } from '@shared/block-nav'
+import { SHELL_INT_TIMEOUT_MS, atIdlePrompt, canInject, parseOsc133, shellIntegrationScript } from '@shared/shell-integration'
+import { SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, noteInjected, noteMarker, shellIntOn, wasInjected } from '../lib/shell-integration'
 
 type Props = {
   sessionId: string
@@ -322,6 +326,21 @@ export default function TerminalPane({
     el.addEventListener('dragleave', onDragLeave)
     el.addEventListener('drop', onDrop)
     attachTerminalClipboardKeys(term, (ev) => {
+      // D15: Ctrl+Up / Ctrl+Down jump between commands
+      const nav = blockNavKey(ev, term.buffer.active.type === 'alternate')
+      if (nav) {
+        const live = blockMarks.filter((m) => !m.isDisposed && m.line >= 0)
+        const b = term.buffer.active
+        const idx = blockNavIndex(live.map((m) => m.line), b.viewportY, b.viewportY >= b.baseY, nav)
+        ev.preventDefault()
+        if (idx == null) {
+          if (nav === 'next') term.scrollToBottom()
+          return false
+        }
+        term.scrollToLine(live[idx]!.line)
+        window.dispatchEvent(new CustomEvent('aiss-block-select', { detail: { sessionId, fromEnd: live.length - 1 - idx } }))
+        return false
+      }
       const action = terminalKeyAction(ev.key, { atEnd: ghostRef.current.atEnd, hasGhost: Boolean(ghostRef.current.suffix) })
       if (action === 'accept-ghost') {
         ev.preventDefault()
@@ -352,6 +371,40 @@ export default function TerminalPane({
     })
 
     // D2: remember cwd (OSC 7 or the bash prompt) so reconnect can return to it
+    // D14: Shell Integration markers (OSC 133). D;<code> finishes the running block.
+    const osc133Disp = term.parser.registerOscHandler(133, (data) => {
+      const m = parseOsc133(data)
+      if (!m) return true
+      noteMarker(sessionId)
+      if (m.kind === 'D' && m.code != null) window.dispatchEvent(new CustomEvent(SHELL_EXIT_EVENT, { detail: { sessionId, code: m.code } }))
+      return true
+    })
+    const tryInject = () => {
+      if (isDemoSessionId(sessionId)) return
+      if (!canInject({ enabled: shellIntOn(), inputBlocked: Boolean(inputBlockedRef.current), mirrorOnly: Boolean(mirrorOnlyRef.current), alternate: term.buffer.active.type === 'alternate', already: wasInjected(sessionId), idle: (() => { const b = term.buffer.active; const line = b.getLine(b.baseY + b.cursorY)?.translateToString(true) ?? ''; return atIdlePrompt(line.slice(0, Math.min(b.cursorX, line.length))) })() })) return
+      noteInjected(sessionId)
+      void window.aiss.ssh.write(sessionId, `${shellIntegrationScript()}\r`)
+      window.setTimeout(() => {
+        if (integrationState(sessionId) === 'unsupported') showToast(tg('d14.unsupported'))
+      }, SHELL_INT_TIMEOUT_MS + 100)
+    }
+    let siTimer = 0
+    const firstParsed = term.onWriteParsed(() => {
+      firstParsed.dispose()
+      siTimer = window.setTimeout(tryInject, 1500)
+    })
+    window.addEventListener(SHELL_INT_EVENT, tryInject)
+    // D15: a marker where each command starts
+    const blockMarks: IMarker[] = []
+    const onSubmittedMark = (e: Event) => {
+      const d = (e as CustomEvent<{ sessionId: string }>).detail
+      if (d?.sessionId !== sessionId) return
+      const mk = term.registerMarker(0)
+      if (!mk) return
+      blockMarks.push(mk)
+      if (blockMarks.length > 300) blockMarks.shift()?.dispose()
+    }
+    window.addEventListener(COMMAND_SUBMITTED_EVENT, onSubmittedMark)
     const osc7Disp = term.parser.registerOscHandler(7, (data) => {
       const p = cwdFromOsc7(data)
       if (p) setSessionCwd(sessionId, p)
@@ -632,6 +685,12 @@ export default function TerminalPane({
       window.clearTimeout(dropHintTimer)
       cwdMove.dispose()
       try { osc7Disp.dispose() } catch { /* ignore */ }
+      try { osc133Disp.dispose() } catch { /* ignore */ }
+      firstParsed.dispose()
+      window.clearTimeout(siTimer)
+      window.removeEventListener(SHELL_INT_EVENT, tryInject)
+      window.removeEventListener(COMMAND_SUBMITTED_EVENT, onSubmittedMark)
+      for (const m of blockMarks) m.dispose()
       window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)
       subInput.dispose()
       unsubData()

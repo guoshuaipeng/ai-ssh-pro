@@ -71,6 +71,7 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   runPlaybook: 'playbook run juben run-playbook',
   sessionRecordings: 'record replay luzhi lz',
   toggleBlocks: 'blocks fenkuai output',
+  toggleShellIntegration: 'shell integration osc 133 exit code jicheng',
   startupSettings: 'qidong startup home',
   batchExec: 'piliang batch',
   toggleBroadcast: 'guangbo broadcast',

@@ -214,6 +214,8 @@ import { hideFromDashboard, hostInScope, loadDashScope, restoreToDashboard, save
 import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from '@shared/right-panel'
 import { assessCommandRisk } from '@shared/command-risk'
 import { setStrictPasteHosts } from './lib/paste-pref'
+import { SHELL_INT_EVENT, setShellIntOn, shellIntOn } from './lib/shell-integration'
+import { matchProfile, parseQuickTarget, quickTargetLabel, type QuickTarget } from '@shared/quick-connect'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import {
   delayForAttempt,
@@ -1173,6 +1175,12 @@ export default function App() {
         }),
     [tabs, profiles, sessionRo, elevateMap]
   )
+  const [siOn, setSiOn] = useState(() => shellIntOn())
+  useEffect(() => {
+    const sync = () => setSiOn(shellIntOn())
+    window.addEventListener(SHELL_INT_EVENT, sync)
+    return () => window.removeEventListener(SHELL_INT_EVENT, sync)
+  }, [])
   const onlineSessionIds = useMemo(() => new Set(connectedSshSessions.map((s) => s.sessionId)), [connectedSshSessions])
   // D7b: production / read-only hosts always preview multi-line pastes
   useEffect(() => {
@@ -1230,8 +1238,9 @@ export default function App() {
   )
   // D4: Ctrl+P open tabs (MRU) + saved hosts
   const rankSwitch = useCallback(
-    (q: string) =>
-      rankSwitchPick({
+    (q: string) => {
+      const qt = parseQuickTarget(q)
+      const ranked = rankSwitchPick({
         query: q,
         tabs: tabs.map((t) => ({
           tabId: t.tabId,
@@ -1242,7 +1251,20 @@ export default function App() {
         mru: mruRef.current,
         currentTabId: activeTabId,
         hosts: profiles.map((p) => ({ id: p.id, label: p.label || `${p.username}@${p.host}`, detail: `${p.username}@${p.host}${p.port && p.port !== 22 ? ':' + p.port : ''}` }))
-      }),
+      })
+      if (!qt) return ranked
+      const saved = matchProfile(profiles, qt)
+      const item: PickItem = {
+        id: 'qc',
+        kind: 'host',
+        label: tg(saved ? 'd13.connectSaved' : 'd13.connect', { target: quickTargetLabel(qt) }),
+        detail: [qt.identity ? `-i ${qt.identity}` : '', qt.jump?.length ? `-J ${qt.jump.map(quickTargetLabel).join(',')}` : '', saved ? saved.label || '' : tg('d13.notSaved')].filter(Boolean).join(' · '),
+        badge: 'host',
+        value: `qc:${q}`,
+        indices: []
+      }
+      return [item, ...ranked.filter((x) => !(saved && x.kind === 'host' && x.value === saved.id))]
+    },
     [tabs, activeTabId, profiles]
   )
 
@@ -4118,6 +4140,32 @@ export default function App() {
     [connectProfile, openConnectionEditor, profiles]
   )
 
+  // D13: quick connect from Ctrl+P — saved host connects, otherwise a prefilled form (password / key still needed)
+  const openQuickTarget = useCallback(
+    (t: QuickTarget) => {
+      const match = matchProfile(profiles, t)
+      if (match) {
+        showToast(tg('recent.connecting', { host: match.label?.trim() || match.host }))
+        void connectProfile(match)
+        return
+      }
+      resetConnectionForm()
+      setEditingSavedId(null)
+      setError(null)
+      setHost(t.host)
+      setPort(String(t.port))
+      setUsername(t.username ?? '')
+      if (t.identity) {
+        setConnAuth('key')
+        setPrivateKeyPath(t.identity)
+      }
+      if (t.jump?.length) setJumpChain(t.jump.map((h, i) => ({ id: `qc-${Date.now().toString(36)}-${i}`, host: h.host, port: h.port, username: h.username ?? t.username ?? '' })))
+      openConnectionEditor()
+      showToast(tg('d13.prefilled', { target: quickTargetLabel(t) }))
+    },
+    [connectProfile, openConnectionEditor, profiles, resetConnectionForm]
+  )
+
   /** "Connect": focus an open tab for this host, otherwise connect (H1). */
   const openOrFocusProfile = useCallback(
     (p: SavedSessionProfile) => {
@@ -5600,6 +5648,13 @@ export default function App() {
       }
       if (action === 'toggleBlocks') {
         setBlocksOn(turnBlocks(!blocksEnabled()))
+        return
+      }
+      if (action === 'toggleShellIntegration') {
+        const next = !shellIntOn()
+        setShellIntOn(next)
+        setSiOn(next)
+        showToast(tg(next ? 'd14.on' : 'd14.off'))
         return
       }
       if (action === 'startupSettings') {
@@ -7329,6 +7384,7 @@ export default function App() {
           toggleBroadcast: broadcastEnabled,
           toggleRecording: Boolean(recordingSessionId),
           toggleBlocks: blocksOn,
+          toggleShellIntegration: siOn,
           smartComplete: smartOn,
           sftpComfort
         }}
@@ -10072,7 +10128,10 @@ export default function App() {
         onClose={() => setQuickPick(null)}
         onPick={(it: PickItem) => {
           if (it.kind === 'tab') setActiveTabId(it.value)
-          else {
+          else if (it.value.startsWith('qc:')) {
+            const qt = parseQuickTarget(it.value.slice(3))
+            if (qt) openQuickTarget(qt)
+          } else {
             const p = profiles.find((x) => x.id === it.value)
             if (p) void connectProfile(p)
           }

@@ -89,7 +89,7 @@ export async function confirmAndRunAiCommand(opts: {
     /* history is best effort */
   }
   noteSubmitted(sessionId, command)
-  const sent = await window.aiss.ssh.write(sessionId, `${commandWire(command)}\r`)
+  const sent = await window.aiss.ssh.write(sessionId, `${commandWire(command, sessionId)}\r`)
   if (!sent) toast({ text: tg('history.sendFailed'), kind: 'error' })
   else fillCommandBar(sessionId, '')
   return Boolean(sent)

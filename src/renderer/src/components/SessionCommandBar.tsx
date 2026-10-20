@@ -232,7 +232,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       if (loadSmartPrefs().enabled) recordSmartCommand(hostKey, command)
       notifyHistoryChanged()
       noteSubmitted(sessionId, command)
-      const ok = await window.aiss.ssh.write(sessionId, `${commandWire(command)}\r`)
+      const ok = await window.aiss.ssh.write(sessionId, `${commandWire(command, sessionId)}\r`)
       clearStagedCommands()
       if (!ok) setError(t('history.sendFailed'))
     } catch (e) {

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { applyExitHits, blockFailed, createBlockExitParser, failedBlockContext } from '@shared/block-exit'
 import { blockExitOn, setBlockExitOn } from '../lib/block-wire'
-import { COMMAND_SUBMITTED_EVENT } from '../lib/ai-events'
+import { SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, setShellIntOn, shellIntOn } from '../lib/shell-integration'
+import { COMMAND_SUBMITTED_EVENT, fillCommandBar } from '../lib/ai-events'
 import {
   BLOCK_HEIGHT_DEFAULT,
   appendBlockOutput,
@@ -42,6 +43,8 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
   const [selected, setSelected] = useState(0)
   const [exitOn, setExitOn] = useState(() => blockExitOn())
   const parserRef = useRef(createBlockExitParser())
+  const stripRef = useRef<HTMLDivElement>(null)
+  const [siOn, setSiOn] = useState(() => shellIntOn())
   useEffect(() => {
     const sync = () => setOn(blocksEnabled())
     window.addEventListener('aiss-blocks', sync)
@@ -70,17 +73,51 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       const { clean, hits } = parserRef.current.feed(detail.text)
       setBlocks((cur) => applyExitHits(appendBlockOutput(cur, clean), hits))
     }
+    // D14: Shell Integration reports $? for every prompt (typed commands too)
+    const onShellExit = (e: Event) => {
+      const d = (e as CustomEvent<{ sessionId: string; code: number }>).detail
+      if (!d || d.sessionId !== sessionId) return
+      setBlocks((cur) => applyExitHits(cur, [{ nonce: 'si', code: d.code }]))
+    }
+    // D15: Ctrl+Up / Ctrl+Down in the terminal selects the same block here
+    const onSelect = (e: Event) => {
+      const d = (e as CustomEvent<{ sessionId: string; fromEnd: number }>).detail
+      if (!d || d.sessionId !== sessionId) return
+      setBlocks((cur) => {
+        const i = cur.length - 1 - d.fromEnd
+        if (i >= 0) {
+          setSelected(i)
+          window.setTimeout(() => stripRef.current?.querySelectorAll('.term-block')[i]?.scrollIntoView({ block: 'nearest' }), 0)
+        }
+        return cur
+      })
+    }
     window.addEventListener(COMMAND_SUBMITTED_EVENT, onCmd)
     window.addEventListener('aiss-term-chunk', onChunk)
+    window.addEventListener(SHELL_EXIT_EVENT, onShellExit)
+    window.addEventListener('aiss-block-select', onSelect)
     return () => {
       window.removeEventListener(COMMAND_SUBMITTED_EVENT, onCmd)
       window.removeEventListener('aiss-term-chunk', onChunk)
+      window.removeEventListener(SHELL_EXIT_EVENT, onShellExit)
+      window.removeEventListener('aiss-block-select', onSelect)
     }
   }, [on, sessionId])
+  useEffect(() => {
+    const sync = () => setSiOn(shellIntOn())
+    window.addEventListener(SHELL_INT_EVENT, sync)
+    return () => window.removeEventListener(SHELL_INT_EVENT, sync)
+  }, [])
   if (!on || !sessionId || blocks.length === 0) return null
   const height = collapsed ? 24 : blockStripPx(600, ratio).px
   const explain = (b: TermBlock) => {
     window.dispatchEvent(new CustomEvent('aiss-ai-explain', { detail: { sessionId, text: b.output || b.command, source: 'palette' } }))
+  }
+  // D15: re-run = put it back in this session's command bar; Enter there goes through the usual protection gate
+  const rerun = (b: TermBlock) => {
+    if (!sessionId || b.running) return
+    fillCommandBar(sessionId, b.command)
+    showToast(tg('d15.filled'))
   }
   const saveSnippet = (b: TermBlock) => {
     const snip = snippetFromBlock(b)
@@ -95,7 +132,7 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       .catch(() => showToast(tg('m2.snippetFail')))
   }
   return (
-    <div className="term-blocks" data-testid="terminal-blocks" style={{ maxHeight: height, height }}>
+    <div ref={stripRef} className="term-blocks" data-testid="terminal-blocks" style={{ maxHeight: height, height }}>
       <div
         className="term-blocks-resize"
         title={tg('blocks.resize')}
@@ -123,7 +160,12 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       />
       <div className="term-blocks-head">
         <span>{tg('blocks.title', { n: blocks.length })}</span>
-        <label className="term-blocks-exit" title={tg('d11.captureTip')}>
+        <label className="term-blocks-exit" title={tg('d14.tip')}>
+          <input type="checkbox" data-testid="blocks-shell-int" checked={siOn} onChange={(e) => { const v = e.currentTarget.checked; setShellIntOn(v); setSiOn(v); showToast(tg(v ? 'd14.on' : 'd14.off')) }} />
+          {tg('d14.label')}
+          {sessionId && integrationState(sessionId) === 'active' ? <span className="term-block-exit is-ok" data-testid="shell-int-active">●</span> : null}
+        </label>
+        <label className="term-blocks-exit term-blocks-exit2" title={tg('d11.captureTip')}>
           <input type="checkbox" data-testid="blocks-exit-toggle" checked={exitOn} onChange={(e) => { const v = e.currentTarget.checked; setBlockExitOn(v); setExitOn(v) }} />
           {tg('d11.capture')}
         </label>
@@ -137,6 +179,20 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
           tabIndex={0}
           onClick={() => setSelected(index)}
           onKeyDown={(e) => {
+            const plain = !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey
+            // D15: ↑/↓ moves between blocks, Enter puts the command back in the command bar
+            if (plain && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+              e.preventDefault()
+              const next = Math.max(0, Math.min(blocks.length - 1, index + (e.key === 'ArrowUp' ? -1 : 1)))
+              setSelected(next)
+              ;(e.currentTarget.parentElement?.querySelectorAll<HTMLElement>('.term-block')[next])?.focus()
+              return
+            }
+            if (plain && e.key === 'Enter' && e.target === e.currentTarget) {
+              e.preventDefault()
+              rerun(b)
+              return
+            }
             if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey)) return
             if (e.key.toLowerCase() !== 'e') return
             e.preventDefault()
@@ -182,6 +238,7 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
             >
               {tg('d10.ask')}
             </button>
+            <button type="button" data-testid="block-rerun" title={tg('d15.rerunTip')} onClick={() => rerun(b)}>{tg('d15.rerun')}</button>
             <button type="button" onClick={() => saveSnippet(b)}>{tg('m2.saveSnippet')}</button>
           </div>
           {b.collapsed ? null : <pre>{b.large ? b.output.slice(0, 4000) : b.output}</pre>}
