@@ -34,8 +34,8 @@ import { blockNavIndex, blockNavKey } from '@shared/block-nav'
 import { blockMatcher, effectiveScope, loadFindScope, saveFindScope, type FindScope } from '@shared/find-scope'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { BLOCKS_HITS_EVENT, BLOCKS_QUERY_EVENT, BLOCKS_STEP_EVENT, type BlocksHitsDetail } from '../lib/find-bridge'
-import { SHELL_INT_TIMEOUT_MS, atIdlePrompt, canInject, parseOsc133, shellIntegrationScript } from '@shared/shell-integration'
-import { SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, noteInjected, noteMarker, shellIntOn, wasInjected } from '../lib/shell-integration'
+import { SHELL_INT_TIMEOUT_MS, atIdlePrompt, canInject, isNewTyped, parseOsc133, parseOsc133E, shellIntegrationScript } from '@shared/shell-integration'
+import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, noteInjected, noteMarker, shellIntOn, wasInjected } from '../lib/shell-integration'
 
 type Props = {
   sessionId: string
@@ -414,7 +414,16 @@ export default function TerminalPane({
 
     // D2: remember cwd (OSC 7 or the bash prompt) so reconnect can return to it
     // D14: Shell Integration markers (OSC 133). D;<code> finishes the running block.
+    let lastTypedNum: number | undefined
     const osc133Disp = term.parser.registerOscHandler(133, (data) => {
+      const typed = parseOsc133E(data)
+      if (typed) {
+        noteMarker(sessionId)
+        const fresh = isNewTyped(lastTypedNum, typed.num)
+        lastTypedNum = typed.num
+        if (fresh) window.dispatchEvent(new CustomEvent(SHELL_CMD_EVENT, { detail: { sessionId, command: typed.command } }))
+        return true
+      }
       const m = parseOsc133(data)
       if (!m) return true
       noteMarker(sessionId)

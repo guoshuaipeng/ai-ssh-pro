@@ -13,7 +13,7 @@ export function shellIntegrationEnabled(get: (k: string) => string | null): bool
 }
 
 const HOOK = (hostVar: string) =>
-  `__aiss_si(){ local e=$?; printf '\\033]133;D;%s\\007\\033]7;file://%s%s\\007' "$e" "\${${hostVar}:-}" "$PWD"; return $e; }`
+  `__aiss_si(){ local e=$? h; h=$(fc -l -1 2>/dev/null | tr -d '\\000-\\037'); printf '\\033]133;E;%s\\007\\033]133;D;%s\\007\\033]7;file://%s%s\\007' "$h" "$e" "\${${hostVar}:-}" "$PWD"; return $e; }`
 
 /** The single line written to the shell (no trailing newline). Idempotent: re-running does not stack hooks. */
 export function shellIntegrationScript(): string {
@@ -36,6 +36,19 @@ export function parseOsc133(data: string): Osc133 | null {
   const kind = m[1] as Osc133['kind']
   const code = m[2] != null ? Number(m[2]) : null
   return { kind, code: kind === 'D' ? code : null }
+}
+
+/** D22d: `133;E;<history line>` sent by the hook just before D, e.g. "  42  make build" (bash marks edited entries with *). */
+export function parseOsc133E(data: string): { num: number; command: string } | null {
+  const m = /^E;\s*(\d+)\*?\s+([\s\S]*)$/.exec(String(data ?? ''))
+  if (!m) return null
+  const command = m[2]!.trim()
+  return command ? { num: Number(m[1]), command } : null
+}
+
+/** Bare Enter re-reports the previous history entry; only a new number is a new command. */
+export function isNewTyped(prevNum: number | undefined, num: number): boolean {
+  return prevNum !== num
 }
 
 export type IntegrationState = 'off' | 'pending' | 'active' | 'unsupported'

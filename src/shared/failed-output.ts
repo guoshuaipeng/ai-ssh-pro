@@ -31,9 +31,24 @@ export function captureStart(caps: Map<string, Capture>, sessionId: string, comm
   else caps.set(sessionId, { command: c, out: '' })
 }
 
-export function captureChunk(caps: Map<string, Capture>, sessionId: string, text: string): void {
-  const cap = caps.get(sessionId)
-  if (!cap) return
+/** D22d: command reported by Shell Integration after it ran (typed in the terminal). A command-bar capture keeps its own line. */
+export function captureCommand(caps: Map<string, Capture>, sessionId: string, command: string): void {
+  const c = command.trim()
+  const cap = caps.get(sessionId) ?? { command: '', out: '' }
+  if (cap.command) return
+  // sensitive: keep an empty command so the exit drops the output
+  cap.command = isSensitiveCommand(c) ? '' : c
+  caps.set(sessionId, cap)
+}
+
+export function captureChunk(caps: Map<string, Capture>, sessionId: string, text: string, rolling = false): void {
+  let cap = caps.get(sessionId)
+  if (!cap) {
+    // D22d: with Shell Integration, keep a rolling prompt-to-prompt buffer so typed commands can be attributed later
+    if (!rolling) return
+    cap = { command: '', out: '' }
+    caps.set(sessionId, cap)
+  }
   const next = cap.out + stripAnsi(text).replace(/\r/g, '')
   cap.out = next.length > CAPTURE_TAIL * 2 ? next.slice(-CAPTURE_TAIL * 2) : next
 }
@@ -43,6 +58,7 @@ export function captureExit(caps: Map<string, Capture>, store: FailedOutputStore
   const cap = caps.get(sessionId)
   if (!cap) return
   caps.delete(sessionId)
+  if (!cap.command) return
   let out = cap.out
   // drop the echoed command line at the start
   const nl = out.indexOf('\n')

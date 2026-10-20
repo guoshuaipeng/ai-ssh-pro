@@ -1,9 +1,9 @@
 import { BLOCK_DONE_EVENT, type BlockDoneDetail } from './ai-script-run'
 import { requestAskWithContext } from './ai-prefill'
 import { tg } from './i18n'
-import { captureChunk, captureExit, captureStart, failedContext, rememberFailed, type Capture, type FailedOutputStore } from '@shared/failed-output'
+import { captureChunk, captureCommand, captureExit, captureStart, failedContext, rememberFailed, type Capture, type FailedOutputStore } from '@shared/failed-output'
 import { COMMAND_SUBMITTED_EVENT } from './ai-events'
-import { SHELL_EXIT_EVENT } from './shell-integration'
+import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, integrationState } from './shell-integration'
 
 const store: FailedOutputStore = new Map()
 const caps = new Map<string, Capture>()
@@ -20,7 +20,11 @@ if (typeof window !== 'undefined') {
   })
   window.addEventListener('aiss-term-chunk', (e) => {
     const d = (e as CustomEvent<{ sessionId: string; text: string }>).detail
-    if (d?.sessionId && typeof d.text === 'string') captureChunk(caps, d.sessionId, d.text)
+    if (d?.sessionId && typeof d.text === 'string') captureChunk(caps, d.sessionId, d.text, integrationState(d.sessionId) === 'active')
+  })
+  window.addEventListener(SHELL_CMD_EVENT, (e) => {
+    const d = (e as CustomEvent<{ sessionId: string; command: string }>).detail
+    if (d?.sessionId && d.command) captureCommand(caps, d.sessionId, d.command)
   })
   window.addEventListener(SHELL_EXIT_EVENT, (e) => {
     const d = (e as CustomEvent<{ sessionId: string; code: number }>).detail

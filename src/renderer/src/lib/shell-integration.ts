@@ -3,6 +3,8 @@ import { SHELL_INT_KEY, integrationVerdict, shellIntegrationEnabled, type Integr
 
 export const SHELL_INT_EVENT = 'aiss-shell-int'
 export const SHELL_EXIT_EVENT = 'aiss-shell-exit'
+/** D22d: a command typed directly in the terminal (from OSC 133;E), dispatched just before its exit */
+export const SHELL_CMD_EVENT = 'aiss-shell-cmd'
 
 const sessions = new Map<string, { sentAt: number | null; seen: boolean }>()
 
