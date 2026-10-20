@@ -4,7 +4,7 @@ import { assessCommandRisk } from '@shared/command-risk'
 import { COMMAND_SUBMITTED_EVENT, fillCommandBar } from './ai-events'
 import { aiOrigins } from './ai-origin'
 import { tg } from './i18n'
-import { showToast } from './toast'
+import { clearToasts, showToast } from './toast'
 import { requestAskWithContext } from './ai-prefill'
 import { SHELL_EXIT_EVENT, integrationState, shellIntOn } from './shell-integration'
 import { blocksEnabled } from '@shared/terminal-blocks'
@@ -58,6 +58,8 @@ function apply(out: ExitOutcome, context: string): void {
   const i = r.index + 1
   const n = r.steps.length
   fillCommandBar(r.sessionId, '')
+  // the stale step toast would offer the wrong action next to the pause
+  clearToasts()
   showToast(tg('d16c.paused', { i, n, code }), {
     kind: 'error',
     ms: 30000,
