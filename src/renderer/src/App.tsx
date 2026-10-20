@@ -38,7 +38,7 @@ import { AI_ASK_CONTEXT_EVENT, setAiPrefill } from './lib/ai-prefill'
 import { fenceSelection } from '@shared/ask-context'
 import type { CommandSnippet } from '@shared/ipc'
 import { loadSmartHistory } from './lib/smart-history'
-import { mruOrder, mruTouch, rankHistoryPick, rankSwitchPick, type PickItem } from '@shared/quick-pick'
+import { loadHostOnly, mruOrder, mruTouch, rankHistoryPick, rankSwitchPick, saveHostOnly, type PickItem } from '@shared/quick-pick'
 import { cdCommandFor } from '@shared/session-cwd'
 import { getSessionCwd, setSessionCwd } from './lib/session-cwd-store'
 import AboutModal from './components/AboutModal'
@@ -1310,10 +1310,11 @@ export default function App() {
     if (quickPick !== 'history') return
     void window.aiss.snippets.list().then(setPickSnippets).catch(() => undefined)
   }, [quickPick])
+  const [histHostOnly, setHistHostOnly] = useState(() => loadHostOnly())
   const rankHistory = useCallback(
     (q: string) =>
-      rankHistoryPick({ query: q, hostKey: activeTab ? sessionHostKey(activeTab) : '', entries: loadSmartHistory(), snippets: pickSnippets }),
-    [activeTab, pickSnippets]
+      rankHistoryPick({ query: q, hostKey: activeTab ? sessionHostKey(activeTab) : '', entries: loadSmartHistory(), snippets: pickSnippets, hostOnly: histHostOnly }),
+    [activeTab, pickSnippets, histHostOnly]
   )
   // D4: Ctrl+P open tabs (MRU) + saved hosts
   const rankSwitch = useCallback(
@@ -10350,6 +10351,20 @@ export default function App() {
         onChord={() => {
           if (activeSessionId) void window.aiss.ssh.write(activeSessionId, '\x12')
         }}
+        scopeToggle={
+          activeTab && sessionHostKey(activeTab)
+            ? {
+                on: histHostOnly,
+                label: tg('d38.hostOnly'),
+                title: tg('d38.hostOnlyTip'),
+                onToggle: () =>
+                  setHistHostOnly((v) => {
+                    saveHostOnly(!v)
+                    return !v
+                  })
+              }
+            : undefined
+        }
         onClose={() => setQuickPick(null)}
         onPick={(it, opts) => {
           if (!activeSessionId) return

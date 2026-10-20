@@ -26,6 +26,8 @@ type Props = {
   /** Pressing the opening chord again (e.g. Ctrl+R) closes and hands the key to the shell. */
   chord?: string
   onChord?: () => void
+  /** D38: optional scope switch shown next to the input (Alt+H toggles) */
+  scopeToggle?: { on: boolean; label: string; title: string; onToggle: () => void }
 }
 
 const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]> = {
@@ -38,7 +40,7 @@ const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]
 }
 
 /** D3 / D4: themed fuzzy picker (reuses the command palette chrome). */
-export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, onRunInCwd, currentCwd, chord, onChord }: Props) {
+export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, onRunInCwd, currentCwd, chord, onChord, scopeToggle }: Props) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -82,6 +84,11 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
               onChord?.()
               return
             }
+            if (scopeToggle && e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'h') {
+              e.preventDefault()
+              scopeToggle.onToggle()
+              return
+            }
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault()
               if (!items.length) return
@@ -98,6 +105,24 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
             }
           }}
         />
+        {scopeToggle ? (
+          <div className="qp-scope">
+            <button
+              type="button"
+              className={`qp-scope-btn${scopeToggle.on ? ' is-on' : ''}`}
+              data-testid="qp-host-only"
+              aria-pressed={scopeToggle.on}
+              title={scopeToggle.title}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                scopeToggle.onToggle()
+                inputRef.current?.focus()
+              }}
+            >
+              {scopeToggle.label}
+            </button>
+          </div>
+        ) : null}
         <div className="cmdp-list" role="listbox" id={`${testId}-list`} ref={listRef}>
           {items.length === 0 ? (
             <EmptyState

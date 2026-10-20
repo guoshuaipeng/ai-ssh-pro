@@ -283,3 +283,7 @@
 /* D31 */
 .cmd-cwd, .qp-cwd { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); opacity: 0.75; }
 
+/* D38: Ctrl+R scope switch */
+.qp-scope { display: flex; justify-content: flex-end; padding: 4px 12px; border-bottom: 1px solid var(--border); }
+.qp-scope-btn { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; }
+.qp-scope-btn.is-on { color: var(--accent); border-color: var(--accent); }

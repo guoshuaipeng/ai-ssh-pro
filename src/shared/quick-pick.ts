@@ -45,14 +45,34 @@ export type PickItem = {
 }
 
 /** Ctrl+R: this host's history first, then other hosts, then single-line snippets. Empty query → most recent. */
+/** D38: remembered Ctrl+R scope */
+export const HISTORY_HOST_ONLY_KEY = 'aiss.qp.hostOnly'
+export function loadHostOnly(store: Pick<Storage, 'getItem'> = globalThis.localStorage): boolean {
+  try {
+    return store.getItem(HISTORY_HOST_ONLY_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+export function saveHostOnly(on: boolean, store: Pick<Storage, 'setItem'> = globalThis.localStorage): void {
+  try {
+    store.setItem(HISTORY_HOST_ONLY_KEY, on ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
 export function rankHistoryPick(input: {
   query: string
   hostKey: string
   entries: { command: string; hostKey: string; count: number; lastUsed: number; lastExit?: number; lastCwd?: string }[]
   snippets?: { id: string; title: string; body: string }[]
   limit?: number
+  /** D38: only this host's history (no other hosts, no snippets). Ignored without a hostKey. */
+  hostOnly?: boolean
 }): PickItem[] {
   const limit = input.limit ?? 50
+  const hostOnly = Boolean(input.hostOnly && input.hostKey)
   const seen = new Map<string, { item: PickItem; score: number; tier: number; recency: number }>()
   for (const e of input.entries) {
     const cmd = String(e.command ?? '').trim()
@@ -60,6 +80,7 @@ export function rankHistoryPick(input: {
     const m = fuzzyMatch(cmd, input.query)
     if (!m) continue
     const hostHit = Boolean(input.hostKey) && e.hostKey === input.hostKey
+    if (hostOnly && !hostHit) continue
     const tier = hostHit ? 0 : 1
     const prev = seen.get(cmd)
     if (prev && prev.tier <= tier) {
@@ -74,7 +95,7 @@ export function rankHistoryPick(input: {
       recency: e.lastUsed || 0
     })
   }
-  for (const s of input.snippets ?? []) {
+  for (const s of hostOnly ? [] : input.snippets ?? []) {
     const body = String(s.body ?? '').trim()
     if (!body || body.includes('\n') || seen.has(body)) continue
     const m = fuzzyMatch(body, input.query) ?? (fuzzyMatch(s.title || '', input.query) ? { score: 1, indices: [] } : null)
