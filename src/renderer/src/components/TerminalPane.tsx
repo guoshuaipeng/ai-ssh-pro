@@ -145,6 +145,8 @@ export default function TerminalPane({
   const osc52EnabledRef = useRef(prefsRef.current.osc52Clipboard !== false)
   osc52EnabledRef.current = prefsRef.current.osc52Clipboard !== false
   const muteBellRef = useRef(prefsRef.current.muteBell === true)
+  const copyOnSelectRef = useRef(prefsRef.current.copyOnSelect === true)
+  copyOnSelectRef.current = prefsRef.current.copyOnSelect === true
   muteBellRef.current = prefsRef.current.muteBell === true
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
@@ -947,6 +949,8 @@ export default function TerminalPane({
         const t = apiRef.current?.term
         const pane = el.parentElement
         if (!t || !pane || !t.hasSelection() || !t.getSelection().trim()) return setSelAsk(null)
+        // D92: optional copy-on-select (local clipboard only)
+        if (copyOnSelectRef.current) void navigator.clipboard.writeText(t.getSelection()).catch(() => undefined)
         const r = pane.getBoundingClientRect()
         const x = Math.min(Math.max(ev.clientX - r.left + 8, 4), Math.max(4, r.width - 96))
         const y = Math.min(Math.max(ev.clientY - r.top + 12, 4), Math.max(4, r.height - 32))

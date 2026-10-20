@@ -462,7 +462,8 @@ function normalizeTerminalPrefs(raw: unknown): TerminalPrefs {
       : d.scrollback
   const osc52Clipboard = typeof o.osc52Clipboard === 'boolean' ? o.osc52Clipboard : d.osc52Clipboard
   const muteBell = typeof o.muteBell === 'boolean' ? o.muteBell : d.muteBell
-  return { themeId, fontFamily, fontSize, scrollback, osc52Clipboard, muteBell }
+  const copyOnSelect = o.copyOnSelect === true
+  return { themeId, fontFamily, fontSize, scrollback, osc52Clipboard, muteBell, copyOnSelect }
 }
 
 function normalizeSnippets(raw: unknown): CommandSnippet[] {

@@ -483,6 +483,8 @@ export type TerminalPrefs = {
   osc52Clipboard: boolean
   /** When true, ignore xterm onBell (no visual flash). Default false. */
   muteBell: boolean
+  /** D92: copy a mouse selection to the clipboard on release (PuTTY / Xshell habit). Default false. */
+  copyOnSelect?: boolean
 }
 
 export type AiChatMessage = {
@@ -878,7 +880,8 @@ export const TERMINAL_PREFS_DEFAULTS: TerminalPrefs = {
   fontSize: 14,
   scrollback: 4000,
   osc52Clipboard: true,
-  muteBell: false
+  muteBell: false,
+  copyOnSelect: false
 }
 
 /** 检查 GitHub Releases 的结果（由主进程返回） */
