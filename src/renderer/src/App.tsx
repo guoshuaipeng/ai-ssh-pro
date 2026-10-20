@@ -7350,7 +7350,8 @@ export default function App() {
       const host = tab ? tab.connectOpts.label?.trim() || tab.title : ''
       const cwd = getSessionCwd(d.sessionId)
       const head = cwd && cwd !== '~' ? tg('d6.ctxHeadCwd', { host, cwd }) : tg('d6.ctxHead', { host })
-      setAiPrefill(`${head}\n${fenceSelection(d.text)}\n${d.question ?? ''}`)
+      // D66: redact secrets in the selection too (file context and recent runs already are)
+      setAiPrefill(`${head}\n${fenceSelection(redactAuditText(d.text))}\n${d.question ?? ''}`)
       updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
       openRightPanelRef.current('ai')
     }
