@@ -55,7 +55,8 @@ assert.equal(getSessionProtection('s2'), null)
 
 // main-process wiring: verdict right before the only ssh.write in the agent
 const agent = norm('src/main/ai-interactive-agent.ts')
-const w = agent.indexOf('writeUnlessStopped(runCtx, ac.signal, () => ssh.write(targetSessionId')
+// B1: the write goes through writeAiCommand (exit marker) with ssh.write as fallback, both inside writeUnlessStopped
+const w = agent.indexOf('writeUnlessStopped(runCtx, ac.signal, () =>')
 const g = agent.lastIndexOf('aiWriteVerdict(liveProtection', w)
 assert.ok(w > 0 && g > 0 && w - g < 2500, 'write verdict sits right before ssh.write')
 assert.ok(agent.slice(g, w).includes('getSessionProtection(targetSessionId)') || agent.slice(g - 400, w).includes('getSessionProtection(targetSessionId)'), 'live registry read at write time')

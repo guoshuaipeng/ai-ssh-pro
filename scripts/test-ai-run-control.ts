@@ -32,7 +32,8 @@ assert.equal(normalizeAiMaxSteps(12), 12)
 const agent = readFileSync('src/main/ai-interactive-agent.ts', 'utf8')
 const directWrites = agent.match(/ssh\.write\(/g) || []
 assert.equal(directWrites.length, 1, 'one ssh.write call site')
-assert.ok(/writeUnlessStopped\(runCtx, ac\.signal, \(\) => ssh\.write\(/.test(agent), 'ssh.write wrapped by writeUnlessStopped')
+// B1: writeAiCommand (exit marker) with the ssh.write fallback, both inside the guard callback
+assert.ok(/writeUnlessStopped\(runCtx, ac\.signal, \(\) => \{[\s\S]{0,400}?ssh\.writeAiCommand\([\s\S]{0,200}?ssh\.write\(/.test(agent), 'ssh.write wrapped by writeUnlessStopped')
 assert.ok(agent.includes('resolveAiMaxSteps(settings.aiMaxSteps, process.env.AISS_MAX_POLLS)'))
 assert.ok(agent.includes("type: 'progress', step, maxSteps"))
 assert.ok(agent.includes('已达到步数上限'))
