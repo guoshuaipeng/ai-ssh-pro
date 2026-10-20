@@ -3,7 +3,9 @@ import { filterCommandHistory, normalizeCommandLine } from '@shared/workspace-fe
 import { highlightMatch, rankSuggestions, type HistoryEntry, type Suggestion } from '@shared/smart-complete'
 import { useI18n } from '../lib/i18n'
 import { HISTORY_CHANGED_EVENT, notifyHistoryChanged } from '../lib/workspace-events'
-import { loadSmartHistory, loadSmartPrefs } from '../lib/smart-history'
+import { forgetCommand, loadSmartHistory, loadSmartPrefs, restoreSmartEntries } from '../lib/smart-history'
+import { showToast } from '../lib/toast'
+import { tg } from '../lib/i18n'
 import { lastCwdOf, lastExitOf, runInCwdLine, upHistoryList } from '@shared/history-exit'
 
 type Props = {
@@ -198,6 +200,20 @@ export default function CommandInput({
             if (historyCursor === -1) draftRef.current = text
             setHistoryCursor(next)
             setText(next === -1 ? draftRef.current : upList[next] ?? '')
+            return
+          }
+          // D44: Shift+Delete removes the highlighted history suggestion (same as Ctrl+R; snippets stay)
+          if (e.key === 'Delete' && e.shiftKey && smart && open && highlight >= 0 && ranked[highlight] && ranked[highlight]!.source !== 'snippet') {
+            e.preventDefault()
+            const dropped = forgetCommand(ranked[highlight]!.command)
+            if (dropped.length) {
+              setSmartRows(loadSmartHistory())
+              setHighlight(-1)
+              showToast(tg('d43.forgot'), {
+                ms: 8000,
+                actions: [{ label: tg('d43.undo'), run: () => { restoreSmartEntries(dropped); setSmartRows(loadSmartHistory()) } }]
+              })
+            }
             return
           }
           if (e.key === 'Tab' && smart && open && suggestions.length > 0) {
