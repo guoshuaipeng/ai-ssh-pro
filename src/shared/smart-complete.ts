@@ -7,6 +7,8 @@ export type HistoryEntry = {
   hostKey: string
   count: number
   lastUsed: number
+  /** D22: exit code of the latest run, when known */
+  lastExit?: number
 }
 
 export type Suggestion = {
