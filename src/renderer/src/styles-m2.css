@@ -274,3 +274,9 @@
 /* D28 */
 .sftp-cd-terminal { margin-left: auto; height: 20px; font-size: 11px; padding: 0 6px; flex-shrink: 0; }
 
+/* D30: narrow dual-pane SFTP: let the path bar wrap instead of squeezing crumbs / path input to empty pills */
+.sftp-pathbar { flex-wrap: wrap; row-gap: 4px; }
+.sftp-pathbar .sftp-crumbs { min-width: 8rem; flex: 0 1 auto; }
+.sftp-pathbar input:not(.sftp-name-filter) { min-width: 9rem; flex: 1 1 9rem; }
+.sftp-pathbar .sftp-name-filter { flex: 0 0 auto; min-width: 6rem; }
+

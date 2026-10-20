@@ -1314,7 +1314,7 @@ export default function SftpPanel({
             <nav className="sftp-crumbs" aria-label={isLocal ? tg('d1.localPath') : tg('sftp.remotePath')} data-testid={isLocal ? 'sftp-local-crumbs' : 'sftp-remote-crumbs'}>
               {pathCrumbs(cwd, isLocal).map((c, i, arr) => (
                 <span key={c.path + i} className="sftp-crumb-wrap">
-                  {i > 0 ? <span className="sftp-crumb-sep" aria-hidden>/</span> : null}
+                  {i > 0 && arr[i - 1]!.label !== '/' ? <span className="sftp-crumb-sep" aria-hidden>/</span> : null}
                   <button
                     type="button"
                     className={`sftp-crumb${i === arr.length - 1 ? ' is-current' : ''}`}
