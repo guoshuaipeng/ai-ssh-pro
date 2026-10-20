@@ -1,4 +1,5 @@
 /** Agent sockets, sk-ed25519 refusal, and OpenSSH certificate attachment for ssh2. */
+import { mt } from './main-i18n'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 // ssh2 attaches `utils` inside an object literal that contains a spread, so Node's
@@ -41,6 +42,22 @@ export function defaultAgentSocket(): string {
   if (fromEnv) return fromEnv
   if (process.platform === 'win32') return '\\\\.\\pipe\\openssh-ssh-agent'
   return ''
+}
+
+/** C3: enable OpenSSH agent forwarding on the target connection only (never on jump hops). */
+export function applyAgentForward(connectConfig: ConnectConfig, enabled: boolean, agentSocket?: string): void {
+  if (!enabled) return
+  const socket = String(connectConfig.agent || agentSocket || defaultAgentSocket()).trim()
+  if (!socket) {
+    throw new Error(
+      mt(
+        '已开启 Agent 转发，但本机没有可用的 SSH Agent（检查 SSH_AUTH_SOCK 或 Windows 的 OpenSSH Authentication Agent 服务）',
+        'Agent forwarding is on but no local SSH agent was found (check SSH_AUTH_SOCK or the Windows OpenSSH Authentication Agent service)'
+      )
+    )
+  }
+  connectConfig.agent = socket
+  connectConfig.agentForward = true
 }
 
 export async function applyConnectAuth(

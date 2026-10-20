@@ -16,6 +16,7 @@ export function connectOptsFromProfile(p: SavedSessionProfile): SshConnectOption
     ...(p.authMode ? { authMode: p.authMode } : {}),
     ...(p.certificatePath ? { certificatePath: p.certificatePath } : {}),
     ...(chain.length ? { jumpChain: chain, jumpHost: hopToJump(chain[0]!) } : {}),
-    ...(p.forwards?.length ? { forwards: p.forwards } : {})
+    ...(p.forwards?.length ? { forwards: p.forwards } : {}),
+    ...(p.agentForward === true ? { agentForward: true } : {})
   }
 }

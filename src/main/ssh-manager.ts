@@ -1,3 +1,4 @@
+import { agentForwardEnabled } from '../shared/agent-forward'
 import { mt } from './main-i18n'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -5,7 +6,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { WebContents } from 'electron'
 import { Client, type ClientChannel, type ConnectConfig } from 'ssh2'
-import { applyConnectAuth } from './ssh-auth'
+import { applyAgentForward, applyConnectAuth } from './ssh-auth'
 import { chainFromProfile, formatHopFailure } from '../shared/jump-chain'
 import { keepaliveIntervalMs } from '../shared/reconnect-policy'
 import { randomUUID } from 'node:crypto'
@@ -487,6 +488,7 @@ export class SshSessionManager {
       }
       await applyAuth(targetConfig, opts, { allowDefaultKey: opts.authMode !== 'agent' })
       if (!hasAuth(targetConfig)) throw new Error(authMissing)
+      applyAgentForward(targetConfig, agentForwardEnabled(opts.agentForward), opts.agentSocket)
       await connectClient(targetClient, targetConfig)
       this.jumpSlots.delete(slotKey)
     } catch (e) {

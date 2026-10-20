@@ -69,6 +69,8 @@ export type SshConnectOptions = {
   agentSocket?: string
   /** 本地端口转发（连接成功后建立） */
   forwards?: LocalPortForward[]
+  /** C3: forward the local SSH agent to this host. Default off. */
+  agentForward?: boolean
   /** G1: simulated read-only demo host (no network) */
   demo?: boolean
   /** L9: null/0 disables TCP keep-alive. Omitted keeps the historical 15s interval. */
@@ -393,6 +395,8 @@ export type SavedSessionProfile = {
   folderId?: string
   jumpHost?: SshJumpHostOptions
   forwards?: LocalPortForward[]
+  /** C3: forward the local SSH agent to this host. Default off. */
+  agentForward?: boolean
   /** 关联主机知识库档案 id */
   hostInventoryId?: string
   /** User tags, e.g. prod / web; search with #tag */
@@ -436,6 +440,8 @@ export type ImportedSessionDraft = {
   jumpHost?: SshJumpHostOptions
   jumpChain?: import('./jump-chain').JumpHop[]
   forwards?: LocalPortForward[]
+  /** C3: forward the local SSH agent to this host. Default off. */
+  agentForward?: boolean
 }
 
 export type SessionImportPickResult = {
