@@ -4,7 +4,7 @@ import Icon from './Icon'
 import { openContextMenu, type ContextMenuItem } from './ContextMenu'
 import { pathFromSelection } from '@shared/term-path'
 import { requestSftpGoto } from '../lib/sftp-goto'
-import { lastRunFor, selectionWithLastRun } from '../lib/failed-output'
+import { lastRunFor, recentRunsText, selectionWithLastRun } from '../lib/failed-output'
 import { Terminal, type IMarker } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -577,6 +577,7 @@ export default function TerminalPane({
       const hasSel = Boolean(term?.hasSelection())
       const last = lastRunFor(sessionId)
       const lastOut = last?.out ?? ''
+      const recentCtx = recentRunsText(sessionId)
       const lastCmd = last ? (last.command.length > 40 ? last.command.slice(0, 40) + '…' : last.command) : ''
       const selPath = hasSel ? pathFromSelection(term?.getSelection() ?? '', getSessionCwd(sessionId)) : null
       const items: ContextMenuItem[] = [
@@ -639,6 +640,15 @@ export default function TerminalPane({
           id: 'aiExplain',
           label: tg('a1.explainSelection'),
           onSelect: () => explainWithAi('selection')
+        },
+        {
+          id: 'aiAskRecent',
+          label: tg('d59.ask'),
+          disabled: !recentCtx,
+          onSelect: () => {
+            // D59: prefill only; the user reviews and presses send
+            if (!requestAskWithContext(sessionId, recentCtx, tg('d59.q'))) showToast(tg('d59.none'))
+          }
         },
         {
           id: 'aiAskCtx',

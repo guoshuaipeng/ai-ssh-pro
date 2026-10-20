@@ -86,6 +86,31 @@ export function withLastRun(selection: string, last: LastRun | null | undefined,
   return `$ ${redactAuditText(last.command.trim())}   # exit ${last.code}\n${selection}`
 }
 
+/** D59: recent finished commands per session (memory only), newest last. */
+export const RECENT_RUNS_MAX = 5
+export const RECENT_RUN_OUT_TAIL = 1200
+export const RECENT_CTX_MAX = 8000
+export const RECENT_FRESH_MS = 30 * 60 * 1000
+
+export function pushRecentRun(list: LastRun[], run: LastRun, sensitive: (cmd: string) => boolean): LastRun[] {
+  if (!run.command.trim() || sensitive(run.command)) return list
+  return [...list, run].slice(-RECENT_RUNS_MAX)
+}
+
+/** D59: commands + exit codes + output tails of the recent runs, redacted and size-capped. Empty when none are fresh. */
+export function recentRunsContext(runs: LastRun[], now: number, sensitive: (cmd: string) => boolean): string {
+  const fresh = runs.filter((r) => r.command.trim() && now - r.at <= RECENT_FRESH_MS && !sensitive(r.command))
+  if (!fresh.length) return ''
+  const parts = fresh.map((r) => {
+    const out = (r.out ?? '').trimEnd()
+    const tail = out.length > RECENT_RUN_OUT_TAIL ? '…' + out.slice(-RECENT_RUN_OUT_TAIL) : out
+    return `$ ${r.command.trim()}   # exit ${r.code}` + (tail ? '\n' + tail : '')
+  })
+  let text = redactAuditText(parts.join('\n\n'))
+  if (text.length > RECENT_CTX_MAX) text = '…\n' + text.slice(-RECENT_CTX_MAX)
+  return text
+}
+
 export function failedContext(store: FailedOutputStore, sessionId: string, command: string, code: number): { text: string; hasOutput: boolean } {
   const ctx = store.get(k(sessionId, command))
   if (ctx) return { text: ctx, hasOutput: true }

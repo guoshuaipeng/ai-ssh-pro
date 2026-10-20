@@ -1,7 +1,7 @@
 import { BLOCK_DONE_EVENT, type BlockDoneDetail } from './ai-script-run'
 import { requestAskWithContext } from './ai-prefill'
 import { tg } from './i18n'
-import { captureChunk, captureCommand, captureExit, captureStart, failedContext, rememberFailed, withLastRun, capturedOutput, type Capture, type FailedOutputStore, type LastRun } from '@shared/failed-output'
+import { captureChunk, captureCommand, captureExit, captureStart, failedContext, rememberFailed, withLastRun, capturedOutput, pushRecentRun, recentRunsContext, type Capture, type FailedOutputStore, type LastRun } from '@shared/failed-output'
 import { isSensitiveCommand } from '@shared/workspace-features'
 import { COMMAND_SUBMITTED_EVENT } from './ai-events'
 import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, integrationState } from './shell-integration'
@@ -9,6 +9,17 @@ import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, integrationState } from './shell-int
 const store: FailedOutputStore = new Map()
 const caps = new Map<string, Capture>()
 const lastRuns = new Map<string, LastRun>()
+const recentRuns = new Map<string, LastRun[]>()
+
+function noteRun(sessionId: string, run: LastRun): void {
+  lastRuns.set(sessionId, run)
+  recentRuns.set(sessionId, pushRecentRun(recentRuns.get(sessionId) ?? [], run, isSensitiveCommand))
+}
+
+/** D59: the session's recent commands as AI context (redacted, capped); '' when none */
+export function recentRunsText(sessionId: string): string {
+  return recentRunsContext(recentRuns.get(sessionId) ?? [], Date.now(), isSensitiveCommand)
+}
 
 /** D49: last finished command of a session (memory only) */
 export function lastRunFor(sessionId: string): LastRun | null {
@@ -25,7 +36,7 @@ if (typeof window !== 'undefined') {
     const d = (e as CustomEvent<BlockDoneDetail>).detail
     if (d?.sessionId && d.command) {
       rememberFailed(store, d.sessionId, d.command, d.code, d.context || '')
-      lastRuns.set(d.sessionId, { command: d.command, code: d.code, at: Date.now() })
+      noteRun(d.sessionId, { command: d.command, code: d.code, at: Date.now() })
     }
   })
   // D22c: memory-only capture that works with blocks off (needs Shell Integration for the exit code)
@@ -45,7 +56,7 @@ if (typeof window !== 'undefined') {
     const d = (e as CustomEvent<{ sessionId: string; code: number }>).detail
     if (d?.sessionId && typeof d.code === 'number') {
       const cap = caps.get(d.sessionId)
-      if (cap?.command) lastRuns.set(d.sessionId, { command: cap.command, code: d.code, at: Date.now(), out: capturedOutput(cap) })
+      if (cap?.command) noteRun(d.sessionId, { command: cap.command, code: d.code, at: Date.now(), out: capturedOutput(cap) })
       captureExit(caps, store, d.sessionId, d.code)
     }
   })
