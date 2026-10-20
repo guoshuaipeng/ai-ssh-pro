@@ -73,7 +73,7 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       const { clean, hits } = parserRef.current.feed(detail.text)
       setBlocks((cur) => applyExitHits(appendBlockOutput(cur, clean), hits))
     }
-    // D14: Shell Integration reports $? for every prompt (typed commands too)
+    // D14: Shell Integration reports $? before each new prompt, typed commands included
     const onShellExit = (e: Event) => {
       const d = (e as CustomEvent<{ sessionId: string; code: number }>).detail
       if (!d || d.sessionId !== sessionId) return

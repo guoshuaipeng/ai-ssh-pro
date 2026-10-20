@@ -1259,7 +1259,6 @@ export default function App() {
         kind: 'host',
         label: tg(saved ? 'd13.connectSaved' : 'd13.connect', { target: quickTargetLabel(qt) }),
         detail: [qt.identity ? `-i ${qt.identity}` : '', qt.jump?.length ? `-J ${qt.jump.map(quickTargetLabel).join(',')}` : '', saved ? saved.label || '' : tg('d13.notSaved')].filter(Boolean).join(' · '),
-        badge: 'host',
         value: `qc:${q}`,
         indices: []
       }
