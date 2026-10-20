@@ -22,6 +22,8 @@ import Icon, { Twist } from './Icon'
 
 type Props = {
   sessionId: string
+  /** D24b: stable per-tab key (survives reconnect, which changes sessionId) */
+  draftKey?: string
   /** shown in "Run on {host}?" (A2) */
   hostLabel?: string
   hostKey?: string
@@ -42,8 +44,19 @@ type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; resu
 const CMD_BAR_KEY = 'aiss.cmdBarOpen'
 /** D24: drafts survive tab switches (one bar instance is shared by all tabs) */
 const drafts = new Map<string, string>()
+const aiModes = new Map<string, boolean>()
+/** tab key first; a fill sent to a background session is stored under its sessionId and moved on load */
+function loadDraft(key: string, sessionId: string): string {
+  const own = getDraft(drafts, key)
+  if (key === sessionId) return own
+  const pending = getDraft(drafts, sessionId)
+  if (!pending) return own
+  putDraft(drafts, sessionId, '')
+  putDraft(drafts, key, pending)
+  return pending
+}
 
-export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', onOpenAiSettings, beforeSend, sendGuard }: Props) {
+export default function SessionCommandBar({ sessionId, draftKey, hostLabel, hostKey = '', onOpenAiSettings, beforeSend, sendGuard }: Props) {
   const { t, locale } = useI18n()
   const [open, setOpen] = useState(() => {
     try {
@@ -52,17 +65,23 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       return false
     }
   })
-  const [draft, setDraftState] = useState(() => getDraft(drafts, sessionId))
-  const draftSidRef = useRef(sessionId)
-  draftSidRef.current = sessionId
+  const barKey = draftKey || sessionId
+  const [draft, setDraftState] = useState(() => loadDraft(barKey, sessionId))
+  const draftSidRef = useRef(barKey)
+  draftSidRef.current = barKey
   const setDraft = useCallback((v: string) => {
     setDraftState(v)
     putDraft(drafts, draftSidRef.current, v)
   }, [])
   useEffect(() => {
-    setDraftState(getDraft(drafts, sessionId))
-  }, [sessionId])
-  const [aiMode, setAiMode] = useState(false)
+    setDraftState(loadDraft(barKey, sessionId))
+    setAiMode(aiModes.get(barKey) ?? false)
+  }, [barKey, sessionId])
+  const [aiMode, setAiMode] = useState(() => aiModes.get(draftKey || sessionId) ?? false)
+  useEffect(() => {
+    if (aiMode) aiModes.set(draftSidRef.current, true)
+    else aiModes.delete(draftSidRef.current)
+  }, [aiMode])
   const [aiCard, setAiCard] = useState<AiCard | null>(null)
   const aiReqRef = useRef('')
   const inputRef = useRef<HTMLInputElement>(null)

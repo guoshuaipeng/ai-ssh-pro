@@ -8346,6 +8346,7 @@ export default function App() {
           {activeIsSession && activeTab?.status === 'connected' && activeTab.sessionId ? (
             <SessionCommandBar
               sessionId={activeTab.sessionId}
+              draftKey={activeTab.tabId}
               hostLabel={activeTab.connectOpts.label?.trim() || activeTab.title}
               hostKey={sessionHostKey(activeTab)}
               onOpenAiSettings={() => openUnifiedSettings('ai')}
