@@ -119,12 +119,12 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
                 <button
                   type="button"
                   className="recent-connections-main"
-                  title={`${row.username}@${row.host}:${row.port || 22}`}
+                  title={`${row.username}@${row.host}:${row.port || 22}${row.jump?.length ? ' -J ' + row.jump.map((h) => (h.username ? h.username + '@' : '') + h.host + (h.port !== 22 ? ':' + h.port : '')).join(',') : ''}${row.quick && !saved.has(ident) ? '\n' + t('d13c.tempTip') : ''}`}
                   onClick={() => onQuickConnect(row)}
                 >
                   <span className="recent-connections-name">{title}</span>
                   <span className="recent-connections-meta">
-                    {saved.has(ident) ? <span className="recent-connections-badge">{t('recent.saved')}</span> : null}
+                    {saved.has(ident) ? <span className="recent-connections-badge">{t('recent.saved')}</span> : row.quick ? <span className="recent-connections-badge is-quick" data-testid="recent-quick-badge">{t('d13c.temp')}</span> : null}
                     {whenText}
                   </span>
                 </button>

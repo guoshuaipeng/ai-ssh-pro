@@ -219,6 +219,7 @@ import { BLOCKS_HINT_KEY, shouldHintBlocks } from '@shared/blocks-hint'
 import { isDemoSessionId } from '@shared/demo-host'
 import { COMMAND_SUBMITTED_EVENT } from './lib/ai-events'
 import { matchProfile, parseQuickTarget, quickTargetLabel, type QuickTarget } from '@shared/quick-connect'
+import { recentQuickTarget, sidebarQuick } from '@shared/recent-quick'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import {
   delayForAttempt,
@@ -4128,6 +4129,7 @@ export default function App() {
     [applyProfileToForm, openSession]
   )
 
+  const openQuickTargetRef = useRef<(t: QuickTarget) => void>(() => undefined)
   const quickConnectRecent = useCallback(
     (row: RecentConnection) => {
       const match = profiles.find(
@@ -4139,6 +4141,12 @@ export default function App() {
       if (match) {
         showToast(tg('recent.connecting', { host: match.label?.trim() || match.host }))
         connectProfile(match)
+        return
+      }
+      // D13c: quick rows reconnect with the same user / port / -i / -J
+      const qt = recentQuickTarget(row)
+      if (qt) {
+        openQuickTargetRef.current(qt)
         return
       }
       setEditingSavedId(null)
@@ -4196,7 +4204,8 @@ export default function App() {
           port: t.port,
           username: t.username,
           ...(t.identity ? { privateKeyPath: t.identity, authMode: 'key' as const } : {}),
-          ...(jumpChain ? { jumpChain } : {})
+          ...(jumpChain ? { jumpChain } : {}),
+          quick: true
         })
         showToast(tg('d13b.connecting', { target: quickTargetLabel(t) }), { action: { label: tg('d13b.save'), run: prefill } })
         return
@@ -4206,6 +4215,15 @@ export default function App() {
     },
     [connectProfile, openConnectionEditor, openSession, profiles, resetConnectionForm]
   )
+  openQuickTargetRef.current = openQuickTarget
+  const sidebarQuickHit = useMemo(() => sidebarQuick(sessionSearch, profiles), [sessionSearch, profiles])
+  const runSidebarQuick = useCallback((): boolean => {
+    if (!sidebarQuickHit) return false
+    if (sidebarQuickHit.saved) void connectProfile(sidebarQuickHit.saved)
+    else openQuickTarget(sidebarQuickHit.target)
+    setSessionSearch('')
+    return true
+  }, [sidebarQuickHit, connectProfile, openQuickTarget])
 
   /** "Connect": focus an open tab for this host, otherwise connect (H1). */
   const openOrFocusProfile = useCallback(
@@ -7492,7 +7510,17 @@ export default function App() {
             <aside className="sidebar" style={{ width: layout.sidebarWidth, minWidth: layout.sidebarWidth }}>
               <div className="sidebar-header">
                 <h3>{tr('sidebar.saved')}</h3>
-                <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} />
+                <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} onEnter={runSidebarQuick} />
+                {sidebarQuickHit ? (
+                  <button type="button" className="sidebar-quick" data-testid="sidebar-quick" onClick={runSidebarQuick}>
+                    <span className="sidebar-quick-label">
+                      {sidebarQuickHit.saved
+                        ? tg('d13c.openSaved', { name: sidebarQuickHit.saved.label?.trim() || sidebarQuickHit.saved.host })
+                        : tg('d13c.connect', { target: quickTargetLabel(sidebarQuickHit.target) })}
+                    </span>
+                    <kbd>{tg('d13c.enter')}</kbd>
+                  </button>
+                ) : null}
               </div>
               <div className="sidebar-scroll" tabIndex={0} onKeyDown={onSidebarKeyDown}>
                 <RecentConnections
