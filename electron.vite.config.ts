@@ -2,6 +2,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { stripWoffFallback } from './src/shared/fontCss'
 
 /** 配置文件所在目录（仓库根） */
 const projectRoot = dirname(fileURLToPath(import.meta.url))
@@ -37,6 +38,17 @@ export default defineConfig({
         '@shared': resolve(projectRoot, 'src/shared')
       }
     },
-    plugins: [react()]
+    plugins: [
+      react(),
+      {
+        // 只保留 woff2（路线图 1.5）：@fontsource 的 woff 回退在 Electron 中永远用不到
+        name: 'fontsource-woff2-only',
+        enforce: 'pre' as const,
+        transform(code: string, id: string) {
+          if (!/[\\/]@fontsource[\\/].+\.css$/.test(id)) return null
+          return { code: stripWoffFallback(code), map: null }
+        }
+      }
+    ]
   }
 })
