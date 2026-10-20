@@ -1,14 +1,30 @@
 import { BLOCK_DONE_EVENT, type BlockDoneDetail } from './ai-script-run'
 import { requestAskWithContext } from './ai-prefill'
 import { tg } from './i18n'
-import { failedContext, rememberFailed, type FailedOutputStore } from '@shared/failed-output'
+import { captureChunk, captureExit, captureStart, failedContext, rememberFailed, type Capture, type FailedOutputStore } from '@shared/failed-output'
+import { COMMAND_SUBMITTED_EVENT } from './ai-events'
+import { SHELL_EXIT_EVENT } from './shell-integration'
 
 const store: FailedOutputStore = new Map()
+const caps = new Map<string, Capture>()
 
 if (typeof window !== 'undefined') {
   window.addEventListener(BLOCK_DONE_EVENT, (e) => {
     const d = (e as CustomEvent<BlockDoneDetail>).detail
     if (d?.sessionId && d.command) rememberFailed(store, d.sessionId, d.command, d.code, d.context || '')
+  })
+  // D22c: memory-only capture that works with blocks off (needs Shell Integration for the exit code)
+  window.addEventListener(COMMAND_SUBMITTED_EVENT, (e) => {
+    const d = (e as CustomEvent<{ sessionId: string; command: string }>).detail
+    if (d?.sessionId) captureStart(caps, d.sessionId, d.command || '')
+  })
+  window.addEventListener('aiss-term-chunk', (e) => {
+    const d = (e as CustomEvent<{ sessionId: string; text: string }>).detail
+    if (d?.sessionId && typeof d.text === 'string') captureChunk(caps, d.sessionId, d.text)
+  })
+  window.addEventListener(SHELL_EXIT_EVENT, (e) => {
+    const d = (e as CustomEvent<{ sessionId: string; code: number }>).detail
+    if (d?.sessionId && typeof d.code === 'number') captureExit(caps, store, d.sessionId, d.code)
   })
 }
 
