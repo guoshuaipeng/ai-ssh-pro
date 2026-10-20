@@ -36,6 +36,7 @@ import { noticeKind } from '@shared/product-error'
 import ErrorNotice from './ErrorNotice'
 import ConnectTrouble from './ConnectTrouble'
 import { askText, confirmDialog } from '../lib/dialogs'
+import { typeAheadIndex } from '@shared/select-nav'
 import { parseMode, permBits, toOctal, toRwx } from '@shared/sftp-perm'
 import { showToast } from '../lib/toast'
 import { PENDING_UPLOAD_EVENT, takePendingUpload } from '../lib/pending-upload'
@@ -237,6 +238,7 @@ export default function SftpPanel({
   const readOnly = Boolean(sessionId && isDemoSessionId(sessionId))
   const [shotMock, setShotMock] = useState(false)
   const shotMockRef = useRef(false)
+  const typeAheadRef = useRef({ text: '', at: 0 })
   shotMockRef.current = shotMock
   const [snapPaths, setSnapPaths] = useState<Set<string>>(new Set())
   const roTitle = readOnly ? tg('ux34.readOnly') : undefined
@@ -1363,6 +1365,30 @@ export default function SftpPanel({
       setSel(e.shiftKey ? { ...selected, [path]: true } : { [path]: true })
       const rows = (e.currentTarget as HTMLElement).querySelectorAll('tbody tr')
       ;(rows[next] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' })
+      return
+    }
+    // D100: Ctrl+A selects every visible row; typing letters jumps to the first matching name
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a' && entries.length) {
+      e.preventDefault()
+      const setSel = side === 'local' ? setLocalSel : setRemoteSel
+      setSel(Object.fromEntries(entries.map((en) => [en.path, true])))
+      showToast(tg('d100.selectedAll', { n: entries.length }))
+      return
+    }
+    if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey && entries.length) {
+      const now = Date.now()
+      const ta = typeAheadRef.current
+      ta.text = now - ta.at > 800 ? e.key : ta.text + e.key
+      ta.at = now
+      const at = entries.findIndex((en) => selected[en.path])
+      const hit = typeAheadIndex(entries.map((en) => ({ label: en.name })), ta.text, at)
+      if (hit >= 0) {
+        e.preventDefault()
+        const setSel = side === 'local' ? setLocalSel : setRemoteSel
+        setSel({ [entries[hit]!.path]: true })
+        const rows = (e.currentTarget as HTMLElement).querySelectorAll('tbody tr')
+        ;(rows[hit] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' })
+      }
       return
     }
     const current = entries.find((en) => selected[en.path]) || entries[0]
