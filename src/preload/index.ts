@@ -202,6 +202,7 @@ const api = {
     trash: (target: string): Promise<{ token: string }> => ipcRenderer.invoke('localFs:trash', target),
     restore: (token: string): Promise<boolean> => ipcRenderer.invoke('localFs:restore', token),
     reveal: (target: string): Promise<boolean> => ipcRenderer.invoke('localFs:reveal', target),
+    open: (target: string): Promise<string> => ipcRenderer.invoke('localFs:open', target),
     hash: (target: string): Promise<string> => ipcRenderer.invoke('localFs:hash', target),
     readText: (target: string, maxBytes?: number): Promise<import('../shared/ipc').SftpReadTextResult> =>
       ipcRenderer.invoke('localFs:readText', target, maxBytes),

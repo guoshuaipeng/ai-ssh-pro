@@ -46,6 +46,7 @@ import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
 import { openDecision } from '@shared/sftp-open'
 import { parentPath } from '@shared/term-path'
+import { isRunnableName } from '@shared/local-open'
 import { LOCAL_RECENT_KEY, noteRecentDir, recentDirs } from '@shared/sftp-recent-dirs'
 import { SFTP_GOTO_EVENT, takeSftpGoto } from '../lib/sftp-goto'
 import { AI_FILE_MAX_BYTES, buildFileContext, canAttachFile } from '@shared/ai-file-context'
@@ -1257,6 +1258,19 @@ export default function SftpPanel({
     })
   }
 
+  /** D58: local file → default app after a confirm; executables/scripts only get "show in folder" */
+  const openLocalEntry = async (e: SftpListEntry) => {
+    const reveal = () => void window.aiss.localFs.reveal(e.path)
+    if (isRunnableName(e.name) || !window.aiss.localFs.open) {
+      showToast(tg('d58.runnable', { name: e.name }), { ms: 8000, actions: [{ label: tg('d1.reveal'), run: reveal }] })
+      return
+    }
+    const ok = await confirmDialog({ title: tg('d58.title', { name: e.name }), body: e.path, confirmText: tg('d58.open') })
+    if (!ok) return
+    const r = await window.aiss.localFs.open(e.path).catch((err: unknown) => String((err as Error)?.message ?? err))
+    if (r !== 'ok') showToast(tg('d58.fail', { reason: r }), { kind: 'error', actions: [{ label: tg('d1.reveal'), run: reveal }] })
+  }
+
   const onPaneKey = (side: PaneId, entries: SftpListEntry[], selected: Record<string, boolean>) => (e: React.KeyboardEvent) => {
     const tag = (e.target as HTMLElement).tagName
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -1305,6 +1319,7 @@ export default function SftpPanel({
         if (side === 'local') void refreshLocal(current.path)
         else void refreshRemote(current.path)
       } else if (side === 'remote') openRemoteEntry(current)
+      else void openLocalEntry(current)
       return
     }
     if (e.key === 'F2') {
@@ -1671,6 +1686,7 @@ export default function SftpPanel({
                         if (isLocal) void refreshLocal(e.path)
                         else void refreshRemote(e.path)
                       } else if (!isLocal) openRemoteEntry(e)
+                      else void openLocalEntry(e)
                     }}
                     onContextMenu={(ev) => {
                       if (e.isDirectory) {

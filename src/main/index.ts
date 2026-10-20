@@ -102,6 +102,7 @@ import type {
   McpGuideInfo
 } from '../shared/ipc'
 import type { HostInventoryUpsertInput, HostService } from '../shared/inventory'
+import { isRunnableName } from '../shared/local-open'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -837,6 +838,13 @@ function registerIpc(): void {
   ipcMain.handle('localFs:reveal', (_e, target: string) => {
     localFs.revealLocal(String(target ?? ''))
     return true
+  })
+  // D58: open a local file with the default app (never executables / scripts; the renderer confirms first)
+  ipcMain.handle('localFs:open', async (_e, target: string) => {
+    const file = String(target ?? '')
+    if (!file || isRunnableName(file)) return 'blocked'
+    const err = await shell.openPath(file)
+    return err ? err.slice(0, 200) : 'ok'
   })
   ipcMain.handle('localFs:hash', (_e, target: string) => localFs.hashLocal(String(target ?? '')))
   ipcMain.handle('localFs:readText', (_e, target: string, maxBytes?: number) =>
