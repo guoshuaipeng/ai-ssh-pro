@@ -13,6 +13,7 @@ import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import { chatToMarkdown } from '@shared/ai-chat-markdown'
 import { addPrompt, loadPrompts, savePrompts, AI_PROMPTS_MAX } from '@shared/ai-prompts'
+import { buildPasteBlock, composeWithBlocks, shouldCollapsePaste, type PasteBlock } from '@shared/paste-block'
 import { lastAssistantText } from '@shared/ai-last-reply'
 import { currentTerminalSelection } from '../lib/terminal-selection'
 import { fillCommandBar, lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
@@ -517,6 +518,9 @@ export default function AIPanel({
   const [input, setInput] = useState('')
   // D95: user starter prompts
   const [myPrompts, setMyPrompts] = useState<string[]>(() => loadPrompts())
+  // D94: long pastes collapse into blocks sent after the typed question
+  const [pasteBlocks, setPasteBlocks] = useState<PasteBlock[]>([])
+  const [openBlock, setOpenBlock] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   /** 2.2: auto-run progress shown in the composer ("step n / limit"). */
   const [runProgress, setRunProgress] = useState<{ step: number; max: number } | null>(null)
@@ -1079,7 +1083,7 @@ export default function AIPanel({
   )
 
   const send = useCallback(async () => {
-    const text = input.trim()
+    const text = composeWithBlocks(input, pasteBlocks)
     if (!text || busy) return
     if (convOffline) {
       showToast(tg('ai.reconnectToContinue'), { kind: 'error' })
@@ -1093,8 +1097,10 @@ export default function AIPanel({
     }
 
     setInput('')
+    setPasteBlocks([])
+    setOpenBlock(null)
     await submitToAi(text, terminalExcerpt)
-  }, [busy, convOffline, fetchTerminalSnapshot, includeTerminal, activeSessionId, input, submitToAi])
+  }, [busy, convOffline, fetchTerminalSnapshot, includeTerminal, activeSessionId, input, pasteBlocks, submitToAi])
 
   const sendConsoleToAi = useCallback(async () => {
     if (!activeSessionId || busy || snapshotBusy) return
@@ -2341,12 +2347,51 @@ export default function AIPanel({
 
       <div className="ai-input-row">
         <div className="ai-composer" data-testid="ai-composer">
+          {pasteBlocks.length ? (
+            <div className="ai-paste-blocks">
+              {pasteBlocks.map((b) => (
+                <div key={b.id} className="ai-paste-block" data-testid="ai-paste-block">
+                  <div className="ai-paste-block-head">
+                    <span className="ai-paste-block-title">
+                      {tg('d94.title', { n: b.lines })}
+                      {b.redacted ? <span className="ai-paste-block-red">{tg('d94.redacted')}</span> : null}
+                    </span>
+                    <button type="button" data-testid="ai-paste-toggle" onClick={() => setOpenBlock((x) => (x === b.id ? null : b.id))}>
+                      {openBlock === b.id ? tg('d94.collapse') : tg('d94.expand')}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="ai-paste-remove"
+                      aria-label={tg('d94.remove')}
+                      title={tg('d94.remove')}
+                      onClick={() => {
+                        void (async () => {
+                          const ok = await confirmDialog({ title: tg('d94.removeTitle'), body: tg('d94.title', { n: b.lines }), confirmText: tg('d94.remove'), danger: true })
+                          if (ok) setPasteBlocks((prev) => prev.filter((x) => x.id !== b.id))
+                        })()
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {openBlock === b.id ? <pre className="ai-paste-block-body">{b.fenced}</pre> : <pre className="ai-paste-block-preview">{b.preview.join('\n')}</pre>}
+                </div>
+              ))}
+            </div>
+          ) : null}
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => {
               recallRef.current = -1
               setInput(e.target.value)
+            }}
+            onPaste={(e) => {
+              // D94: long logs become a collapsed, redacted block instead of flooding the input
+              const pasted = e.clipboardData.getData('text/plain')
+              if (!pasted || !shouldCollapsePaste(pasted)) return
+              e.preventDefault()
+              setPasteBlocks((prev) => [...prev, buildPasteBlock(pasted, `pb-${Date.now()}-${prev.length}`)])
             }}
             placeholder={tg('ai.placeholder')}
             title={tg('ai.inputTip')}
@@ -2621,7 +2666,7 @@ export default function AIPanel({
                 variant="primary"
                 className="ai-composer-send"
                 data-testid="ai-send"
-                disabled={!input.trim() || convOffline}
+                disabled={(!input.trim() && !pasteBlocks.length) || convOffline}
                 title={tg('ai.send')}
                 aria-label={tg('ai.send')}
                 onClick={() => void send()}

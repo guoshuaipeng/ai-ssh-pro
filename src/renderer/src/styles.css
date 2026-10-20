@@ -7159,6 +7159,15 @@ button.primary.danger:focus-visible {
 .ai-my-prompt-del { all: unset; cursor: pointer; color: var(--color-text-secondary); padding: 0 var(--space-1); }
 .ai-my-prompt-del:hover { color: var(--color-danger); }
 .ai-my-prompt-add { border-style: dashed; }
+.ai-paste-blocks { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1) var(--space-2) 0; }
+.ai-paste-block { border: 1px solid var(--color-border-default); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font-size: var(--fs-xs); }
+.ai-paste-block-head { display: flex; align-items: center; gap: var(--space-2); }
+.ai-paste-block-title { flex: 1; color: var(--color-text-secondary); }
+.ai-paste-block-red { margin-left: var(--space-1); color: var(--color-accent); }
+.ai-paste-block-head button { all: unset; cursor: pointer; color: var(--color-text-secondary); }
+.ai-paste-block-head button:hover { color: var(--color-accent); }
+.ai-paste-block-preview, .ai-paste-block-body { margin: var(--space-1) 0 0; white-space: pre-wrap; word-break: break-all; font-family: var(--font-mono); color: var(--color-text-secondary); }
+.ai-paste-block-body { max-height: 200px; overflow: auto; }
 .recent-fail-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--space-1); border-radius: 50%; background: var(--color-danger); vertical-align: middle; }
 .connect-trouble-diag { margin-left: auto; background: none; border: none; color: var(--color-text-secondary); font-size: var(--fs-xs); text-decoration: underline; cursor: pointer; }
 .connect-trouble-diag:hover { color: var(--color-accent); }
