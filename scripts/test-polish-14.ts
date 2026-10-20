@@ -8,6 +8,7 @@ import { TERMINAL_PREFS_DEFAULTS } from '../src/shared/ipc'
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
   version: string
   dependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
   build?: { win?: Record<string, unknown> }
   scripts: { test: string; 'test:parts'?: string }
 }
@@ -16,9 +17,15 @@ assert.equal(pkg.version, '0.6.63')
 assert.equal(pkg.version.split('.').length, 3)
 assert.equal(Object.hasOwn(pkg.build?.win ?? {}, 'fileVersion'), false)
 assert.equal(rawPkg.includes('fileVersion'), false)
-assert.ok(pkg.dependencies?.['@fontsource/inter'])
-assert.ok(pkg.dependencies?.['@fontsource/jetbrains-mono'])
-assert.ok(pkg.dependencies?.['@fontsource/noto-sans-sc'])
+// 1.5: fonts are bundled by Vite; the packages are build-time only
+assert.ok(pkg.devDependencies?.['@fontsource/inter'])
+assert.equal(pkg.dependencies?.['@fontsource/inter'], undefined)
+// 1.5: fonts are bundled by Vite; the packages are build-time only
+assert.ok(pkg.devDependencies?.['@fontsource/jetbrains-mono'])
+assert.equal(pkg.dependencies?.['@fontsource/jetbrains-mono'], undefined)
+// 1.5: fonts are bundled by Vite; the packages are build-time only
+assert.ok(pkg.devDependencies?.['@fontsource/noto-sans-sc'])
+assert.equal(pkg.dependencies?.['@fontsource/noto-sans-sc'], undefined)
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-14.ts'), true)
 
 assert.equal(tipSuggest, '0.4.14-polish13')
