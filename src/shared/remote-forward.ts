@@ -39,7 +39,7 @@ export function parseRemoteSpec(raw: unknown): { ok: true; spec: RemoteForwardSp
  * -R opens a listening port on the server, so it counts as a write.
  * Returns the i18n key of the reason, or null when allowed. Local -L stays allowed (read-only access).
  */
-export function remoteForwardBlockReason(direction: ForwardDirection, level: ProtectionLevel, elevated: boolean): string | null {
+export function remoteForwardBlockReason(direction: ForwardDirection, level: ProtectionLevel, elevated: boolean): 'pfR.blockedReadonly' | null {
   if (direction !== 'R') return null
   if (level === 'readonly' && !elevated) return 'pfR.blockedReadonly'
   return null

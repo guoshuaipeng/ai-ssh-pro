@@ -7,6 +7,8 @@ import type { BatchSessionOption } from './BatchExecuteModal'
 import EmptyState from './EmptyState'
 import ErrorNotice from './ErrorNotice'
 import Button from './ui/Button'
+import { appendAudit } from '@shared/audit-log'
+import { exposesBeyondLoopback, remoteForwardBlockReason, remoteForwardLabel, type ForwardDirection } from '@shared/remote-forward'
 
 type Props = {
   open: boolean
@@ -33,11 +35,17 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
   const [localPort, setLocalPort] = useState('')
   const [remoteHost, setRemoteHost] = useState('127.0.0.1')
   const [remotePort, setRemotePort] = useState('')
+  const [dir, setDir] = useState<ForwardDirection>('L')
+  const [localHost, setLocalHost] = useState('127.0.0.1')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
 
   const titleOf = useMemo(() => new Map(sessions.map((s) => [s.sessionId, s.title])), [sessions])
+  const cur = sessions.find((s) => s.sessionId === sessionId)
+  // B3: -R opens a port on the server, so read-only blocks it. The option stays selectable and says why.
+  const blockKey = remoteForwardBlockReason(dir, cur?.readonly ? 'readonly' : 'normal', false)
+  const exposeWarn = dir === 'R' && !blockKey && exposesBeyondLoopback(remoteHost)
 
   const reload = useCallback(async () => {
     try {
@@ -66,14 +74,39 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
       setError(t('pf.needSession'))
       return
     }
+    if (blockKey) {
+      setError(t(blockKey))
+      return
+    }
     setBusy(true)
     try {
-      await window.aiss.workspace.forwards.add({
-        sessionId,
-        localPort: localPort.trim() === '' ? 0 : Number(localPort),
-        remoteHost: remoteHost.trim() || '127.0.0.1',
-        remotePort: Number(remotePort)
-      })
+      const fwd = await window.aiss.workspace.forwards.add(
+        dir === 'R'
+          ? {
+              sessionId,
+              direction: 'R',
+              localHost: localHost.trim() || '127.0.0.1',
+              localPort: Number(localPort),
+              remoteHost: remoteHost.trim() || '127.0.0.1',
+              remotePort: remotePort.trim() === '' ? 0 : Number(remotePort)
+            }
+          : {
+              sessionId,
+              localPort: localPort.trim() === '' ? 0 : Number(localPort),
+              remoteHost: remoteHost.trim() || '127.0.0.1',
+              remotePort: Number(remotePort)
+            }
+      )
+      if (fwd.direction === 'R') {
+        appendAudit({
+          type: 'forward.remote',
+          host: cur?.host ?? '',
+          profileId: cur?.profileId,
+          source: 'user',
+          outcome: 'allowed',
+          detail: remoteForwardLabel({ bindAddr: fwd.remoteHost, bindPort: fwd.remotePort, localHost: fwd.localHost ?? '127.0.0.1', localPort: fwd.localPort })
+        })
+      }
       setLocalPort('')
       setRemotePort('')
       await reload()
@@ -102,7 +135,25 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
   return (
     <Modal open={open || !!embedded} title={t('pf.title')} onClose={onClose} width={760} embedded={embedded} testId="port-forward-panel">
       <div className="pf-panel">
-        <p className="pf-hint">{t('pf.hint')}</p>
+        <div className="pf-dir" role="radiogroup" aria-label={t('pf.direction')}>
+          {(['L', 'R'] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              role="radio"
+              aria-checked={dir === d}
+              data-testid={`pf-dir-${d}`}
+              className={dir === d ? 'is-on' : undefined}
+              onClick={() => {
+                setDir(d)
+                setError(null)
+              }}
+            >
+              {t(d === 'L' ? 'pf.dirL' : 'pf.dirR')}
+            </button>
+          ))}
+        </div>
+        <p className="pf-hint">{t(dir === 'R' ? 'pfR.hint' : 'pf.hint')}</p>
         {sessions.length === 0 && rows.length > 0 ? <p className="pf-empty">{t('pf.noSessions')}</p> : null}
         <div className="pf-form">
           <label>
@@ -115,22 +166,60 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
               ))}
             </select>
           </label>
-          <label>
-            {t('pf.localPort')}
-            <input value={localPort} placeholder={t('pf.auto')} onChange={(e) => setLocalPort(e.target.value)} inputMode="numeric" />
-          </label>
-          <label>
-            {t('pf.remoteHost')}
-            <input value={remoteHost} onChange={(e) => setRemoteHost(e.target.value)} />
-          </label>
-          <label>
-            {t('pf.remotePort')}
-            <input value={remotePort} onChange={(e) => setRemotePort(e.target.value)} inputMode="numeric" />
-          </label>
-          <Button variant="primary" disabled={busy || !sessions.length} onClick={() => void add()}>
+          {dir === 'R' ? (
+            <>
+              <label>
+                {t('pfR.bindHost')}
+                <input value={remoteHost} onChange={(e) => setRemoteHost(e.target.value)} />
+              </label>
+              <label>
+                {t('pfR.bindPort')}
+                <input value={remotePort} placeholder={t('pf.auto')} onChange={(e) => setRemotePort(e.target.value)} inputMode="numeric" />
+              </label>
+              <label>
+                {t('pfR.localHost')}
+                <input value={localHost} onChange={(e) => setLocalHost(e.target.value)} />
+              </label>
+              <label>
+                {t('pfR.localPort')}
+                <input value={localPort} onChange={(e) => setLocalPort(e.target.value)} inputMode="numeric" />
+              </label>
+            </>
+          ) : (
+            <>
+              <label>
+                {t('pf.localPort')}
+                <input value={localPort} placeholder={t('pf.auto')} onChange={(e) => setLocalPort(e.target.value)} inputMode="numeric" />
+              </label>
+              <label>
+                {t('pf.remoteHost')}
+                <input value={remoteHost} onChange={(e) => setRemoteHost(e.target.value)} />
+              </label>
+              <label>
+                {t('pf.remotePort')}
+                <input value={remotePort} onChange={(e) => setRemotePort(e.target.value)} inputMode="numeric" />
+              </label>
+            </>
+          )}
+          <Button
+            variant="primary"
+            disabled={busy || !sessions.length || Boolean(blockKey)}
+            title={blockKey ? t(blockKey) : undefined}
+            data-testid="pf-add"
+            onClick={() => void add()}
+          >
             {t('pf.add')}
           </Button>
         </div>
+        {blockKey ? (
+          <p className="pf-note is-warn" data-testid="pf-r-blocked">
+            {t(blockKey)}
+          </p>
+        ) : exposeWarn ? (
+          <p className="pf-note is-warn" data-testid="pf-r-expose">
+            {t('pfR.exposeWarn')}
+          </p>
+        ) : null}
         {error ? (
           <ErrorNotice
             testId="pf-error"
@@ -148,7 +237,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
             testId="pf-empty"
             icon="forward"
             title={t('pf4.fwdTitle')}
-            desc={t('pf4.fwdDesc')}
+            desc={t(dir === 'R' ? 'pfR.emptyDesc' : 'pf4.fwdDesc')}
             primary={{
               label: sessions.length ? t('pf.add') : t('pf4.pickHost'),
               onClick: () => {
@@ -162,6 +251,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
             <thead>
               <tr>
                 <th>{t('pf.session')}</th>
+                <th>{t('pf.direction')}</th>
                 <th>{t('pf.local')}</th>
                 <th>{t('pf.remote')}</th>
                 <th>{t('pf.conns')}</th>
@@ -172,17 +262,24 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
             </thead>
             <tbody>
               {rows.map((r) => {
-                const addr = `127.0.0.1:${r.localPort}`
+                const isR = r.direction === 'R'
+                const localAddr = isR ? `${r.localHost ?? '127.0.0.1'}:${r.localPort}` : `127.0.0.1:${r.localPort}`
+                const remoteAddr = `${r.remoteHost}:${r.remotePort}`
+                // copy the end that listens: local for -L, server side for -R
+                const addr = isR ? remoteAddr : localAddr
                 return (
                   <tr key={r.id} data-forward-id={r.id}>
                     <td>
                       {titleOf.get(r.sessionId) ?? r.sessionId.slice(0, 8)}
                       {r.source === 'profile' ? <span className="pf-badge">{t('pf.fromProfile')}</span> : null}
                     </td>
-                    <td className="pf-addr">{addr}</td>
-                    <td className="pf-addr">
-                      {r.remoteHost}:{r.remotePort}
+                    <td>
+                      <span className="pf-badge" data-testid={`pf-row-dir-${isR ? 'R' : 'L'}`}>
+                        {isR ? '-R' : '-L'}
+                      </span>
                     </td>
+                    <td className="pf-addr">{localAddr}</td>
+                    <td className="pf-addr">{remoteAddr}</td>
                     <td>
                       {r.connections} / {r.totalConnections}
                     </td>

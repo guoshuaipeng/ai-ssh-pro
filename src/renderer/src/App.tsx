@@ -1907,6 +1907,21 @@ export default function App() {
           jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop,
           resumeFromHop
         })
+        // B3: bring back forwards added from the panel. -R is skipped on read-only hosts.
+        if (tab.sessionId && window.aiss.workspace.forwards.restore) {
+          const prof = tab.profileId ? profilesRef.current.find((p) => p.id === tab.profileId) : undefined
+          const ro =
+            stricterLevel(effectiveLevel(prof), Boolean(tab.profileId && sessionRoRef.current[tab.profileId])) === 'readonly' &&
+            !isElevated(prof?.id, loadElevate())
+          void window.aiss.workspace.forwards
+            .restore({ fromSessionId: tab.sessionId, toSessionId: sessionId, allowRemote: !ro })
+            .then((r) => {
+              const skippedRo = r.skipped.filter((s) => s.reason === 'readonly').length
+              if (skippedRo) showToast(tg('pfR.skippedReadonly', { n: skippedRo }))
+              else if (r.restored.length && !quiet) showToast(tg('pfR.restored', { n: r.restored.length }))
+            })
+            .catch(() => undefined)
+        }
         setTabs((prev) =>
           prev.map((t) =>
             t.tabId === tabId

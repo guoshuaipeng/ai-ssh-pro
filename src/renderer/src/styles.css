@@ -4687,6 +4687,40 @@ button.danger {
   display: flex;
   gap: 4px;
 }
+/* B3: direction switch (themed, not a native control) */
+.pf-dir {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  align-self: flex-start;
+}
+.pf-dir button {
+  height: 22px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.pf-dir button.is-on {
+  background: var(--color-accent-muted);
+  color: var(--color-text-primary);
+}
+.pf-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+}
+.pf-note.is-warn {
+  color: var(--color-warn);
+  background: var(--color-warn-muted);
+}
 
 .split-toolbar {
   display: flex;
