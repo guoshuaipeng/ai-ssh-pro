@@ -1,3 +1,4 @@
+import { aiAuthHeaders, hasUsableKey } from '../shared/ai-presets'
 import { mt } from './main-i18n'
 import type { AiAssistRequest, AiAssistResult, AiSettings } from '../shared/ipc'
 import { normalizeSelectionExplain } from '../shared/selection-explain'
@@ -81,7 +82,7 @@ export async function runAiAssist(req: AiAssistRequest, settings: AiSettings): P
   const providers = Array.isArray(settings?.providers) ? settings.providers : []
   const provider = providers.find((p) => p.id === settings.activeProviderId) ?? providers[0]
   const apiKey = provider?.apiKey?.trim()
-  if (!provider || !apiKey || !provider.baseURL?.trim() || !settings?.model?.trim()) return { ok: false, code: 'not-configured' }
+  if (!provider || !hasUsableKey(provider.baseURL ?? '', apiKey) || !provider.baseURL?.trim() || !settings?.model?.trim()) return { ok: false, code: 'not-configured' }
   const text = String(req.text ?? '').trim()
   if (!text) return { ok: false, code: 'error', message: 'empty input' }
   const ctrl = new AbortController()
@@ -107,7 +108,7 @@ export async function runAiAssist(req: AiAssistRequest, settings: AiSettings): P
     const post = (extra: Record<string, unknown>) =>
       fetch(url, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        headers: { ...aiAuthHeaders(apiKey), 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, ...extra }),
         signal: ctrl.signal
       })

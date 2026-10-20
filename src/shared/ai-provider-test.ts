@@ -1,6 +1,7 @@
 /** Pure helpers for AI provider "Test connection" (no network). */
 
 import { aiHttpErrorMessages } from './ai-http-error'
+import { hasUsableKey } from './ai-presets'
 
 export type AiProviderTestInput = {
   baseURL: string
@@ -32,7 +33,7 @@ export function validateAiProviderTestInput(
   input: AiProviderTestInput
 ): { ok: true } | { ok: false; reason: 'baseURL' | 'apiKey' | 'model' } {
   if (!normalizeAiBaseUrl(input.baseURL)) return { ok: false, reason: 'baseURL' }
-  if (!String(input.apiKey ?? '').trim()) return { ok: false, reason: 'apiKey' }
+  if (!hasUsableKey(input.baseURL, input.apiKey)) return { ok: false, reason: 'apiKey' }
   if (!String(input.model ?? '').trim()) return { ok: false, reason: 'model' }
   return { ok: true }
 }

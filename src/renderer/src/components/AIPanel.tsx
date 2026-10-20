@@ -1,3 +1,4 @@
+import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
@@ -621,7 +622,7 @@ export default function AIPanel({
         setActiveProviderId(s.activeProviderId)
         setActiveModel(s.model)
         setSafetySettings(s)
-        const ready = Boolean(p?.apiKey?.trim()) || screenshotForceKeyRef.current
+        const ready = (p ? hasUsableKey(p.baseURL, p.apiKey) : false) || screenshotForceKeyRef.current
         setHasApiKey(ready)
         if (sawSettings.current && !hadKey.current && ready && !screenshotForceKeyRef.current) showToast(tg('ux37.ready'))
         hadKey.current = ready

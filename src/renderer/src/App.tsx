@@ -1,3 +1,4 @@
+import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   assignConversationOrdinals,
@@ -3325,7 +3326,7 @@ export default function App() {
     void window.aiss.ai.getSettings().then((s) => {
       const providers = Array.isArray(s?.providers) ? s.providers : []
       const p = providers.find((x) => x.id === s.activeProviderId) ?? providers[0]
-      setAiConfigured(Boolean(p?.apiKey && p?.baseURL && s?.model))
+      setAiConfigured(Boolean(p?.baseURL && hasUsableKey(p.baseURL, p.apiKey) && s?.model))
     }).catch(() => setAiConfigured(false))
   }, [layout.showAi, inspectOpen])
 

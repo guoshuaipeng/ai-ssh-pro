@@ -1,3 +1,4 @@
+import { aiAuthHeaders, hasUsableKey } from '../shared/ai-presets'
 import { mt } from './main-i18n'
 import { aiHttpErrorMessages } from '../shared/ai-http-error'
 import type { WebContents } from 'electron'
@@ -112,7 +113,7 @@ export async function streamOpenAICompatibleChat(
   const base = provider.baseURL.replace(/\/$/, '')
   const url = `${base}/chat/completions`
   const apiKey = provider.apiKey.trim()
-  if (!apiKey) {
+  if (!hasUsableKey(provider.baseURL, apiKey)) {
     logAi('ai:chat legacy error', 'missing apiKey')
     send(wc, { type: 'error', message: mt('请先在设置中填写 API Key（主进程存储，不进入渲染进程日志）。', "Please enter an API key in settings first (stored in the main process, never logged in the renderer).") })
     return
@@ -148,7 +149,7 @@ export async function streamOpenAICompatibleChat(
     res = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...aiAuthHeaders(apiKey),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({

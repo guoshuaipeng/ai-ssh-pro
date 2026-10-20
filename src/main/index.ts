@@ -1,3 +1,4 @@
+import { aiAuthHeaders } from '../shared/ai-presets'
 import { mt, setMainLocaleGetter } from './main-i18n'
 import type { AiArchivedConversation } from '../shared/ai-conversation'
 import { setSessionProtection } from './ai-protection-registry'
@@ -1155,7 +1156,7 @@ function registerIpc(): void {
       const res = await fetch(url, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${input.apiKey.trim()}`,
+          ...aiAuthHeaders(input.apiKey),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(aiProviderTestBody(input.model)),

@@ -1,6 +1,7 @@
 /**
  * A1 / A2 glue between the terminal, the command bar and the AI panel (window CustomEvents, no global store).
  */
+import { hasUsableKey } from '@shared/ai-presets'
 import { planSelectionExplain } from '../../../shared/selection-explain'
 
 export const AI_EXPLAIN_EVENT = 'aiss-ai-explain'
@@ -65,7 +66,7 @@ export async function aiHasKey(): Promise<boolean> {
     const s = await window.aiss.ai.getSettings()
     const providers = Array.isArray(s?.providers) ? s.providers : []
     const p = providers.find((x) => x.id === s.activeProviderId) ?? providers[0]
-    return Boolean(p?.apiKey?.trim())
+    return p ? hasUsableKey(p.baseURL, p.apiKey) : false
   } catch {
     return false
   }

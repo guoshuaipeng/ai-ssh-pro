@@ -1,3 +1,4 @@
+import { aiAuthHeaders, hasUsableKey } from '../shared/ai-presets'
 import { mt } from './main-i18n'
 import { aiHttpErrorMessages } from '../shared/ai-http-error'
 import type { WebContents } from 'electron'
@@ -795,7 +796,7 @@ async function callCorePlannerJson(params: {
     if (withResponseFormat) body.response_format = { type: 'json_object' }
     return await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      headers: { ...aiAuthHeaders(apiKey), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal
     })
@@ -844,7 +845,7 @@ export async function runOpenClawCoreAgentChat(
   }
 
   const apiKey = provider.apiKey.trim()
-  if (!apiKey) {
+  if (!hasUsableKey(provider.baseURL, apiKey)) {
     send(wc, {
       type: 'error',
       message: mt('请先填写 API Key（OpenClaw 风格核心会直接使用当前 Provider）。', "Please enter an API key first (the OpenClaw-style core uses the current provider directly).")

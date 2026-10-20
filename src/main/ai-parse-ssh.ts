@@ -1,3 +1,4 @@
+import { aiAuthHeaders, hasUsableKey } from '../shared/ai-presets'
 import { mt } from './main-i18n'
 import { aiHttpErrorMessages } from '../shared/ai-http-error'
 import type { AiParsedSshForm, AiSettings } from '../shared/ipc'
@@ -57,7 +58,7 @@ export async function parseSshFormWithAi(rawText: string, settings: AiSettings):
   }
 
   const apiKey = provider.apiKey.trim()
-  if (!apiKey) {
+  if (!hasUsableKey(provider.baseURL, apiKey)) {
     throw new Error('请先在「AI 设置」中填写 API Key')
   }
   const base = provider.baseURL.replace(/\/$/, '')
@@ -82,7 +83,7 @@ export async function parseSshFormWithAi(rawText: string, settings: AiSettings):
     return await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...aiAuthHeaders(apiKey),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ ...bodyBase, ...extra })
