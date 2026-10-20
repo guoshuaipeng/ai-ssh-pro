@@ -56,7 +56,7 @@ import { SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hook
 import Button from './ui/Button'
 import PanelHeader from './ui/PanelHeader'
 import { SESSION_CWD_EVENT, getSessionCwd } from '../lib/session-cwd-store'
-import { SFTP_FOLLOW_KEY, followTarget, sftpFollowEnabled } from '@shared/sftp-follow'
+import { SFTP_FOLLOW_KEY, followFailure, followTarget, sftpFollowEnabled } from '@shared/sftp-follow'
 
 type Props = {
   /** D8: close confirm and queue belong to this tab only. */
@@ -280,6 +280,7 @@ export default function SftpPanel({
   const [cwdFallback, setCwdFallback] = useState(false)
   const remoteCwdRef = useRef(remoteCwd)
   remoteCwdRef.current = remoteCwd
+  const [followNote, setFollowNote] = useState<{ kind: 'denied' | 'missing'; path: string } | null>(null)
   const [follow, setFollow] = useState(() => sftpFollowEnabled((k) => { try { return localStorage.getItem(k) } catch { return null } }))
   const homeRef = useRef<{ sid: string; home: string | null } | null>(null)
   /** D12: the terminal's tracked cwd as an absolute path (the exec channel's pwd is always $HOME). */
@@ -328,8 +329,18 @@ export default function SftpPanel({
         size: e.size,
         modifyTime: now - 86_400_000,
         mode: e.dir ? 0o755 : 0o644
-      }))
+      }) as SftpListEntry).concat(
+        // D12b visual QA: symlinks + a follow notice
+        sessionStorage.getItem('aiss.screenshot.sftpFollow') === '1'
+          ? [
+              { name: 'www', path: `${remotePath}/www`, isDirectory: true, size: 0, modifyTime: now - 3_600_000, link: 'dir' as const },
+              { name: 'current.log', path: `${remotePath}/current.log`, isDirectory: false, size: 20_480, modifyTime: now - 600_000, link: 'file' as const },
+              { name: 'old-release', path: `${remotePath}/old-release`, isDirectory: false, size: 0, modifyTime: now - 86_400_000 * 30, link: 'broken' as const }
+            ]
+          : []
+      )
     )
+    if (sessionStorage.getItem('aiss.screenshot.sftpFollow') === '1') setFollowNote({ kind: 'denied', path: '/root' })
     setRemoteSel({})
     const localPath = 'C:\\Users\\demo\\Projects\\demo-web'
     setLocalCwd(localPath)
@@ -598,8 +609,25 @@ export default function SftpPanel({
       const mine = ++seq
       void resolveTracked().then((t) => {
         if (mine !== seq || !t || t === remoteCwdRef.current) return
-        setCwdFallback(false)
-        void refreshRemote(t)
+        // D12b: probe first; permission denied / missing (sudo -i, containers, chroot) keeps the current listing
+        void window.aiss.sftp
+          .list(sessionId, t)
+          .then((res) => {
+            if (mine !== seq || shotMockRef.current) return
+            setCwdFallback(false)
+            setFollowNote(null)
+            setRemoteError(null)
+            setRemoteCwd(res.path)
+            setRemoteInput(res.path)
+            setRemoteEntries(res.entries)
+            setRemoteSel({})
+          })
+          .catch((err) => {
+            if (mine !== seq) return
+            const kind = followFailure(err)
+            if (kind) setFollowNote({ kind, path: t })
+            else void refreshRemote(t)
+          })
       })
     }
     window.addEventListener(SESSION_CWD_EVENT, onCwd)
@@ -1389,6 +1417,12 @@ export default function SftpPanel({
         {!isLocal && pendingConnect && !shotMock ? (
           <div className="sftp-opening" data-testid="sftp-connecting">{tg('d8.connecting')}</div>
         ) : null}
+        {!isLocal && followNote ? (
+          <div className="sftp-cwd-fallback sftp-follow-note" data-testid="sftp-follow-note" role="status">
+            <span>{tg(followNote.kind === 'denied' ? 'd12b.denied' : 'd12b.missing', { path: followNote.path, cwd: remoteCwd || '/' })}</span>
+            <button type="button" aria-label={tg('common.close')} onClick={() => setFollowNote(null)}>×</button>
+          </div>
+        ) : null}
         {!isLocal && cwdFallback ? (
           <div className="sftp-cwd-fallback" data-testid="sftp-cwd-fallback" role="status">
             <span>{tg('d7.fallback')}</span>
@@ -1580,8 +1614,11 @@ export default function SftpPanel({
                     <td>
                       <button
                         type="button"
-                        className={`sftp-name-btn${e.isDirectory ? ' is-dir' : ''}`}
+                        className={`sftp-name-btn${e.isDirectory ? ' is-dir' : ''}${e.link ? ' is-link' : ''}${e.link === 'broken' ? ' is-broken' : ''}`}
+                        title={e.link ? tg(e.link === 'broken' ? 'd12b.linkBroken' : 'd12b.link') : undefined}
+                        data-link={e.link}
                         onClick={() => {
+                          if (e.link === 'broken') return
                           if (e.isDirectory) {
                             if (isLocal) void refreshLocal(e.path)
                             else void refreshRemote(e.path)
@@ -1592,6 +1629,7 @@ export default function SftpPanel({
                       >
                         {e.isDirectory ? <Icon name="folder" size={14} /> : <Icon name="file-text" size={14} />}{' '}
                         {e.name}
+                        {e.link ? <span className="sftp-link-mark" aria-hidden="true">↪</span> : null}
                       </button>
                     </td>
                     <td>{e.isDirectory ? '—' : formatBytes(e.size)}</td>

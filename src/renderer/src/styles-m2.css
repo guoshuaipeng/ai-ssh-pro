@@ -226,3 +226,8 @@
 .sidebar-quick kbd { font-size: 10px; color: var(--muted); }
 .recent-connections-badge.is-quick { color: var(--muted); border-color: var(--border); }
 
+
+/* D12b */
+.sftp-link-mark { margin-left: 4px; color: var(--muted); font-size: 11px; }
+.sftp-name-btn.is-broken { color: var(--muted); text-decoration: line-through; }
+
