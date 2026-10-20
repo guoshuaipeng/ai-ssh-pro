@@ -2210,6 +2210,23 @@ export default function AIPanel({
                       >
                         <Icon name="clipboard-list" size={14} />
                       </button>
+                      {/* D97: refill an executed / skipped / any card's command into the bar; never runs it */}
+                      {conversation && activeSessionId ? (
+                        <button
+                          type="button"
+                          className="ai-meta-btn ai-cmd-refill"
+                          data-testid="ai-cmd-refill"
+                          title={tg('d97.tip')}
+                          aria-label={tg('d97.tip')}
+                          onClick={() => {
+                            aiOrigins.mark(activeSessionId, s.command!)
+                            fillCommandBar(activeSessionId, s.command!)
+                            showToast(tg('d15.filled'))
+                          }}
+                        >
+                          {tg('d97.fill')}
+                        </button>
+                      ) : null}
                     </div>
                     <code className="ai-reply-cmd-code">{s.command}</code>
                     {commandActions({
