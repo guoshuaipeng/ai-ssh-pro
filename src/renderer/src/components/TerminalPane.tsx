@@ -281,11 +281,15 @@ export default function TerminalPane({
     el.addEventListener('paste', onNativePaste, true)
     // D9: drop local files on the terminal → upload into this session's cwd via its SFTP panel
     const hasFiles = (ev: DragEvent) => Array.from(ev.dataTransfer?.types ?? []).includes('Files')
+    let dropHintTimer = 0
     const onDragOver = (ev: DragEvent) => {
       if (!hasFiles(ev) || mirrorOnlyRef.current || !onOpenSftpRef.current) return
       ev.preventDefault()
       ev.stopPropagation()
       setDropHint(dropTargetDir(getSessionCwd(sessionId)))
+      // dragover repeats while hovering; a cancelled drag may not send dragleave
+      window.clearTimeout(dropHintTimer)
+      dropHintTimer = window.setTimeout(() => setDropHint(null), 800)
     }
     const onDragLeave = (ev: DragEvent) => {
       if (ev.target === el || !el.contains(ev.relatedTarget as Node | null)) setDropHint(null)
@@ -620,6 +624,7 @@ export default function TerminalPane({
       el.removeEventListener('dragover', onDragOver)
       el.removeEventListener('dragleave', onDragLeave)
       el.removeEventListener('drop', onDrop)
+      window.clearTimeout(dropHintTimer)
       cwdMove.dispose()
       try { osc7Disp.dispose() } catch { /* ignore */ }
       window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)
