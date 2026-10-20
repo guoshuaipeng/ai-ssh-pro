@@ -13,8 +13,8 @@ assert.equal(r.effective, 'auto')
 r = resolveAiPolicy({ settings: { aiPolicy: 'ask' }, tempOverride: 'auto', protection: { level: 'production' } })
 assert.equal(r.source, 'temp')
 assert.equal(r.chosen, 'auto')
-assert.equal(r.effective, 'ask')
-assert.equal(r.cappedBy, 'production')
+assert.equal(r.effective, 'auto', 'M25: no production cap')
+assert.equal(r.cappedBy, null)
 
 // host card
 const card = norm('src/renderer/src/components/HostSafetyCard.tsx')
@@ -48,7 +48,8 @@ assert.ok(ipc.includes("tempPolicy?: 'suggest' | 'ask' | 'auto'"))
 
 const zh = norm('src/renderer/src/lib/i18n.tsx')
 assert.ok(zh.includes("'policy.effective': '实际生效：{policy}'"))
-assert.ok(zh.includes("'policy.capProduction': '（受生产保护限制）'"))
+assert.ok(zh.includes("'policy.capReadonly': '（受只读保护限制）'"))
+assert.equal(zh.includes('受生产保护限制'), false)
 
 assert.ok(changelogFor('0.6.60').length > 0)
 console.log('test-m22-host-safety: ok')

@@ -15,6 +15,6 @@ assert.ok(i18n.includes("sb.splitNeedTwo': '至少需要 2 个会话才能分屏
 assert.ok(i18n.includes("sb.splitNeedTwo': 'Need at least 2 sessions to split'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-split-need-two-toast/)
 console.log('test-split-need-two-toast ok')

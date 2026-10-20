@@ -20,6 +20,6 @@ assert.match(panel, /setQueueOpen\(true\)/)
 assert.match(panel, /queuePanelRef/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-sftp-transfer-queue-cmdk/)
 console.log('test-sftp-transfer-queue-cmdk ok')

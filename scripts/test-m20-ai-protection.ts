@@ -22,14 +22,14 @@ assert.equal(aiEffectiveLevel({ level: 'readonly', elevated: true }), 'readonly'
 // read-only: blocked even after a person agreed
 assert.deepEqual(aiWriteVerdict({ level: 'readonly' }, { approved: true }), { allow: false, reason: 'readonly' })
 assert.deepEqual(aiWriteVerdict({ level: 'readonly' }, { approved: false, kind: 'read' }), { allow: false, reason: 'readonly' })
-// production: never auto for changes; approved passes; auto read passes
-assert.deepEqual(aiWriteVerdict({ level: 'production' }, { approved: false, kind: 'write' }), { allow: false, reason: 'production-auto' })
-assert.deepEqual(aiWriteVerdict({ level: 'production' }, { approved: false, kind: 'high' }), { allow: false, reason: 'production-auto' })
+// M25: production no longer blocks auto-run (banner is a reminder only)
+assert.deepEqual(aiWriteVerdict({ level: 'production' }, { approved: false, kind: 'write' }), { allow: true })
+assert.deepEqual(aiWriteVerdict({ level: 'production' }, { approved: false, kind: 'high' }), { allow: true })
 assert.deepEqual(aiWriteVerdict({ level: 'production' }, { approved: true, kind: 'write' }), { allow: true })
 assert.deepEqual(aiWriteVerdict({ level: 'production' }, { approved: false, kind: 'read' }), { allow: true })
 assert.deepEqual(aiWriteVerdict({ level: 'normal' }, { approved: false, kind: 'write' }), { allow: true })
 
-assert.equal(capSafetyModeForProtection('auto', { level: 'production' }, 'write'), 'agree')
+assert.equal(capSafetyModeForProtection('auto', { level: 'production' }, 'write'), 'auto')
 assert.equal(capSafetyModeForProtection('auto', { level: 'production' }, 'read'), 'auto')
 assert.equal(capSafetyModeForProtection('auto', { level: 'production', elevated: true }, 'write'), 'auto')
 assert.equal(capSafetyModeForProtection('agree', { level: 'readonly' }, 'read'), 'suggest')
@@ -61,7 +61,7 @@ assert.ok(w > 0 && g > 0 && w - g < 2500, 'write verdict sits right before ssh.w
 assert.ok(agent.slice(g, w).includes('getSessionProtection(targetSessionId)') || agent.slice(g - 400, w).includes('getSessionProtection(targetSessionId)'), 'live registry read at write time')
 assert.equal(agent.split('ssh.write(').length - 1, 1, 'one write site in the agent')
 assert.ok(agent.includes('capSafetyModeForProtection(decision.mode, hostProtection, decision.kind)'))
-assert.ok(agent.includes("production: aiEffectiveLevel(hostProtection) !== 'normal'"))
+assert.ok(agent.includes('production: false,'), 'M25: production does not gate auto-run')
 assert.ok(agent.includes("safetyMode === undefined && aiEffectiveLevel(hostProtection) === 'readonly'"), 'legacy (no tier) path is covered too')
 const main = norm('src/main/index.ts')
 assert.ok(main.includes("ipcMain.on('ai:protection:set'") && main.includes('setSessionProtection('))

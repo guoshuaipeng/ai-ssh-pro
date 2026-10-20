@@ -11,6 +11,6 @@ assert.match(app, /e\.button !== 1/)
 assert.match(app, /closeTab\(t\.tabId, t\.sessionId, t\.status, t\.view\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-tab-middle-close/)
 console.log('test-tab-middle-close ok')

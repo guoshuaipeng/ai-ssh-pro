@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.6.63': [
+    {
+      icon: '▷',
+      text: {
+        zh: 'AI 输入区的模型与执行策略改为主题化弹出菜单；三种策略更名为 仅建议 / 执行前确认 / 自动执行；生产主机不再限制所选策略（横幅仅作提醒），只读主机仍禁止 AI 写入',
+        en: 'AI composer model and policy chips open themed menus; policies are renamed Suggest only / Confirm before run / Auto run; production hosts no longer cap the chosen policy (the banner is a reminder), read-only hosts still block AI writes'
+      },
+      where: { zh: 'AI 面板 → 输入区', en: 'AI panel → composer' }
+    }
+  ],
   '0.6.62': [
     {
       icon: '▷',

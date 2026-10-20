@@ -11,6 +11,6 @@ assert.match(i18n, /disconnectAllSessionsBody': '将断开 \{n\} 个已连接会
 assert.match(i18n, /disconnectAllSessionsBody': 'Will disconnect \{n\} live session\(s\) \(\{hosts\}\)/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-disconnect-all-confirm-hosts/)
 console.log('test-disconnect-all-confirm-hosts ok')

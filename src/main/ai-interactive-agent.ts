@@ -1195,7 +1195,8 @@ export async function runOpenClawCoreAgentChat(
           tier: policyTier(policy.effective),
           command: parsed.command ?? '',
           riskLevel: parsed.riskLevel,
-          production: aiEffectiveLevel(hostProtection) !== 'normal',
+          // M25: production no longer blocks auto-run; read-only is capped below.
+          production: false,
           hostId,
           hostName: payload.safetyContext?.hostName || payload.inventoryLookup?.host,
           allowHosts: [],
@@ -1644,10 +1645,7 @@ export async function runOpenClawCoreAgentChat(
             type: 'step',
             safetyMode: 'suggest',
             structured: {
-              description:
-                verdict.reason === 'readonly'
-                  ? mt('这台主机处于只读保护，AI 不会写入终端（即使已同意）。如需执行，请解除只读后手动运行。', 'This host is read-only protected, so the AI does not write to the terminal, even after Agree. To run it, lift read-only and run it yourself.')
-                  : mt('这台主机处于生产保护，改动类命令不会自动执行，需要你确认。', 'This host is production protected; commands that change it do not auto-run and need your confirmation.'),
+              description: mt('这台主机处于只读保护，AI 不会写入终端（即使已同意）。如需执行，请解除只读后手动运行。', 'This host is read-only protected, so the AI does not write to the terminal, even after Agree. To run it, lift read-only and run it yourself.'),
               action: 'end',
               completed: true,
               riskLevel: 'low',

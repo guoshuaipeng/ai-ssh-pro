@@ -1,7 +1,7 @@
 /**
- * M21: one AI execution policy with three choices — 只看不改 / 改动前问我 / 放手执行
+ * M21: one AI execution policy with three choices — 仅建议 / 执行前确认 / 自动执行
  * (suggest / ask / auto) — plus an "auto also runs high-risk" switch under auto that never
- * applies to a production host. Every surface (settings, host card, AI chip, main process)
+ * applies to a read-only host (M25: production no longer caps the policy). Every surface (settings, host card, AI chip, main process)
  * resolves the policy through resolveAiPolicy so they always agree.
  */
 import type { SafetyTier } from './safety-tier'
@@ -77,11 +77,9 @@ export function resolveAiPolicy(input: {
   if (level === 'readonly' && chosen !== 'suggest') {
     effective = 'suggest'
     cappedBy = 'readonly'
-  } else if (level === 'production' && chosen === 'auto') {
-    effective = 'ask'
-    cappedBy = 'production'
   }
-  const autoHighRisk = effective === 'auto' && level === 'normal' && input.settings?.aiAutoHighRisk === true
+  // M25: production is a visual reminder only; the chosen policy applies as-is (read-only still caps).
+  const autoHighRisk = effective === 'auto' && input.settings?.aiAutoHighRisk === true
   return { chosen, effective, source, cappedBy, autoHighRisk }
 }
 

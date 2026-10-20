@@ -52,7 +52,7 @@ export function aiEffectiveLevel(p: AiHostProtection | null | undefined): Protec
 /**
  * Cap the safety-tier mode by host protection.
  * - read-only: the AI never writes; every command becomes a suggestion.
- * - production: no auto-run for anything that changes the host; it asks first.
+ * - production (M25): no cap; the banner is a reminder and the chosen policy applies.
  */
 export function capSafetyModeForProtection(
   mode: SafetyMode | undefined,
@@ -61,11 +61,11 @@ export function capSafetyModeForProtection(
 ): SafetyMode | undefined {
   const level = aiEffectiveLevel(p)
   if (level === 'readonly') return 'suggest'
-  if (level === 'production' && mode === 'auto' && kind !== 'read') return 'agree'
+  void kind
   return mode
 }
 
-export type AiWriteVerdict = { allow: true } | { allow: false; reason: 'readonly' | 'production-auto' }
+export type AiWriteVerdict = { allow: true } | { allow: false; reason: 'readonly' }
 
 /**
  * Last check right before the agent writes to SSH, with the protection read at that moment.
@@ -77,6 +77,6 @@ export function aiWriteVerdict(
 ): AiWriteVerdict {
   const level = aiEffectiveLevel(p)
   if (level === 'readonly') return { allow: false, reason: 'readonly' }
-  if (level === 'production' && !opts.approved && opts.kind !== 'read') return { allow: false, reason: 'production-auto' }
+  void opts
   return { allow: true }
 }

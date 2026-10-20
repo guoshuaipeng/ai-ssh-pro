@@ -17,6 +17,6 @@ assert.match(panel, /aiss-ai-clear-chat/)
 assert.match(panel, /clearConversation/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-clear-ai-chat-cmdk/)
 console.log('test-clear-ai-chat-cmdk ok')

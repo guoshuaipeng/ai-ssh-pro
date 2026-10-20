@@ -23,8 +23,10 @@ export type ScreenshotOp =
   | { op: "menu"; action: string }
   /** Visual QA: open the AI chat panel; seeds a short demo conversation unless `empty`. */
   | { op: "aiChat"; empty?: boolean }
-  /** Visual QA (M22): open the first saved host's profile on its 安全 card (production + 放手执行 → capped). */
+  /** Visual QA (M22): open the first saved host's profile on its 安全 card (read-only + 自动执行 → capped). */
   | { op: "hostSafety" }
+  /** Visual QA (M25): open a composer chip popover (model menu or safety policy). */
+  | { op: "aiComposerPop"; which: "model" | "safety" }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

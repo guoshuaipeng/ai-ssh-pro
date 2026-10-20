@@ -18,7 +18,7 @@ const HINT_KEY: Record<AiPolicy, MessageKey> = {
 type HostOverride = { id: string; label: string; policy: AiPolicy }
 
 /**
- * M21: the global AI policy — three choices, one advanced switch under 放手执行, and a
+ * M21: the global AI policy — three choices, one advanced switch under 自动执行, and a
  * count of hosts that set their own policy (edited on the host's 安全 card / AI chip).
  */
 export default function SafetyTierSettings() {

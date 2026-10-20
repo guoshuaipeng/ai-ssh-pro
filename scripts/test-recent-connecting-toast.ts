@@ -14,6 +14,6 @@ assert.ok(i18n.includes("recent.connecting': '正在连接 {host}…'"))
 assert.ok(i18n.includes("recent.connecting': 'Connecting to {host}…'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-recent-connecting-toast/)
 console.log('test-recent-connecting-toast ok')

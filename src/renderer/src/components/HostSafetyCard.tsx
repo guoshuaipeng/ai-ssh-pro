@@ -12,7 +12,6 @@ const POLICY_KEY: Record<AiPolicy, MessageKey> = {
 
 /** "（受生产保护限制）" / "（受只读保护限制）" after the effective policy, or nothing. */
 export function policyCapNote(cappedBy: 'production' | 'readonly' | null): string {
-  if (cappedBy === 'production') return tg('policy.capProduction')
   if (cappedBy === 'readonly') return tg('policy.capReadonly')
   return ''
 }

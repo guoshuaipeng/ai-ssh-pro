@@ -99,12 +99,13 @@ const chrome = [
   { name: 'ai-empty', size: W, steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }], wait: 1200 },
   { name: 'host-safety', size: W, steps: [{ op: 'hostSafety' }], wait: 1800 },
   { name: 'ai-history', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { click: '[data-testid="ai-new-chat"]' }, { op: 'aiChat' }, { op: 'aiChat' }, { click: '[data-testid="ai-history"]' }], wait: 1600 },
-  { name: 'ai-safety-pop', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { click: '#aiss-shot-wait' }, { click: '#aiss-shot-wait' }, { click: '#aiss-shot-wait' }, { click: '[data-testid="ai-safety-chip"]' }], wait: 1400 },
   { name: 'settings-ai', size: W, steps: [{ op: 'menu', action: 'settings' }, { click: '.settings-nav button[data-section="ai"]' }, { click: '.policy-choice[data-policy="auto"] input' }], wait: 1400 },
   { name: 'ai-header', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }], wait: 1800 },
   { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
-  { name: 'menu', size: W, steps: [{ click: '.titlebar-menu-trigger' }], wait: 700, close: true }
+  { name: 'menu', size: W, steps: [{ click: '.titlebar-menu-trigger' }], wait: 700, close: true },
+  { name: 'ai-safety-pop', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { op: 'aiComposerPop', which: 'safety' }], wait: 1400 },
+  { name: 'ai-model-menu', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { op: 'aiComposerPop', which: 'model' }], wait: 1400 }
 ]
 const ONLY = ${JSON.stringify(only)}
 const THEMES = ${JSON.stringify(themes)}
@@ -240,7 +241,8 @@ app.on('browser-window-created', (_e, win) => {
         }
         await sleep(400)
         for (const st of s.steps) {
-          if (st.click) await win.webContents.executeJavaScript('document.querySelector(' + JSON.stringify(st.click) + ')?.click(); true', true)
+          if (st.eval) console.log('[cov] eval', await win.webContents.executeJavaScript(st.eval, true).catch((e) => 'ERR ' + e))
+          else if (st.click) await win.webContents.executeJavaScript('document.querySelector(' + JSON.stringify(st.click) + ')?.click(); true', true)
           else await fire(win, st)
           await sleep(500)
         }

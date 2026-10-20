@@ -20,12 +20,12 @@ const css = read('src/renderer/src/features.css')
 const styles = read('src/renderer/src/styles.css')
 const main = read('src/main/index.ts')
 
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.equal('fileVersion' in pkg.build.win, false)
 assert.ok(changelog.includes('## v0.4.3\n'))
 assert.ok(changelog.includes('## v0.4.2\n'))
 assert.ok(changelogFor('0.4.3').length >= 4)
-assert.ok(ICON_NAMES.length >= 30 && ICON_NAMES.length <= 40)
+assert.ok(ICON_NAMES.length >= 30 && ICON_NAMES.length <= 41)
 
 const demo = { id: DEMO_PROFILE_ID, label: '演示主机 (demo)', host: 'demo.ai-ssh-pro.local', username: 'demo' }
 assert.equal(profileDisplayLabel(demo, 'zh-CN'), '演示主机 (demo)')

@@ -64,6 +64,8 @@ type Props = {
   /** M22: in-memory override for this tab only (cleared on close / disconnect). */
   tempPolicy?: AiPolicy
   onSetTempPolicy?: (policy: AiPolicy | undefined) => void
+  /** M25: open the active host's 安全 settings card. */
+  onOpenHostSafety?: () => void
   hostName?: string | null
   onOpenSettings?: () => void
   /** When Agree needs an SSH tab: focus a live session or open New connection. */
@@ -198,6 +200,23 @@ function coveredBy(skip: string | undefined, commands: string[]): boolean {
 }
 
 /** M19: chip label for a model id — drop the vendor path, cap the length; the full id is the tooltip. */
+/** M25: arrow / Home / End / Escape navigation inside a chip popover menu. */
+function menuKeyNav(e: React.KeyboardEvent<HTMLElement>, close: () => void): void {
+  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitemradio"], .ai-safety-link'))
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    e.stopPropagation()
+    close()
+    return
+  }
+  if (!items.length || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+  e.preventDefault()
+  const i = items.indexOf(document.activeElement as HTMLElement)
+  const next =
+    e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length
+  items[next]?.focus()
+}
+
 export function shortModelName(model: string, max = 14): string {
   const base = model.split('/').pop()?.trim() || model.trim()
   return base.length > max ? `${base.slice(0, max - 1)}…` : base
@@ -420,6 +439,7 @@ export default function AIPanel({
   onSetHostPolicy,
   tempPolicy,
   onSetTempPolicy,
+  onOpenHostSafety,
   conversation = null,
   aiTargets = [],
   onSelectTarget,
@@ -474,6 +494,19 @@ export default function AIPanel({
         )
         return
       }
+      if (detail?.op !== 'aiComposerPop') {
+        ;(window as unknown as { __aissShotPop?: string }).__aissShotPop = undefined
+        setModelOpen(false)
+        setSafetyOpen(false)
+      }
+      if (detail?.op === 'aiComposerPop') {
+        const which = (detail as { which?: string }).which === 'model' ? 'model' : 'safety'
+        // The panel may remount while the demo session binds; remember the request for the next mount.
+        ;(window as unknown as { __aissShotPop?: string }).__aissShotPop = which
+        setModelOpen(which === 'model')
+        setSafetyOpen(which === 'safety')
+        return
+      }
       if (!detail || detail.op !== 'aiConfirm') return
       // Demo userdata often has no API key; empty-state UI hides the confirm dock.
       screenshotForceKeyRef.current = true
@@ -502,6 +535,11 @@ export default function AIPanel({
       })
     }
     window.addEventListener(SCREENSHOT_EVENT, onShot)
+    if (screenshotHooksEnabled()) {
+      const pending = (window as unknown as { __aissShotPop?: string }).__aissShotPop
+      setModelOpen(pending === 'model')
+      setSafetyOpen(pending === 'safety')
+    }
     return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
   }, [])
   const [hasApiKey, setHasApiKey] = useState(false)
@@ -520,6 +558,8 @@ export default function AIPanel({
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [safetyOpen, setSafetyOpen] = useState(false)
+  const [modelOpen, setModelOpen] = useState(false)
+  const modelRef = useRef<HTMLDivElement | null>(null)
   const safetyRef = useRef<HTMLDivElement | null>(null)
   const [workingGoal, setWorkingGoal] = useState<string | null>(null)
   const [safetySettings, setSafetySettings] = useState<SafetySettings>({ safetyTier: 'confirm' })
@@ -1366,6 +1406,24 @@ export default function AIPanel({
   }, [moreOpen])
 
   useEffect(() => {
+    if (!modelOpen) return
+    const close = (e: MouseEvent) => {
+      if (modelRef.current?.contains(e.target as Node)) return
+      setModelOpen(false)
+    }
+    window.addEventListener('mousedown', close, true)
+    const t = window.setTimeout(() => {
+      const root = modelRef.current
+      const el = root?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]') ?? root?.querySelector<HTMLElement>('[role="menuitemradio"]')
+      el?.focus()
+    }, 0)
+    return () => {
+      window.removeEventListener('mousedown', close, true)
+      window.clearTimeout(t)
+    }
+  }, [modelOpen])
+
+  useEffect(() => {
     if (!safetyOpen) return
     const close = (e: MouseEvent) => {
       if (safetyRef.current?.contains(e.target as Node)) return
@@ -1425,6 +1483,17 @@ export default function AIPanel({
   const policyCap = aiPolicy.cappedBy ? policyCapNote(aiPolicy.cappedBy) : ''
   const policyChipTitle = `${tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}${policyCap} · ${tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}`
   const ladderBand = safetyLadderBand(policyTier(aiPolicy.effective))
+  const currentModel = modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''
+  /** M25: the policy without the tab override; picking it clears the override. */
+  const hostOrGlobalPolicy = resolveAiPolicy({ settings: safetySettings, hostPolicy, protection: null }).chosen
+  /** M25: why an option cannot apply on this host (protection cap), or '' when it can. */
+  const policyOptionCap = (id: AiPolicy): string => {
+    if (!activeSessionId) return ''
+    const r = resolveAiPolicy({ settings: safetySettings, hostPolicy, tempOverride: id, protection: { level: protection, elevated } })
+    if (r.effective === id) return ''
+    const max = tg(`policy.${r.effective}` as 'policy.ask')
+    return tg('policy.capMaxReadonly', { policy: max })
+  }
 
   const pendingLine =
     pendingConfirm == null
@@ -2017,25 +2086,58 @@ export default function AIPanel({
           />
           <div className="ai-composer-bar" data-testid="ai-composer-bar">
             {modelList.length > 0 ? (
-              <label
-                className="ai-chip ai-model-chip"
-                title={`${tg('ai.model')}: ${modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}`}
-              >
-                <select
+              <div className="ai-chip-wrap ai-model-wrap" ref={modelRef}>
+                <button
+                  type="button"
+                  className="ai-chip ai-model-chip"
                   data-testid="ai-provider-select"
-                  value={modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''}
-                  onChange={(e) => onModelChange(e.target.value)}
-                  disabled={busy}
+                  aria-haspopup="menu"
+                  aria-expanded={modelOpen}
                   aria-label={tg('ai.model')}
+                  title={`${tg('ai.model')}: ${currentModel}`}
+                  disabled={busy}
+                  onClick={() => setModelOpen((v) => !v)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      setModelOpen(true)
+                    }
+                  }}
                 >
-                  {modelList.map((m) => (
-                    <option key={m} value={m} title={m}>
-                      {shortModelName(m)}
-                    </option>
-                  ))}
-                </select>
-                <Icon name="chevron-down" size={12} />
-              </label>
+                  <span className="ai-model-chip-label">{shortModelName(currentModel)}</span>
+                  <Icon name="chevron-down" size={12} />
+                </button>
+                {modelOpen ? (
+                  <div
+                    className="ai-chip-menu ai-model-menu"
+                    role="menu"
+                    aria-label={tg('ai.model')}
+                    data-testid="ai-model-menu"
+                    onKeyDown={(e) => menuKeyNav(e, () => setModelOpen(false))}
+                  >
+                    {modelList.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={m === currentModel}
+                        className={`ai-chip-menu-item${m === currentModel ? ' is-current' : ''}`}
+                        data-testid="ai-model-option"
+                        title={m}
+                        onClick={() => {
+                          setModelOpen(false)
+                          onModelChange(m)
+                        }}
+                      >
+                        <span className="ai-chip-menu-check" aria-hidden="true">
+                          {m === currentModel ? <Icon name="check" size={12} /> : null}
+                        </span>
+                        <span className="ai-chip-menu-label">{m}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             <div className="ai-chip-wrap" ref={safetyRef}>
               <button
@@ -2046,68 +2148,131 @@ export default function AIPanel({
                 data-policy={aiPolicy.effective}
                 data-source={aiPolicy.source}
                 data-capped={aiPolicy.cappedBy ?? ''}
-                aria-haspopup="dialog"
+                aria-haspopup="menu"
                 aria-expanded={safetyOpen}
                 aria-label={`${tg('ai.safetyChipTip')}: ${policyChipTitle}`}
                 title={policyChipTitle}
                 onClick={() => setSafetyOpen((v) => !v)}
               >
-                <Icon name="lock" size={12} />
+                <Icon name="shield" size={12} />
                 <span>{tg(`policy.${aiPolicy.effective}` as 'policy.ask')}</span>
                 {aiPolicy.cappedBy ? <span className="ai-chip-cap" data-testid="ai-safety-cap" aria-hidden="true">·</span> : null}
                 <Icon name="chevron-down" size={12} />
               </button>
               {safetyOpen ? (
-                <div className="ai-safety-pop" role="dialog" aria-label={tg('ai.safetyChipTip')} data-testid="ai-safety-pop">
-              <div className="ai-safety-row" data-testid="safety-scope">
-                <span
-                  className={`safety-band-badge safety-band-${safetyBandTone(ladderBand)} is-active`}
-                  data-testid="safety-band-badge"
-                  data-band={ladderBand}
-                  data-policy={aiPolicy.effective}
-                  title={tg('safety.ladderHint')}
+                <div
+                  className="ai-chip-menu ai-safety-pop"
+                  role="menu"
+                  aria-label={tg('ai.safetyChipTip')}
+                  data-testid="ai-safety-pop"
+                  onKeyDown={(e) => menuKeyNav(e, () => setSafetyOpen(false))}
                 >
-                  {tg(`policy.${aiPolicy.effective}` as 'policy.ask')}
-                </span>
-                <label>
-                  {tg('safety.host')}
-                  <select
-                    data-testid="safety-host"
-                    value={isAiPolicy(hostPolicy) ? hostPolicy : ''}
-                    disabled={!onSetHostPolicy}
-                    onChange={(e) => onSetHostPolicy?.(isAiPolicy(e.target.value) ? e.target.value : undefined)}
-                  >
-                    <option value="">{tg('safety.follow')}</option>
-                    {AI_POLICIES.map((id) => (
-                      <option key={id} value={id}>{tg(`policy.${id}` as 'policy.ask')}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  {tg('policy.tempTab')}
-                  <select
-                    data-testid="safety-temp"
-                    value={isAiPolicy(tempPolicy) ? tempPolicy : ''}
-                    disabled={!onSetTempPolicy || !activeSessionId}
-                    onChange={(e) => onSetTempPolicy?.(isAiPolicy(e.target.value) ? e.target.value : undefined)}
-                  >
-                    <option value="">{tg('policy.tempNone')}</option>
-                    {AI_POLICIES.map((id) => (
-                      <option key={id} value={id}>{tg(`policy.${id}` as 'policy.ask')}</option>
-                    ))}
-                  </select>
-                </label>
-                <p className="ai-policy-effective" data-testid="ai-policy-effective" data-capped={aiPolicy.cappedBy ?? ''}>
-                  {tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}
-                  {policyCap ? <span className="ai-policy-cap">{policyCap}</span> : null}
-                </p>
-                <p className="ai-policy-source" data-testid="ai-policy-source" data-source={aiPolicy.source}>
-                  {tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}
-                  {aiPolicy.source !== 'global' && aiPolicy.chosen !== aiPolicy.effective
-                    ? ` · ${tg('policy.chosen', { policy: tg(`policy.${aiPolicy.chosen}` as 'policy.ask') })}`
-                    : ''}
-                </p>
-              </div>
+                  <div className="ai-safety-row" data-testid="safety-scope">
+                    <div className="ai-safety-head">
+                      <span className="ai-safety-title">{tg('policy.popTitle')}</span>
+                      <span
+                        className={`safety-band-badge safety-band-${safetyBandTone(ladderBand)} is-active`}
+                        data-testid="safety-band-badge"
+                        data-band={ladderBand}
+                        data-policy={aiPolicy.effective}
+                        title={tg('safety.ladderHint')}
+                      >
+                        {tg(`policy.${aiPolicy.effective}` as 'policy.ask')}
+                      </span>
+                    </div>
+                    <div className="ai-safety-options" data-testid="safety-temp" role="group" aria-label={tg('policy.tempTab')}>
+                      {AI_POLICIES.map((id) => {
+                        const capNote = policyOptionCap(id)
+                        const canSet = Boolean(onSetTempPolicy && activeSessionId)
+                        const disabled = Boolean(capNote) || !canSet
+                        const current = id === aiPolicy.effective
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={current}
+                            aria-disabled={disabled}
+                            className={`ai-chip-menu-item ai-safety-option${current ? ' is-current' : ''}${disabled ? ' is-disabled' : ''}`}
+                            data-testid="ai-safety-option"
+                            data-policy={id}
+                            onClick={() => {
+                              if (disabled) return
+                              onSetTempPolicy?.(id === hostOrGlobalPolicy ? undefined : id)
+                              setSafetyOpen(false)
+                            }}
+                          >
+                            <span className="ai-chip-menu-check" aria-hidden="true">
+                              {current ? <Icon name="check" size={12} /> : null}
+                            </span>
+                            <span className="ai-chip-menu-text">
+                              <span className="ai-chip-menu-label">{tg(`policy.${id}` as 'policy.ask')}</span>
+                              <span className="ai-chip-menu-hint" data-testid={capNote ? 'ai-safety-option-cap' : undefined}>
+                                {capNote || tg(`policy.${id}Short` as 'policy.askShort')}
+                              </span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {!activeSessionId ? <p className="ai-policy-note">{tg('policy.needSession')}</p> : null}
+                    <p className="ai-policy-effective" data-testid="ai-policy-effective" data-capped={aiPolicy.cappedBy ?? ''}>
+                      {tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}
+                      {policyCap ? <span className="ai-policy-cap">{policyCap}</span> : null}
+                    </p>
+                    <p className="ai-policy-source" data-testid="ai-policy-source" data-source={aiPolicy.source}>
+                      {tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}
+                      {aiPolicy.source !== 'global' && aiPolicy.chosen !== aiPolicy.effective
+                        ? ` · ${tg('policy.chosen', { policy: tg(`policy.${aiPolicy.chosen}` as 'policy.ask') })}`
+                        : ''}
+                    </p>
+                    <div className="ai-safety-links">
+                      {aiPolicy.source === 'temp' && onSetTempPolicy ? (
+                        <button type="button" className="ai-safety-link" data-testid="safety-temp-reset" onClick={() => onSetTempPolicy(undefined)}>
+                          {tg('policy.tempReset')}
+                        </button>
+                      ) : null}
+                      {aiPolicy.source === 'temp' && onSetHostPolicy && isAiPolicy(tempPolicy) ? (
+                        <button
+                          type="button"
+                          className="ai-safety-link"
+                          data-testid="safety-host"
+                          onClick={() => {
+                            onSetHostPolicy(tempPolicy)
+                            onSetTempPolicy?.(undefined)
+                          }}
+                        >
+                          {tg('policy.saveForHost')}
+                        </button>
+                      ) : null}
+                      {onOpenHostSafety && activeSessionId ? (
+                        <button
+                          type="button"
+                          className="ai-safety-link"
+                          data-testid="safety-open-host"
+                          onClick={() => {
+                            setSafetyOpen(false)
+                            onOpenHostSafety()
+                          }}
+                        >
+                          {tg('policy.openHostSafety')}
+                        </button>
+                      ) : null}
+                      {onOpenSettings ? (
+                        <button
+                          type="button"
+                          className="ai-safety-link"
+                          data-testid="safety-open-global"
+                          onClick={() => {
+                            setSafetyOpen(false)
+                            onOpenSettings()
+                          }}
+                        >
+                          {tg('policy.openGlobal')}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>

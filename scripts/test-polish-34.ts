@@ -35,7 +35,7 @@ assert.equal(ai.includes('className="ai-toolbar"'), false, 'old checkbox toolbar
 assert.equal(ai.includes('type="checkbox"'), false)
 
 // Model chip: short label, full id in the tooltip, chip shrinks within bounds.
-assert.ok(ai.includes('export function shortModelName(') && ai.includes('{shortModelName(m)}') && ai.includes('title={m}'))
+assert.ok(ai.includes('export function shortModelName(') && ai.includes('{shortModelName(currentModel)}') && ai.includes('title={m}'))
 // Replies: meta line, single command block with risk tag, dedupe.
 assert.ok(ai.includes('function ReplyMeta(') && ai.includes("tg('ai.workedFor'"))
 assert.ok(ai.includes('data-testid="ai-cmd-block"') && ai.includes('className="ai-cmd-head"'))

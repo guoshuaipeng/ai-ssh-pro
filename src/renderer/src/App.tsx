@@ -6599,7 +6599,7 @@ export default function App() {
         void persistSessionState({
           ...sessionStateRef.current,
           profiles: sessionStateRef.current.profiles.map((x) =>
-            x.id === p.id ? { ...x, protection: 'production' as const, aiPolicy: 'auto' as const } : x
+            x.id === p.id ? { ...x, protection: 'readonly' as const, aiPolicy: 'auto' as const } : x
           )
         })
         openInventoryEditor({ profileId: p.id, host: p.host, label: p.label, hostInventoryId: p.hostInventoryId })
@@ -9303,6 +9303,17 @@ export default function App() {
               elevated={activeSessionId ? guardForSession(activeSessionId).elevated : false}
               hostPolicy={activeTabProfile?.aiPolicy}
               onSetHostPolicy={activeTabProfile && !activeTabProfile.demo ? (policy) => setHostAiPolicy(activeTabProfile.id, policy) : undefined}
+              onOpenHostSafety={
+                activeTabProfile && !activeTabProfile.demo
+                  ? () => {
+                      const p = activeTabProfile
+                      openInventoryEditor({ profileId: p.id, host: p.host, label: p.label, hostInventoryId: p.hostInventoryId })
+                      window.setTimeout(() => {
+                        document.querySelector('[data-testid="host-safety-card"]')?.scrollIntoView({ block: 'center' })
+                      }, 700)
+                    }
+                  : undefined
+              }
               tempPolicy={activeTabId ? tempPolicyByTab[activeTabId] : undefined}
               onSetTempPolicy={
                 activeTabId

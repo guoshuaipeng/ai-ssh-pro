@@ -14,6 +14,6 @@ assert.ok(i18n.includes('w6.set'))
 assert.ok(i18n.includes('s2b.openProtection'))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.62')
+assert.equal(pkg.version, '0.6.63')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-dryrun-prodguard-toast/)
 console.log('test-dryrun-prodguard-toast ok')

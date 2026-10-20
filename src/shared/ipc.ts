@@ -582,9 +582,9 @@ export type AiSettings = {
   autopilotAllowHosts?: string[]
   /** 显式允许非生产主机在全自动下执行高风险。默认关闭。生产主机忽略。 */
   autopilotAllowHighRisk?: boolean
-  /** M21: global AI policy (只看不改 / 改动前问我 / 放手执行). Replaces safetyTier. */
+  /** M21: global AI policy (仅建议 / 执行前确认 / 自动执行). Replaces safetyTier. */
   aiPolicy?: 'suggest' | 'ask' | 'auto'
-  /** M21: under auto, also run high-risk commands. Never on a production host. */
+  /** M21: under auto, also run high-risk commands. Applies on production hosts too (M25); never on read-only. */
   aiAutoHighRisk?: boolean
 }
 
