@@ -7152,6 +7152,7 @@ button.primary.danger:focus-visible {
 .sync-conflicts { margin-left: var(--space-2); font-size: var(--fs-xs); color: var(--color-accent); }
 /* D73: cancel a pending connection */
 .session-connecting-elapsed { margin-left: var(--space-2); color: var(--color-text-secondary); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.term-sel-ask { position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: var(--color-bg-elevated); color: var(--color-accent); font-size: var(--fs-xs); cursor: pointer; }
 .session-connecting-cancel { margin-left: var(--space-2); padding: 0 var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; font-size: var(--fs-xs); cursor: pointer; }
 /* D76: compact icon buttons in the SFTP toolbar */
 .sftp-icon-btn { min-width: 28px; display: inline-flex; align-items: center; justify-content: center; font-family: monospace; }

@@ -122,6 +122,8 @@ export default function TerminalPane({
   onOpenSftp
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
+  // D78: floating "Ask AI" chip after a mouse selection
+  const [selAsk, setSelAsk] = useState<{ x: number; y: number } | null>(null)
   const apiRef = useRef<{ term: Terminal; fit: FitAddon } | null>(null)
   const activeRef = useRef(active)
   activeRef.current = active
@@ -933,6 +935,31 @@ export default function TerminalPane({
     })
   }, [active, sessionId])
 
+  useEffect(() => {
+    const el = wrapRef.current
+    const term = apiRef.current?.term
+    if (!el || !term) return
+    const onUp = (ev: MouseEvent) => {
+      window.setTimeout(() => {
+        const t = apiRef.current?.term
+        const pane = el.parentElement
+        if (!t || !pane || !t.hasSelection() || !t.getSelection().trim()) return setSelAsk(null)
+        const r = pane.getBoundingClientRect()
+        const x = Math.min(Math.max(ev.clientX - r.left + 8, 4), Math.max(4, r.width - 96))
+        const y = Math.min(Math.max(ev.clientY - r.top + 12, 4), Math.max(4, r.height - 32))
+        setSelAsk({ x, y })
+      }, 0)
+    }
+    el.addEventListener('mouseup', onUp)
+    const sub = term.onSelectionChange(() => {
+      if (!term.hasSelection()) setSelAsk(null)
+    })
+    return () => {
+      el.removeEventListener('mouseup', onUp)
+      sub.dispose()
+    }
+  }, [sessionId])
+
   return (
     <>
       <div className="terminal-pane-wrap" data-terminal="true" data-session-id={sessionId}>
@@ -943,6 +970,23 @@ export default function TerminalPane({
           </span>
         ) : null}
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
+        {selAsk && !mirrorOnly ? (
+          <button
+            type="button"
+            className="term-sel-ask"
+            data-testid="term-sel-ask"
+            style={{ left: selAsk.x, top: selAsk.y }}
+            title={tg('d78.tip')}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              const sel = apiRef.current?.term.getSelection() ?? ''
+              setSelAsk(null)
+              if (!sel.trim() || !requestAskWithContext(sessionId, selectionWithLastRun(sessionId, sel))) showToast(tg('a6.needSelection'))
+            }}
+          >
+            <Icon name="sparkles" size={12} /> {tg('d78.ask')}
+          </button>
+        ) : null}
         {aiHint && !mirrorOnly ? (
           <button type="button" className="ai-explain-hint" data-testid="ai-explain-hint" onClick={() => explainWithAi('auto')}>
             <Icon name="sparkles" size={14} /> {tg('a1.button')}
