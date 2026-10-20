@@ -96,7 +96,7 @@ assert.ok(panel.includes('groupArchives(archives,'), 'history grouped by host')
 assert.ok(panel.includes('data-testid="ai-history-item"') && panel.includes('restoreArchived(it.id)'))
 // offline / general
 assert.ok(panel.includes('data-testid="ai-reconnect"') && panel.includes("tg('ai.reconnectToContinue')"))
-assert.ok(panel.includes('disabled={!input.trim() || convOffline}'))
+assert.ok(panel.includes('disabled={(!input.trim() && !pasteBlocks.length) || convOffline}')) // D94: paste blocks alone can be sent
 assert.ok(panel.includes('data-testid="ai-general-mode"'))
 const actions = panel.slice(panel.indexOf('const commandActions'), panel.indexOf('<SafetyCommandBar', panel.indexOf('const commandActions')))
 assert.ok(actions.includes('!conversation ?') && actions.includes('data-testid="ai-no-execute"'), 'general Q&A has no execute buttons')
