@@ -217,6 +217,7 @@ import { assessCommandRisk } from '@shared/command-risk'
 import { setStrictPasteHosts } from './lib/paste-pref'
 import { SHELL_INT_EVENT, setShellIntOn, shellIntOn } from './lib/shell-integration'
 import { BLOCKS_HINT_KEY, shouldHintBlocks } from '@shared/blocks-hint'
+import { SI_HINT_KEY, shouldHintShellInt } from '@shared/shell-int-hint'
 import { isDemoSessionId } from '@shared/demo-host'
 import { COMMAND_SUBMITTED_EVENT } from './lib/ai-events'
 import { matchProfile, parseQuickTarget, quickTargetLabel, type QuickTarget } from '@shared/quick-connect'
@@ -1204,6 +1205,35 @@ export default function App() {
     window.addEventListener(COMMAND_SUBMITTED_EVENT, onCmd)
     return () => window.removeEventListener(COMMAND_SUBMITTED_EVENT, onCmd)
   }, [])
+  // D27: Shell Integration is off by default; on the first normal SSH session, offer it once
+  const siHintRef = useRef(false)
+  useEffect(() => {
+    if (siHintRef.current) return
+    const tab = tabs.find((t) => t.tabId === activeTabId && t.status === 'connected' && t.sessionId)
+    if (!tab?.sessionId) return
+    let shown = true
+    try {
+      shown = localStorage.getItem(SI_HINT_KEY) === '1'
+    } catch {
+      shown = true
+    }
+    const prof = tab.profileId ? profiles.find((p) => p.id === tab.profileId) : undefined
+    const level = stricterLevel(effectiveLevel(prof), Boolean(tab.profileId && sessionRo[tab.profileId]))
+    if (!shouldHintShellInt({ enabled: shellIntOn(), shown, kind: tab.kind, demo: isDemoSessionId(tab.sessionId), level })) return
+    siHintRef.current = true
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(SI_HINT_KEY, '1')
+      } catch {
+        /* ignore */
+      }
+      showToast(tg('d27.hint'), { ms: 15000, actions: [{ label: tg('d18.enable'), run: () => setShellIntOn(true) }] })
+    }, 2500)
+    return () => {
+      window.clearTimeout(timer)
+      siHintRef.current = false
+    }
+  }, [tabs, activeTabId, profiles, sessionRo])
   useEffect(() => {
     const sync = () => setSiOn(shellIntOn())
     window.addEventListener(SHELL_INT_EVENT, sync)
