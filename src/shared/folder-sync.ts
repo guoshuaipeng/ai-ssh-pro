@@ -17,6 +17,8 @@ export type SyncRow = {
   kind: SyncKind
   size: number
   isDir?: boolean
+  /** D62: changed, and the target copy is newer (syncing would overwrite newer work) */
+  targetNewer?: boolean
 }
 
 export const DEFAULT_EXCLUDES = ['.git', 'node_modules', '*.log']
@@ -91,7 +93,9 @@ export function diffTrees(source: SyncNode[], target: SyncNode[], mode: CompareM
     }
     let changed = s.size !== t.size || Math.abs((s.mtime || 0) - (t.mtime || 0)) > 1000
     if (mode === 'checksum' && s.checksum && t.checksum) changed = s.checksum !== t.checksum
-    rows.push({ rel, kind: changed ? 'changed' : 'same', size: s.size })
+    const row: SyncRow = { rel, kind: changed ? 'changed' : 'same', size: s.size }
+    if (changed && (t.mtime || 0) - (s.mtime || 0) > 1000) row.targetNewer = true
+    rows.push(row)
   }
   for (const [rel, t] of dst) {
     if (!src.has(rel)) rows.push({ rel, kind: 'deleted', size: t.size })
@@ -99,6 +103,13 @@ export function diffTrees(source: SyncNode[], target: SyncNode[], mode: CompareM
   const order: Record<SyncKind, number> = { new: 0, changed: 1, deleted: 2, same: 3 }
   rows.sort((a, b) => order[a.kind] - order[b.kind] || a.rel.localeCompare(b.rel))
   return rows
+}
+
+/** D62: rows picked by default: everything that differs except changed files whose target is newer. */
+export function defaultPicks(rows: SyncRow[]): Record<string, boolean> {
+  const init: Record<string, boolean> = {}
+  for (const r of rows) if (r.kind !== 'same' && !r.targetNewer) init[r.rel] = true
+  return init
 }
 
 export function countKinds(rows: SyncRow[]): Record<SyncKind, number> {

@@ -7132,3 +7132,5 @@ button.primary.danger:focus-visible {
 .paste-skip-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) 0; }
 .paste-skip-list code { font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; }
 .paste-skip-empty { margin: var(--space-1) 0; font-size: var(--fs-xs); color: var(--color-text-secondary); }
+/* D62: folder sync — target copy is newer */
+.sync-kind--newer { margin-right: var(--space-1); padding: 0 var(--space-1); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); font-size: var(--fs-xs); color: var(--color-text-secondary); }

@@ -3,6 +3,7 @@ import type { SftpListEntry, SftpListResult } from '@shared/ipc'
 import {
   DEFAULT_EXCLUDES,
   countKinds,
+  defaultPicks,
   diffTrees,
   isProductionHost,
   matchExclude,
@@ -188,9 +189,7 @@ export default function FolderSyncModal({
         next = diffTrees(src, dst, 'checksum')
       }
       setRows(next)
-      const init: Record<string, boolean> = {}
-      for (const r of next) if (r.kind !== 'same') init[r.rel] = true
-      setPicked(init)
+      setPicked(defaultPicks(next))
       if (onPin && shouldPinSyncPreview(changeCount(next), false)) {
         onPin({ direction, localRoot, remoteRoot, rows: next.filter((r) => r.kind !== 'same'), deleteExtra })
       }
@@ -380,6 +379,11 @@ export default function FolderSyncModal({
                                 onChange={(e) => setPicked((p) => ({ ...p, [r.rel]: e.target.checked }))}
                               />
                               <span className={`sync-kind sync-kind--${r.kind}`}>{kindLabel[r.kind]}</span>
+                              {r.targetNewer ? (
+                                <span className="sync-kind sync-kind--newer" data-testid="sync-target-newer" title={tg('d62.targetNewerTip')}>
+                                  {tg('d62.targetNewer')}
+                                </span>
+                              ) : null}
                               <span className="sync-rel">{r.rel}</span>
                               <span className="sync-size">{formatBytes(r.size)}</span>
                             </label>

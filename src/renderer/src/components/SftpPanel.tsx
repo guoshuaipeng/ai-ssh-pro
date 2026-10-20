@@ -1877,6 +1877,16 @@ export default function SftpPanel({
             >
               <span className="sftp-label sftp-label-keep">{tg('d7.sessionCwd')}</span>
             </button>
+            <button
+              type="button"
+              className="sftp-compare-open"
+              data-testid="sftp-compare-open"
+              disabled={!sessionId}
+              title={tg('d62.compareTip')}
+              onClick={() => { setSyncProfile(null); setSyncOpen(true) }}
+            >
+              <span className="sftp-label sftp-label-keep">{tg('d62.compare')}</span>
+            </button>
             <label className="sftp-follow" title={tg('d12.followTip')}>
               <input type="checkbox" data-testid="sftp-follow-cwd" checked={follow} disabled={!sessionId}
                 onChange={(e) => {
