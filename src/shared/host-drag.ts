@@ -19,6 +19,12 @@ export function decodeHostDrag(raw: string): string[] {
   }
 }
 
+/** D90: ids that are currently in some folder (only those leave on "ungroup"). */
+export function ungroupPlan(ids: readonly string[], profiles: readonly { id: string; folderId?: string }[]): string[] {
+  const want = new Set(ids)
+  return profiles.filter((p) => want.has(p.id) && p.folderId).map((p) => p.id)
+}
+
 /** Ids that would actually move (already-there hosts are skipped). */
 export function dropPlan(ids: readonly string[], profiles: readonly { id: string; folderId?: string }[], folderId: string): string[] {
   const want = new Set(ids)

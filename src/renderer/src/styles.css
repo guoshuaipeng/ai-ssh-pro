@@ -7152,6 +7152,8 @@ button.primary.danger:focus-visible {
 .sync-conflicts { margin-left: var(--space-2); font-size: var(--fs-xs); color: var(--color-accent); }
 /* D73: cancel a pending connection */
 .session-folder-row.is-drop-target { outline: 1px dashed var(--color-accent); outline-offset: -1px; border-radius: var(--radius-sm); }
+.sidebar-ungroup-drop { margin: var(--space-1) var(--space-2); padding: var(--space-2); border: 1px dashed var(--color-border-default); border-radius: var(--radius-sm); color: var(--color-text-secondary); font-size: var(--fs-xs); text-align: center; }
+.sidebar-ungroup-drop.is-drop-target { border-color: var(--color-accent); color: var(--color-accent); }
 .recent-fail-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--space-1); border-radius: 50%; background: var(--color-danger); vertical-align: middle; }
 .connect-trouble-diag { margin-left: auto; background: none; border: none; color: var(--color-text-secondary); font-size: var(--fs-xs); text-decoration: underline; cursor: pointer; }
 .connect-trouble-diag:hover { color: var(--color-accent); }

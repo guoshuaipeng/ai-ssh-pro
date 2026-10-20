@@ -48,7 +48,7 @@ import SearchAllTermsModal from './components/SearchAllTermsModal'
 import ConnectingElapsed from './components/ConnectingElapsed'
 import { stageTarget, type ConnectStageEvent } from '@shared/connect-stage'
 import { buildConnectDiag } from '@shared/connect-diag'
-import { decodeHostDrag, dragIds, dropPlan, encodeHostDrag, HOST_DRAG_MIME } from '@shared/host-drag'
+import { decodeHostDrag, dragIds, dropPlan, encodeHostDrag, HOST_DRAG_MIME, ungroupPlan } from '@shared/host-drag'
 import { clearConnectFail, connectFailKey, noteConnectFail } from './lib/connect-fail-store'
 import { cmdDrafts } from './lib/cmd-draft-store'
 import { getDraft, persistableDraft, putDraft } from '@shared/cmd-drafts'
@@ -4707,6 +4707,18 @@ export default function App() {
     [profiles, selectedProfileId, openOrFocusProfile, renameProfile, multiSelected]
   )
   const deleteProfilesRef = useRef<(ids: string[]) => Promise<void>>(async () => undefined)
+  // D90: show the "ungroup" drop zone only while a host drag is in progress
+  const [hostDragging, setHostDragging] = useState(false)
+  useEffect(() => {
+    if (!hostDragging) return
+    const end = () => setHostDragging(false)
+    window.addEventListener('dragend', end)
+    window.addEventListener('drop', end)
+    return () => {
+      window.removeEventListener('dragend', end)
+      window.removeEventListener('drop', end)
+    }
+  }, [hostDragging])
 
   const renderProfileBranch = (p: SavedSessionProfile, inFolder?: boolean) => (
     <SessionDockerBranch
@@ -4765,6 +4777,7 @@ export default function App() {
         const ids = dragIds(p.id, multiSelected)
         e.dataTransfer.setData(HOST_DRAG_MIME, encodeHostDrag(ids))
         e.dataTransfer.effectAllowed = 'move'
+        setHostDragging(true)
       }}
       onToggleHost={() => toggleHostExpanded(p)}
       onToggleCompose={() =>
@@ -7986,6 +7999,30 @@ export default function App() {
                   )
                 })}
 
+                {hostDragging && folders.length > 0 ? (
+                  <div
+                    className="sidebar-ungroup-drop"
+                    data-testid="ungroup-drop"
+                    onDragOver={(e) => {
+                      if (!e.dataTransfer.types.includes(HOST_DRAG_MIME)) return
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      e.currentTarget.classList.add('is-drop-target')
+                    }}
+                    onDragLeave={(e) => e.currentTarget.classList.remove('is-drop-target')}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setHostDragging(false)
+                      const ids = decodeHostDrag(e.dataTransfer.getData(HOST_DRAG_MIME))
+                      // D90: same path as Move to → Ungrouped; hosts already ungrouped are skipped
+                      const moving = ungroupPlan(ids, profilesRef.current)
+                      if (moving.length) moveProfileToFolder(moving, undefined)
+                      else showToast(tg('d90.already'))
+                    }}
+                  >
+                    {tg('d90.drop')}
+                  </div>
+                ) : null}
                 {filteredRootProfiles.map((p) => renderProfileBranch(p))}
               </div>
             </aside>
