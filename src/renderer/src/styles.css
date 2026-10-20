@@ -7127,3 +7127,8 @@ button.primary.danger:focus-visible {
 .search-all-hit.is-sel { background: var(--color-border-muted); }
 .search-all-tab { flex: 0 0 auto; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-accent); font-size: var(--fs-xs); }
 .search-all-text { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--color-text-primary); }
+/* D7c: paste-skip host list */
+.paste-skip-list { list-style: none; margin: 0 0 var(--space-2); padding: 0; }
+.paste-skip-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) 0; }
+.paste-skip-list code { font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; }
+.paste-skip-empty { margin: var(--space-1) 0; font-size: var(--fs-xs); color: var(--color-text-secondary); }

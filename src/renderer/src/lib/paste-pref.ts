@@ -20,6 +20,15 @@ export function pasteSkipHost(hostKey: string): boolean {
   }
 }
 
+/** D7c: hosts that skip the multi-line paste preview (for the settings list) */
+export function listPasteSkipHosts(): string[] {
+  try {
+    return parseSkipHosts(localStorage.getItem(PASTE_SKIP_KEY))
+  } catch {
+    return []
+  }
+}
+
 export function setPasteSkipHost(hostKey: string, on: boolean): void {
   try {
     const next = withSkipHost(parseSkipHosts(localStorage.getItem(PASTE_SKIP_KEY)), hostKey, on)

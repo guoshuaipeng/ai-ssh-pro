@@ -5,6 +5,7 @@ import { TERMINAL_THEME_OPTIONS } from '../lib/terminal-themes'
 import { tg } from '../lib/i18n'
 import { loadSmartHistory, loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import type { SmartPrefs } from '@shared/smart-complete'
+import { listPasteSkipHosts, setPasteSkipHost } from '../lib/paste-pref'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
 
@@ -25,6 +26,12 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
   const [hint, setHint] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [smart, setSmart] = useState<SmartPrefs>(() => loadSmartPrefs())
+  // D7c: manage hosts that no longer preview multi-line paste
+  const [skipHosts, setSkipHosts] = useState<string[]>(() => listPasteSkipHosts())
+  const askAgain = (keys: string[]) => {
+    for (const k of keys) setPasteSkipHost(k, false)
+    setSkipHosts(listPasteSkipHosts())
+  }
   const [loaded, setLoaded] = useState(false)
   const [rangeError, setRangeError] = useState<string | null>(null)
 
@@ -163,6 +170,29 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
               <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{tg('term.muteBellHint')}</span>
             </span>
           </label>
+          <fieldset className="paste-skip-prefs" data-testid="paste-skip-prefs">
+            <legend>{tg('d7c.title')}</legend>
+            {skipHosts.length === 0 ? (
+              <p className="paste-skip-empty">{tg('d7c.empty')}</p>
+            ) : (
+              <>
+                <ul className="paste-skip-list">
+                  {skipHosts.map((h) => (
+                    <li key={h}>
+                      <code>{h}</code>
+                      <button type="button" data-testid="paste-skip-ask" onClick={() => askAgain([h])}>
+                        {tg('d7c.askAgain')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" data-testid="paste-skip-ask-all" onClick={() => askAgain(skipHosts)}>
+                  {tg('d7c.askAll', { n: skipHosts.length })}
+                </button>
+              </>
+            )}
+            <p className="paste-skip-empty">{tg('d7c.note')}</p>
+          </fieldset>
           <fieldset className="smart-prefs" data-testid="smart-prefs">
             <legend>{tg('x1.title')}</legend>
             <label>
