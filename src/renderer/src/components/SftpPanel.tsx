@@ -428,6 +428,7 @@ export default function SftpPanel({
     resolve: (c: ConflictChoice, applyRest: boolean) => void
   } | null>(null)
   const speedRef = useRef<Record<string, { t: number; bytes: number }>>({})
+  const batchDoneRef = useRef(0)
   const tasksRef = useRef(tasks)
   tasksRef.current = tasks
   const policyRef = useRef<ConflictChoice | null>(null)
@@ -796,6 +797,22 @@ export default function SftpPanel({
         )
         if (task.direction === 'upload') void refreshRemote(remoteCwd)
         else void refreshLocal(localCwd)
+        // D51: one toast when the queue drains, with the next step for the last file
+        batchDoneRef.current += 1
+        window.setTimeout(() => {
+          const busy = tasksRef.current.some((t) => t.id !== task.id && (t.status === 'queued' || t.status === 'running'))
+          if (busy || batchDoneRef.current === 0) return
+          const n = batchDoneRef.current
+          batchDoneRef.current = 0
+          const msg = n > 1 ? tg('d51.doneN', { n }) : tg(task.direction === 'download' ? 'd51.downloaded' : 'd51.uploaded', { name: task.name })
+          const actions =
+            task.direction === 'download'
+              ? [{ label: tg('d1.reveal'), run: () => void window.aiss.localFs.reveal(task.localPath) }]
+              : onCdInTerminal
+                ? [{ label: tg('d28.btn'), run: () => onCdInTerminal(parentPath(task.remotePath)) }]
+                : []
+          showToast(msg, { ms: 6000, actions })
+        }, 0)
       } catch (e) {
         const msg = friendlyErrorMessage(e)
         patchTask(task.id, { status: msg === 'aborted' ? 'paused' : 'interrupted', error: msg === 'aborted' ? undefined : msg })
