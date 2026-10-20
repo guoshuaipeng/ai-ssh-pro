@@ -1,4 +1,5 @@
 import { hasUsableKey } from '@shared/ai-presets'
+import { recallStep, userPrompts } from '@shared/ai-recall'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
@@ -509,6 +510,8 @@ export default function AIPanel({
   focusPendingToken = 0
 }: Props) {
   const [lines, setLines] = useState<Line[]>([])
+  /** D52: index into userPrompts(lines) while recalling, -1 otherwise */
+  const recallRef = useRef(-1)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   /** 2.2: auto-run progress shown in the composer ("step n / limit"). */
@@ -2240,7 +2243,10 @@ export default function AIPanel({
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              recallRef.current = -1
+              setInput(e.target.value)
+            }}
             placeholder={tg('ai.placeholder')}
             title={tg('ai.inputTip')}
             onMouseUp={() => {
@@ -2256,8 +2262,21 @@ export default function AIPanel({
               setInputMenu({ x: e.clientX, y: e.clientY })
             }}
             onKeyDown={(e) => {
+              // D52: ↑ on an empty box (or while recalling) brings back earlier questions; ↓ walks forward
+              if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+                const ta = e.currentTarget
+                const atEdge = e.key === 'ArrowUp' ? ta.selectionStart === 0 : ta.selectionEnd === ta.value.length
+                const step = atEdge ? recallStep(userPrompts(lines), recallRef.current, input, e.key === 'ArrowUp' ? 'up' : 'down') : null
+                if (step) {
+                  e.preventDefault()
+                  recallRef.current = step.cursor
+                  setInput(step.text)
+                  return
+                }
+              }
               // 聊天输入：默认按 Enter 发送；按 Shift+Enter 换行。
               if (e.key === 'Enter' && !e.shiftKey) {
+                recallRef.current = -1
                 e.preventDefault()
                 void send()
               }
