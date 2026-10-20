@@ -27,6 +27,12 @@ import { appendRecording } from './session-recorder'
 import { assertSafeDockerId } from './docker-manager'
 import { demoHostManager } from './demo-host'
 import { isDemoSessionId } from '../shared/demo-host'
+import { stripEchoedMarker } from '../shared/exit-marker'
+import { ExitCaptureRegistry } from './exit-capture'
+
+/** B1: the echoed printf suffix is noise for the AI and replay. */
+const mapSnapshot = (t: string): string => stripEchoedMarker(t)
+
 
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
@@ -197,6 +203,37 @@ function jumpSlotKey(opts: SshConnectOptions): string {
 
 export class SshSessionManager {
   private sessions = new Map<string, ManagedSession>()
+  private exitCapture = new ExitCaptureRegistry()
+
+  /** B1: strip exit markers from shell output before ring / recording. */
+  private consumeExitMarkers(sessionId: string, text: string): string {
+    return this.exitCapture.consume(sessionId, text)
+  }
+
+  /**
+   * B1: write an AI command; when `capture` is on and the command is eligible, a printf suffix reports `$?`
+   * through an invisible OSC 777 marker. Returns the nonce to wait on, or null when not marked.
+   */
+  writeAiCommand(sessionId: string, command: string, capture: boolean): { ok: boolean; nonce: string | null; unsupported?: boolean } {
+    if (isDemoSessionId(sessionId) || !capture) return { ok: this.write(sessionId, `${command}\n`), nonce: null }
+    const s = this.sessions.get(sessionId)
+    if (!s) return { ok: false, nonce: null }
+    const p = this.exitCapture.prepare(sessionId, command)
+    if (!p.nonce) return { ok: this.write(sessionId, `${command}\n`), nonce: null, ...(p.unsupported ? { unsupported: true } : {}) }
+    // track the command as the user sees it, not the wire form
+    this.trackWriteCommand(s, `${command}\n`)
+    return { ok: s.stream.write(`${p.wire}\n`), nonce: p.nonce }
+  }
+
+  /** B1: resolves with the exit code, or null on timeout / abort / session end. */
+  waitCommandExit(sessionId: string, nonce: string, timeoutMs: number, signal?: AbortSignal): Promise<number | null> {
+    return this.exitCapture.wait(sessionId, nonce, timeoutMs, signal)
+  }
+
+  /** Probe read by core-a-command-failure.readConfirmedCommandOutcome. */
+  confirmedCommandOutcome(sessionId: string, command: string): { exitCode: number } | null {
+    return this.exitCapture.outcome(sessionId, command)
+  }
   /** Successful jump clients parked after a later hop failed. */
   private jumpSlots = new Map<string, JumpSlot>()
 
@@ -229,6 +266,11 @@ export class SshSessionManager {
     if (!s) return null
     const opt = typeof options === 'number' ? { maxLines: options } : options ?? {}
     const maxLines = Number.isFinite(opt.maxLines) ? Math.min(4000, Math.max(1, Math.floor(opt.maxLines!))) : 200
+    if (this.exitCapture.has(sessionId)) return mapSnapshot(this.getRingSnapshotRaw(s, opt, maxLines))
+    return this.getRingSnapshotRaw(s, opt, maxLines)
+  }
+
+  private getRingSnapshotRaw(s: ManagedSession, opt: SshSnapshotOptions, maxLines: number): string {
     if (!opt.fromCurrentCommand) {
       return s.ring.getSnapshot(maxLines)
     }
@@ -297,7 +339,10 @@ export class SshSessionManager {
   }
 
   private teardownSession(sessionId: string, s: ManagedSession): void {
-    if (this.sessions.get(sessionId) === s) this.sessions.delete(sessionId)
+    if (this.sessions.get(sessionId) === s) {
+      this.sessions.delete(sessionId)
+      this.exitCapture.drop(sessionId)
+    }
     this.runForwardCleanups(s)
     if (!s.ownsClient) return
     this.endClients(s)
@@ -502,7 +547,7 @@ export class SshSessionManager {
           }
 
           stream.on('data', (buf: Buffer) => {
-            const asText = outDec.write(buf)
+            const asText = this.consumeExitMarkers(sessionId, outDec.write(buf))
             ring.appendUtf8(asText)
             appendRecording(sessionId, asText)
             if (!owner.isDestroyed()) {
@@ -727,7 +772,7 @@ export class SshSessionManager {
           }
 
           stream.on('data', (buf: Buffer) => {
-            const asText = outDec.write(buf)
+            const asText = this.consumeExitMarkers(sessionId, outDec.write(buf))
             ring.appendUtf8(asText)
             appendRecording(sessionId, asText)
             if (!owner.isDestroyed()) {
