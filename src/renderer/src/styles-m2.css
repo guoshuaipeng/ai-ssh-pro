@@ -231,3 +231,11 @@
 .sftp-name-btn.is-link::after { content: '\21AA'; margin-left: 4px; color: var(--muted); font-size: 11px; }
 .sftp-name-btn.is-broken { color: var(--muted); text-decoration: line-through; }
 
+
+/* D20 */
+.term-block-exit.is-interrupted { color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-size: 10px; }
+
+
+/* D21 */
+.recent-connections-filter { width: 100%; height: 22px; font-size: 11px; padding: 0 6px; margin: 2px 0 4px; }
+
