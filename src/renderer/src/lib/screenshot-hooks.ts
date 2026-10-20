@@ -1,4 +1,5 @@
 /** Opt-in hooks for local screenshot / visual QA. Never on unless localStorage says so. */
+import type { ExecRecord } from '@shared/ai-exec-replay'
 
 export const SCREENSHOT_HOOKS_KEY = "aiss.screenshot.hooks"
 
@@ -42,6 +43,8 @@ export type ScreenshotChatLine = {
   /** M19: a suggested command step (rendered as the compact command block). */
   command?: { description: string; command: string; riskLevel: 'low' | 'medium' | 'high' }
   elapsedMs?: number
+  /** 2.3: execution replay record, as restored from history. */
+  exec?: ExecRecord
 }
 
 /** Visual-QA fixture for the `aiChat` op (screenshot mode only, never shown to users): a suggested command, a numbered answer, prose with a fenced block. */
@@ -63,6 +66,33 @@ export const SCREENSHOT_AI_CHAT_DEMO: ScreenshotChatLine[] = [
       description: '按内存占用降序列出前 10 个进程（含表头）。只读，无副作用。',
       command: 'ps aux --sort=-%mem | head -n 11',
       riskLevel: 'low'
+    },
+    exec: {
+      status: 'sent',
+      at: Date.UTC(2026, 9, 20, 6, 12, 41),
+      durationMs: 1240,
+      outputLines: 11,
+      auditId: 'aud-shot-ps',
+      summary:
+        'root     20517  2.1  7.5 9812344 7412236 ?  Ssl  Oct18  52:10 /usr/bin/containerd\napp      26383  1.4  4.8 8123412 4791220 ?  Sl   Oct19  31:02 java -jar app.jar\nroot      1187  3.0  4.5 6012388 4420912 ?  Ssl  Oct18  80:44 /usr/local/bin/k3s server\nnexus     3011  0.6  4.3 7340032 4251108 ?  Sl   Oct18  12:37 nexus run\nloki      4120  0.4  2.6 3145728 2560112 ?  Ssl  Oct18   9:15 loki -config.file=/etc/loki.yaml'
+    }
+  },
+  {
+    role: 'assistant',
+    content: '',
+    elapsedMs: 3000,
+    command: {
+      description: '重启 nginx 以加载新的上游配置。',
+      command: 'systemctl restart nginx',
+      riskLevel: 'medium'
+    },
+    exec: {
+      status: 'failed',
+      at: Date.UTC(2026, 9, 20, 6, 13, 5),
+      durationMs: 860,
+      exitCode: 1,
+      outputLines: 2,
+      summary: 'Job for nginx.service failed because the control process exited with error code.\nSee "systemctl status nginx.service" and "journalctl -xeu nginx.service" for details.'
     }
   },
   {

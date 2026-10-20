@@ -139,6 +139,7 @@ import { runGuardedCommand } from './lib/protection-gate'
 import OpsHomeTab, { type HomeHost } from './components/OpsHomeTab'
 import AlertWorkbenchTab from './components/AlertWorkbenchTab'
 import AuditLogPanel from './components/AuditLogPanel'
+import { OPEN_AUDIT_EVENT } from './components/ExecReplay'
 import AuditExportModal from './components/AuditExportModal'
 import { PlaybookEditor, PlaybookList, PlaybookResult, PlaybookRun } from './components/PlaybookTabs'
 import { PlaybookImportTab, stageShareImport } from './components/PlaybookShare'
@@ -406,6 +407,8 @@ type Tab = {
   explainOnOpen?: boolean
   /** S1 host filter */
   auditHost?: string
+  /** 2.3: audit row to scroll to and highlight (from AI execution replay). Not persisted. */
+  auditFocusId?: string
   playbookId?: string
   recordingFile?: string
   syncPlan?: SyncPreviewPlan
@@ -2677,13 +2680,13 @@ export default function App() {
   const openWorkbenchRef = useRef(openWorkbench)
   openWorkbenchRef.current = openWorkbench
 
-  const openAudit = useCallback((host?: string) => {
+  const openAudit = useCallback((host?: string, focusId?: string) => {
     ensureMainVisible()
     setAuditEvents(loadAudit())
     const title = host ? `${tg('l4.auditTitle')} · ${host}` : tg('l4.auditTitle')
     const ex = tabsRef.current.find((t) => t.view === 'audit')
     if (ex) {
-      setTabs((prev) => prev.map((t) => (t.tabId === ex.tabId ? { ...t, title, auditHost: host } : t)))
+      setTabs((prev) => prev.map((t) => (t.tabId === ex.tabId ? { ...t, title, auditHost: host, auditFocusId: focusId } : t)))
       setActiveTabId(ex.tabId)
       return
     }
@@ -2697,11 +2700,22 @@ export default function App() {
         connectOpts: PLACEHOLDER_CONNECT,
         status: 'connected',
         view: 'audit',
-        auditHost: host
+        auditHost: host,
+        auditFocusId: focusId
       }
     ])
     setActiveTabId(tabId)
   }, [ensureMainVisible])
+
+  // 2.3: "审计记录" in an AI execution replay row
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id
+      openAudit(undefined, id || undefined)
+    }
+    window.addEventListener(OPEN_AUDIT_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_AUDIT_EVENT, onOpen)
+  }, [openAudit])
 
   const openM2 = useCallback((view: TabView, title: string, extra?: Partial<Tab>) => {
     ensureMainVisible()
@@ -8712,6 +8726,7 @@ export default function App() {
                   <AuditLogPanel
                     events={auditEvents}
                     host={t.auditHost}
+                    focusId={t.auditFocusId}
                     enabled={auditOn}
                     onToggle={(on) => {
                       setAuditEnabled(on)

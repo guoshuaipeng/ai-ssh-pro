@@ -6839,3 +6839,84 @@ button.primary.danger:focus-visible {
   text-decoration: underline;
   outline: none;
 }
+
+/* 2.3 对话内执行回放：命令卡片下的执行记录行 */
+.ai-exec-replay {
+  margin-top: var(--space-2);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+.ai-exec-row {
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+}
+.ai-exec-toggle {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ai-exec-toggle:hover,
+.ai-exec-audit:hover { color: var(--color-text-secondary); }
+.ai-exec-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+.ai-exec-replay.is-ok .ai-exec-dot { background: var(--color-ok); }
+.ai-exec-replay.is-failed .ai-exec-dot { background: var(--color-danger); }
+.ai-exec-replay.is-blocked .ai-exec-dot { background: var(--color-warn); }
+.ai-exec-status { color: var(--color-text-secondary); white-space: nowrap; }
+.ai-exec-replay.is-failed .ai-exec-status { color: var(--color-danger); }
+.ai-exec-meta { flex: none; white-space: nowrap; }
+.ai-exec-meta:last-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ai-exec-meta + .ai-exec-meta::before,
+.ai-exec-status + .ai-exec-meta::before { content: '·'; margin-right: var(--space-2); }
+.ai-exec-audit {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 0;
+  margin-left: auto;
+  border-left: 1px solid var(--color-border-muted);
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.ai-exec-audit.is-muted { color: var(--color-text-muted); }
+.ai-exec-body {
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border-muted);
+}
+.ai-exec-output {
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  white-space: pre;
+  color: var(--color-text-secondary);
+}
+.ai-exec-note { line-height: 1.5; }
+.ai-exec-output + .ai-exec-note,
+.ai-exec-note + .ai-exec-note { margin-top: var(--space-1); }
+.audit-table tr.is-focus td { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }

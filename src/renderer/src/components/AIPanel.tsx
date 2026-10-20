@@ -19,6 +19,8 @@ import { releaseSessionInFlight, type SafetyMode, type SafetySettings } from '@s
 import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } from '@shared/ai-policy'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
+import ExecReplay from './ExecReplay'
+import type { ExecRecord } from '@shared/ai-exec-replay'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
 import {
@@ -102,6 +104,8 @@ type AssistantLine = {
   detail?: string
   /** M19: wall time of the turn, shown as the muted meta line. Not persisted. */
   elapsedMs?: number
+  /** 2.3: execution replay (persisted). */
+  exec?: ExecRecord
 }
 
 type Line = UserLine | AssistantLine
@@ -398,6 +402,7 @@ function linesToHistoryMessages(lines: Line[]): AiChatMessage[] {
       if (l.safetyMode) row.safetyMode = l.safetyMode
       if (l.decision) row.decision = l.decision
       if (l.parseMiss) row.parseMiss = true
+      if (l.exec) row.exec = l.exec
       return row
     })
 }
@@ -423,6 +428,7 @@ function historyToLines(messages: AiChatMessage[]): Line[] {
     if (m.safetyMode) row.safetyMode = m.safetyMode as AssistantLine['safetyMode']
     if (m.decision) row.decision = m.decision
     if (m.parseMiss) row.parseMiss = true
+    if (m.exec) row.exec = m.exec
     out.push(row)
   }
   return out
@@ -489,6 +495,7 @@ export default function AIPanel({
                       content: d.content || d.command?.description || d.end?.description || '',
                       requestId: d.requestId,
                       elapsedMs: d.elapsedMs,
+                      exec: d.exec,
                       fresh: false,
                       structured: d.command
                         ? { action: 'command', description: d.command.description, command: d.command.command, riskLevel: d.command.riskLevel }
@@ -795,11 +802,32 @@ export default function AIPanel({
 
       let usedStepProtocol = false
       let assistant = ''
+      // 2.3: audit id per command, attached to the replay record when the exec event arrives
+      const auditIds = new Map<string, string>()
       const unsub = window.aiss.ai.onStream((ev) => {
+      if (ev.type === 'exec') {
+        const rec: ExecRecord = { ...ev.payload, ...(auditIds.get(ev.command) ? { auditId: auditIds.get(ev.command) } : {}) }
+        applyTurn((prev) => {
+          const next = [...prev]
+          for (let k = next.length - 1; k >= 0; k--) {
+            const l = next[k]
+            if (l.role !== 'assistant' || !l.structured) continue
+            const sameReq = Boolean(ev.requestId && l.requestId === ev.requestId)
+            const sameCmd = (l.structured.command ?? '').replace(/[\r\n]+/g, ' ').trim() === ev.command
+            if ((sameReq || sameCmd) && !l.exec) {
+              next[k] = { ...l, exec: rec }
+              queueMicrotask(() => persistTurn(next))
+              break
+            }
+          }
+          return next
+        })
+        return
+      }
       if (ev.type === 'audit') {
         // 2.1: one row per AI command, with tab #n and the resolved policy.
         const a = ev.payload
-        appendAudit({
+        const auditRow = appendAudit({
           type: 'command',
           host: turn.host || '—',
           source: 'AI',
@@ -812,6 +840,7 @@ export default function AIPanel({
           policySource: a.policySource,
           policyCappedBy: a.policyCappedBy
         })
+        if (auditRow) auditIds.set(a.command, auditRow.id)
         window.dispatchEvent(new Event('aiss-audit-changed'))
         return
       }
@@ -1972,7 +2001,8 @@ export default function AIPanel({
                       safetyMode: l.safetyMode,
                       requestId: l.requestId,
                       fresh: l.fresh,
-                      decision: l.decision,
+                      // 2.3: a replayed (already executed) command reads as executed, not as a fresh suggestion
+                      decision: l.decision ?? (l.exec && l.exec.status !== 'blocked' ? 'agreed' : undefined),
                       confirmable: l.requestId ? isConfirmable : true,
                       onAgree: () => {
                         if (l.requestId) void confirmStep(l.requestId, true)
@@ -1989,6 +2019,7 @@ export default function AIPanel({
                     })}
                   </div>
                 ) : null}
+                {l.exec ? <ExecReplay exec={l.exec} /> : null}
                 {s.action === 'end' || s.action === 'command' ? <ReplyMeta text={metaText} elapsedMs={l.elapsedMs} /> : null}
               </div>
             )

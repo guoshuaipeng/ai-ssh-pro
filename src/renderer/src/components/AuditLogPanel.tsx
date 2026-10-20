@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { auditWindowBounds, setAuditExportContext, type AuditExportSeed } from '@shared/audit-export'
 import { filterAudit, type AuditEvent, type AuditType, auditPolicyText } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
@@ -13,10 +13,13 @@ export default function AuditLogPanel({
   onToggle,
   onClose,
   onClear,
-  onExport
+  onExport,
+  focusId
 }: {
   events: AuditEvent[]
   host?: string
+  /** 2.3: row to scroll to and highlight */
+  focusId?: string
   enabled: boolean
   onToggle: (on: boolean) => void
   onClose: () => void
@@ -40,8 +43,20 @@ export default function AuditLogPanel({
   }, [host, type, since, until])
   const rows = useMemo(() => {
     const bounds = since || until ? auditWindowBounds({ range: 'custom', since, until }) : {}
-    return filterAudit(events, { host, type, text, since: bounds.since, until: bounds.until })
-  }, [events, host, type, text, since, until])
+    const list = filterAudit(events, { host, type, text, since: bounds.since, until: bounds.until })
+    // keep the focused row visible even past the 200-row cap
+    if (focusId) {
+      const k = list.findIndex((e) => e.id === focusId)
+      if (k >= 200) return [list[k], ...list.slice(0, k), ...list.slice(k + 1)]
+    }
+    return list
+  }, [events, host, type, text, since, until, focusId])
+  const focusMissing = Boolean(focusId && !events.some((e) => e.id === focusId))
+  const wrapRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!focusId) return
+    wrapRef.current?.querySelector(`[data-audit-id="${CSS.escape(focusId)}"]`)?.scrollIntoView({ block: 'center' })
+  }, [focusId, rows])
   return (
     <div className="workspace-panel" data-testid="audit-log">
       <PanelHeader
@@ -91,7 +106,12 @@ export default function AuditLogPanel({
           {t('l4.audit')}
         </label>
       </div>
-      <div className="workspace-panel-body audit-table-wrap">
+      {focusMissing ? (
+        <div className="l7-mute" data-testid="audit-focus-missing">
+          <span>{t('exec.notFound')}</span>
+        </div>
+      ) : null}
+      <div className="workspace-panel-body audit-table-wrap" ref={wrapRef}>
         {rows.length === 0 ? (
           <EmptyState
             testId="audit-empty"
@@ -116,7 +136,7 @@ export default function AuditLogPanel({
             </thead>
             <tbody>
               {rows.slice(0, 200).map((e) => (
-                <tr key={e.id}>
+                <tr key={e.id} data-audit-id={e.id} className={e.id === focusId ? 'is-focus' : undefined} aria-current={e.id === focusId ? 'true' : undefined}>
                   <td>{new Date(e.at).toLocaleString()}</td>
                   <td>{e.type}</td>
                   <td title={e.host}>{e.host}</td>
