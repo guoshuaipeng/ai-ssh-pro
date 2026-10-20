@@ -4654,7 +4654,8 @@ export default function App() {
         }
       ])
       setActiveTabId(tabId)
-      showToast(meta.startCwd ? tg('d25.openedIn', { path: meta.startCwd }) : tg('localShell.opened'))
+      if (meta.startCwd) showToast(tg('d25.openedIn', { path: meta.startCwd }))
+      else showToast(tg('localShell.opened'))
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e)
       const msg = /node-pty|本机 Shell 不可用|Local shell unavailable/i.test(raw) ? tg('localShell.unavailable') : raw
