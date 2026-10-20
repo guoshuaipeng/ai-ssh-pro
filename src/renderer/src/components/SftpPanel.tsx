@@ -45,6 +45,8 @@ import { loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
 import { openDecision } from '@shared/sftp-open'
+import { AI_FILE_MAX_BYTES, buildFileContext, canAttachFile } from '@shared/ai-file-context'
+import { requestAskWithContext } from '../lib/ai-prefill'
 import Icon, { Twist } from './Icon'
 import FolderSyncModal from './FolderSyncModal'
 import { isLikelyTextFile } from './RemoteTextEditor'
@@ -1597,8 +1599,31 @@ export default function SftpPanel({
                         ])
                         return
                       }
-                      if (isLocal || (!onCompare && !onOpenHistory)) return
+                      if (isLocal || (!onCompare && !onOpenHistory && !sessionId)) return
                       openContextMenu(ev, [
+                        ...(sessionId
+                          ? [{
+                          // D39: prefill the AI composer with this file (redacted, capped); the user still presses send
+                          id: 'ask-ai-file',
+                          label: tg('d39.ask'),
+                          onSelect: () => {
+                            const chk = canAttachFile(e.path, e.size)
+                            if (!chk.ok) {
+                              showToast(tg(chk.reason === 'secret' ? 'd39.secret' : chk.reason === 'binary' ? 'd39.binary' : 'd39.large'))
+                              return
+                            }
+                            void window.aiss.sftp.readText(sessionId, e.path, AI_FILE_MAX_BYTES).then(
+                              (r) => {
+                                const c = buildFileContext(e.path, r.content, r.truncated || r.size > AI_FILE_MAX_BYTES)
+                                if (requestAskWithContext(sessionId, c.text, tg('d39.q', { name: e.name })))
+                                  showToast(c.redacted ? tg('d39.prefilledRedacted', { n: c.redacted }) : tg('d39.prefilled'))
+                                else showToast(tg('d39.empty'))
+                              },
+                              (err: unknown) => showToast(tg('d39.readFail', { reason: String((err as Error)?.message ?? err) }))
+                            )
+                          }
+                        }]
+                          : []),
                         ...(onCompare
                           ? [{
                           id: 'compare-local',
