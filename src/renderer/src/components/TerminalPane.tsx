@@ -124,6 +124,9 @@ export default function TerminalPane({
   const wrapRef = useRef<HTMLDivElement>(null)
   // D78: floating "Ask AI" chip after a mouse selection
   const [selAsk, setSelAsk] = useState<{ x: number; y: number } | null>(null)
+  // D82: output arrived while scrolled up
+  const [newBelow, setNewBelow] = useState(false)
+  const newBelowRef = useRef(false)
   const apiRef = useRef<{ term: Terminal; fit: FitAddon } | null>(null)
   const activeRef = useRef(active)
   activeRef.current = active
@@ -960,6 +963,30 @@ export default function TerminalPane({
     }
   }, [sessionId])
 
+  useEffect(() => {
+    const term = apiRef.current?.term
+    if (!term) return
+    const set = (v: boolean) => {
+      if (newBelowRef.current === v) return
+      newBelowRef.current = v
+      setNewBelow(v)
+    }
+    const atBottom = () => {
+      const b = term.buffer.active
+      return b.viewportY >= b.baseY
+    }
+    const w = term.onWriteParsed(() => {
+      if (!atBottom()) set(true)
+    })
+    const s = term.onScroll(() => {
+      if (atBottom()) set(false)
+    })
+    return () => {
+      w.dispose()
+      s.dispose()
+    }
+  }, [sessionId])
+
   return (
     <>
       <div className="terminal-pane-wrap" data-terminal="true" data-session-id={sessionId}>
@@ -970,6 +997,21 @@ export default function TerminalPane({
           </span>
         ) : null}
         {zmodemStatus ? <div className="zmodem-status">{zmodemStatus}</div> : null}
+        {newBelow ? (
+          <button
+            type="button"
+            className="term-new-below"
+            data-testid="term-new-below"
+            title={tg('d82.tip')}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              apiRef.current?.term.scrollToBottom()
+              apiRef.current?.term.focus()
+            }}
+          >
+            ↓ {tg('d82.label')}
+          </button>
+        ) : null}
         {selAsk && !mirrorOnly ? (
           <button
             type="button"
