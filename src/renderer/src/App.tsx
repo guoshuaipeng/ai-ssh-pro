@@ -2014,6 +2014,15 @@ export default function App() {
           cancelAutoReconnect(tabId)
           return
         }
+        // D37: offline: don't burn an attempt; the 'online' listener resumes this tab right away
+        if (navigator.onLine === false) {
+          autoRetryRef.current.set(tabId, { attempt: attempt - 1, timer: 0 as unknown as ReturnType<typeof setTimeout> })
+          if (!netWaitToastRef.current) {
+            netWaitToastRef.current = true
+            showToast(tg('d37.waitNet'))
+          }
+          return
+        }
         const ok = await reconnectTabRef.current(tabId, { full: false })
         if (ok) cancelAutoReconnect(tabId)
         else if (autoRetryRef.current.has(tabId)) scheduleAutoReconnectRef.current(tabId)
@@ -2022,6 +2031,27 @@ export default function App() {
     autoRetryRef.current.set(tabId, { attempt, timer })
     setAutoRetry({ tabId, attempt, delayMs, startedAt, max, phase: 'countdown' })
   }
+
+  // D37: network back: retry pending tabs immediately instead of waiting for the countdown
+  const netWaitToastRef = useRef(false)
+  useEffect(() => {
+    const onOnline = () => {
+      netWaitToastRef.current = false
+      const ids = [...autoRetryRef.current.keys()].filter((id) => !haltedRef.current.has(id))
+      if (!ids.length) return
+      showToast(tg('d37.netBack', { n: ids.length }))
+      for (const id of ids) {
+        const cur = autoRetryRef.current.get(id)
+        if (cur) clearTimeout(cur.timer)
+        void reconnectTabRef.current(id, { full: false }).then((sid) => {
+          if (sid) cancelAutoReconnect(id)
+          else if (autoRetryRef.current.has(id)) scheduleAutoReconnectRef.current(id)
+        })
+      }
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [cancelAutoReconnect])
 
   useEffect(() => {
     const map = autoRetryRef.current
