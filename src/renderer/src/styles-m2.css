@@ -211,3 +211,9 @@
 /* D16 */
 .term-block-send { color: var(--accent); font-weight: 600; }
 
+
+/* D17 */
+.term-blocks-search { width: 140px; height: 20px; font-size: 11px; padding: 0 6px; }
+.term-blocks-hits { font-size: 11px; color: var(--muted); }
+.term-block.is-restored { opacity: 0.72; }
+

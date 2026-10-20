@@ -15,6 +15,8 @@ import { currentTerminalSelection } from '../lib/terminal-selection'
 import { fillCommandBar, lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
 import { AI_PREFILL_EVENT, takeAiPrefill } from '../lib/ai-prefill'
 import { fillableCommand } from '@shared/ai-fill'
+import { scriptSteps } from '@shared/ai-script'
+import { startScript } from '../lib/ai-script-run'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { aiOrigins, aiPanelSession } from '../lib/ai-origin'
 import { confirmDialog, isDialogOpen } from '../lib/dialogs'
@@ -144,6 +146,7 @@ function HighlightedText({ text }: { text: string }): ReactNode {
 
 function AiCodeBlock({ code, lang }: { code: string; lang: string }) {
   const fill = fillableCommand(code, lang)
+  const steps = fill ? null : scriptSteps(code, lang)
   return (
     <div className="ai-code-block" data-testid="ai-code-block" data-lang={lang || undefined}>
       <div className="ai-code-head">
@@ -178,6 +181,24 @@ function AiCodeBlock({ code, lang }: { code: string; lang: string }) {
             }}
           >
             {tg('d16.fill')}
+          </button>
+        ) : null}
+        {steps ? (
+          <button
+            type="button"
+            className="ai-code-copy ai-code-fill"
+            data-testid="ai-code-steps"
+            title={tg('d16b.tip')}
+            onClick={() => {
+              const sid = aiPanelSession.current
+              if (!sid) {
+                showToast(tg('d16.noSession'))
+                return
+              }
+              startScript(sid, steps)
+            }}
+          >
+            {tg('d16b.fill', { n: steps.length })}
           </button>
         ) : null}
       </div>

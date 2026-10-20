@@ -215,6 +215,9 @@ import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from 
 import { assessCommandRisk } from '@shared/command-risk'
 import { setStrictPasteHosts } from './lib/paste-pref'
 import { SHELL_INT_EVENT, setShellIntOn, shellIntOn } from './lib/shell-integration'
+import { BLOCKS_HINT_KEY, shouldHintBlocks } from '@shared/blocks-hint'
+import { isDemoSessionId } from '@shared/demo-host'
+import { COMMAND_SUBMITTED_EVENT } from './lib/ai-events'
 import { matchProfile, parseQuickTarget, quickTargetLabel, type QuickTarget } from '@shared/quick-connect'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import {
@@ -1176,6 +1179,29 @@ export default function App() {
     [tabs, profiles, sessionRo, elevateMap]
   )
   const [siOn, setSiOn] = useState(() => shellIntOn())
+  // D18: blocks stay off by default; after a few real commands, point to them once
+  useEffect(() => {
+    let submitted = 0
+    const onCmd = (e: Event) => {
+      const sid = (e as CustomEvent<{ sessionId: string }>).detail?.sessionId
+      submitted += 1
+      let shown = true
+      try {
+        shown = localStorage.getItem(BLOCKS_HINT_KEY) === '1'
+      } catch {
+        shown = true
+      }
+      if (!shouldHintBlocks({ enabled: blocksEnabled(), shown, submitted, demo: !sid || isDemoSessionId(sid) })) return
+      try {
+        localStorage.setItem(BLOCKS_HINT_KEY, '1')
+      } catch {
+        /* ignore */
+      }
+      showToast(tg('d18.hint'), { ms: 12000, actions: [{ label: tg('d18.enable'), run: () => setBlocksOn(turnBlocks(true)) }] })
+    }
+    window.addEventListener(COMMAND_SUBMITTED_EVENT, onCmd)
+    return () => window.removeEventListener(COMMAND_SUBMITTED_EVENT, onCmd)
+  }, [])
   useEffect(() => {
     const sync = () => setSiOn(shellIntOn())
     window.addEventListener(SHELL_INT_EVENT, sync)
@@ -9404,7 +9430,7 @@ export default function App() {
                       onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
                       onUserData={(data) => handleTermInput(t.sessionId, data)}
                     />
-                    <TerminalBlocks sessionId={t.sessionId} />
+                    <TerminalBlocks sessionId={t.sessionId} hostKey={sessionHostKey(t)} />
                     </>
                   )
                 ) : (

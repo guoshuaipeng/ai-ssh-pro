@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { applyExitHits, blockFailed, createBlockExitParser, failedBlockContext } from '@shared/block-exit'
 import { blockExitOn, setBlockExitOn } from '../lib/block-wire'
 import { aiOrigins } from '../lib/ai-origin'
+import { BLOCK_HIST_PREFIX, fromStored, mergeForSave, parseStored, searchBlocks, toStored, type StoredBlock } from '@shared/block-history'
+import { isStrictPasteHost } from '../lib/paste-pref'
 import { SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, setShellIntOn, shellIntOn } from '../lib/shell-integration'
 import { COMMAND_SUBMITTED_EVENT, fillCommandBar } from '../lib/ai-events'
 import {
@@ -36,7 +38,7 @@ export function turnBlocks(on: boolean): boolean {
   return on
 }
 
-export default function TerminalBlocks({ sessionId }: { sessionId: string | null }) {
+export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId: string | null; hostKey?: string }) {
   const [on, setOn] = useState(() => blocksEnabled())
   const [blocks, setBlocks] = useState<TermBlock[]>([])
   const [ratio, setRatio] = useState(() => loadBlockRatio())
@@ -46,6 +48,44 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
   const parserRef = useRef(createBlockExitParser())
   const stripRef = useRef<HTMLDivElement>(null)
   const [siOn, setSiOn] = useState(() => shellIntOn())
+  const [query, setQuery] = useState('')
+  const histRef = useRef<StoredBlock[]>([])
+  // D17: restore this host's recent blocks (local only; never for production / read-only hosts)
+  useEffect(() => {
+    histRef.current = []
+    if (!on || !sessionId || !hostKey || isStrictPasteHost(hostKey)) return
+    let list: StoredBlock[] = []
+    try {
+      list = parseStored(localStorage.getItem(BLOCK_HIST_PREFIX + hostKey))
+    } catch {
+      list = []
+    }
+    histRef.current = list
+    if (list.length) setBlocks((cur) => (cur.length ? cur : fromStored(list)))
+  }, [on, sessionId, hostKey])
+  useEffect(() => {
+    if (!on || !hostKey || isStrictPasteHost(hostKey)) return
+    const live = blocks.filter((b) => !(b as { restored?: boolean }).restored)
+    if (!live.some((b) => !b.running)) return
+    const id = window.setTimeout(() => {
+      try {
+        localStorage.setItem(BLOCK_HIST_PREFIX + hostKey, JSON.stringify(mergeForSave(histRef.current, toStored(live))))
+      } catch {
+        /* quota: history is best effort */
+      }
+    }, 800)
+    return () => window.clearTimeout(id)
+  }, [blocks, on, hostKey])
+  const clearHistory = () => {
+    try {
+      localStorage.removeItem(BLOCK_HIST_PREFIX + hostKey)
+    } catch {
+      /* ignore */
+    }
+    histRef.current = []
+    setBlocks((cur) => cur.filter((b) => !(b as { restored?: boolean }).restored))
+    showToast(tg('d17.cleared'))
+  }
   useEffect(() => {
     const sync = () => setOn(blocksEnabled())
     window.addEventListener('aiss-blocks', sync)
@@ -110,6 +150,7 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
     return () => window.removeEventListener(SHELL_INT_EVENT, sync)
   }, [])
   if (!on || !sessionId || blocks.length === 0) return null
+  const matches = new Set(searchBlocks(blocks, query))
   const height = collapsed ? 24 : blockStripPx(600, ratio).px
   const explain = (b: TermBlock) => {
     window.dispatchEvent(new CustomEvent('aiss-ai-explain', { detail: { sessionId, text: b.output || b.command, source: 'palette' } }))
@@ -161,6 +202,12 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       />
       <div className="term-blocks-head">
         <span>{tg('blocks.title', { n: blocks.length })}</span>
+        <input className="term-blocks-search" data-testid="blocks-search" type="search" value={query} placeholder={tg('d17.search')} aria-label={tg('d17.search')} onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery('') } }} />
+        {query.trim() ? <span className="term-blocks-hits" data-testid="blocks-hits">{tg('d17.hits', { n: matches.size })}</span> : null}
+        {hostKey && !isStrictPasteHost(hostKey) && blocks.some((b) => (b as { restored?: boolean }).restored) ? (
+          <button type="button" data-testid="blocks-clear-history" title={tg('d17.clearTip')} onClick={clearHistory}>{tg('d17.clear')}</button>
+        ) : null}
         <label className="term-blocks-exit" title={tg('d14.tip')}>
           <input type="checkbox" data-testid="blocks-shell-int" checked={siOn} onChange={(e) => { const v = e.currentTarget.checked; setShellIntOn(v); setSiOn(v); showToast(tg(v ? 'd14.on' : 'd14.off')) }} />
           {tg('d14.label')}
@@ -173,10 +220,10 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
         <button type="button" onClick={() => setBlocks((cur) => cur.map((b) => ({ ...b, collapsed: true })))}>{tg('blocks.collapseAll')}</button>
         <button type="button" title={collapsed ? tg('blocks.show') : tg('blocks.hide')} onClick={() => setCollapsed((v) => { const next = !v; showToast(tg(next ? 'blocks.hide' : 'blocks.show')); return next })}>{collapsed ? '⌃' : '⌄'}</button>
       </div>
-      {collapsed ? null : blocks.map((b, index) => (
+      {collapsed ? null : blocks.map((b, index) => !matches.has(index) ? null : (
         <div
           key={b.id}
-          className={`term-block${b.collapsed ? ' is-collapsed' : ''}${index === selected ? ' is-selected' : ''}`}
+          className={`term-block${(b as { restored?: boolean }).restored ? ' is-restored' : ''}${b.collapsed && !query.trim() ? ' is-collapsed' : ''}${index === selected ? ' is-selected' : ''}`}
           tabIndex={0}
           onClick={() => setSelected(index)}
           onKeyDown={(e) => {
@@ -248,7 +295,7 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
             <button type="button" data-testid="block-rerun" title={tg('d15.rerunTip')} onClick={() => rerun(b)}>{tg('d15.rerun')}</button>
             <button type="button" onClick={() => saveSnippet(b)}>{tg('m2.saveSnippet')}</button>
           </div>
-          {b.collapsed ? null : <pre>{b.large ? b.output.slice(0, 4000) : b.output}</pre>}
+          {b.collapsed && !query.trim() ? null : <pre>{b.large ? b.output.slice(0, 4000) : b.output}</pre>}
         </div>
       ))}
     </div>
