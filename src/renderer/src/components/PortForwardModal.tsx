@@ -9,6 +9,7 @@ import EmptyState from './EmptyState'
 import ErrorNotice from './ErrorNotice'
 import Button from './ui/Button'
 import { appendAudit } from '@shared/audit-log'
+import { socksProxyUrl } from '@shared/socks5'
 import { exposesBeyondLoopback, remoteForwardBlockReason, remoteForwardLabel, type ForwardDirection } from '@shared/remote-forward'
 
 type Props = {
@@ -82,7 +83,9 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
     setBusy(true)
     try {
       const fwd = await window.aiss.workspace.forwards.add(
-        dir === 'R'
+        dir === 'D'
+          ? { sessionId, direction: 'D', localPort: localPort.trim() === '' ? 0 : Number(localPort), remoteHost: '*', remotePort: 0 }
+          : dir === 'R'
           ? {
               sessionId,
               direction: 'R',
@@ -98,6 +101,16 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
               remotePort: Number(remotePort)
             }
       )
+      if (fwd.direction === 'D') {
+        appendAudit({
+          type: 'forward.dynamic',
+          host: cur?.host ?? '',
+          profileId: cur?.profileId,
+          source: 'user',
+          outcome: 'allowed',
+          detail: `-D 127.0.0.1:${fwd.localPort} (SOCKS5)`
+        })
+      }
       if (fwd.direction === 'R') {
         appendAudit({
           type: 'forward.remote',
@@ -137,7 +150,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
     <Modal open={open || !!embedded} title={t('pf.title')} onClose={onClose} width={760} embedded={embedded} testId="port-forward-panel">
       <div className="pf-panel">
         <div className="pf-dir" role="radiogroup" aria-label={t('pf.direction')}>
-          {(['L', 'R'] as const).map((d) => (
+          {(['L', 'R', 'D'] as const).map((d) => (
             <button
               key={d}
               type="button"
@@ -150,11 +163,11 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
                 setError(null)
               }}
             >
-              {t(d === 'L' ? 'pf.dirL' : 'pf.dirR')}
+              {t(d === 'L' ? 'pf.dirL' : d === 'R' ? 'pf.dirR' : 'pf.dirD')}
             </button>
           ))}
         </div>
-        <p className="pf-hint">{t(dir === 'R' ? 'pfR.hint' : 'pf.hint')}</p>
+        <p className="pf-hint">{t(dir === 'R' ? 'pfR.hint' : dir === 'D' ? 'pfD.hint' : 'pf.hint')}</p>
         {sessions.length === 0 && rows.length > 0 ? <p className="pf-empty">{t('pf.noSessions')}</p> : null}
         <div className="pf-form">
           <label>
@@ -170,7 +183,12 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
               options={sessions.map((s) => ({ value: s.sessionId, label: s.title, hint: s.readonly ? t('pf.roHint') : undefined }))}
             />
           </label>
-          {dir === 'R' ? (
+          {dir === 'D' ? (
+            <label>
+              {t('pfD.localPort')}
+              <input value={localPort} placeholder={t('pf.auto')} onChange={(e) => setLocalPort(e.target.value)} inputMode="numeric" />
+            </label>
+          ) : dir === 'R' ? (
             <>
               <label>
                 {t('pfR.bindHost')}
@@ -241,7 +259,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
             testId="pf-empty"
             icon="forward"
             title={t('pf4.fwdTitle')}
-            desc={t(dir === 'R' ? 'pfR.emptyDesc' : 'pf4.fwdDesc')}
+            desc={t(dir === 'R' ? 'pfR.emptyDesc' : dir === 'D' ? 'pfD.emptyDesc' : 'pf4.fwdDesc')}
             primary={{
               label: sessions.length ? t('pf.add') : t('pf4.pickHost'),
               onClick: () => {
@@ -267,10 +285,11 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
             <tbody>
               {rows.map((r) => {
                 const isR = r.direction === 'R'
+                const isD = r.direction === 'D'
                 const localAddr = isR ? `${r.localHost ?? '127.0.0.1'}:${r.localPort}` : `127.0.0.1:${r.localPort}`
-                const remoteAddr = `${r.remoteHost}:${r.remotePort}`
+                const remoteAddr = isD ? r.lastTarget ?? t('pfD.anyTarget') : `${r.remoteHost}:${r.remotePort}`
                 // copy the end that listens: local for -L, server side for -R
-                const addr = isR ? remoteAddr : localAddr
+                const addr = isD ? socksProxyUrl(r.localPort) : isR ? remoteAddr : localAddr
                 return (
                   <tr key={r.id} data-forward-id={r.id}>
                     <td>
@@ -278,8 +297,8 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
                       {r.source === 'profile' ? <span className="pf-badge">{t('pf.fromProfile')}</span> : null}
                     </td>
                     <td>
-                      <span className="pf-badge" data-testid={`pf-row-dir-${isR ? 'R' : 'L'}`}>
-                        {isR ? '-R' : '-L'}
+                      <span className="pf-badge" data-testid={`pf-row-dir-${r.direction}`}>
+                        -{r.direction}
                       </span>
                     </td>
                     <td className="pf-addr">{localAddr}</td>
@@ -295,7 +314,7 @@ export default function PortForwardModal({ open, sessions, activeSessionId, onCl
                     </td>
                     <td className="pf-actions">
                       <button type="button" onClick={() => void copy(addr)}>
-                        {copied === addr ? t('pf.copied') : t('pf.copy')}
+                        {copied === addr ? t('pf.copied') : isD ? t('pfD.copyProxy') : t('pf.copy')}
                       </button>
                       <button type="button" className="danger" onClick={() => void stop(r.id)}>
                         {t('pf.stop')}

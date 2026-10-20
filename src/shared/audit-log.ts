@@ -17,6 +17,7 @@ export type AuditType =
   | 'session.readonly.on'
   | 'session.readonly.off'
   | 'forward.remote'
+  | 'forward.dynamic'
 
 export type GateResult = 'allowed' | 'confirmed' | 'denied' | 'blocked' | 'cancelled' | 'unlock' | 'restore'
 
