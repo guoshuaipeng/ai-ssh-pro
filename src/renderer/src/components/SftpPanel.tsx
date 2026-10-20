@@ -1240,6 +1240,23 @@ export default function SftpPanel({
   const showLocal = !narrow || pane === 'local'
   const showRemote = !narrow || pane === 'remote'
 
+  /** D36: large or binary files: offer a download instead of a truncated / failing editor (double-click and Enter) */
+  const openRemoteEntry = (e: SftpListEntry) => {
+    if (!onOpenRemoteFile) return
+    const how = openDecision(e.name, e.size)
+    const open = () => onOpenRemoteFile({ remotePath: e.path, name: e.name, size: e.size })
+    if (how === 'edit') {
+      open()
+      return
+    }
+    const download = () =>
+      void transferFiles('download', [{ name: e.name, localPath: joinLocal(localCwd, e.name), remotePath: e.path, size: e.size, mtime: e.modifyTime }])
+    showToast(tg(how === 'binary' ? 'd36.binary' : 'd36.large', { name: e.name, size: formatBytes(e.size) }), {
+      ms: 10000,
+      actions: how === 'binary' ? [{ label: tg('d36.download'), run: download }] : [{ label: tg('d36.download'), run: download }, { label: tg('d36.openAnyway'), run: open }]
+    })
+  }
+
   const onPaneKey = (side: PaneId, entries: SftpListEntry[], selected: Record<string, boolean>) => (e: React.KeyboardEvent) => {
     const tag = (e.target as HTMLElement).tagName
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -1262,6 +1279,18 @@ export default function SftpPanel({
       else void refreshRemote(remoteCwd)
       return
     }
+    // D55: ArrowUp/Down move the selection (Shift extends it)
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && entries.length) {
+      e.preventDefault()
+      const at = entries.findIndex((en) => selected[en.path])
+      const next = at < 0 ? 0 : Math.max(0, Math.min(entries.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))
+      const path = entries[next]!.path
+      const setSel = side === 'local' ? setLocalSel : setRemoteSel
+      setSel(e.shiftKey ? { ...selected, [path]: true } : { [path]: true })
+      const rows = (e.currentTarget as HTMLElement).querySelectorAll('tbody tr')
+      ;(rows[next] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' })
+      return
+    }
     const current = entries.find((en) => selected[en.path]) || entries[0]
     if (!current) return
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -1275,7 +1304,7 @@ export default function SftpPanel({
       if (current.isDirectory) {
         if (side === 'local') void refreshLocal(current.path)
         else void refreshRemote(current.path)
-      } else if (side === 'remote') onOpenRemoteFile?.({ remotePath: current.path, name: current.name, size: current.size })
+      } else if (side === 'remote') openRemoteEntry(current)
       return
     }
     if (e.key === 'F2') {
@@ -1641,20 +1670,7 @@ export default function SftpPanel({
                       if (e.isDirectory) {
                         if (isLocal) void refreshLocal(e.path)
                         else void refreshRemote(e.path)
-                      } else if (!isLocal && onOpenRemoteFile) {
-                        // D36: large or binary files: offer a download instead of a truncated / failing editor
-                        const how = openDecision(e.name, e.size)
-                        const open = () => onOpenRemoteFile({ remotePath: e.path, name: e.name, size: e.size })
-                        if (how === 'edit') open()
-                        else {
-                          const download = () =>
-                            void transferFiles('download', [{ name: e.name, localPath: joinLocal(localCwd, e.name), remotePath: e.path, size: e.size, mtime: e.modifyTime }])
-                          showToast(tg(how === 'binary' ? 'd36.binary' : 'd36.large', { name: e.name, size: formatBytes(e.size) }), {
-                            ms: 10000,
-                            actions: how === 'binary' ? [{ label: tg('d36.download'), run: download }] : [{ label: tg('d36.download'), run: download }, { label: tg('d36.openAnyway'), run: open }]
-                          })
-                        }
-                      }
+                      } else if (!isLocal) openRemoteEntry(e)
                     }}
                     onContextMenu={(ev) => {
                       if (e.isDirectory) {
