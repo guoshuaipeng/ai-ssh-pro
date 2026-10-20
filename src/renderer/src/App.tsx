@@ -45,6 +45,8 @@ import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
 import { askAboutHistoryFailure, lastRunFor } from './lib/failed-output'
 import SearchAllTermsModal from './components/SearchAllTermsModal'
+import { cmdDrafts } from './lib/cmd-draft-store'
+import { getDraft, persistableDraft, putDraft } from '@shared/cmd-drafts'
 import { sessionInfoText } from '@shared/session-info'
 import { isSensitiveCommand } from '@shared/workspace-features'
 import { runInCwdLine } from '@shared/history-exit'
@@ -214,7 +216,7 @@ import StartupSettingsModal from './components/StartupSettingsModal'
 import ProtectionSection, { ProtectionLevelField } from './components/ProtectionSection'
 import ScopePicker from './components/ScopePicker'
 import { activeCount, loadBellPrefs, markHandled, saveBellPrefs, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
-import { appendAudit, appendGate, auditEnabled, clearAudit, loadAudit, setAuditEnabled, type AuditEvent } from '@shared/audit-log'
+import { appendAudit, appendGate, auditEnabled, clearAudit, loadAudit, redactAuditText, setAuditEnabled, type AuditEvent } from '@shared/audit-log'
 import { peekAuditExportContext, type AuditExportSeed } from '@shared/audit-export'
 import { hideFromDashboard, hostInScope, loadDashScope, restoreToDashboard, saveDashScope, type DashScope } from '@shared/dashboard-scope'
 import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from '@shared/right-panel'
@@ -4473,6 +4475,7 @@ export default function App() {
     }
     const next: Tab[] = plan.tabs.map((row) => {
       const tabId = uuid()
+      if (row.kind === 'terminal' && row.draft) putDraft(cmdDrafts, tabId, row.draft)
       const profile = row.profileId ? profilesRef.current.find((p) => p.id === row.profileId) : undefined
       const needsSession = row.kind === 'terminal' || row.kind === 'monitor' || row.kind === 'toolbox' || row.kind === 'sftp'
       return {
@@ -4563,7 +4566,9 @@ export default function App() {
     })
   }, [tabs])
   // D8: save each terminal's live cwd with the workspace, and once more when the window closes
-  const withLiveCwd = (list: Tab[]) => list.map((t) => ({ ...t, cwd: getSessionCwd(t.sessionId) ?? t.restoreCwd ?? null }))
+  // D63: plus the unsent command-bar draft (only when safe to keep on disk)
+  const withLiveCwd = (list: Tab[]) =>
+    list.map((t) => ({ ...t, cwd: getSessionCwd(t.sessionId) ?? t.restoreCwd ?? null, draft: persistableDraft(getDraft(cmdDrafts, t.tabId), isSensitiveCommand, redactAuditText) }))
   useEffect(() => {
     const onUnload = () => {
       if (!sessionsReady || !bootedRef.current || !workspaceReadyRef.current) return

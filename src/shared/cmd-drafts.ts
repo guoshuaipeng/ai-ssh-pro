@@ -9,6 +9,15 @@ export function putDraft(store: Map<string, string>, sessionId: string, value: s
   while (store.size > DRAFT_CAP) store.delete(store.keys().next().value as string)
 }
 
+/** D63: drafts saved with the workspace: short, single-line, not sensitive and with nothing to redact. */
+export const SAVED_DRAFT_MAX = 500
+
+export function persistableDraft(value: string | null | undefined, sensitive: (cmd: string) => boolean, redact: (s: string) => string): string {
+  const v = (value ?? '').trim()
+  if (!v || v.length > SAVED_DRAFT_MAX || /[\r\n]/.test(v) || sensitive(v) || redact(v) !== v) return ''
+  return v
+}
+
 export function getDraft(store: Map<string, string>, sessionId: string): string {
   return store.get(sessionId) ?? ''
 }

@@ -84,6 +84,7 @@ export function snapshotWorkspace(
     pinned?: boolean
     openSeq?: number
     cwd?: string | null
+    draft?: string | null
   }>,
   activeId: string | null
 ): SavedWorkspaceTab[] {
@@ -111,6 +112,7 @@ export function snapshotWorkspace(
       pinned: t.pinned ? true : undefined
     }
     if (kind === 'terminal' && t.cwd) row.cwd = t.cwd
+    if (kind === 'terminal' && t.draft) row.draft = t.draft
     if (!isCompleteRestoreRow(row)) return
     rows.push(row)
   })

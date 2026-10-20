@@ -48,6 +48,8 @@ export type SavedWorkspaceTab = {
   pinned?: boolean
   /** D8: terminal working directory to return to after reconnect */
   cwd?: string
+  /** D63: unsent command-bar draft (non-sensitive only) */
+  draft?: string
 }
 
 export type LastWorkspace = { profileIds: string[]; tabs?: SavedWorkspaceTab[] }
@@ -67,7 +69,8 @@ function cleanTab(raw: unknown, order: number): SavedWorkspaceTab | null {
     playbookId: typeof o.playbookId === 'string' ? o.playbookId : undefined,
     active: o.active === true,
     pinned: o.pinned === true,
-    ...(typeof o.cwd === 'string' && cdCommandFor(o.cwd) ? { cwd: o.cwd } : {})
+    ...(typeof o.cwd === 'string' && cdCommandFor(o.cwd) ? { cwd: o.cwd } : {}),
+    ...(typeof o.draft === 'string' && o.draft.trim() && o.draft.length <= 500 && !/[\r\n]/.test(o.draft) ? { draft: o.draft } : {})
   }
 }
 

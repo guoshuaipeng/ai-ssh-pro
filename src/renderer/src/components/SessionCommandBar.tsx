@@ -16,6 +16,7 @@ import { isDemoSessionId } from '@shared/demo-host'
 import { bindHistoryHost } from '../lib/history-exit'
 import ScriptProgress from './ScriptProgress'
 import { getDraft, putDraft } from '@shared/cmd-drafts'
+import { cmdDrafts } from '../lib/cmd-draft-store'
 import { getSessionCwd } from '../lib/session-cwd-store'
 import { askAboutHistoryFailure } from '../lib/failed-output'
 import type { CommandSnippet } from '@shared/ipc'
@@ -44,7 +45,7 @@ type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; resu
 /** Sends one line to the active terminal via the existing ssh.write path; "#" or Ctrl+Shift+Space switches to AI mode (A2). */
 const CMD_BAR_KEY = 'aiss.cmdBarOpen'
 /** D24: drafts survive tab switches (one bar instance is shared by all tabs) */
-const drafts = new Map<string, string>()
+const drafts = cmdDrafts
 const aiModes = new Map<string, boolean>()
 /** tab key first; a fill sent to a background session is stored under its sessionId and moved on load */
 function loadDraft(key: string, sessionId: string): string {
