@@ -95,7 +95,7 @@ const api = {
       ipcRenderer.invoke('ssh:getSnapshot', sessionId, options),
     respondHostKey: (payload: SshHostKeyRespondPayload): Promise<boolean> =>
       ipcRenderer.invoke('ssh:respondHostKey', payload),
-    openLocalShell: (): Promise<SshConnectResult> => ipcRenderer.invoke('ssh:openLocalShell'),
+    openLocalShell: (opts?: { cwd?: string }): Promise<SshConnectResult> => ipcRenderer.invoke('ssh:openLocalShell', opts),
     isLocalShellAvailable: (): Promise<boolean> => ipcRenderer.invoke('ssh:isLocalShellAvailable'),
     startRecording: (sessionId: string, opts?: { auto?: boolean; host?: string; cols?: number; rows?: number; title?: string }): Promise<string | null> =>
       ipcRenderer.invoke('ssh:startRecording', sessionId, opts),

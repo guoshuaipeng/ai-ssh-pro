@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module'
 import { randomUUID } from 'node:crypto'
+import { statSync } from 'node:fs'
+import { localStartCwd } from '../shared/session-cwd'
 import type { WebContents } from 'electron'
 import type { SessionMeta, SshConnectResult, SshDataEvent, SshStatusEvent } from '../shared/ipc'
 import { RingBuffer } from './ring-buffer'
@@ -38,7 +40,7 @@ export class LocalShellManager {
     return this.sessions.get(sessionId)
   }
 
-  open(owner: WebContents, cols = 120, rows = 32): SshConnectResult {
+  open(owner: WebContents, cols = 120, rows = 32, startCwd?: string): SshConnectResult {
     if (!isLocalShellAvailable()) {
       throw new Error(mt('本机 Shell 不可用：请安装并针对 Electron 重建 node-pty（optionalDependency）', 'Local shell unavailable: install and rebuild node-pty for Electron (optionalDependency)'))
     }
@@ -62,6 +64,9 @@ export class LocalShellManager {
         : process.env.SHELL || '/bin/bash'
     const args = process.platform === 'win32' && /powershell/i.test(shell) ? ['-NoLogo'] : []
 
+    // D20b: reconnect re-spawns in the last known directory (validated; home otherwise)
+    const home = process.env.USERPROFILE || process.env.HOME || process.cwd()
+    const spawnCwd = localStartCwd(startCwd, home, (p) => statSync(p).isDirectory())
     const sessionId = `local:${randomUUID()}`
     const connectedAt = Date.now()
     const meta: SessionMeta = {
@@ -72,14 +77,15 @@ export class LocalShellManager {
       connectedAt,
       termCols: cols,
       termRows: rows,
-      kind: 'local'
+      kind: 'local',
+      ...(startCwd && spawnCwd !== home ? { startCwd: spawnCwd } : {})
     }
 
     const proc = pty.spawn(shell, args, {
       name: 'xterm-256color',
       cols,
       rows,
-      cwd: process.env.USERPROFILE || process.env.HOME || process.cwd(),
+      cwd: spawnCwd,
       env: process.env
     })
 

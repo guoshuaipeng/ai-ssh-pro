@@ -416,8 +416,8 @@ function registerIpc(): void {
     return result
   })
 
-  ipcMain.handle('ssh:openLocalShell', (event) => {
-    return localShellManager.open(event.sender)
+  ipcMain.handle('ssh:openLocalShell', (event, opts?: { cwd?: string }) => {
+    return localShellManager.open(event.sender, undefined, undefined, typeof opts?.cwd === 'string' ? opts.cwd : undefined)
   })
 
   ipcMain.handle('ssh:isLocalShellAvailable', () => isLocalShellAvailable())

@@ -2029,7 +2029,13 @@ export default function App() {
       const resumeFromHop = how?.full ? undefined : startHop > 1 ? startHop : undefined
       try {
         if (tab.kind === 'local') {
-          const { sessionId, meta } = await window.aiss.ssh.openLocalShell()
+          const prevLocalCwd = getSessionCwd(tab.sessionId) ?? tab.restoreCwd ?? null
+          const { sessionId, meta } = await window.aiss.ssh.openLocalShell(prevLocalCwd ? { cwd: prevLocalCwd } : undefined)
+          // D20b: the shell was spawned there, so no cd line is typed
+          if (meta.startCwd) {
+            setSessionCwd(sessionId, meta.startCwd)
+            showToast(tg('cwd.restored', { path: meta.startCwd }))
+          }
           setTabs((prev) =>
             prev.map((t) =>
               t.tabId === tabId

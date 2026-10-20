@@ -19,7 +19,7 @@ import { loadSmartHistory, loadSmartPrefs, seedDemoHistory } from '../lib/smart-
 import { isDemoSessionId } from '@shared/demo-host'
 import { HISTORY_CHANGED_EVENT } from '../lib/workspace-events'
 import { parseOsc52Payload } from '@shared/osc52'
-import { cwdFromOsc7, cwdFromPrompt } from '@shared/session-cwd'
+import { cwdFromOsc7, cwdFromPrompt, cwdFromWinPrompt } from '@shared/session-cwd'
 import { planPaste, type PastePlan } from '@shared/paste-plan'
 import { canSkipHost, pasteDecision } from '@shared/paste-skip'
 import { isStrictPasteHost, pasteSkipHost, setPasteSkipHost } from '../lib/paste-pref'
@@ -455,7 +455,8 @@ export default function TerminalPane({
     const cwdMove = term.onCursorMove(() => {
       const b = term.buffer.active
       const line = b.getLine(b.baseY + b.cursorY)?.translateToString(true) ?? ''
-      const c = cwdFromPrompt(line.slice(0, Math.min(b.cursorX, line.length)))
+      const before = line.slice(0, Math.min(b.cursorX, line.length))
+      const c = cwdFromPrompt(before) ?? (sessionId.startsWith('local:') ? cwdFromWinPrompt(before) : null)
       if (c) setSessionCwd(sessionId, c)
     })
 

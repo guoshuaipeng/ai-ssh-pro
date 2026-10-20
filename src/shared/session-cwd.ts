@@ -30,6 +30,28 @@ export function cwdFromPrompt(lineBeforeCursor: string): string | null {
   return clean(m[1]!)
 }
 
+/** D20b: Windows local prompt `PS C:\x> ` / `C:\x>` → `C:\x` (local sessions only). */
+export function cwdFromWinPrompt(lineBeforeCursor: string): string | null {
+  const m = /^(?:PS )?([A-Za-z]:\\[^<>"|?*\x00-\x1f]*?)>\s?$/.exec(String(lineBeforeCursor ?? '').trimStart())
+  if (!m) return null
+  const p = m[1]!
+  return p.length > MAX ? null : p
+}
+
+/** D20b: start directory for a re-spawned local shell; falls back to home when the path is gone or not absolute. */
+export function localStartCwd(requested: string | null | undefined, home: string, isDir: (p: string) => boolean): string {
+  let p = String(requested ?? '').trim()
+  if (!p || p.length > MAX || /[\x00-\x1f]/.test(p)) return home
+  if (p === '~') return home
+  if (p.startsWith('~/')) p = home.replace(/[\\/]+$/, '') + p.slice(1)
+  if (!(p.startsWith('/') || /^[A-Za-z]:\\/.test(p))) return home
+  try {
+    return isDir(p) ? p : home
+  } catch {
+    return home
+  }
+}
+
 /** Shell line that returns to `cwd` (leading space keeps it out of history with HISTCONTROL=ignorespace); null for home. */
 export function cdCommandFor(cwd: string | null | undefined): string | null {
   const c = clean(String(cwd ?? ''))

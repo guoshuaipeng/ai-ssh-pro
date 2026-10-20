@@ -45,6 +45,8 @@ export type SessionMeta = {
   termRows: number
   /** 本地 Shell 标签 */
   kind?: 'ssh' | 'local'
+  /** D20b: local shell was spawned in this directory (reconnect) */
+  startCwd?: string
 }
 
 export type SshConnectOptions = {
