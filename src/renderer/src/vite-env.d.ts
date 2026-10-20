@@ -336,6 +336,8 @@ export type AissPreload = {
     forwards: {
       list: (sessionId?: string) => Promise<import('@shared/ipc').ActiveForward[]>
       add: (req: import('@shared/ipc').AddForwardRequest) => Promise<import('@shared/ipc').ActiveForward>
+
+      restore: (req: { fromSessionId: string; toSessionId: string; allowRemote: boolean }) => Promise<import('@shared/ipc').ForwardRestoreResult>
       remove: (id: string) => Promise<boolean>
     }
     commandHistory: {

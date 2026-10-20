@@ -27,6 +27,9 @@ export type SshJumpHostOptions = {
 }
 
 export type LocalPortForward = {
+  /** B3: 'R' = remote forward (server remoteHost:remotePort → localHost:localPort). Missing means L. */
+  direction?: 'L' | 'R'
+  localHost?: string
   localPort: number
   remoteHost: string
   remotePort: number
@@ -886,8 +889,15 @@ export type ActiveForward = {
   id: string
   sessionId: string
   source: 'profile' | 'manual'
+  /** B3: L = local listens (forwardOut), R = server listens (forwardIn). Missing means L. */
+  direction: 'L' | 'R'
+  /** R only: target host on this computer. */
+  localHost?: string
+  /** L: local listen port. R: local target port. */
   localPort: number
+  /** L: remote target host. R: server bind address. */
   remoteHost: string
+  /** L: remote target port. R: server listen port. */
   remotePort: number
   status: 'starting' | 'listening' | 'error'
   lastError?: string
@@ -898,7 +908,23 @@ export type ActiveForward = {
   createdAt: number
 }
 
-export type AddForwardRequest = { sessionId: string; localPort: number; remoteHost: string; remotePort: number }
+export type AddForwardRequest = {
+  sessionId: string
+  direction?: 'L' | 'R'
+  localHost?: string
+  localPort: number
+  remoteHost: string
+  remotePort: number
+}
+
+export type ForwardRestoreResult = {
+  restored: ActiveForward[]
+  skipped: Array<{
+    spec: { direction: 'L' | 'R'; localHost?: string; localPort: number; remoteHost: string; remotePort: number }
+    reason: 'readonly' | 'error'
+    message?: string
+  }>
+}
 
 export type BackupCounts = { profiles: number; folders: number; snippets: number }
 export type BackupExportResult =

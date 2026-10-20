@@ -4,7 +4,7 @@ import type { ResourceSnapshot } from '../shared/resource-monitor'
 import type { DfRow, ExecOutcome, KillSignal, ListenPort, LogRequest, ProcInfo, ServiceAction, ServiceInfo } from '../shared/server-tools'
 import type { BackupExportResult, BackupImportResult } from '../shared/ipc'
 import type { AiProviderTestInput, AiProviderTestResult } from '../shared/ai-provider-test'
-import type { ActiveForward, AddForwardRequest } from '../shared/ipc'
+import type { ActiveForward, AddForwardRequest, ForwardRestoreResult } from '../shared/ipc'
 import { clipboard, contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type {
   SshConnectOptions,
@@ -422,6 +422,8 @@ const api = {
     forwards: {
       list: (sessionId?: string): Promise<ActiveForward[]> => ipcRenderer.invoke('workspace:forwards:list', sessionId),
       add: (req: AddForwardRequest): Promise<ActiveForward> => ipcRenderer.invoke('workspace:forwards:add', req),
+      restore: (req: { fromSessionId: string; toSessionId: string; allowRemote: boolean }): Promise<ForwardRestoreResult> =>
+        ipcRenderer.invoke('workspace:forwards:restore', req),
       remove: (id: string): Promise<boolean> => ipcRenderer.invoke('workspace:forwards:remove', id)
     },
     commandHistory: {

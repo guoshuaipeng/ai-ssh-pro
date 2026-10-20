@@ -1,6 +1,6 @@
 import { execBounded } from './ssh-batch'
 import { RESOURCE_PROBE_CMD, parseResourceSnapshot } from '../shared/resource-monitor'
-import { listForwards, startTrackedForward, stopForward, stopSessionForwards } from './forward-manager'
+import { listForwards, restoreForwards, startTrackedForward, stopForward, stopSessionForwards } from './forward-manager'
 import { mt } from './main-i18n'
 import { ipcMain } from 'electron'
 import { demoHostManager } from './demo-host'
@@ -173,6 +173,17 @@ export function registerWorkspaceIpc(sshManager: SshSessionManager): void {
     const fwd = await startTrackedForward(sessionId, client, o, 'manual')
     session.forwardCleanups.push(() => stopSessionForwards(sessionId))
     return fwd
+  })
+  ipcMain.handle('workspace:forwards:restore', async (_e, payload: unknown) => {
+    const o = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>
+    const from = typeof o.fromSessionId === 'string' ? o.fromSessionId : ''
+    const to = typeof o.toSessionId === 'string' ? o.toSessionId : ''
+    const session = sshManager.get(to)
+    const client = sshManager.getClient(to)
+    if (!from || !session || !client) return { restored: [], skipped: [] }
+    const r = await restoreForwards(from, to, client, o.allowRemote === true)
+    if (r.restored.length) session.forwardCleanups.push(() => stopSessionForwards(to))
+    return r
   })
   ipcMain.handle('workspace:forwards:remove', (_e, id: unknown) => stopForward(String(id ?? '')))
 
