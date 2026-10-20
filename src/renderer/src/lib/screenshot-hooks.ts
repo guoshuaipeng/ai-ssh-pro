@@ -55,7 +55,7 @@ export const SCREENSHOT_AI_CHAT_DEMO: ScreenshotChatLine[] = [
     requestId: 'screenshot-chat-1',
     elapsedMs: 9000,
     content:
-      '502 通常是上游（php-fpm / 应用进程）没响应。先看 nginx 和上游的状态：\n\n```bash\nsystemctl status nginx --no-pager\nsudo tail -n 50 /var/log/nginx/error.log\n```\n\n如果日志里有 `connect() failed (111: Connection refused)`，说明上游没起来。'
+      '502 通常是上游（php-fpm / 应用进程）没响应。先看 nginx 和上游的状态：\n\n```bash\nsystemctl status nginx --no-pager\nsudo tail -n 50 /var/log/nginx/error.log\n```\n\n如果日志里有 `connect() failed (111: Connection refused)`，说明上游没起来。再确认 80 端口被谁占用：\n\n```bash\nss -ltnp | grep :80\n```'
   },
   { role: 'user', content: '再列一下占用内存最高的进程' },
   {
