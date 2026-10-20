@@ -38,7 +38,7 @@ ok(conflictChoice({}, {}, 'a') === 'skip' && conflictChoice({ a: true }, {}, 'a'
 const sp = readFileSync('src/renderer/src/components/SftpPanel.tsx', 'utf8')
 ok(sp.includes("const dir = row.reverse ? (plan.direction === 'upload' ? 'download' : 'upload') : plan.direction") && sp.includes('await enqueueFile(dir, localPath'), 'D67 runSync per-row direction')
 const fsm = readFileSync('src/renderer/src/components/FolderSyncModal.tsx', 'utf8')
-ok(fsm.includes('data-testid="sync-conflict"') && fsm.includes('resolvePlanRows(rows, picked, keep)'), 'D67 modal')
+ok(fsm.includes('testId="sync-conflict"') && fsm.includes('resolvePlanRows(rows, picked, keep)'), 'D67 modal')
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 for (const key of ['d65.groups', 'd65.open', 'd67.target', 'd67.summary']) ok(i18n.split(`'${key}'`).length === 3, `i18n ${key}`)
 console.log(`test-cycle29 ok (${n})`)

@@ -27,6 +27,7 @@ import EmptyState from './EmptyState'
 import Icon from './Icon'
 import { EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
 import Button from './ui/Button'
+import Select from './ui/Select'
 
 type Props = {
   open: boolean
@@ -392,21 +393,21 @@ export default function FolderSyncModal({
                                 </span>
                               ) : null}
                               {r.targetNewer ? (
-                                <select
+                                <Select
                                   className="sync-conflict"
-                                  data-testid="sync-conflict"
-                                  aria-label={tg('d67.choice', { name: r.rel })}
+                                  testId="sync-conflict"
+                                  ariaLabel={tg('d67.choice', { name: r.rel })}
                                   value={conflictChoice(picked, keep, r.rel)}
-                                  onChange={(e) => {
-                                    const v = e.target.value
+                                  options={[
+                                    { value: 'skip', label: tg('d67.skip') },
+                                    { value: 'source', label: tg('d67.source') },
+                                    { value: 'target', label: tg('d67.target') }
+                                  ]}
+                                  onChange={(v) => {
                                     setPicked((p) => ({ ...p, [r.rel]: v === 'source' }))
                                     setKeep((k) => ({ ...k, [r.rel]: v === 'target' ? 'target' : undefined }))
                                   }}
-                                >
-                                  <option value="skip">{tg('d67.skip')}</option>
-                                  <option value="source">{tg('d67.source')}</option>
-                                  <option value="target">{tg('d67.target')}</option>
-                                </select>
+                                />
                               ) : null}
                               <span className="sync-rel">{r.rel}</span>
                               <span className="sync-size">{formatBytes(r.size)}</span>
