@@ -537,6 +537,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('ssh:stopRecording', (_e, sessionId: string) => stopRecording(sessionId))
+  ipcMain.handle('ssh:setShellIntegration', (_e, sessionId: string, on: boolean) => sshManager.setShellIntegration(String(sessionId ?? ''), on === true))
 
   ipcMain.handle('ssh:exec', async (_e, sessionId: string, command: string, timeoutMs?: number) => {
     return sshManager.execCommand(sessionId, String(command ?? ''), typeof timeoutMs === 'number' ? timeoutMs : 60_000)

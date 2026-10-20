@@ -31,6 +31,8 @@ export function noteInjected(sessionId: string, now = Date.now()): void {
 export function noteMarker(sessionId: string): void {
   const s = sessions.get(sessionId)
   sessions.set(sessionId, { sentAt: s?.sentAt ?? null, seen: true })
+  // D14b: first marker → tell the main process so AI agent commands drop the printf suffix
+  if (!s?.seen) void window.aiss?.ssh?.setShellIntegration?.(sessionId, true)?.catch?.(() => undefined)
 }
 
 export function wasInjected(sessionId: string): boolean {

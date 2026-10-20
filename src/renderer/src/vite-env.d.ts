@@ -78,6 +78,7 @@ export type AissPreload = {
     isLocalShellAvailable: () => Promise<boolean>
     startRecording: (sessionId: string, opts?: { auto?: boolean; host?: string; cols?: number; rows?: number; title?: string }) => Promise<string | null>
     stopRecording: (sessionId: string) => Promise<boolean>
+    setShellIntegration?: (sessionId: string, on: boolean) => Promise<boolean>
     exec: (sessionId: string, command: string, timeoutMs?: number) => Promise<{ code: number | null; stdout: string; stderr: string }>
     onData: (cb: (payload: SshDataEvent) => void) => () => void
     onStatus: (cb: (payload: SshStatusEvent) => void) => () => void

@@ -226,6 +226,13 @@ export class SshSessionManager {
     return { ok: s.stream.write(`${p.wire}\n`), nonce: p.nonce }
   }
 
+  /** D14b: renderer reports Shell Integration (OSC 133) on this session; AI commands then skip the printf suffix. */
+  setShellIntegration(sessionId: string, on: boolean): boolean {
+    if (!this.sessions.has(sessionId) || isDemoSessionId(sessionId)) return false
+    this.exitCapture.setIntegrated(sessionId, on)
+    return true
+  }
+
   /** B1: resolves with the exit code, or null on timeout / abort / session end. */
   waitCommandExit(sessionId: string, nonce: string, timeoutMs: number, signal?: AbortSignal): Promise<number | null> {
     return this.exitCapture.wait(sessionId, nonce, timeoutMs, signal)

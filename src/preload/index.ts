@@ -100,6 +100,7 @@ const api = {
     startRecording: (sessionId: string, opts?: { auto?: boolean; host?: string; cols?: number; rows?: number; title?: string }): Promise<string | null> =>
       ipcRenderer.invoke('ssh:startRecording', sessionId, opts),
     stopRecording: (sessionId: string): Promise<boolean> => ipcRenderer.invoke('ssh:stopRecording', sessionId),
+    setShellIntegration: (sessionId: string, on: boolean): Promise<boolean> => ipcRenderer.invoke('ssh:setShellIntegration', sessionId, on),
     exec: (sessionId: string, command: string, timeoutMs?: number): Promise<{ code: number | null; stdout: string; stderr: string }> =>
       ipcRenderer.invoke('ssh:exec', sessionId, command, timeoutMs),
     onData: (cb: (payload: SshDataEvent) => void): (() => void) => {

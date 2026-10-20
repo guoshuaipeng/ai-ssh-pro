@@ -3,6 +3,10 @@ import { ExitMarkerParser, newExitNonce, wrapWithExitMarker } from '../shared/ex
 /** B1: per-session exit-code capture state (AI commands only). No Electron / ssh2 imports so it is unit-testable. */
 type ExitState = {
   parser: ExitMarkerParser
+  /** D14b: Shell Integration active → AI commands are not wrapped; $? comes from OSC 133;D */
+  integrated: boolean
+  promptQueue: string[]
+  carry133: string
   exits: Map<string, { code: number; at: number }>
   waiters: Map<string, (code: number | null) => void>
   /** last marked nonce per original command text */
@@ -18,7 +22,7 @@ export class ExitCaptureRegistry {
   private state(sessionId: string): ExitState {
     let st = this.states.get(sessionId)
     if (!st) {
-      st = { parser: new ExitMarkerParser(), exits: new Map(), waiters: new Map(), lastByCommand: new Map(), seen: 0, timeouts: 0 }
+      st = { parser: new ExitMarkerParser(), integrated: false, promptQueue: [], carry133: '', exits: new Map(), waiters: new Map(), lastByCommand: new Map(), seen: 0, timeouts: 0 }
       this.states.set(sessionId, st)
     }
     return st
@@ -33,6 +37,7 @@ export class ExitCaptureRegistry {
     const st = this.states.get(sessionId)
     if (!st) return text
     const { clean, exits } = st.parser.feed(text)
+    if (st.integrated) exits.push(...this.promptExits(st, clean))
     for (const hit of exits) {
       st.seen += 1
       st.exits.set(hit.nonce, { code: hit.code, at: Date.now() })
@@ -46,9 +51,45 @@ export class ExitCaptureRegistry {
     return clean
   }
 
+  /** D14b: the renderer saw OSC 133 on this session (or lost it). */
+  setIntegrated(sessionId: string, on: boolean): void {
+    const st = this.state(sessionId)
+    st.integrated = on
+    if (!on) st.promptQueue = []
+  }
+
+  isIntegrated(sessionId: string): boolean {
+    return Boolean(this.states.get(sessionId)?.integrated)
+  }
+
+  /** OSC 133;D;<code> → exit hits for queued AI commands, in order. Markers stay in the text. */
+  private promptExits(st: ExitState, text: string): { nonce: string; code: number }[] {
+    const s = st.carry133 + text
+    const out: { nonce: string; code: number }[] = []
+    const re = /\x1b\]133;D;(-?\d{1,3})(?:\x07|\x1b\\|;)/g
+    let m: RegExpExecArray | null
+    let last = 0
+    while ((m = re.exec(s))) {
+      last = re.lastIndex
+      const nonce = st.promptQueue.shift()
+      if (nonce) out.push({ nonce, code: Number(m[1]) })
+    }
+    const tail = s.slice(last)
+    const i = tail.lastIndexOf('\x1b]133')
+    st.carry133 = i >= 0 && tail.length - i < 24 ? tail.slice(i) : ''
+    return out
+  }
+
   /** Wire form for an AI command; nonce null when not marked. */
   prepare(sessionId: string, command: string): { wire: string; nonce: string | null; unsupported?: boolean } {
     const prev = this.states.get(sessionId)
+    if (prev?.integrated && command.trim() && !/[\r\n]/.test(command.trim())) {
+      const nonce = newExitNonce()
+      prev.promptQueue.push(nonce)
+      if (prev.promptQueue.length > 20) prev.promptQueue.shift()
+      prev.lastByCommand.set(command.trim(), nonce)
+      return { wire: command.trim(), nonce }
+    }
     if (prev && prev.seen === 0 && prev.timeouts >= 2) return { wire: command, nonce: null, unsupported: true }
     const nonce = newExitNonce()
     const { wire, marked } = wrapWithExitMarker(command, nonce)
