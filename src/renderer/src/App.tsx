@@ -1315,7 +1315,7 @@ export default function App() {
   const [histHostOnly, setHistHostOnly] = useState(() => loadHostOnly())
   const rankHistory = useCallback(
     (q: string) =>
-      rankHistoryPick({ query: q, hostKey: activeTab ? sessionHostKey(activeTab) : '', entries: loadSmartHistory(), snippets: pickSnippets, hostOnly: histHostOnly }),
+      rankHistoryPick({ query: q, hostKey: activeTab ? sessionHostKey(activeTab) : '', entries: loadSmartHistory(), snippets: pickSnippets, hostOnly: histHostOnly, cwd: activeTab?.sessionId ? getSessionCwd(activeTab.sessionId) : null }),
     [activeTab, pickSnippets, histHostOnly]
   )
   // D4: Ctrl+P open tabs (MRU) + saved hosts

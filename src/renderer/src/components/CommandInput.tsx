@@ -112,7 +112,8 @@ export default function CommandInput({
           snippets,
           sources: { host: prefs.sourceHost, common: prefs.sourceCommon, snippets: prefs.sourceSnippets },
           limit: 6,
-          minChars: 2
+          minChars: 2,
+          cwd: currentCwd
         })
       : []
   const suggestions = smart ? ranked.map((s) => s.command) : suggest ? filterCommandHistory(history, text, 8) : []

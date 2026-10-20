@@ -70,10 +70,12 @@ export function rankHistoryPick(input: {
   limit?: number
   /** D38: only this host's history (no other hosts, no snippets). Ignored without a hostKey. */
   hostOnly?: boolean
+  /** D50: this host's commands last run in this folder rank first within the host tier */
+  cwd?: string | null
 }): PickItem[] {
   const limit = input.limit ?? 50
   const hostOnly = Boolean(input.hostOnly && input.hostKey)
-  const seen = new Map<string, { item: PickItem; score: number; tier: number; recency: number }>()
+  const seen = new Map<string, { item: PickItem; score: number; tier: number; recency: number; here?: boolean }>()
   for (const e of input.entries) {
     const cmd = String(e.command ?? '').trim()
     if (!cmd) continue
@@ -92,7 +94,8 @@ export function rankHistoryPick(input: {
       // D22: a command that last failed ranks a little lower among equals
       score: m.score + Math.min(50, (e.count || 1) * 2) - (typeof e.lastExit === 'number' && e.lastExit !== 0 ? 30 : 0),
       tier,
-      recency: e.lastUsed || 0
+      recency: e.lastUsed || 0,
+      here: hostHit && Boolean(input.cwd) && e.lastCwd === input.cwd
     })
   }
   for (const s of hostOnly ? [] : input.snippets ?? []) {
@@ -109,7 +112,7 @@ export function rankHistoryPick(input: {
   }
   const empty = !input.query.trim()
   return [...seen.values()]
-    .sort((a, b) => a.tier - b.tier || (empty ? b.recency - a.recency : b.score - a.score || b.recency - a.recency))
+    .sort((a, b) => a.tier - b.tier || (empty ? Number(Boolean(b.here)) - Number(Boolean(a.here)) || b.recency - a.recency : b.score + (b.here ? 20 : 0) - a.score - (a.here ? 20 : 0) || b.recency - a.recency))
     .slice(0, limit)
     .map((x) => x.item)
 }

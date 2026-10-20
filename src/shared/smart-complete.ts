@@ -106,8 +106,11 @@ export function rankSuggestions(input: {
   sources?: { host?: boolean; common?: boolean; snippets?: boolean }
   limit?: number
   minChars?: number
+  /** D50: this host's commands last run in this folder rank first within their tier */
+  cwd?: string | null
 }): Suggestion[] {
   const q = input.query.trim().toLowerCase()
+  const here = new Set<string>()
   const min = input.minChars ?? 2
   if (q.length < min) return []
   const sources = {
@@ -148,6 +151,7 @@ export function rankSuggestions(input: {
     const lower = cmd.toLowerCase()
     if (!lower.startsWith(q) && !lower.includes(q)) continue
     const hostHit = Boolean(input.hostKey) && e.hostKey === input.hostKey
+    if (hostHit && input.cwd && e.lastCwd === input.cwd) here.add(cmd)
     if (hostHit && sources.host) touch(cmd, 'host', e.count || 1, e.lastUsed || 0, true)
     else if (!hostHit && sources.common) touch(cmd, 'common', e.count || 1, e.lastUsed || 0, false)
     else if (hostHit && !sources.host && sources.common) touch(cmd, 'common', e.count || 1, e.lastUsed || 0, false)
@@ -169,6 +173,9 @@ export function rankSuggestions(input: {
     const ta = tier(a)
     const tb = tier(b)
     if (ta !== tb) return ta - tb
+    const ha = here.has(a.command) ? 0 : 1
+    const hb = here.has(b.command) ? 0 : 1
+    if (ha !== hb) return ha - hb
     if (a.source === 'host' && b.source === 'host') {
       if (b.lastUsed !== a.lastUsed) return b.lastUsed - a.lastUsed
       return b.hostCount - a.hostCount
