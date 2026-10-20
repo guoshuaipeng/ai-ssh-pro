@@ -11,6 +11,7 @@ import { appendAudit } from '@shared/audit-log'
 import { commandBundle, highlightKeyNumbers, layoutOpsReply, splitFences, splitInlineCode, type OpsLayout } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
+import { chatToMarkdown } from '@shared/ai-chat-markdown'
 import { lastAssistantText } from '@shared/ai-last-reply'
 import { currentTerminalSelection } from '../lib/terminal-selection'
 import { fillCommandBar, lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
@@ -1881,6 +1882,30 @@ export default function AIPanel({
                   }}
                 >
                   {tg('ai.copyLastReply')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-testid="ai-copy-chat-md"
+                  disabled={busy || !lines.some((l) => l.role === 'assistant' && l.content.trim())}
+                  title={tg('d86.tip')}
+                  onClick={() => {
+                    setMoreOpen(false)
+                    // D86: whole conversation, redacted; clipboard only
+                    const md = chatToMarkdown(lines, {
+                      title: tg('d86.title'),
+                      at: new Date(),
+                      you: tg('d86.you'),
+                      ai: tg('d86.ai'),
+                      cmd: tg('d86.cmd')
+                    })
+                    void navigator.clipboard.writeText(md).then(
+                      () => showToast(tg('d86.copied')),
+                      () => showToast(tg('ai.copyFailed'), { kind: 'error' })
+                    )
+                  }}
+                >
+                  {tg('d86.copy')}
                 </button>
                 <button type="button" role="menuitem" disabled={busy} onClick={() => { setMoreOpen(false); clearConversation() }}>
                   {tg('ai.clear')}
