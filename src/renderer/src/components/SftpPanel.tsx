@@ -54,6 +54,7 @@ import { requestAskWithContext } from '../lib/ai-prefill'
 import Icon, { Twist } from './Icon'
 import FolderSyncModal from './FolderSyncModal'
 import { newFileProblem } from '@shared/sftp-new-file'
+import SftpTreeSearch from './SftpTreeSearch'
 import { isLikelyTextFile } from './RemoteTextEditor'
 import { captureRemoteSnapshot } from '../lib/remote-snapshot'
 import { loadSftpDensity, resolveSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT, type SftpDensityPref } from '@shared/sftp-density'
@@ -420,6 +421,8 @@ export default function SftpPanel({
   const [queueOpen, setQueueOpen] = useState(true)
   const queuePanelRef = useRef<HTMLDivElement>(null)
   const [syncOpen, setSyncOpen] = useState(false)
+  // D75: name search under the current remote folder
+  const [treeOpen, setTreeOpen] = useState(false)
   const [syncDirection, setSyncDirection] = useState<'upload' | 'download'>('upload')
   const [syncProfile, setSyncProfile] = useState<SyncProfile | null>(null)
   const [conflict, setConflict] = useState<{
@@ -1544,6 +1547,11 @@ export default function SftpPanel({
                 {tg('d71.button')}
               </button>
             ) : null}
+            {!isLocal ? (
+              <button type="button" data-testid="sftp-remote-tree-search" title={tg('d75.tip')} disabled={!sessionId} onClick={() => setTreeOpen(true)}>
+                {tg('d75.button')}
+              </button>
+            ) : null}
             <input
               type="search"
               className="sftp-name-filter"
@@ -2204,6 +2212,18 @@ export default function SftpPanel({
           </div>
         </div>
       ) : null}
+      <SftpTreeSearch
+        open={treeOpen}
+        root={remoteCwd}
+        onClose={() => setTreeOpen(false)}
+        list={(dir) => (sessionId ? window.aiss.sftp.list(sessionId, dir) : Promise.reject(new Error(tg('sftp.noSession'))))}
+        onPick={(path, isDir) => {
+          // locate only: open the folder (or the file's folder) and select the file
+          void refreshRemote(isDir ? path : parentPosix(path)).then(() => {
+            if (!isDir) setRemoteSel({ [path]: true })
+          })
+        }}
+      />
       <FolderSyncModal
         open={syncOpen}
         hostLabel={hostLabel || sessionTitle || hostKey}
