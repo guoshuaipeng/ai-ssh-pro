@@ -31,6 +31,7 @@ import { demoHostManager } from './demo-host'
 import { isDemoSessionId } from '../shared/demo-host'
 import { stripEchoedMarker } from '../shared/exit-marker'
 import { ExitCaptureRegistry } from './exit-capture'
+import { readyTimeoutMs } from '../shared/connect-timeout'
 
 /** B1: the echoed printf suffix is noise for the AI and replay. */
 const mapSnapshot = (t: string): string => stripEchoedMarker(t)
@@ -453,7 +454,7 @@ export class SshSessionManager {
           host: hop.host,
           port: hop.port || 22,
           username: hop.username,
-          readyTimeout: 20000,
+          readyTimeout: readyTimeoutMs(opts.readyTimeoutSec),
           keepaliveInterval,
           keepaliveCountMax: KEEPALIVE_COUNT_MAX,
           hostVerifier: makeHostVerifier(owner, hop.host, hop.port || 22, { hopIndex: i + 1, hopTotal: hops.length }),
@@ -489,7 +490,7 @@ export class SshSessionManager {
 
       const targetConfig: ConnectConfig = {
         username,
-        readyTimeout: 20000,
+        readyTimeout: readyTimeoutMs(opts.readyTimeoutSec),
         keepaliveInterval,
         keepaliveCountMax: KEEPALIVE_COUNT_MAX,
         hostVerifier: makeHostVerifier(owner, host, port),

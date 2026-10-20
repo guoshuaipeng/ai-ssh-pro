@@ -1,6 +1,7 @@
 /** L9: global reconnect policy. Standard matches UX-14 (2s / 5s / 10s, 3 tries). */
 
 import { autoReconnectDelay } from './workspace-features'
+import { clampConnectTimeoutSec, CONNECT_TIMEOUT_DEFAULT_SEC } from './connect-timeout'
 
 export type ReconnectMode = 'off' | 'standard' | 'robust' | 'custom'
 
@@ -16,6 +17,8 @@ export type ReconnectPolicy = {
   keepAliveSec: number | null
   /** When true, a failed jump can resume at that hop. This batch defaults to on. */
   jumpRetryFromFailedHop: boolean
+  /** D77: SSH handshake timeout, 5–120 s. Default 20. */
+  connectTimeoutSec: number
 }
 
 export const RECONNECT_POLICY_KEY = 'aiss.reconnect.policy.v1'
@@ -28,7 +31,8 @@ export const DEFAULT_RECONNECT_POLICY: ReconnectPolicy = {
   customDelaysSec: [2, 5, 10, 20],
   customMaxAttempts: 4,
   keepAliveSec: 60,
-  jumpRetryFromFailedHop: true
+  jumpRetryFromFailedHop: true,
+  connectTimeoutSec: CONNECT_TIMEOUT_DEFAULT_SEC
 }
 
 type Store = Pick<Storage, 'getItem' | 'setItem'>
@@ -56,7 +60,8 @@ export function normalizeReconnectPolicy(raw: unknown): ReconnectPolicy {
     customDelaysSec: delays.length ? delays : base.customDelaysSec,
     customMaxAttempts: clampInt(Number(o.customMaxAttempts), 1, 10, 4),
     keepAliveSec: keep,
-    jumpRetryFromFailedHop: o.jumpRetryFromFailedHop !== false
+    jumpRetryFromFailedHop: o.jumpRetryFromFailedHop !== false,
+    connectTimeoutSec: clampConnectTimeoutSec(o.connectTimeoutSec)
   }
 }
 

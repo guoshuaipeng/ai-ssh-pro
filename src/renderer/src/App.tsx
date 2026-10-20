@@ -45,6 +45,7 @@ import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
 import { askAboutHistoryFailure, lastRunFor } from './lib/failed-output'
 import SearchAllTermsModal from './components/SearchAllTermsModal'
+import ConnectingElapsed from './components/ConnectingElapsed'
 import { cmdDrafts } from './lib/cmd-draft-store'
 import { getDraft, persistableDraft, putDraft } from '@shared/cmd-drafts'
 import { sessionInfoText } from '@shared/session-info'
@@ -1103,6 +1104,7 @@ export default function App() {
   const failureHoldRef = useRef(false)
   /** 连接中关闭的 tab，避免连上后仍挂会话 */
   const cancelledConnectingTabsRef = useRef(new Set<string>())
+  const connectingSinceRef = useRef(new Map<string, number>())
   const batchBusyRef = useRef(false)
   const batchCancelRef = useRef(false)
   const batchQueuedRef = useRef(0)
@@ -1741,6 +1743,7 @@ export default function App() {
       const tabId = uuid()
       const title = opts.label?.trim() || `${opts.username}@${opts.host}`
       cancelledConnectingTabsRef.current.delete(tabId)
+      connectingSinceRef.current.set(tabId, Date.now())
       setTabs((prev) => [
         ...prev,
         {
@@ -1760,7 +1763,8 @@ export default function App() {
         const { sessionId, meta } = await window.aiss.ssh.connect({
           ...opts,
           keepAliveSec: policy.keepAliveSec,
-          jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop
+          jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop,
+          readyTimeoutSec: policy.connectTimeoutSec
         })
         // C3: every session that carries the agent is audited
         if (opts.agentForward) {
@@ -2192,6 +2196,7 @@ export default function App() {
           termRows: tab.connectOpts.termRows,
           keepAliveSec: policy.keepAliveSec,
           jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop,
+          readyTimeoutSec: policy.connectTimeoutSec,
           resumeFromHop
         })
         if (tab.connectOpts.agentForward) {
@@ -8507,6 +8512,11 @@ export default function App() {
                   target: `${activeTab.connectOpts.username}@${activeTab.connectOpts.host}:${activeTab.connectOpts.port}`
                 })}
               </span>
+              <ConnectingElapsed
+                key={activeTab.tabId}
+                since={connectingSinceRef.current.get(activeTab.tabId) ?? Date.now()}
+                timeoutSec={policyRef.current.connectTimeoutSec}
+              />
               <button
                 type="button"
                 className="session-connecting-cancel"

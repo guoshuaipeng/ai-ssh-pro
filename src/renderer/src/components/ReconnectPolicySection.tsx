@@ -10,6 +10,8 @@ import {
   type ReconnectPolicy
 } from '@shared/reconnect-policy'
 import { useI18n } from '../lib/i18n'
+import Select from './ui/Select'
+import { CONNECT_TIMEOUT_PRESETS } from '@shared/connect-timeout'
 
 const MODES: ReconnectMode[] = ['off', 'standard', 'robust', 'custom']
 
@@ -162,6 +164,19 @@ export default function ReconnectPolicySection({ anchor }: { anchor?: string | n
           {t('l9.kaOffNudge')}
         </p>
       ) : null}
+      <label className="settings-row l9-row">
+        <span>{t('d77.timeout')}</span>
+        <Select
+          testId="d77-connect-timeout"
+          ariaLabel={t('d77.timeout')}
+          value={String(policy.connectTimeoutSec)}
+          options={(CONNECT_TIMEOUT_PRESETS as readonly number[]).concat(
+            (CONNECT_TIMEOUT_PRESETS as readonly number[]).includes(policy.connectTimeoutSec) ? [] : [policy.connectTimeoutSec]
+          ).map((n) => ({ value: String(n), label: t('d77.sec', { sec: String(n) }) }))}
+          onChange={(v) => commit({ ...policy, connectTimeoutSec: Number(v) })}
+        />
+      </label>
+      <p className="l7-muted">{t('d77.timeoutHint')}</p>
       <label className="settings-row">
         <input
           data-testid="l9-jump-prefer"
