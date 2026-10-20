@@ -269,5 +269,5 @@
 
 /* D22b */
 .cmd-ask-failed, .qp-ask-failed { cursor: pointer; color: var(--accent); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
-.cmd-ask-failed:hover, .qp-ask-failed:hover { background: var(--hover); }
+.cmd-ask-failed:hover, .qp-ask-failed:hover { background: var(--row-hover-bg); }
 
