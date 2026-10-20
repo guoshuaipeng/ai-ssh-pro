@@ -202,3 +202,8 @@
 .paste-preview-skip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 4px 0; }
 /* D12 */
 .sftp-follow { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* D15: header stays visible when a selected block scrolls into view */
+.term-blocks-head { position: sticky; top: 0; z-index: 1; background: var(--panel); }
+.term-blocks-exit2 { margin-left: 0; }
+
