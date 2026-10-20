@@ -7094,3 +7094,10 @@ button.primary.danger:focus-visible {
   color: var(--color-text-secondary);
   font-size: var(--fs-xs);
 }
+/* D3 / D4: quick pick (Ctrl+R / Ctrl+P) */
+.qp-mono { font-family: var(--font-mono); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.qp-hit { background: none; color: var(--color-accent); font-weight: 600; }
+.qp-detail { margin-left: auto; }
+.qp-badge { flex: none; margin-left: var(--space-2); padding: 0 var(--space-1); border-radius: var(--radius-sm); font-size: var(--fs-xs); color: var(--color-text-secondary); border: 1px solid var(--color-border-muted); }
+.qp-badge--host, .qp-badge--current { color: var(--color-accent); border-color: var(--color-accent-muted); }
+.qp-badge--disconnected { color: var(--color-warn); border-color: var(--color-warn-muted); }

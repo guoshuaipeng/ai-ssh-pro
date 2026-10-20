@@ -32,6 +32,12 @@ import AppToolbar from './components/AppToolbar'
 import type { TitlebarMenuAction } from './components/TitlebarMenus'
 import AiConfigModal from './components/AiConfigModal'
 import ConnectionConfigModal from './components/ConnectionConfigModal'
+import QuickPick from './components/QuickPick'
+import type { CommandSnippet } from '@shared/ipc'
+import { loadSmartHistory } from './lib/smart-history'
+import { mruOrder, mruTouch, rankHistoryPick, rankSwitchPick, type PickItem } from '@shared/quick-pick'
+import { cdCommandFor } from '@shared/session-cwd'
+import { getSessionCwd, setSessionCwd } from './lib/session-cwd-store'
 import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
 import HostKeyConfirmModal from './components/HostKeyConfirmModal'
@@ -507,6 +513,13 @@ export default function App() {
     )
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
+  // D4: MRU of activated tabs (Ctrl+Tab / Ctrl+P)
+  const mruRef = useRef<string[]>([])
+  const tabChainRef = useRef<{ snap: string[]; idx: number; at: number } | null>(null)
+  useEffect(() => {
+    if (activeTabId && !(tabChainRef.current && Date.now() - tabChainRef.current.at < 1200)) mruRef.current = mruTouch(mruRef.current, activeTabId)
+  }, [activeTabId])
+  const [quickPick, setQuickPick] = useState<null | 'history' | 'switch'>(null)
   const [sessionState, setSessionState] = useState<SavedSessionsState>({ folders: [], profiles: [] })
   const sessionStateRef = useRef(sessionState)
   sessionStateRef.current = sessionState
@@ -834,6 +847,22 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.ctrlKey || e.altKey || e.metaKey) return
+      // D3 / D4: Ctrl+R history (only from a terminal), Ctrl+P quick switch
+      const k = e.key.length === 1 ? e.key.toLowerCase() : ''
+      if (!e.shiftKey && k === 'r') {
+        const inTerm = (document.activeElement as HTMLElement | null)?.closest?.('.xterm')
+        if (!inTerm || !activeSessionIdRef.current) return
+        e.preventDefault()
+        e.stopPropagation()
+        setQuickPick('history')
+        return
+      }
+      if (!e.shiftKey && k === 'p') {
+        e.preventDefault()
+        e.stopPropagation()
+        setQuickPick('switch')
+        return
+      }
       const list = tabsRef.current
       if (!list.length) {
         if (e.key === 'Tab') {
@@ -844,11 +873,17 @@ export default function App() {
       }
       let target: string | undefined
       if (e.key === 'Tab') {
-        setActiveTabId((cur) => {
-          const i = Math.max(0, list.findIndex((t) => t.tabId === cur))
-          const n = (i + (e.shiftKey ? -1 : 1) + list.length) % list.length
-          return list[n]!.tabId
-        })
+        // D4: most-recently-used order; presses within 1.2 s keep walking the same snapshot
+        const now = Date.now()
+        const chain = tabChainRef.current
+        const ids = list.map((t) => t.tabId)
+        if (!chain || now - chain.at > 1200) tabChainRef.current = { snap: mruOrder(mruRef.current, ids), idx: 0, at: now }
+        const c = tabChainRef.current!
+        c.snap = c.snap.filter((id) => ids.includes(id))
+        c.idx = (c.idx + (e.shiftKey ? -1 : 1) + c.snap.length) % Math.max(1, c.snap.length)
+        c.at = now
+        const nextId = c.snap[c.idx]
+        if (nextId) setActiveTabId(nextId)
         e.preventDefault()
         e.stopPropagation()
         return
@@ -1166,6 +1201,35 @@ export default function App() {
     }
     return out
   }, [profiles, recentRows])
+
+  // D3: Ctrl+R history / snippet picker
+  const [pickSnippets, setPickSnippets] = useState<CommandSnippet[]>([])
+  useEffect(() => {
+    if (quickPick !== 'history') return
+    void window.aiss.snippets.list().then(setPickSnippets).catch(() => undefined)
+  }, [quickPick])
+  const rankHistory = useCallback(
+    (q: string) =>
+      rankHistoryPick({ query: q, hostKey: activeTab ? sessionHostKey(activeTab) : '', entries: loadSmartHistory(), snippets: pickSnippets }),
+    [activeTab, pickSnippets]
+  )
+  // D4: Ctrl+P open tabs (MRU) + saved hosts
+  const rankSwitch = useCallback(
+    (q: string) =>
+      rankSwitchPick({
+        query: q,
+        tabs: tabs.map((t) => ({
+          tabId: t.tabId,
+          title: t.customTitle || t.title,
+          detail: t.connectOpts?.host ? `${t.connectOpts.username ? t.connectOpts.username + '@' : ''}${t.connectOpts.host}` : undefined,
+          connected: t.status === 'connected'
+        })),
+        mru: mruRef.current,
+        currentTabId: activeTabId,
+        hosts: profiles.map((p) => ({ id: p.id, label: p.label || `${p.username}@${p.host}`, detail: `${p.username}@${p.host}${p.port && p.port !== 22 ? ':' + p.port : ''}` }))
+      }),
+    [tabs, activeTabId, profiles]
+  )
 
   const recentIdSet = useMemo(() => {
     const keys = new Set(recentRows.map((r) => recentIdentity(r)))
@@ -1957,6 +2021,16 @@ export default function App() {
           )
         )
         notifyRecentChanged()
+        // D2: return to the previous working directory (navigation only, no user command is replayed)
+        {
+          const prevCwd = getSessionCwd(tab.sessionId)
+          const cdLine = cdCommandFor(prevCwd)
+          if (prevCwd && cdLine) {
+            setSessionCwd(sessionId, prevCwd)
+            window.setTimeout(() => void window.aiss.ssh.write(sessionId, cdLine + '\r').catch(() => undefined), 400)
+            showToast(tg('cwd.restored', { path: prevCwd }))
+          }
+        }
         if (!quiet) {
           setError(null)
           setJumpFail(null)
@@ -9917,6 +9991,47 @@ export default function App() {
           onClose={() => setAuditExport(null)}
         />
       ) : null}
+      <QuickPick
+        open={quickPick === 'history'}
+        testId="qp-history"
+        title={tg('qp.historyTitle')}
+        placeholder={tg('qp.historyPlaceholder')}
+        footer={tg('qp.historyFoot')}
+        emptyTitle={tg('qp.historyEmpty')}
+        emptyDesc={tg('qp.historyEmptyDesc')}
+        rank={rankHistory}
+        chord="r"
+        onChord={() => {
+          if (activeSessionId) void window.aiss.ssh.write(activeSessionId, '\x12')
+        }}
+        onClose={() => setQuickPick(null)}
+        onPick={(it) => {
+          if (!activeSessionId) return
+          dispatchInjectTerminal(activeSessionId, it.value, false)
+        }}
+      />
+      <QuickPick
+        open={quickPick === 'switch'}
+        testId="qp-switch"
+        title={tg('qp.switchTitle')}
+        placeholder={tg('qp.switchPlaceholder')}
+        footer={tg('qp.switchFoot')}
+        emptyTitle={tg('qp.switchEmpty')}
+        emptyDesc={tg('qp.switchEmptyDesc')}
+        rank={rankSwitch}
+        chord="p"
+        onChord={() => {
+          if (activeSessionId) void window.aiss.ssh.write(activeSessionId, '\x10')
+        }}
+        onClose={() => setQuickPick(null)}
+        onPick={(it: PickItem) => {
+          if (it.kind === 'tab') setActiveTabId(it.value)
+          else {
+            const p = profiles.find((x) => x.id === it.value)
+            if (p) void connectProfile(p)
+          }
+        }}
+      />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

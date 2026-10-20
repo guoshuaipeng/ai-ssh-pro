@@ -1,0 +1,127 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useOverlayFocusRestore } from '../lib/focus-restore'
+import { highlightRuns, type PickItem } from '@shared/quick-pick'
+import { tg } from '../lib/i18n'
+import EmptyState from './EmptyState'
+import Icon from './Icon'
+import { EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
+
+type Props = {
+  open: boolean
+  testId: string
+  title: string
+  placeholder: string
+  footer: string
+  emptyTitle: string
+  emptyDesc: string
+  rank: (query: string) => PickItem[]
+  onPick: (item: PickItem) => void
+  onClose: () => void
+  /** Pressing the opening chord again (e.g. Ctrl+R) closes and hands the key to the shell. */
+  chord?: string
+  onChord?: () => void
+}
+
+const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]> = {
+  host: 'qp.badgeHost',
+  common: 'qp.badgeCommon',
+  snippet: 'qp.badgeSnippet',
+  connected: 'qp.badgeConnected',
+  disconnected: 'qp.badgeDisconnected',
+  current: 'qp.badgeCurrent'
+}
+
+/** D3 / D4: themed fuzzy picker (reuses the command palette chrome). */
+export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, chord, onChord }: Props) {
+  const [q, setQ] = useState('')
+  const [sel, setSel] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  useOverlayFocusRestore(open)
+  useEffect(() => {
+    if (!open) return
+    setQ('')
+    setSel(0)
+    window.setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+  const items = useMemo(() => (open ? rank(q) : []), [open, q, rank])
+  useEffect(() => setSel(0), [q])
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [sel])
+  if (!open) return null
+  const pick = (it: PickItem | undefined) => {
+    if (!it) return
+    onClose()
+    window.setTimeout(() => onPick(it), 0)
+  }
+  return (
+    <div className="cmdp-backdrop" role="presentation" onMouseDown={onClose}>
+      <div className="cmdp qp" role="dialog" aria-label={title} data-testid={testId} onMouseDown={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          className="cmdp-input"
+          placeholder={placeholder}
+          aria-label={title}
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={`${testId}-list`}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (chord && e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === chord) {
+              e.preventDefault()
+              e.stopPropagation()
+              onClose()
+              onChord?.()
+              return
+            }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault()
+              if (!items.length) return
+              const d = e.key === 'ArrowDown' ? 1 : -1
+              setSel((s) => (s + d + items.length) % items.length)
+            } else if (e.key === 'Enter') {
+              e.preventDefault()
+              pick(items[sel])
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              e.stopPropagation()
+              onClose()
+            }
+          }}
+        />
+        <div className="cmdp-list" role="listbox" id={`${testId}-list`} ref={listRef}>
+          {items.length === 0 ? (
+            <EmptyState
+              compact
+              testId={`${testId}-empty`}
+              icon={<Icon name="search" size={EMPTY_ICON_SIZE_COMPACT} strokeWidth={EMPTY_ICON_STROKE} />}
+              title={emptyTitle}
+              desc={emptyDesc}
+            />
+          ) : null}
+          {items.map((it, i) => (
+            <button
+              key={it.id}
+              type="button"
+              role="option"
+              aria-selected={i === sel}
+              className={`cmdp-item qp-item${i === sel ? ' is-active' : ''}`}
+              data-kind={it.kind}
+              onMouseEnter={() => setSel(i)}
+              onClick={() => pick(it)}
+            >
+              <span className={`cmdp-label${it.kind === 'history' || it.kind === 'snippet' ? ' qp-mono' : ''}`}>
+                {highlightRuns(it.label, it.indices).map((r, k) => (r.hit ? <mark key={k} className="qp-hit">{r.text}</mark> : <span key={k}>{r.text}</span>))}
+              </span>
+              {it.detail ? <span className="cmdp-group qp-detail">{it.detail}</span> : null}
+              {it.badge ? <span className={`qp-badge qp-badge--${it.badge}`}>{tg(BADGE_KEY[it.badge])}</span> : null}
+            </button>
+          ))}
+        </div>
+        <div className="cmdp-foot">{footer}</div>
+      </div>
+    </div>
+  )
+}
