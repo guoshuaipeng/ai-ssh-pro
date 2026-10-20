@@ -46,7 +46,7 @@ import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
 import { openDecision } from '@shared/sftp-open'
 import { parentPath } from '@shared/term-path'
-import { noteRecentDir, recentDirs } from '@shared/sftp-recent-dirs'
+import { LOCAL_RECENT_KEY, noteRecentDir, recentDirs } from '@shared/sftp-recent-dirs'
 import { SFTP_GOTO_EVENT, takeSftpGoto } from '../lib/sftp-goto'
 import { AI_FILE_MAX_BYTES, buildFileContext, canAttachFile } from '@shared/ai-file-context'
 import { requestAskWithContext } from '../lib/ai-prefill'
@@ -466,6 +466,7 @@ export default function SftpPanel({
     setLocalError(null)
     try {
       const res = await api.list(dir || localCwd || '')
+      if (res?.path) noteRecentDir(LOCAL_RECENT_KEY, res.path)
       applyLocalList(res)
     } catch (e) {
       setLocalError(friendlyErrorMessage(e))
@@ -1334,20 +1335,20 @@ export default function SftpPanel({
           <div className="sftp-pane-title">
             <span className="sftp-pane-name">{isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}</span>
             {isLocal && !showPath ? driveControl : null}
-            {!isLocal && hostKey ? (
+            {isLocal || hostKey ? (
               <button
                 type="button"
                 className="sftp-cd-terminal"
-                data-testid="sftp-recent-dirs"
-                title={tg('d45.tip')}
+                data-testid={isLocal ? 'sftp-recent-dirs-local' : 'sftp-recent-dirs'}
+                title={tg(isLocal ? 'd47.tip' : 'd45.tip')}
                 onClick={(ev) => {
                   // D45: recent folders on this host
-                  const dirs = recentDirs(hostKey).filter((d) => d !== cwd)
+                  const dirs = recentDirs(isLocal ? LOCAL_RECENT_KEY : hostKey).filter((d) => d !== cwd)
                   if (!dirs.length) {
                     showToast(tg('d45.empty'))
                     return
                   }
-                  openContextMenu(ev, dirs.map((d, i) => ({ id: `recent-${i}`, label: d, onSelect: () => void refreshRemote(d) })))
+                  openContextMenu(ev, dirs.map((d, i) => ({ id: `recent-${i}`, label: d, onSelect: () => void (isLocal ? refreshLocal(d) : refreshRemote(d)) })))
                 }}
               >
                 {tg('d45.btn')}

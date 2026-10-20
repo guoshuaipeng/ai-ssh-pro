@@ -2,6 +2,8 @@
 export const SFTP_RECENT_KEY = 'aiss.sftp.recentDirs.v1'
 export const SFTP_RECENT_MAX = 10
 const MAX_HOSTS = 50
+/** D47: the local pane uses this pseudo host key */
+export const LOCAL_RECENT_KEY = '@local'
 
 type Store = Pick<Storage, 'getItem' | 'setItem'>
 type Data = Record<string, { dirs: string[]; at: number }>
