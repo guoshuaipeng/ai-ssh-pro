@@ -6,7 +6,8 @@ import {
   conversationLabel,
   GENERAL_CONVERSATION_KEY
 } from '@shared/ai-conversation'
-import { globalAiPolicy, hasLegacyHostPolicies, migrateLegacyHostPolicies, type AiPolicy } from '@shared/ai-policy'
+import { globalAiPolicy, hasLegacyHostPolicies, migrateLegacyHostPolicies, resolveAiPolicy, type AiPolicy, type AiPolicySettings } from '@shared/ai-policy'
+import { OPEN_AI_POLICY_EVENT, prodAutoHint } from '@shared/prod-auto-hint'
 import { createPortal } from 'react-dom'
 import { moveById, normalizeTabTitle, LATENCY_POLL_MS, classifyLatency } from '@shared/workspace-features'
 import type {
@@ -2706,6 +2707,17 @@ export default function App() {
     ])
     setActiveTabId(tabId)
   }, [ensureMainVisible])
+
+  // 2.4: global AI policy for the production banner; refreshed whenever AI settings are saved
+  const [aiPolicySettings, setAiPolicySettings] = useState<AiPolicySettings | null>(null)
+  useEffect(() => {
+    const refresh = () => {
+      void window.aiss.ai.getSettings().then((s) => setAiPolicySettings({ aiPolicy: s.aiPolicy, aiAutoHighRisk: s.aiAutoHighRisk, safetyTier: s.safetyTier }))
+    }
+    refresh()
+    window.addEventListener('aiss-ai-settings-saved', refresh)
+    return () => window.removeEventListener('aiss-ai-settings-saved', refresh)
+  }, [])
 
   // 2.3: "审计记录" in an AI execution replay row
   useEffect(() => {
@@ -8056,14 +8068,48 @@ export default function App() {
                   const left = paused && until ? Math.max(0, until - Date.now()) : 0
                   const mm = String(Math.floor(left / 60000)).padStart(2, '0')
                   const ss = String(Math.floor((left % 60000) / 1000)).padStart(2, '0')
+                  // 2.4: production + effective Auto run → say so in the banner (reminder only, nothing is blocked)
+                  const autoHint = prodAutoHint({
+                    level: g.level,
+                    paused,
+                    policy: resolveAiPolicy({
+                      settings: aiPolicySettings,
+                      hostPolicy: g.profile?.aiPolicy,
+                      tempOverride: activeTab.tabId ? tempPolicyByTab[activeTab.tabId] : undefined,
+                      protection: { level: g.level, elevated: g.elevated }
+                    })
+                  })
+                  const autoTip = autoHint
+                    ? tg('prodAuto.tip', { source: tg(`policy.source.${autoHint.source}` as 'policy.source.global'), high: autoHint.autoHighRisk ? tg('prodAuto.high') : tg('prodAuto.highOff') })
+                    : ''
+                  const baseTip = paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('s4.banner') : tg('l4.bannerProd')
                   return (
                     <div
-                      className={`term-guard-banner${paused ? ' is-paused' : g.level === 'readonly' ? ' is-ro' : ' is-prod'}`}
+                      className={`term-guard-banner${paused ? ' is-paused' : g.level === 'readonly' ? ' is-ro' : ' is-prod'}${autoHint ? ' has-auto' : ''}`}
                       data-testid="term-guard-banner"
-                      title={paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('s4.banner') : tg('l4.bannerProd')}
+                      data-ai-policy={autoHint ? 'auto' : undefined}
+                      title={autoTip ? `${baseTip}\n${autoTip}` : baseTip}
                     >
-                      <span className="s4-banner-long">{paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('s4.banner') : tg('l4.bannerProd')}</span>
+                      <span className="s4-banner-long">{baseTip}</span>
                       <span className="s4-banner-short">{paused ? `${mm}:${ss}` : g.level === 'readonly' ? tg('s4.bannerShort') : tg('l4.bannerProd')}</span>
+                      {autoHint ? (
+                        <button
+                          type="button"
+                          className={`banner-ai-auto${autoHint.autoHighRisk ? ' is-high' : ''}`}
+                          data-testid="banner-ai-auto"
+                          title={autoTip}
+                          aria-label={autoTip}
+                          onClick={() => {
+                            ensureAiVisible()
+                            openRightPanelRef.current('ai')
+                            window.setTimeout(() => window.dispatchEvent(new Event(OPEN_AI_POLICY_EVENT)), 60)
+                          }}
+                        >
+                          <span className="banner-ai-dot" aria-hidden />
+                          <span className="banner-ai-long">{autoHint.autoHighRisk ? tg('prodAuto.chipHigh') : tg('prodAuto.chip')}</span>
+                          <span className="banner-ai-short">{tg('prodAuto.chipShort')}</span>
+                        </button>
+                      ) : null}
                       {paused && pid ? (
                         <button type="button" onClick={() => restoreProtection(pid)}>
                           {tg('l4.restore')}

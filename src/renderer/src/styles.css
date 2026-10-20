@@ -6920,3 +6920,29 @@ button.primary.danger:focus-visible {
 .ai-exec-output + .ai-exec-note,
 .ai-exec-note + .ai-exec-note { margin-top: var(--space-1); }
 .audit-table tr.is-focus td { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+
+/* 2.4 生产横幅 + 自动执行提示：横幅内的策略标签，只提醒、不拦截 */
+.term-guard-banner .banner-ai-auto {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  height: 18px;
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-warn) 55%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-warn) 16%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  cursor: pointer;
+}
+.term-guard-banner .banner-ai-auto:hover { background: color-mix(in srgb, var(--color-warn) 26%, transparent); }
+.term-guard-banner .banner-ai-auto.is-high { border-color: color-mix(in srgb, var(--color-danger) 60%, transparent); background: color-mix(in srgb, var(--color-danger) 18%, transparent); }
+.term-guard-banner .banner-ai-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--color-warn); }
+.term-guard-banner .banner-ai-auto.is-high .banner-ai-dot { background: var(--color-danger); }
+.banner-ai-short { display: none; }
+@media (max-width: 1100px) {
+  .banner-ai-long { display: none; }
+  .banner-ai-short { display: inline; }
+}

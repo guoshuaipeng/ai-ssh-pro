@@ -20,6 +20,7 @@ import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } f
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import ExecReplay from './ExecReplay'
+import { OPEN_AI_POLICY_EVENT } from '@shared/prod-auto-hint'
 import type { ExecRecord } from '@shared/ai-exec-replay'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
@@ -554,6 +555,15 @@ export default function AIPanel({
       setSafetyOpen(pending === 'safety')
     }
     return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
+  }, [])
+  // 2.4: the production banner's "AI 自动执行" chip opens the composer policy menu
+  useEffect(() => {
+    const onOpenPolicy = () => {
+      setModelOpen(false)
+      setSafetyOpen(true)
+    }
+    window.addEventListener(OPEN_AI_POLICY_EVENT, onOpenPolicy)
+    return () => window.removeEventListener(OPEN_AI_POLICY_EVENT, onOpenPolicy)
   }, [])
   const [hasApiKey, setHasApiKey] = useState(false)
   const [configContext, setConfigContext] = useState<string | null>(null)
