@@ -125,6 +125,8 @@ const chrome = [
   { name: 'ai-exec-collapsed', size: N, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'demoHost' }, { op: 'aiChat', empty: true }, { op: 'aiChat' }, { eval: "document.querySelectorAll('[data-testid=ai-exec-replay].is-open [data-testid=ai-exec-toggle]').forEach((b)=>b.click()); document.querySelectorAll('[data-testid=ai-exec-replay]')[1]?.scrollIntoView({block:'end'}); true" }], wait: 1200 },
   { name: 'ai-exec-failed', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { eval: "const r=document.querySelectorAll('[data-testid=ai-exec-replay]')[1]; if(r&&!r.classList.contains('is-open')) r.querySelector('[data-testid=ai-exec-toggle]').click(); r?.scrollIntoView({block:'center'}); r?.getAttribute('data-status')" }], wait: 1200 },
   // B1: exit-code capture setting
+  { name: 'settings', size: W, steps: [{ op: 'menu', action: 'settings' }], wait: 1200 },
+  { name: 'settings-reconnect', size: W, steps: [{ op: 'menu', action: 'settings' }, { eval: "(()=>{const b=[...document.querySelectorAll('.settings-nav button')].find(x=>/重连|Reconnect|连接/.test(x.textContent||''));b?.click();setTimeout(()=>document.querySelector('[data-testid=d77-connect-timeout]')?.scrollIntoView({block:'center'}),150);return !!b})()" }], wait: 1200 },
   { name: 'settings-ai-exit', size: W, steps: [{ op: 'menu', action: 'settings' }, { click: '.settings-nav button[data-section="ai"]' }, { eval: "document.querySelector('[data-testid=ai-exit-capture-row]')?.scrollIntoView({block:'center'}); !!document.querySelector('[data-testid=ai-exit-capture]')" }], wait: 1000 },
   // B2: provider presets (menu open, then Ollama applied)
   { name: 'settings-ai-presets', size: W, steps: [{ op: 'menu', action: 'settings' }, { click: '.settings-nav button[data-section="ai"]' }, { eval: "document.querySelector('[data-testid=ai-preset-add]')?.scrollIntoView({block:'center'}); true" }, { click: '[data-testid=ai-preset-add]' }], wait: 900 },
@@ -185,7 +187,7 @@ const ONLY = ${JSON.stringify(only)}
 const THEMES = ${JSON.stringify(themes)}
 const PREFIX = ${JSON.stringify(emptySeed ? 'empty-' : '')}
 const picked = (${JSON.stringify(shotSet)} === 'chrome' ? chrome : base).filter((s) => !ONLY.length || ONLY.includes(s.name))
-if (!picked.length) { console.error('--only matched no shots: ' + ONLY.join(',')); process.exit(2) }
+if (!picked.length) { console.error('[cov] --only matched no shots in set ' + ${JSON.stringify(shotSet || 'base')} + ': ' + ONLY.join(',') + ' (available: ' + (${JSON.stringify(shotSet)} === 'chrome' ? chrome : base).map((s) => s.name).join(',') + ')'); process.exit(2) }
 const shots = [
   ...(THEMES.includes('dark') ? picked.map((s) => ({ ...s, theme: 'github-dark', file: PREFIX + 'dark-' + s.name + '.png' })) : []),
   ...(THEMES.includes('light') ? picked.map((s) => ({ ...s, theme: 'light', file: PREFIX + 'light-' + s.name + '.png' })) : [])
