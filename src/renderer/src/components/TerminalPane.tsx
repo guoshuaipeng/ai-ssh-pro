@@ -4,6 +4,7 @@ import Icon from './Icon'
 import { openContextMenu, type ContextMenuItem } from './ContextMenu'
 import { pathFromSelection } from '@shared/term-path'
 import { requestSftpGoto } from '../lib/sftp-goto'
+import { selectionWithLastRun } from '../lib/failed-output'
 import { Terminal, type IMarker } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -628,7 +629,9 @@ export default function TerminalPane({
           label: tg('d6.ask'),
           disabled: !hasSel,
           onSelect: () => {
-            if (!requestAskWithContext(sessionId, term?.getSelection() ?? '')) showToast(tg('a6.needSelection'))
+            // D46: include the last command + exit code so the AI sees what produced this output
+            const sel = term?.getSelection() ?? ''
+            if (!sel.trim() || !requestAskWithContext(sessionId, selectionWithLastRun(sessionId, sel))) showToast(tg('a6.needSelection'))
           }
         },
         'sep',

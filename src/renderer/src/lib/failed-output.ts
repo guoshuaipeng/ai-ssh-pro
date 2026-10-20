@@ -1,17 +1,27 @@
 import { BLOCK_DONE_EVENT, type BlockDoneDetail } from './ai-script-run'
 import { requestAskWithContext } from './ai-prefill'
 import { tg } from './i18n'
-import { captureChunk, captureCommand, captureExit, captureStart, failedContext, rememberFailed, type Capture, type FailedOutputStore } from '@shared/failed-output'
+import { captureChunk, captureCommand, captureExit, captureStart, failedContext, rememberFailed, withLastRun, type Capture, type FailedOutputStore, type LastRun } from '@shared/failed-output'
+import { isSensitiveCommand } from '@shared/workspace-features'
 import { COMMAND_SUBMITTED_EVENT } from './ai-events'
 import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, integrationState } from './shell-integration'
 
 const store: FailedOutputStore = new Map()
 const caps = new Map<string, Capture>()
+const lastRuns = new Map<string, LastRun>()
+
+/** D46: selection text with the session's last command + exit code in front (when recent, not sensitive). */
+export function selectionWithLastRun(sessionId: string, selection: string): string {
+  return withLastRun(selection, lastRuns.get(sessionId), Date.now(), isSensitiveCommand)
+}
 
 if (typeof window !== 'undefined') {
   window.addEventListener(BLOCK_DONE_EVENT, (e) => {
     const d = (e as CustomEvent<BlockDoneDetail>).detail
-    if (d?.sessionId && d.command) rememberFailed(store, d.sessionId, d.command, d.code, d.context || '')
+    if (d?.sessionId && d.command) {
+      rememberFailed(store, d.sessionId, d.command, d.code, d.context || '')
+      lastRuns.set(d.sessionId, { command: d.command, code: d.code, at: Date.now() })
+    }
   })
   // D22c: memory-only capture that works with blocks off (needs Shell Integration for the exit code)
   window.addEventListener(COMMAND_SUBMITTED_EVENT, (e) => {
@@ -28,7 +38,11 @@ if (typeof window !== 'undefined') {
   })
   window.addEventListener(SHELL_EXIT_EVENT, (e) => {
     const d = (e as CustomEvent<{ sessionId: string; code: number }>).detail
-    if (d?.sessionId && typeof d.code === 'number') captureExit(caps, store, d.sessionId, d.code)
+    if (d?.sessionId && typeof d.code === 'number') {
+      const cmd = caps.get(d.sessionId)?.command
+      if (cmd) lastRuns.set(d.sessionId, { command: cmd, code: d.code, at: Date.now() })
+      captureExit(caps, store, d.sessionId, d.code)
+    }
   })
 }
 

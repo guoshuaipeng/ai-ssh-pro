@@ -67,6 +67,16 @@ export function captureExit(caps: Map<string, Capture>, store: FailedOutputStore
   rememberFailed(store, sessionId, cap.command, code, redactAuditText(`$ ${cap.command}\n${out.trimEnd()}`))
 }
 
+/** D46: the last finished command of a session, for "Ask AI" on a selection. */
+export type LastRun = { command: string; code: number; at: number }
+export const LAST_RUN_FRESH_MS = 10 * 60 * 1000
+
+/** Prefix the selection with the last command + exit code when it is recent and not sensitive. */
+export function withLastRun(selection: string, last: LastRun | null | undefined, now: number, sensitive: (cmd: string) => boolean): string {
+  if (!last || !last.command.trim() || now - last.at > LAST_RUN_FRESH_MS || sensitive(last.command)) return selection
+  return `$ ${redactAuditText(last.command.trim())}   # exit ${last.code}\n${selection}`
+}
+
 export function failedContext(store: FailedOutputStore, sessionId: string, command: string, code: number): { text: string; hasOutput: boolean } {
   const ctx = store.get(k(sessionId, command))
   if (ctx) return { text: ctx, hasOutput: true }
