@@ -473,6 +473,8 @@ export type AiChatMessage = {
   safetyMode?: string
   decision?: 'agreed' | 'skipped'
   parseMiss?: boolean
+  /** 2.3: execution replay record for a command step (status, duration, output summary, audit id). */
+  exec?: import('./ai-exec-replay').ExecRecord
 }
 
 export type AiChatPayload = {
@@ -535,6 +537,8 @@ export type AiStreamEvent =
   | { type: 'progress'; step: number; maxSteps: number; policy?: 'suggest' | 'ask' | 'auto' }
   /** 2.1: one AI command reached the terminal (allowed) or was stopped by read-only protection (blocked). */
   | { type: 'audit'; payload: AiAuditPayload }
+  /** 2.3: a command finished (or was blocked); the renderer attaches it to the matching step for replay. */
+  | { type: 'exec'; requestId?: string; command: string; payload: Omit<import('./ai-exec-replay').ExecRecord, 'auditId'> }
 
 export type AiAuditPayload = {
   command: string

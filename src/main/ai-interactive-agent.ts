@@ -52,6 +52,7 @@ import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTie
 import { getInventoryStore } from './inventory-store'
 import { isAiPolicy, policyTier, resolveAiPolicy } from '../shared/ai-policy'
 import { resolveAiMaxSteps, writeUnlessStopped } from '../shared/ai-run-control'
+import { execStatusFrom, summarizeExecOutput } from '../shared/ai-exec-replay'
 import { aiWriteVerdict, capSafetyModeForProtection, aiEffectiveLevel, protectionFromSafetyContext, stricterProtection } from '../shared/ai-write-guard'
 import { getSessionProtection } from './ai-protection-registry'
 import type { HostServiceKind } from '../shared/inventory'
@@ -1675,12 +1676,15 @@ export async function runOpenClawCoreAgentChat(
               command: oneLineCmd
             }
           })
+          send(wc, { type: 'exec', requestId, command: oneLineCmd, payload: { status: 'blocked', at: Date.now() } })
           send(wc, { type: 'done' })
           return
         }
         if (requestId) writtenRequestIds.add(requestId)
 
         logAi('ssh:write exec', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
+        const execStartedAt = Date.now()
+        let execSnapshot: string | null = null
         const wrote = writeUnlessStopped(runCtx, ac.signal, () => ssh.write(targetSessionId, `${oneLineCmd}\n`))
         if (wrote === null) {
           logAi('ssh:write skipped after stop', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
@@ -1710,6 +1714,7 @@ export async function runOpenClawCoreAgentChat(
           const postCmdSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
           if (postCmdSnap?.trim()) {
             lastToolResult = postCmdSnap
+            execSnapshot = postCmdSnap
             lastCommand = oneLineCmd
             sessionState.lastToolScore = scoreToolSnapshot(postCmdSnap, oneLineCmd)
             appendObservation(sessionState, postCmdSnap, oneLineCmd)
@@ -1725,6 +1730,22 @@ export async function runOpenClawCoreAgentChat(
         }
 
         const reported = readConfirmedCommandOutcome(ssh, targetSessionId, oneLineCmd)
+        {
+          // 2.3: replay record for this command
+          const sum = summarizeExecOutput(execSnapshot, oneLineCmd)
+          send(wc, {
+            type: 'exec',
+            requestId,
+            command: oneLineCmd,
+            payload: {
+              status: execStatusFrom({ writeOk: lastWriteOk === true, exitCode: reported?.exitCode, timedOut: reported?.timedOut, stderr: reported?.stderr }),
+              at: execStartedAt,
+              durationMs: Date.now() - execStartedAt,
+              ...(typeof reported?.exitCode === 'number' ? { exitCode: reported.exitCode } : {}),
+              ...(sum.summary ? { summary: sum.summary, outputLines: sum.outputLines } : {})
+            }
+          })
+        }
         const failure =
           reported || lastWriteOk === false
             ? classifyCommandFailure(oneLineCmd, {

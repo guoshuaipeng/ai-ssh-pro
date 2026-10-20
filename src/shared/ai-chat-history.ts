@@ -1,5 +1,6 @@
 /** Persist richer AI chat steps without breaking older role+content-only stores. */
 
+import { normalizeExecRecord } from './ai-exec-replay'
 import { parseAiAssistantReply, type AiAssistantReply, type AiChatMessage } from './ipc'
 
 const CONTENT_MAX = 20000
@@ -27,6 +28,8 @@ export function normalizeAiChatMessage(raw: unknown): AiChatMessage | null {
     out.safetyMode = row.safetyMode.trim()
   }
   if (row.parseMiss === true) out.parseMiss = true
+  const exec = normalizeExecRecord(row.exec)
+  if (exec) out.exec = exec
   if (row.structured != null) {
     const parsed =
       typeof row.structured === 'string'
