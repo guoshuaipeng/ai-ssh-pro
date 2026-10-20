@@ -6710,6 +6710,15 @@ export default function App() {
   )
   const handleTitlebarMenuActionRef = useRef(handleTitlebarMenuAction)
   handleTitlebarMenuActionRef.current = handleTitlebarMenuAction
+  // D99: Ctrl+wheel over a terminal reuses the zoom actions (limits + toast + persisted prefs)
+  useEffect(() => {
+    const onZoom = (ev: Event) => {
+      const step = (ev as CustomEvent<{ step?: number }>).detail?.step
+      if (step === 1 || step === -1) handleTitlebarMenuActionRef.current(step > 0 ? 'zoomIn' : 'zoomOut')
+    }
+    window.addEventListener('aiss-term-zoom', onZoom)
+    return () => window.removeEventListener('aiss-term-zoom', onZoom)
+  }, [])
 
   const openMonitorForSession = useCallback((sid: string | null) => {
     openToolTabRef.current('monitor', sid)

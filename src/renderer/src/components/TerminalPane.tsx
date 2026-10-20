@@ -42,6 +42,7 @@ import { blockMatcher, effectiveScope, loadFindScope, saveFindScope, type FindSc
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { BLOCKS_HITS_EVENT, BLOCKS_QUERY_EVENT, BLOCKS_STEP_EVENT, type BlocksHitsDetail } from '../lib/find-bridge'
 import { SHELL_INT_TIMEOUT_MS, atIdlePrompt, canInject, isNewTyped, parseOsc133, parseOsc133E, shellIntegrationScript } from '@shared/shell-integration'
+import { wheelZoomStep } from '@shared/wheel-zoom'
 import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, noteInjected, noteMarker, shellIntOn, wasInjected } from '../lib/shell-integration'
 
 type Props = {
@@ -301,6 +302,17 @@ export default function TerminalPane({
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(el)
+    // D99: Ctrl+wheel zooms the font (same path and limits as Ctrl+= / Ctrl+-); plain wheel still scrolls
+    let zoomAcc = 0
+    const onWheelZoom = (ev: WheelEvent) => {
+      if (!ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      const r = wheelZoomStep(zoomAcc, ev.deltaMode === 1 ? ev.deltaY * 40 : ev.deltaY)
+      zoomAcc = r.acc
+      if (r.step) window.dispatchEvent(new CustomEvent('aiss-term-zoom', { detail: { step: r.step } }))
+    }
+    el.addEventListener('wheel', onWheelZoom, { capture: true, passive: false })
     // D70: http(s) links; Ctrl+click opens in the browser, a plain click only hints (no accidental opens)
     term.registerLinkProvider({
       provideLinks: (y, cb) => {
@@ -851,6 +863,7 @@ export default function TerminalPane({
       subInput.dispose()
       unsubData()
       try { oscDisp.dispose() } catch { /* ignore */ }
+      el.removeEventListener('wheel', onWheelZoom, { capture: true })
       term.dispose()
       apiRef.current = null
     }
