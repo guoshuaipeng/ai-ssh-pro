@@ -56,7 +56,7 @@ import { applyUiTheme, isLightUiTheme, suggestedTerminalTheme, toggleLightDarkTh
 import SftpPanel from './components/SftpPanel'
 import { askSftpClose, clearArmedFolderSync, requestFolderSync, takeArmedFolderSync } from './lib/sftp-activity'
 import { formatSftpTabTitle, planSftpOpen } from '@shared/sftp-host'
-import { clearHostHistory, loadSmartPrefs, restoreSmartEntries, saveSmartPrefs, SMART_PREFS_EVENT } from './lib/smart-history'
+import { clearHostHistory, forgetCommand, loadSmartPrefs, restoreSmartEntries, saveSmartPrefs, SMART_PREFS_EVENT } from './lib/smart-history'
 import RemoteTextEditor from './components/RemoteTextEditor'
 import DockerPanel from './components/DockerPanel'
 import SessionDockerBranch, { type DockerTreeCache } from './components/SessionDockerBranch'
@@ -10407,6 +10407,13 @@ export default function App() {
         }}
         onAskFailed={(it) => {
           if (activeSessionId && typeof it.failed === 'number') askAboutHistoryFailure(activeSessionId, it.value, it.failed)
+        }}
+        onForget={(it) => {
+          // D43: app history only (the shell's own history file is untouched); undo restores the rows
+          const hk = histHostOnly && activeTab ? sessionHostKey(activeTab) : undefined
+          const dropped = forgetCommand(it.value, hk || undefined)
+          if (!dropped.length) return
+          showToast(tg('d43.forgot'), { ms: 8000, actions: [{ label: tg('d43.undo'), run: () => restoreSmartEntries(dropped) }] })
         }}
         currentCwd={quickPick === 'history' ? getSessionCwd(activeSessionId) : null}
         onRunInCwd={(it) => {

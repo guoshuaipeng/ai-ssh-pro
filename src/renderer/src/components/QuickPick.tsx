@@ -28,6 +28,8 @@ type Props = {
   onChord?: () => void
   /** D38: optional scope switch shown next to the input (Alt+H toggles) */
   scopeToggle?: { on: boolean; label: string; title: string; onToggle: () => void }
+  /** D43: Shift+Delete removes a history item */
+  onForget?: (item: PickItem) => void
 }
 
 const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]> = {
@@ -40,7 +42,7 @@ const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]
 }
 
 /** D3 / D4: themed fuzzy picker (reuses the command palette chrome). */
-export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, onRunInCwd, currentCwd, chord, onChord, scopeToggle }: Props) {
+export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, onRunInCwd, currentCwd, chord, onChord, scopeToggle, onForget }: Props) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -52,7 +54,9 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
     setSel(0)
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
-  const items = useMemo(() => (open ? rank(q) : []), [open, q, rank])
+  const [nonce, setNonce] = useState(0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const items = useMemo(() => (open ? rank(q) : []), [open, q, rank, nonce])
   useEffect(() => setSel(0), [q])
   useEffect(() => {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
@@ -82,6 +86,15 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
               e.stopPropagation()
               onClose()
               onChord?.()
+              return
+            }
+            if (onForget && e.shiftKey && e.key === 'Delete') {
+              const it = items[sel]
+              if (it && it.kind === 'history') {
+                e.preventDefault()
+                onForget(it)
+                setNonce((n) => n + 1)
+              }
               return
             }
             if (scopeToggle && e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'h') {

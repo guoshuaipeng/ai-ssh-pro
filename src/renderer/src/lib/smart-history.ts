@@ -89,6 +89,17 @@ export function clearHostHistory(hostKey: string): { removed: number; left: Hist
   return { removed: dropped.length, left, dropped }
 }
 
+/** D43: forget one command (all hosts, or one host when hostKey is given). Returns the dropped rows for undo. */
+export function forgetCommand(command: string, hostKey?: string): HistoryEntry[] {
+  const cmd = String(command ?? '').trim()
+  if (!cmd) return []
+  const all = loadSmartHistory()
+  const hit = (e: HistoryEntry) => String(e.command ?? '').trim() === cmd && (!hostKey || e.hostKey === hostKey)
+  const dropped = all.filter(hit)
+  if (dropped.length) save(all.filter((e) => !hit(e)))
+  return dropped
+}
+
 export function restoreSmartEntries(entries: HistoryEntry[]): void {
   if (!entries.length) return
   const all = loadSmartHistory()
