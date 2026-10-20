@@ -5,6 +5,7 @@ import { friendlyErrorMessage } from '../lib/friendly-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { normalizeAiChatMessage } from '@shared/ai-chat-history'
 import { parseAiAssistantReply } from '@shared/ipc'
+import { appendAudit } from '@shared/audit-log'
 import { commandBundle, highlightKeyNumbers, layoutOpsReply, splitFences, splitInlineCode, type OpsLayout } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
@@ -790,6 +791,25 @@ export default function AIPanel({
       let usedStepProtocol = false
       let assistant = ''
       const unsub = window.aiss.ai.onStream((ev) => {
+      if (ev.type === 'audit') {
+        // 2.1: one row per AI command, with tab #n and the resolved policy.
+        const a = ev.payload
+        appendAudit({
+          type: 'command',
+          host: turn.host || '—',
+          source: 'AI',
+          outcome: a.outcome,
+          detail: a.reason === 'readonly' ? `${a.command} · ${tg('ai.auditReadonly')}` : a.command,
+          protection: a.protection,
+          tabNo: conversation?.n,
+          policyChosen: a.policyChosen,
+          policyEffective: a.policyEffective,
+          policySource: a.policySource,
+          policyCappedBy: a.policyCappedBy
+        })
+        window.dispatchEvent(new Event('aiss-audit-changed'))
+        return
+      }
       if (ev.type === 'status') {
         applyTurn((prev) => {
           const next = [...prev]

@@ -531,6 +531,21 @@ export type AiStreamEvent =
   | { type: 'cancelled'; message?: string }
   | { type: 'error'; message: string }
   | { type: 'debug'; payload: AiDebugStreamPayload }
+  /** 2.2: loop progress for the composer ("step n / limit"). */
+  | { type: 'progress'; step: number; maxSteps: number; policy?: 'suggest' | 'ask' | 'auto' }
+  /** 2.1: one AI command reached the terminal (allowed) or was stopped by read-only protection (blocked). */
+  | { type: 'audit'; payload: AiAuditPayload }
+
+export type AiAuditPayload = {
+  command: string
+  outcome: 'allowed' | 'blocked'
+  reason?: 'readonly'
+  protection?: 'normal' | 'production' | 'readonly'
+  policyChosen?: 'suggest' | 'ask' | 'auto'
+  policyEffective?: 'suggest' | 'ask' | 'auto'
+  policySource?: 'global' | 'host' | 'temp'
+  policyCappedBy?: 'production' | 'readonly' | null
+}
 
 export type AiProvider = {
   /** 唯一 ID；用于切换不同大模型地址/供应商 */

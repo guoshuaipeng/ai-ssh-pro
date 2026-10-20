@@ -564,6 +564,12 @@ export default function App() {
   }, [])
   const [auditOn, setAuditOn] = useState(() => auditEnabled())
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() => loadAudit())
+  // 2.1: AI command rows are written by the AI panel; refresh the audit view when they land.
+  useEffect(() => {
+    const onChanged = () => setAuditEvents(loadAudit())
+    window.addEventListener('aiss-audit-changed', onChanged)
+    return () => window.removeEventListener('aiss-audit-changed', onChanged)
+  }, [])
   const [auditExport, setAuditExport] = useState<{ nonce: number; seed: AuditExportSeed } | null>(null)
   const auditExportNonce = useRef(0)
   const [guardCollapsed, setGuardCollapsed] = useState<Record<string, boolean>>({})

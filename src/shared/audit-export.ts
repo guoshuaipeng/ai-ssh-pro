@@ -1,5 +1,5 @@
 /** S1b: local compliance export. Redaction is mandatory; nothing here uploads or shares. */
-import { filterAudit, redactAuditText, type AuditEvent, type AuditType } from './audit-log'
+import { auditPolicyText, filterAudit, redactAuditText, type AuditEvent, type AuditType } from './audit-log'
 
 export const AUDIT_EXPORT_TYPES = ['connect', 'command', 'file', 'danger'] as const
 export type AuditExportType = (typeof AUDIT_EXPORT_TYPES)[number]
@@ -32,6 +32,8 @@ export type AuditExportCopy = {
   body: string
   source: string
   result: string
+  /** 2.1: column header for tab #n / chosen>effective policy / source / cap / protection. */
+  policy?: string
   typeLabel: (type: string) => string
 }
 
@@ -124,14 +126,15 @@ function rowCells(event: AuditEvent, copy: AuditExportCopy): string[] {
     copy.typeLabel(event.type),
     event.detail,
     event.source ?? '',
-    event.outcome
+    event.outcome,
+    ...(copy.policy !== undefined ? [auditPolicyText(event)] : [])
   ]
 }
 
 /** CSV or Markdown for a compliance handoff. Every text field is redacted again. */
 export function renderAuditCompliance(rows: AuditEvent[], format: AuditExportFormat, copy: AuditExportCopy): string {
   const sorted = [...rows].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id))
-  const headers = [copy.time, copy.host, copy.type, copy.body, copy.source, copy.result]
+  const headers = [copy.time, copy.host, copy.type, copy.body, copy.source, copy.result, ...(copy.policy !== undefined ? [copy.policy] : [])]
   if (format === 'csv') {
     const lines = [headers.map(csvCell).join(',')]
     for (const event of sorted) lines.push(rowCells(event, copy).map(csvCell).join(','))

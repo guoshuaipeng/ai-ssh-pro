@@ -68,6 +68,7 @@ export default function AuditExportModal({
       body: t('s1b.col.body'),
       source: t('s1b.col.source'),
       result: t('s1b.col.result'),
+      policy: t('s1b.col.policy'),
       typeLabel
     })
     try {

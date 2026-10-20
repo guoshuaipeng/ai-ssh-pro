@@ -941,6 +941,25 @@ export async function runOpenClawCoreAgentChat(
     }
   }
 
+  // 2.1: the last resolved policy + protection, attached to every AI command audit event.
+  let lastPolicy: ReturnType<typeof resolveAiPolicy> | null = null
+  let lastProtectionLevel: 'normal' | 'production' | 'readonly' | undefined
+  const emitAudit = (command: string, outcome: 'allowed' | 'blocked', reason?: 'readonly'): void => {
+    send(wc, {
+      type: 'audit',
+      payload: {
+        command,
+        outcome,
+        reason,
+        protection: lastProtectionLevel,
+        policyChosen: lastPolicy?.chosen,
+        policyEffective: lastPolicy?.effective,
+        policySource: lastPolicy?.source,
+        policyCappedBy: lastPolicy?.cappedBy ?? null
+      }
+    })
+  }
+
   try {
     for (let step = 1; step <= maxSteps; step++) {
       const compacted = compactTranscript(conversation, thread)
@@ -953,6 +972,7 @@ export async function runOpenClawCoreAgentChat(
       }
 
       send(wc, { type: 'status', text: mt(`正在生成第 ${step} 步...`, `Generating step ${step}...`) })
+      send(wc, { type: 'progress', step, maxSteps, policy: lastPolicy?.effective })
       if (sessionState.failureStreak >= 2) {
         rememberNote(sessionState, mt('检测到连续失败，下一步应优先选择低风险证据命令或直接结束并说明缺失信息。', "Repeated failures detected; next prefer a low-risk evidence command or end and explain what is missing."))
       }
@@ -1185,6 +1205,8 @@ export async function runOpenClawCoreAgentChat(
         tempOverride: payload.safetyContext?.tempPolicy,
         protection: hostProtection
       })
+      lastPolicy = policy
+      lastProtectionLevel = aiEffectiveLevel(hostProtection)
       if ((safetyTierEngaged(settings) || isAiPolicy(settings.aiPolicy)) && parsed.action === 'command') {
         const hostId =
           payload.safetyContext?.hostId ||
@@ -1212,6 +1234,7 @@ export async function runOpenClawCoreAgentChat(
           parsed = { ...parsed, notes: note }
         }
         if (safetyMode === 'suggest' || safetyMode === 'hold') skipCommandWrite = true
+        if (policy.cappedBy === 'readonly' && decision.kind !== 'read') emitAudit(parsed.command ?? '', 'blocked', 'readonly')
         emitDebug({
           kind: 'execution',
           round: step,
@@ -1222,6 +1245,7 @@ export async function runOpenClawCoreAgentChat(
       if (parsed.action === 'command' && safetyMode === undefined && aiEffectiveLevel(hostProtection) === 'readonly') {
         safetyMode = 'suggest'
         skipCommandWrite = true
+        emitAudit(parsed.command ?? '', 'blocked', 'readonly')
       }
       if (needsInterrupt && safetyMode !== 'auto' && safetyMode !== 'suggest' && safetyMode !== 'hold') {
         emitDebug({
@@ -1641,6 +1665,7 @@ export async function runOpenClawCoreAgentChat(
         const verdict = aiWriteVerdict(liveProtection, { approved: safetyMode !== 'auto', kind: commandKind })
         if (!verdict.allow) {
           logAi('ssh:write blocked', { targetSessionId, reason: verdict.reason, cmd: trimForLog(oneLineCmd, 200) })
+          emitAudit(oneLineCmd, 'blocked', 'readonly')
           send(wc, {
             type: 'step',
             safetyMode: 'suggest',
@@ -1659,6 +1684,7 @@ export async function runOpenClawCoreAgentChat(
 
         logAi('ssh:write exec', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
         lastWriteOk = ssh.write(targetSessionId, `${oneLineCmd}\n`)
+        emitAudit(oneLineCmd, 'allowed')
         lastCommand = oneLineCmd
         lastToolResult = null
         rememberCommand(sessionState, oneLineCmd)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { auditWindowBounds, setAuditExportContext, type AuditExportSeed } from '@shared/audit-export'
-import { filterAudit, type AuditEvent, type AuditType } from '@shared/audit-log'
+import { filterAudit, type AuditEvent, type AuditType, auditPolicyText } from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
 import PanelHeader from './ui/PanelHeader'
@@ -121,7 +121,7 @@ export default function AuditLogPanel({
                   <td>{e.type}</td>
                   <td title={e.host}>{e.host}</td>
                   <td>{e.outcome}</td>
-                  <td title={e.detail}>{e.detail}</td>
+                  <td title={[e.detail, auditPolicyText(e)].filter(Boolean).join('\n')}>{e.detail}</td>
                 </tr>
               ))}
             </tbody>

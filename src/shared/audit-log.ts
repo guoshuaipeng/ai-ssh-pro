@@ -42,6 +42,12 @@ export type AuditEvent = {
   protection?: 'normal' | 'production' | 'readonly'
   playbookId?: string
   demo?: boolean
+  /** 2.1: AI command context. Tab number (#n) of the bound terminal tab. */
+  tabNo?: number
+  policyChosen?: 'suggest' | 'ask' | 'auto'
+  policyEffective?: 'suggest' | 'ask' | 'auto'
+  policySource?: 'global' | 'host' | 'temp'
+  policyCappedBy?: 'production' | 'readonly' | null
 }
 
 export const AUDIT_LS_KEY = 'aiss.audit.v1'
@@ -106,6 +112,12 @@ export function appendAudit(
     detail: redactAuditText(event.detail).slice(0, 500),
     alertId: event.alertId
   }
+  if (event.protection) row.protection = event.protection
+  if (typeof event.tabNo === 'number') row.tabNo = event.tabNo
+  if (event.policyChosen) row.policyChosen = event.policyChosen
+  if (event.policyEffective) row.policyEffective = event.policyEffective
+  if (event.policySource) row.policySource = event.policySource
+  if (event.policyCappedBy !== undefined) row.policyCappedBy = event.policyCappedBy
   const next = [row, ...loadAudit(store)].slice(0, MAX)
   store.setItem(AUDIT_LS_KEY, JSON.stringify(next))
   return row
@@ -167,7 +179,7 @@ export function filterAudit(
     if (q.type && e.type !== q.type) return false
     if (q.since != null && e.at < q.since) return false
     if (q.until != null && e.at > q.until) return false
-    if (text && !`${e.host} ${e.type} ${e.detail} ${e.outcome} ${e.source ?? ''}`.toLowerCase().includes(text)) return false
+    if (text && !`${e.host} ${e.type} ${e.detail} ${e.outcome} ${e.source ?? ''} ${auditPolicyText(e)}`.toLowerCase().includes(text)) return false
     return true
   })
 }
@@ -193,11 +205,39 @@ function csvCell(value: string): string {
   return value
 }
 
+/** 2.1: searchable policy text, e.g. "#3 auto>suggest global readonly". */
+export function auditPolicyText(e: AuditEvent): string {
+  const parts: string[] = []
+  if (typeof e.tabNo === 'number') parts.push(`#${e.tabNo}`)
+  if (e.policyChosen || e.policyEffective) parts.push(`${e.policyChosen ?? ''}>${e.policyEffective ?? ''}`)
+  if (e.policySource) parts.push(e.policySource)
+  if (e.policyCappedBy) parts.push(`capped:${e.policyCappedBy}`)
+  if (e.protection) parts.push(e.protection)
+  return parts.join(' ')
+}
+
 export function auditToCsv(rows: AuditEvent[]): string {
-  const head = ['at', 'host', 'type', 'source', 'outcome', 'detail']
+  const head = ['at', 'host', 'type', 'source', 'outcome', 'detail', 'tab', 'policy_chosen', 'policy_effective', 'policy_source', 'policy_capped_by', 'protection']
   const lines = [head.join(',')]
   for (const e of rows) {
-    lines.push([new Date(e.at).toISOString(), e.host, e.type, e.source ?? '', e.outcome, redactAuditText(e.detail)].map(csvCell).join(','))
+    lines.push(
+      [
+        new Date(e.at).toISOString(),
+        e.host,
+        e.type,
+        e.source ?? '',
+        e.outcome,
+        redactAuditText(e.detail),
+        typeof e.tabNo === 'number' ? `#${e.tabNo}` : '',
+        e.policyChosen ?? '',
+        e.policyEffective ?? '',
+        e.policySource ?? '',
+        e.policyCappedBy ?? '',
+        e.protection ?? ''
+      ]
+        .map(csvCell)
+        .join(',')
+    )
   }
   return lines.join('\n')
 }
