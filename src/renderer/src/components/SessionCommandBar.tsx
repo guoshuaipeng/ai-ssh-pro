@@ -19,6 +19,8 @@ import { getDraft, putDraft } from '@shared/cmd-drafts'
 import { cmdDrafts } from '../lib/cmd-draft-store'
 import { getSessionCwd } from '../lib/session-cwd-store'
 import { askAboutHistoryFailure } from '../lib/failed-output'
+import { completeFrom, pathTarget, resolveDir, type PathTarget } from '@shared/path-complete'
+import { showToast } from '../lib/toast'
 import type { CommandSnippet } from '@shared/ipc'
 import Icon, { Twist } from './Icon'
 
@@ -314,6 +316,34 @@ export default function SessionCommandBar({ sessionId, draftKey, hostLabel, host
     )
   }
 
+  // D85: remote path completion. Reads the SFTP listing only; the line is filled, never sent.
+  const draftNowRef = useRef(draft)
+  draftNowRef.current = draft
+  const homeRef = useRef<{ sid: string; home: string | null } | null>(null)
+  const completeRemotePath = async (target: PathTarget) => {
+    const before = draftNowRef.current
+    try {
+      let home: string | null = null
+      if (target.tilde) {
+        if (homeRef.current?.sid !== sessionId) homeRef.current = { sid: sessionId, home: (await window.aiss.sftp.home(sessionId).catch(() => null)) || null }
+        home = homeRef.current.home
+      }
+      const dir = resolveDir(target, home)
+      if (!dir) return showToast(t('d85.noCwd'))
+      const res = await window.aiss.sftp.list(sessionId, dir)
+      if (draftNowRef.current !== before) return
+      const r = completeFrom(target, res.entries)
+      if (r.kind === 'none') showToast(t('d85.none', { dir }))
+      else if (r.kind === 'done' || r.kind === 'partial') setDraft(r.line)
+      if (r.kind === 'partial' || r.kind === 'ambiguous') {
+        const shown = r.candidates.slice(0, 12).join('  ')
+        showToast(t('d85.many', { n: r.candidates.length, list: shown + (r.candidates.length > 12 ? ' …' : '') }), { ms: 6000 })
+      }
+    } catch {
+      showToast(t('d85.failed'), { kind: 'error' })
+    }
+  }
+
   return (
     <div className={`session-command-bar${inAi ? ' is-ai' : ''}`} data-testid="session-command-bar">
       <ScriptProgress sessionId={sessionId} />
@@ -355,6 +385,14 @@ export default function SessionCommandBar({ sessionId, draftKey, hostLabel, host
           </button>
         }
         interceptKey={(e) => {
+          // D85: Tab completes a remote path token from the SFTP listing (fills only, never runs)
+          if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !inAi && !aiCard && sessionId) {
+            const target = pathTarget(draft, getSessionCwd(sessionId))
+            if (target) {
+              void completeRemotePath(target)
+              return true
+            }
+          }
           if (e.key === ' ' && e.ctrlKey && e.shiftKey) {
             setAiMode((v) => !v)
             return true
