@@ -4611,6 +4611,18 @@ export default function App() {
     (e: React.KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      // D56: ArrowUp/Down walk the visible host rows (folders, filter and order as shown)
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        const rows = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[data-profile-id]')]
+        if (!rows.length) return
+        e.preventDefault()
+        const ids = rows.map((r) => r.dataset.profileId!)
+        const at = selectedProfileId ? ids.indexOf(selectedProfileId) : -1
+        const next = at < 0 ? (e.key === 'ArrowDown' ? 0 : ids.length - 1) : Math.max(0, Math.min(ids.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))
+        setSelectedProfileId(ids[next]!)
+        rows[next]!.scrollIntoView({ block: 'nearest' })
+        return
+      }
       const p = profiles.find((x) => x.id === selectedProfileId)
       if (!p) {
         if (e.key === 'Enter' || e.key === 'F2' || e.key === 'Delete' || e.key === 'Backspace') {
@@ -5575,6 +5587,21 @@ export default function App() {
         updateLayout((p) => withPaneToggle(p, 'ai', true))
         setRightPane('ai')
         window.dispatchEvent(new CustomEvent('aiss-ai-clear-chat'))
+        return
+      }
+      if (action === 'copyLastOutput') {
+        // D57: same as the terminal menu item (D54)
+        const sid = activeSessionIdRef.current
+        const last = sid ? lastRunFor(sid) : null
+        if (!last?.out) {
+          showToast(tg('d57.none'))
+          return
+        }
+        const label = last.command.length > 40 ? last.command.slice(0, 40) + '…' : last.command
+        void navigator.clipboard.writeText(last.out).then(
+          () => showToast(tg('d54.copied', { cmd: label })),
+          () => showToast(tg('d49.copyFail'), { kind: 'error' })
+        )
         return
       }
       if (action === 'copyLastAiReply') {

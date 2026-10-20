@@ -49,6 +49,7 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'toggleAi', keys: 'Ctrl+Alt+B', scope: 'global', group: 'view', label: { zh: '显示/隐藏 AI 面板', en: 'Show/hide AI panel' } },
   { id: 'focusAiPanel', keys: 'Ctrl+Shift+A', scope: 'global', group: 'view', label: { zh: '聚焦 AI 面板', en: 'Focus AI panel' } },
   { id: 'focusTerminal', keys: 'Ctrl+Shift+`', scope: 'global', group: 'view', label: { zh: '聚焦终端', en: 'Focus terminal' } },
+  { id: 'copyLastOutput', keys: 'Ctrl+Shift+Y', scope: 'global', group: 'terminal', label: { zh: '复制上一条命令的输出', en: 'Copy last command output' } },
   { id: 'clearScrollback', keys: 'Ctrl+Shift+K', scope: 'global', group: 'terminal', label: { zh: '清空终端回滚缓冲', en: 'Clear terminal scrollback' } },
   { id: 'toggleUiTheme', keys: 'Ctrl+Alt+D', scope: 'global', group: 'view', label: { zh: '切换浅色/深色主题', en: 'Toggle light/dark theme' } },
   { id: 'zoomIn', keys: 'Ctrl+=', scope: 'global', group: 'view', label: { zh: '放大终端字体', en: 'Zoom in terminal font' } },

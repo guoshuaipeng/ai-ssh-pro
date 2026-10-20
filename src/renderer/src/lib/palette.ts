@@ -33,6 +33,7 @@ export const PINYIN_ALIASES: Readonly<Partial<Record<MenuAction, string>>> = {
   focusTerminal: 'jujiao zhongduan focus terminal',
   focusAiPanel: 'ai mianban focus panel jujiao',
   copyLastAiReply: 'fuzhi ai reply copy last assistant',
+  copyLastOutput: 'fuzhi shuchu copy last command output',
   clearAiChat: 'qingkong duihua clear ai chat',
   closeOtherTabs: 'guanbi qita close other tabs',
   closeTabsToRight: 'guanbi youce close right tabs',

@@ -236,6 +236,7 @@ export default function SessionDockerBranch({
       <div
         className={`profile-row profile-row--host${selected ? ' is-selected' : ''}${inFolder ? ' profile-row--in-folder' : ''}${busy && !hostExpanded ? ' is-docker-loading' : ''}`}
         title={`${tg('db.rowTitle', { target: `${profile.username}@${profile.host}:${profile.port}` })}${profile.tags?.length ? `\n${tg('tags.title', { tags: profile.tags.join(', ') })}` : ''}${profile.note?.trim() ? `\n${tg('conn.note')}: ${profile.note.trim()}` : ''}`}
+        data-profile-id={profile.id}
         onClick={onSelect}
         onDoubleClick={onConnect}
         onContextMenu={(e) => onOpenMenu(e, 'context')}
