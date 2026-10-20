@@ -4,7 +4,7 @@ import { highlightMatch, rankSuggestions, type HistoryEntry, type Suggestion } f
 import { useI18n } from '../lib/i18n'
 import { HISTORY_CHANGED_EVENT, notifyHistoryChanged } from '../lib/workspace-events'
 import { loadSmartHistory, loadSmartPrefs } from '../lib/smart-history'
-import { lastCwdOf, lastExitOf, upHistoryList } from '@shared/history-exit'
+import { lastCwdOf, lastExitOf, runInCwdLine, upHistoryList } from '@shared/history-exit'
 
 type Props = {
   placeholder?: string
@@ -32,6 +32,8 @@ type Props = {
   stopping?: boolean
   /** D22b: ask AI about a history item that failed last time */
   onAskFailed?: (command: string, code: number) => void
+  /** D34: current session folder; a suggestion that last ran elsewhere offers "in its folder" */
+  currentCwd?: string | null
 }
 
 export default function CommandInput({
@@ -51,6 +53,7 @@ export default function CommandInput({
   hostKey = '',
   snippets = [],
   onAskFailed,
+  currentCwd,
   submitLabel,
   onStop,
   stopping = false
@@ -122,9 +125,9 @@ export default function CommandInput({
     draftRef.current = command
   }
 
-  const submit = () => {
+  const submit = (override?: string) => {
     if (!submitOnEnter || !onSubmit || disabled) return
-    const command = normalizeCommandLine(text)
+    const command = normalizeCommandLine(override ?? text)
     if (!command) return
     onSubmit(command)
     setText('')
@@ -204,6 +207,11 @@ export default function CommandInput({
           }
           if (e.key === 'Enter') {
             e.preventDefault()
+            // D34: Ctrl+Enter sends the highlighted suggestion (same send path and guards as Enter on typed text)
+            if ((e.ctrlKey || e.metaKey) && open && suggestions.length > 0 && highlight >= 0) {
+              submit(suggestions[highlight]!)
+              return
+            }
             if (open && suggestions.length > 0 && (highlight >= 0 || smart)) {
               fill(suggestions[highlight >= 0 ? highlight : 0]!)
               return
@@ -244,7 +252,29 @@ export default function CommandInput({
                       <span className={`cmd-src cmd-src--${meta.source}`}>{sourceLabel}</span>
                       {(() => {
                         const dir = lastCwdOf(smartRows, hostKey, cmd)
-                        return dir ? <span className="cmd-src cmd-cwd" data-testid="suggest-cwd" title={t('d31.cwdTip', { dir })}>{dir}</span> : null
+                        if (!dir) return null
+                        const line = runInCwdLine(dir, cmd, currentCwd)
+                        return (
+                          <>
+                            <span className="cmd-src cmd-cwd" data-testid="suggest-cwd" title={t('d31.cwdTip', { dir })}>{dir}</span>
+                            {line ? (
+                              <span
+                                role="button"
+                                tabIndex={-1}
+                                className="cmd-src cmd-ask-failed"
+                                data-testid="suggest-run-in-cwd"
+                                title={t('d31.runTip', { dir })}
+                                onMouseDown={(ev) => {
+                                  ev.preventDefault()
+                                  ev.stopPropagation()
+                                  fill(line)
+                                }}
+                              >
+                                {t('d31.run')}
+                              </span>
+                            ) : null}
+                          </>
+                        )
                       })()}
                         {(() => {
                           const code = lastExitOf(smartRows, hostKey, cmd)

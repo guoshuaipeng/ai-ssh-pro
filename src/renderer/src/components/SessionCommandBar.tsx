@@ -16,6 +16,7 @@ import { isDemoSessionId } from '@shared/demo-host'
 import { bindHistoryHost } from '../lib/history-exit'
 import ScriptProgress from './ScriptProgress'
 import { getDraft, putDraft } from '@shared/cmd-drafts'
+import { getSessionCwd } from '../lib/session-cwd-store'
 import { askAboutHistoryFailure } from '../lib/failed-output'
 import type { CommandSnippet } from '@shared/ipc'
 import Icon, { Twist } from './Icon'
@@ -327,6 +328,7 @@ export default function SessionCommandBar({ sessionId, draftKey, hostLabel, host
         suggest={!inAi}
         smart={!inAi}
         hostKey={hostKey}
+        currentCwd={getSessionCwd(sessionId)}
         onAskFailed={(cmd, code) => {
           if (sessionId) askAboutHistoryFailure(sessionId, cmd, code)
         }}
