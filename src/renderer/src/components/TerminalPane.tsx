@@ -20,6 +20,8 @@ import { isDemoSessionId } from '@shared/demo-host'
 import { HISTORY_CHANGED_EVENT } from '../lib/workspace-events'
 import { parseOsc52Payload } from '@shared/osc52'
 import { cwdFromOsc7, cwdFromPrompt } from '@shared/session-cwd'
+import { planPaste, type PastePlan } from '@shared/paste-plan'
+import { requestAskWithContext } from '../lib/ai-prefill'
 import { setSessionCwd } from '../lib/session-cwd-store'
 
 type Props = {
@@ -45,7 +47,7 @@ type Props = {
 }
 
 /** Electron 中 xterm 会把 Ctrl+C / Ctrl+V 当控制字符发给 SSH；此处对接系统剪贴板。 */
-function attachTerminalClipboardKeys(term: Terminal, before?: (ev: KeyboardEvent) => boolean): void {
+function attachTerminalClipboardKeys(term: Terminal, before?: (ev: KeyboardEvent) => boolean, paste: (text: string) => void = (t) => term.paste(t)): void {
   term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
     if (ev.type === 'keydown' && before && before(ev) === false) return false
     if (ev.type !== 'keydown') return true
@@ -61,7 +63,7 @@ function attachTerminalClipboardKeys(term: Terminal, before?: (ev: KeyboardEvent
     if (isPaste) {
       ev.preventDefault()
       void navigator.clipboard.readText().then((text) => {
-        if (text) term.paste(text)
+        if (text) paste(text)
       })
       return false
     }
@@ -121,6 +123,9 @@ export default function TerminalPane({
   muteBellRef.current = prefsRef.current.muteBell === true
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
+  // D7: multi-line paste waits here for a decision
+  const [pastePreview, setPastePreview] = useState<{ text: string; plan: PastePlan } | null>(null)
+  const guardedPasteRef = useRef<(text: string) => void>(() => {})
   const [findQuery, setFindQuery] = useState('')
   const [findMiss, setFindMiss] = useState(false)
   const [findCase, setFindCase] = useState(false)
@@ -244,6 +249,23 @@ export default function TerminalPane({
       }
       void window.aiss.ssh.write(sessionId, data)
     }
+    guardedPasteRef.current = (text: string) => {
+      const plan = planPaste(text)
+      if (!plan.multiline || mirrorOnlyRef.current) {
+        term.paste(text)
+        return
+      }
+      setPastePreview({ text, plan })
+    }
+    // Native paste (menu / middle click) goes through the same preview
+    const onNativePaste = (ev: ClipboardEvent) => {
+      const text = ev.clipboardData?.getData('text/plain') ?? ''
+      if (!text || !planPaste(text).multiline) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      guardedPasteRef.current(text)
+    }
+    el.addEventListener('paste', onNativePaste, true)
     attachTerminalClipboardKeys(term, (ev) => {
       const action = terminalKeyAction(ev.key, { atEnd: ghostRef.current.atEnd, hasGhost: Boolean(ghostRef.current.suffix) })
       if (action === 'accept-ghost') {
@@ -255,7 +277,7 @@ export default function TerminalPane({
         return false
       }
       return true
-    })
+    }, (t) => guardedPasteRef.current(t))
     const oscDisp = term.parser.registerOscHandler(52, (data) => {
       if (!osc52EnabledRef.current) return true
       const parsed = parseOsc52Payload(data)
@@ -407,7 +429,7 @@ export default function TerminalPane({
           disabled: mirrorOnlyRef.current,
           onSelect: () => {
             void navigator.clipboard.readText().then((text) => {
-              if (text) apiRef.current?.term.paste(text)
+              if (text) guardedPasteRef.current(text)
             })
           }
         },
@@ -417,7 +439,7 @@ export default function TerminalPane({
           disabled: mirrorOnlyRef.current,
           onSelect: () => {
             void navigator.clipboard.readText().then((text) => {
-              if (text) apiRef.current?.term.paste(text.endsWith('\r') || text.endsWith('\n') ? text : text + '\r')
+              if (text) guardedPasteRef.current(text.endsWith('\r') || text.endsWith('\n') ? text : text + '\r')
             })
           }
         },
@@ -437,6 +459,14 @@ export default function TerminalPane({
           id: 'aiExplain',
           label: tg('a1.explainSelection'),
           onSelect: () => explainWithAi('selection')
+        },
+        {
+          id: 'aiAskCtx',
+          label: tg('d6.ask'),
+          disabled: !hasSel,
+          onSelect: () => {
+            if (!requestAskWithContext(sessionId, term?.getSelection() ?? '')) showToast(tg('a6.needSelection'))
+          }
         },
         'sep',
         {
@@ -540,6 +570,7 @@ export default function TerminalPane({
       el.removeEventListener('contextmenu', onContextMenu)
       ro.disconnect()
       ghostMove.dispose()
+      el.removeEventListener('paste', onNativePaste, true)
       cwdMove.dispose()
       try { osc7Disp.dispose() } catch { /* ignore */ }
       window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)
@@ -636,6 +667,59 @@ export default function TerminalPane({
           <button type="button" className="ai-explain-hint" data-testid="ai-explain-hint" onClick={() => explainWithAi('auto')}>
             <Icon name="sparkles" size={14} /> {tg('a1.button')}
           </button>
+        ) : null}
+        {pastePreview ? (
+          <div className="paste-preview" role="dialog" aria-label={tg('d7.title', { n: pastePreview.plan.lines.length })} data-testid="paste-preview"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setPastePreview(null)
+                apiRef.current?.term.focus()
+              }
+            }}
+          >
+            <div className="paste-preview-head">
+              <strong>{tg('d7.title', { n: pastePreview.plan.lines.length })}</strong>
+              {pastePreview.plan.risky.length ? <span className="paste-preview-risk">{tg('d7.risky', { n: pastePreview.plan.risky.length })}</span> : null}
+            </div>
+            <ol className="paste-preview-lines">
+              {pastePreview.plan.lines.slice(0, 12).map((l, i) => {
+                const r = pastePreview.plan.risky.find((x) => x.index === i)
+                return (
+                  <li key={i} className={r ? 'is-risky' : ''} title={r ? tg(r.reasonKey) : undefined}>
+                    <code>{l || ' '}</code>
+                  </li>
+                )
+              })}
+            </ol>
+            {pastePreview.plan.lines.length > 12 ? <div className="paste-preview-more">{tg('d7.more', { n: pastePreview.plan.lines.length - 12 })}</div> : null}
+            <p className="paste-preview-hint">{pastePreview.plan.runsLast ? tg('d7.runsAll') : tg('d7.runsButLast')}</p>
+            <div className="paste-preview-actions">
+              <button type="button" data-testid="paste-preview-cancel" autoFocus={pastePreview.plan.risky.length > 0}
+                onClick={() => { setPastePreview(null); apiRef.current?.term.focus() }}>
+                {tg('d7.cancel')}
+              </button>
+              <button type="button" data-testid="paste-preview-join" disabled={!pastePreview.plan.joined}
+                title={pastePreview.plan.joined ? pastePreview.plan.joined : tg('d7.joinDisabled')}
+                onClick={() => {
+                  const j = pastePreview.plan.joined
+                  setPastePreview(null)
+                  if (j) apiRef.current?.term.paste(j)
+                  apiRef.current?.term.focus()
+                }}>
+                {tg('d7.join')}
+              </button>
+              <button type="button" className="is-primary" data-testid="paste-preview-all" autoFocus={pastePreview.plan.risky.length === 0}
+                onClick={() => {
+                  const t = pastePreview.text
+                  setPastePreview(null)
+                  apiRef.current?.term.paste(t)
+                  apiRef.current?.term.focus()
+                }}>
+                {tg('d7.pasteAll')}
+              </button>
+            </div>
+          </div>
         ) : null}
         {findOpen ? (
           <div className="terminal-find-bar" role="search" data-testid="terminal-find">
