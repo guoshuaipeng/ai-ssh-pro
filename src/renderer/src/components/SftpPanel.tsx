@@ -26,7 +26,7 @@ import {
 } from '@shared/sftp-queue'
 import { normalizeGotoPath } from '@shared/sftp-goto-path'
 import { sftpNameFilterMatch } from '@shared/sftp-name-filter'
-import { sortSftpEntries, type SftpSortMode } from '@shared/sftp-sort'
+import { nextSort, sortIsDesc, sortSftpEntries, type SftpSortMode } from '@shared/sftp-sort'
 import type { SyncProfile, SyncRow } from '@shared/folder-sync'
 import { normalizeSyncProfile } from '@shared/folder-sync'
 import { disconnectStatusSentence } from '@shared/status-bar'
@@ -264,6 +264,7 @@ export default function SftpPanel({
   const [showHidden, setShowHidden] = useState(false)
   const [nameFilter, setNameFilter] = useState('')
   const [sortMode, setSortMode] = useState<SftpSortMode>('name')
+  const [sortFlip, setSortFlip] = useState(false)
   const [autoResume, setAutoResume] = useState(() => loadSmartPrefs().autoResume)
 
   const [localCwd, setLocalCwd] = useState('')
@@ -443,17 +444,19 @@ export default function SftpPanel({
     () =>
       sortSftpEntries(
         visible(localEntries).filter((e) => sftpNameFilterMatch(e.name, nameFilter)),
-        sortMode
+        sortMode,
+        sortFlip
       ),
-    [localEntries, showHidden, nameFilter, sortMode]
+    [localEntries, showHidden, nameFilter, sortMode, sortFlip]
   )
   const remoteShown = useMemo(
     () =>
       sortSftpEntries(
         visible(remoteEntries).filter((e) => sftpNameFilterMatch(e.name, nameFilter)),
-        sortMode
+        sortMode,
+        sortFlip
       ),
-    [remoteEntries, showHidden, nameFilter, sortMode]
+    [remoteEntries, showHidden, nameFilter, sortMode, sortFlip]
   )
 
   const applyLocalList = useCallback((res: SftpListResult) => {
@@ -1580,9 +1583,12 @@ export default function SftpPanel({
               data-testid="sftp-sort-mode"
               className={sortMode === 'mtime' ? 'is-on' : ''}
               title={tg(sortMode === 'mtime' ? 'sftp.sortByMtimeTip' : 'sftp.sortByNameTip')}
-              onClick={() => setSortMode((m) => (m === 'name' ? 'mtime' : 'name'))}
+              onClick={() => {
+                setSortMode((m) => (m === 'name' ? 'mtime' : 'name'))
+                setSortFlip(false)
+              }}
             >
-              <span className="sftp-label">{tg(sortMode === 'mtime' ? 'sftp.sortMtime' : 'sftp.sortName')}</span>
+              <span className="sftp-label">{tg(sortMode === 'mtime' ? 'sftp.sortMtime' : sortMode === 'size' ? 'd81.sortSize' : 'sftp.sortName')}</span>
             </button>
             <button type="button" className={showHidden ? 'is-on sftp-icon-btn' : 'sftp-icon-btn'} data-testid={isLocal ? 'sftp-local-hidden' : 'sftp-remote-hidden'} aria-pressed={showHidden} aria-label={tg('d1.hidden')} onClick={() => setShowHidden((v) => !v)} title={tg('d1.hidden')}>
               <span className="sftp-label sftp-label-keep">{tg('d76.hiddenShort')}</span>
@@ -1712,9 +1718,32 @@ export default function SftpPanel({
               <thead>
                 <tr>
                   <th style={{ width: 28 }} />
-                  <th>{tg('sftp.colName')}</th>
-                  <th style={{ width: 72 }}>{tg('sftp.colSize')}</th>
-                  <th style={{ width: 132 }}>{tg('sftp.colTime')}</th>
+                  {(['name', 'size', 'mtime'] as const).map((col) => {
+                    const on = sortMode === col
+                    const desc = sortIsDesc(col, on ? sortFlip : false)
+                    return (
+                      <th
+                        key={col}
+                        style={col === 'size' ? { width: 72 } : col === 'mtime' ? { width: 132 } : undefined}
+                        aria-sort={on ? (desc ? 'descending' : 'ascending') : 'none'}
+                      >
+                        <button
+                          type="button"
+                          className={`sftp-th-sort${on ? ' is-on' : ''}`}
+                          data-testid={`sftp-th-${col}`}
+                          title={tg('d81.sortTip')}
+                          onClick={() => {
+                            const n = nextSort({ mode: sortMode, flip: sortFlip }, col)
+                            setSortMode(n.mode)
+                            setSortFlip(n.flip)
+                          }}
+                        >
+                          {tg(col === 'name' ? 'sftp.colName' : col === 'size' ? 'sftp.colSize' : 'sftp.colTime')}
+                          {on ? <span className="sftp-th-arrow" aria-hidden>{desc ? '↓' : '↑'}</span> : null}
+                        </button>
+                      </th>
+                    )
+                  })}
                   {!isLocal ? <th style={{ width: 78 }}>{tg('d1.perm')}</th> : null}
                 </tr>
               </thead>
