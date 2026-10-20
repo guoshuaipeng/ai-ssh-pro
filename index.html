@@ -42,7 +42,7 @@ footer{border-top:1px solid var(--line);padding:30px 0;color:var(--mut);text-ali
 <a class="l" href="https://github.com/guoshuaipeng/ai-ssh-pro">GitHub</a><button class="lang" id="lang">EN</button></div></nav>
 <header class="hero"><div class="w">
 <h1>AI-SSH-Pro</h1>
-<p data-i="sub">类 Xshell 的多会话 SSH 客户端，内置 AI 助手。观察 → 规划 → 你确认后才执行命令。</p>
+<p data-i="sub">类 Xshell 的多会话 SSH 客户端，内置 AI 助手。观察 → 规划 → 按你选择的执行策略运行：仅建议、执行前确认（默认）或自动执行。</p>
 <a class="btn p" href="https://github.com/guoshuaipeng/ai-ssh-pro/releases" data-i="dl">⬇ 下载最新版本</a>
 <a class="btn s" href="https://github.com/guoshuaipeng/ai-ssh-pro">★ GitHub</a>
 <a class="btn s" href="https://gitee.com/CodeYG/ai-ssh-pro">Gitee</a>
@@ -51,7 +51,7 @@ footer{border-top:1px solid var(--line);padding:30px 0;color:var(--mut);text-ali
 <span class="b">你:</span> 看看这台机器为什么磁盘满了
 <span class="g">AI:</span> 观察终端快照… 计划执行：
      <span class="g">$</span> df -h &amp;&amp; du -sh /var/log/* | sort -h | tail
-     <span class="m">[ 确认执行 ]  [ 取消 ]   ← 命令只在你确认后运行</span></pre></div>
+     <span class="m">[ 确认执行 ]  [ 取消 ]   ← 默认策略「执行前确认」：变更命令需你确认</span></pre></div>
 </div></header>
 <section id="shots"><div class="w"><h2>界面预览 · Screenshots</h2><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px"><img src="screenshots/main-dark.png" alt="AI-SSH-Pro 主界面（深色）" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #263041"><img src="screenshots/main-light.png" alt="AI-SSH-Pro 主界面（浅色）" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #263041"></div><p style="text-align:center;opacity:.7;font-size:13px;margin-top:10px">演示数据 · Demo data only</p></div></section>
 <section id="features"><div class="w"><h2 data-i="ft">核心功能</h2><div class="grid" id="fg"></div></div></section>
@@ -69,7 +69,7 @@ footer{border-top:1px solid var(--line);padding:30px 0;color:var(--mut);text-ali
 }</code></div></section>
 <section id="start"><div class="w two"><div><h2 style="text-align:left" data-i="st">快速开始</h2>
 <p class="m" data-i="sd">直接从 Releases 下载安装包，或从源码运行。AI 支持任意 OpenAI 兼容接口（如 DashScope）。</p>
-<p class="m" data-i="pv">🔒 隐私：SSH 密码、私钥与 API Key 只保存在本机，并使用系统安全存储加密。无云同步、无账号。</p></div>
+<p class="m" data-i="pv">🔒 隐私：SSH 密码、私钥与 API Key 只保存在本机，并使用系统安全存储加密。无需账号、无遥测、本地优先；可选的加密云同步（私有 Gist / WebDAV）默认关闭，数据在本机加密后才上传。</p></div>
 <code class="k">git clone https://github.com/guoshuaipeng/ai-ssh-pro
 cd ai-ssh-pro
 npm install
@@ -79,7 +79,9 @@ npm run dev
 npm run dist</code></div></section>
 <footer><div class="w">AI-SSH-Pro · <a href="https://github.com/guoshuaipeng/ai-ssh-pro/blob/master/LICENSE">MIT License</a> · <a href="https://github.com/guoshuaipeng/ai-ssh-pro">GitHub</a> · <a href="https://gitee.com/CodeYG/ai-ssh-pro">Gitee</a> · <a href="https://github.com/guoshuaipeng/ai-ssh-pro/issues" data-i="is">反馈问题</a></div></footer>
 <script>
-const F=[["🤖","AI 助手 Core-A","AI assistant (Core-A)","自动读取终端快照，观察→规划，命令必须经你确认才运行。","Reads the terminal snapshot, observes → plans; commands run only after you confirm."],
+const F=[["🤖","AI 助手 Core-A","AI assistant (Core-A)","自动读取终端快照，观察→规划→执行。三档执行策略：仅建议、执行前确认（默认）、自动执行，可按全局、主机、标签页三级设置。","Reads the terminal snapshot, observes → plans → runs. Three execution policies: Suggest only, Confirm before run (default) and Auto run, resolved globally, per host and per tab."],
+["🛡️","主机保护","Host protection","主机可标记为普通、生产或只读。只读主机上由主进程拦截 AI 写入终端；生产主机仅显示提醒横幅，所选策略照常生效。","Hosts can be marked normal, production or read-only. On read-only hosts the main process blocks AI writes to the terminal; production hosts show a reminder banner and keep the chosen policy.","0.6.63"],
+["☁️","加密云同步（可选）","Encrypted cloud sync (optional)","通过私有 GitHub Gist 或 WebDAV 同步。数据在本机加密（scrypt + AES-256-GCM），口令不离开本机，默认不同步凭据。","Sync through a private GitHub Gist or WebDAV. Data is encrypted on this device (scrypt + AES-256-GCM); the passphrase never leaves it, and credentials are excluded by default.","0.4.0"],
 ["🔌","MCP 接入","MCP integration","独立 stdio MCP 服务，与应用共享主机档案。","Standalone stdio MCP server sharing the host inventory with the app."],
 ["🗂️","多标签 SSH","Multi-tab SSH","密码 / 私钥认证、xterm 终端、会话分组、分屏。","Password / key auth, xterm terminal, session groups, split panes."],
 ["⚡","批量执行","Batch run","选中多个已连接会话，一键下发同一命令，分别查看结果。","Run one command across selected sessions, with per-session results.",1],
@@ -116,7 +118,7 @@ const F=[["🤖","AI 助手 Core-A","AI assistant (Core-A)","自动读取终端�
 ["🧹","上手体验打磨","Smoother first steps","未连接时点运维功能会先让你选主机；空白处给出下一步；统一的应用内确认弹窗；广播输入、录制状态一眼可见；菜单命名统一。","Ops features ask which host to connect to when nothing is connected; empty screens suggest the next step; one in-app dialog style; broadcast input and recording state are always visible; consistent names.","0.3.13"],
 ["🔐","加密存储","Encrypted secrets","密码、口令与 API Key 由 Electron safeStorage 加密。","Secrets encrypted via Electron safeStorage."],
 ["📥","会话导入导出","Import / export","支持 Xshell .xsh、OpenSSH config、PuTTY；另有片段、录制、本地 Shell。","Xshell .xsh, OpenSSH config, PuTTY; plus snippets, recording, local shell."]];
-const T={nf:"Features",ns:"Get started",sub:"A multi-session SSH client in the spirit of Xshell, with a built-in AI assistant. Observe → plan → commands run only after you confirm.",dl:"⬇ Download latest",ft:"Features",mt:"Host inventory + MCP",md:"Host profiles live on local disk (default ~/.ai-ssh-pro/inventory). The in-app AI and a standalone stdio MCP server share the same files — plug into Cursor, Claude Desktop and more.",st:"Get started",sd:"Grab an installer from Releases, or run from source. AI works with any OpenAI-compatible provider (e.g. DashScope).",pv:"🔒 Privacy: SSH passwords, keys and API keys stay on your machine, encrypted with OS secure storage. No cloud sync, no account.",is:"Report an issue"};
+const T={nf:"Features",ns:"Get started",sub:"A multi-session SSH client in the spirit of Xshell, with a built-in AI assistant. Observe → plan → run under the execution policy you choose: Suggest only, Confirm before run (default) or Auto run.",dl:"⬇ Download latest",ft:"Features",mt:"Host inventory + MCP",md:"Host profiles live on local disk (default ~/.ai-ssh-pro/inventory). The in-app AI and a standalone stdio MCP server share the same files — plug into Cursor, Claude Desktop and more.",st:"Get started",sd:"Grab an installer from Releases, or run from source. AI works with any OpenAI-compatible provider (e.g. DashScope).",pv:"🔒 Privacy: SSH passwords, keys and API keys stay on your machine, encrypted with OS secure storage. No account, no telemetry, local-first. Optional encrypted cloud sync (private Gist / WebDAV) is off by default; data is encrypted on this device before upload.",is:"Report an issue"};
 const Z={};document.querySelectorAll("[data-i]").forEach(e=>Z[e.dataset.i]=e.innerHTML);
 let en=false;function r(){document.getElementById("fg").innerHTML=F.map(f=>`<div class="c"><div class="ic">${f[0]}</div><h3>${en?f[2]:f[1]}${f[5]?'<span class="new">'+(typeof f[5]==='string'?f[5]:'0.3.0')+'</span>':''}</h3><p>${en?f[4]:f[3]}</p></div>`).join("");
 document.querySelectorAll("[data-i]").forEach(e=>e.innerHTML=en?T[e.dataset.i]:Z[e.dataset.i]);document.documentElement.lang=en?"en":"zh-CN";document.getElementById("lang").textContent=en?"中文":"EN";}
