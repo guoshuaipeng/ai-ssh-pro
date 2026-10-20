@@ -53,6 +53,15 @@ export function captureChunk(caps: Map<string, Capture>, sessionId: string, text
   cap.out = next.length > CAPTURE_TAIL * 2 ? next.slice(-CAPTURE_TAIL * 2) : next
 }
 
+/** D54: the captured output of a finished command (echoed command line dropped, trailing blanks trimmed). */
+export function capturedOutput(cap: Capture | undefined): string {
+  if (!cap?.command) return ''
+  let out = cap.out
+  const nl = out.indexOf('\n')
+  if (nl >= 0 && out.slice(0, nl).includes(cap.command)) out = out.slice(nl + 1)
+  return out.replace(/\s+$/, '')
+}
+
 /** On exit: failed commands go into the store (redacted, tail only); the pending capture is dropped either way. */
 export function captureExit(caps: Map<string, Capture>, store: FailedOutputStore, sessionId: string, code: number): void {
   const cap = caps.get(sessionId)
@@ -68,7 +77,7 @@ export function captureExit(caps: Map<string, Capture>, store: FailedOutputStore
 }
 
 /** D46: the last finished command of a session, for "Ask AI" on a selection. */
-export type LastRun = { command: string; code: number; at: number }
+export type LastRun = { command: string; code: number; at: number; out?: string }
 export const LAST_RUN_FRESH_MS = 10 * 60 * 1000
 
 /** Prefix the selection with the last command + exit code when it is recent and not sensitive. */

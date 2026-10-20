@@ -4,7 +4,7 @@ import Icon from './Icon'
 import { openContextMenu, type ContextMenuItem } from './ContextMenu'
 import { pathFromSelection } from '@shared/term-path'
 import { requestSftpGoto } from '../lib/sftp-goto'
-import { selectionWithLastRun } from '../lib/failed-output'
+import { lastRunFor, selectionWithLastRun } from '../lib/failed-output'
 import { Terminal, type IMarker } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -575,6 +575,9 @@ export default function TerminalPane({
     const onContextMenu = (ev: MouseEvent): void => {
       const term = apiRef.current?.term
       const hasSel = Boolean(term?.hasSelection())
+      const last = lastRunFor(sessionId)
+      const lastOut = last?.out ?? ''
+      const lastCmd = last ? (last.command.length > 40 ? last.command.slice(0, 40) + '…' : last.command) : ''
       const selPath = hasSel ? pathFromSelection(term?.getSelection() ?? '', getSessionCwd(sessionId)) : null
       const items: ContextMenuItem[] = [
         {
@@ -605,6 +608,19 @@ export default function TerminalPane({
             void navigator.clipboard.readText().then((text) => {
               if (text) guardedPasteRef.current(text.endsWith('\r') || text.endsWith('\n') ? text : text + '\r')
             })
+          }
+        },
+        {
+          // D54: last command's output (Shell Integration capture, memory only; sensitive commands are never captured)
+          id: 'copyLastOutput',
+          label: tg('d54.copyLast'),
+          disabled: !lastOut,
+          onSelect: () => {
+            if (!lastOut) return
+            void navigator.clipboard.writeText(lastOut).then(
+              () => showToast(tg('d54.copied', { cmd: lastCmd })),
+              () => showToast(tg('d49.copyFail'), { kind: 'error' })
+            )
           }
         },
         'sep',

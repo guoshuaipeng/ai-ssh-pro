@@ -1,7 +1,7 @@
 import { BLOCK_DONE_EVENT, type BlockDoneDetail } from './ai-script-run'
 import { requestAskWithContext } from './ai-prefill'
 import { tg } from './i18n'
-import { captureChunk, captureCommand, captureExit, captureStart, failedContext, rememberFailed, withLastRun, type Capture, type FailedOutputStore, type LastRun } from '@shared/failed-output'
+import { captureChunk, captureCommand, captureExit, captureStart, failedContext, rememberFailed, withLastRun, capturedOutput, type Capture, type FailedOutputStore, type LastRun } from '@shared/failed-output'
 import { isSensitiveCommand } from '@shared/workspace-features'
 import { COMMAND_SUBMITTED_EVENT } from './ai-events'
 import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, integrationState } from './shell-integration'
@@ -44,8 +44,8 @@ if (typeof window !== 'undefined') {
   window.addEventListener(SHELL_EXIT_EVENT, (e) => {
     const d = (e as CustomEvent<{ sessionId: string; code: number }>).detail
     if (d?.sessionId && typeof d.code === 'number') {
-      const cmd = caps.get(d.sessionId)?.command
-      if (cmd) lastRuns.set(d.sessionId, { command: cmd, code: d.code, at: Date.now() })
+      const cap = caps.get(d.sessionId)
+      if (cap?.command) lastRuns.set(d.sessionId, { command: cap.command, code: d.code, at: Date.now(), out: capturedOutput(cap) })
       captureExit(caps, store, d.sessionId, d.code)
     }
   })
