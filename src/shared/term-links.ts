@@ -22,3 +22,33 @@ export function findUrls(line: string): UrlHit[] {
   }
   return out
 }
+
+/**
+ * D72: path-looking tokens (absolute, ~/, ./, ../, or containing a slash). A trailing :line[:col] is dropped from
+ * `path` but kept in the range so the whole "file.ts:12:3" is clickable. URL spans are skipped.
+ */
+export type PathHit = { start: number; end: number; path: string }
+
+const PATH_RE = /(?:~\/|\.{1,2}\/|\/)?[\w.@+-]+(?:\/[\w.@+-]+)+\/?|~\/?|(?<![\w/])\/[\w.@+-]+\/?/g
+
+export function findPaths(line: string): PathHit[] {
+  const urls = findUrls(line)
+  const inUrl = (i: number) => urls.some((u) => i >= u.start && i < u.end)
+  const out: PathHit[] = []
+  PATH_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = PATH_RE.exec(line))) {
+    const start = m.index
+    let tok = m[0]
+    if (tok === '~' || tok === '/' || inUrl(start)) continue
+    // token glued to a scheme like "http:" is part of a URL we skipped
+    if (line[start - 1] === ':' && /[a-z]$/i.test(line.slice(0, start - 1))) continue
+    let end = start + tok.length
+    const tail = /^:\d+(?::\d+)?/.exec(line.slice(end))
+    if (tail) end += tail[0].length
+    tok = tok.replace(/[.,;]+$/, '')
+    if (!tok.includes('/') || /^[\d/.:-]+$/.test(tok)) continue // dates, fractions, versions
+    out.push({ start, end: Math.max(start + tok.length, tail ? end : start + tok.length), path: tok })
+  }
+  return out
+}

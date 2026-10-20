@@ -18,7 +18,7 @@ import { findAllInBuffer, compileFind, pickMatch, seedQueryFromSelection, AISS_T
 import { looksLikeError, rememberError, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
 import { registerTerminalSelection } from '../lib/terminal-selection'
 import { showToast } from '../lib/toast'
-import { findUrls } from '@shared/term-links'
+import { findPaths, findUrls } from '@shared/term-links'
 /** D70: the plain-click hint shows at most every 30 s */
 let linkHintAt = 0
 import { extractPromptCommand, ghostSuffix, rankSuggestions, terminalKeyAction } from '@shared/smart-complete'
@@ -311,6 +311,32 @@ export default function TerminalPane({
                 linkHintAt = Date.now()
                 showToast(tg('d70.hint'))
               }
+            }
+          }))
+        )
+      }
+    })
+    // D72: paths in output; Ctrl+click opens that folder in SFTP (locate only, nothing runs). Plain clicks stay selections.
+    term.registerLinkProvider({
+      provideLinks: (y, cb) => {
+        if (mirrorOnlyRef.current) return cb(undefined)
+        const text = term.buffer.active.getLine(y - 1)?.translateToString(true) ?? ''
+        const hits = findPaths(text)
+        if (!hits.length) return cb(undefined)
+        cb(
+          hits.map((h) => ({
+            text: text.slice(h.start, h.end),
+            range: { start: { x: h.start + 1, y }, end: { x: h.end, y } },
+            decorations: { underline: true, pointerCursor: true },
+            activate: (ev: MouseEvent) => {
+              if (!(ev.ctrlKey || ev.metaKey)) return
+              const p = pathFromSelection(h.path, getSessionCwd(sessionId))
+              if (!p) {
+                showToast(tg('d72.noCwd'))
+                return
+              }
+              requestSftpGoto(sessionId, p)
+              onOpenSftpRef.current?.(sessionId)
             }
           }))
         )
