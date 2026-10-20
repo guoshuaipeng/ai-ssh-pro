@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { commandWire } from '../lib/block-wire'
 import { LATENCY_POLL_MS, classifyLatency } from '@shared/workspace-features'
 import type { AiAssistResult } from '@shared/ipc'
 import { useI18n } from '../lib/i18n'
@@ -231,7 +232,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       if (loadSmartPrefs().enabled) recordSmartCommand(hostKey, command)
       notifyHistoryChanged()
       noteSubmitted(sessionId, command)
-      const ok = await window.aiss.ssh.write(sessionId, `${command}\r`)
+      const ok = await window.aiss.ssh.write(sessionId, `${commandWire(command)}\r`)
       clearStagedCommands()
       if (!ok) setError(t('history.sendFailed'))
     } catch (e) {

@@ -15,8 +15,8 @@ export function takeAiPrefill(): string | null {
   return t
 }
 
-export function requestAskWithContext(sessionId: string, text: string): boolean {
+export function requestAskWithContext(sessionId: string, text: string, question?: string): boolean {
   if (!text.trim()) return false
-  window.dispatchEvent(new CustomEvent(AI_ASK_CONTEXT_EVENT, { detail: { sessionId, text } }))
+  window.dispatchEvent(new CustomEvent(AI_ASK_CONTEXT_EVENT, { detail: { sessionId, text, question } }))
   return true
 }

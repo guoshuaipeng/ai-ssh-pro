@@ -3,6 +3,7 @@ import { decideWrite, type ProtectionLevel, type WriteChannel } from '@shared/pr
 import { confirmDialog, toast } from './dialogs'
 import { tg, type MessageKey } from './i18n'
 import { fillCommandBar, noteSubmitted } from './ai-events'
+import { commandWire } from './block-wire'
 import { runGuardedCommand } from './protection-gate'
 import { notifyHistoryChanged } from './workspace-events'
 
@@ -88,7 +89,7 @@ export async function confirmAndRunAiCommand(opts: {
     /* history is best effort */
   }
   noteSubmitted(sessionId, command)
-  const sent = await window.aiss.ssh.write(sessionId, `${command}\r`)
+  const sent = await window.aiss.ssh.write(sessionId, `${commandWire(command)}\r`)
   if (!sent) toast({ text: tg('history.sendFailed'), kind: 'error' })
   else fillCommandBar(sessionId, '')
   return Boolean(sent)

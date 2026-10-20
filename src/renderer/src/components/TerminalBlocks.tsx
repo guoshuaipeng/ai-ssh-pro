@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { applyExitHits, blockFailed, createBlockExitParser, failedBlockContext } from '@shared/block-exit'
+import { blockExitOn, setBlockExitOn } from '../lib/block-wire'
 import { COMMAND_SUBMITTED_EVENT } from '../lib/ai-events'
 import {
   BLOCK_HEIGHT_DEFAULT,
@@ -38,6 +40,8 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
   const [ratio, setRatio] = useState(() => loadBlockRatio())
   const [collapsed, setCollapsed] = useState(false)
   const [selected, setSelected] = useState(0)
+  const [exitOn, setExitOn] = useState(() => blockExitOn())
+  const parserRef = useRef(createBlockExitParser())
   useEffect(() => {
     const sync = () => setOn(blocksEnabled())
     window.addEventListener('aiss-blocks', sync)
@@ -63,7 +67,8 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
     const onChunk = (e: Event) => {
       const detail = (e as CustomEvent<{ sessionId: string; text: string }>).detail
       if (!detail || detail.sessionId !== sessionId) return
-      setBlocks((cur) => appendBlockOutput(cur, detail.text))
+      const { clean, hits } = parserRef.current.feed(detail.text)
+      setBlocks((cur) => applyExitHits(appendBlockOutput(cur, clean), hits))
     }
     window.addEventListener(COMMAND_SUBMITTED_EVENT, onCmd)
     window.addEventListener('aiss-term-chunk', onChunk)
@@ -118,6 +123,10 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
       />
       <div className="term-blocks-head">
         <span>{tg('blocks.title', { n: blocks.length })}</span>
+        <label className="term-blocks-exit" title={tg('d11.captureTip')}>
+          <input type="checkbox" data-testid="blocks-exit-toggle" checked={exitOn} onChange={(e) => { const v = e.currentTarget.checked; setBlockExitOn(v); setExitOn(v) }} />
+          {tg('d11.capture')}
+        </label>
         <button type="button" onClick={() => setBlocks((cur) => cur.map((b) => ({ ...b, collapsed: true })))}>{tg('blocks.collapseAll')}</button>
         <button type="button" title={collapsed ? tg('blocks.show') : tg('blocks.hide')} onClick={() => setCollapsed((v) => { const next = !v; showToast(tg(next ? 'blocks.hide' : 'blocks.show')); return next })}>{collapsed ? '⌃' : '⌄'}</button>
       </div>
@@ -138,6 +147,21 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
           <div className="term-block-bar">
             <button type="button" title={tg(b.collapsed ? 'db.expand' : 'db.collapse')} aria-label={tg(b.collapsed ? 'db.expand' : 'db.collapse')} onClick={() => setBlocks((cur) => toggleBlock(cur, b.id))}><Twist open={!b.collapsed} size={12} /></button>
             <code>{b.command}</code>
+            {b.running ? (
+              <span className="term-block-exit is-running" title={tg('d11.running')}>…</span>
+            ) : b.exitCode == null ? (
+              <span className="term-block-exit is-none" title={tg('d11.noExit')}>—</span>
+            ) : (
+              <span className={`term-block-exit ${b.exitCode === 0 ? 'is-ok' : 'is-fail'}`} data-testid="block-exit" title={tg('d11.exitTitle', { code: b.exitCode })}>
+                {b.exitCode === 0 ? '✓' : `✗ ${b.exitCode}`}
+              </span>
+            )}
+            {blockFailed(b) ? (
+              <button type="button" className="term-block-why" data-testid="block-why-failed"
+                onClick={() => { if (sessionId) requestAskWithContext(sessionId, failedBlockContext(b), tg('d11.whyQ', { code: b.exitCode ?? '' })) }}>
+                {tg('d11.why')}
+              </button>
+            ) : null}
             <button type="button" title={tg('m2.explain')} aria-label={tg('m2.explain')} onClick={() => explain(b)}><Icon name="sparkles" size={14} /></button>
             <button type="button" onClick={() => void navigator.clipboard.writeText(snippetFromBlock(b).body)}>{tg('m2.copy')}</button>
             <button
