@@ -10,6 +10,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SHARED_MENUS } from '../src/shared/menus'
+import { countNativeSelects } from '../src/shared/select-nav'
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const files: string[] = []
@@ -132,3 +133,12 @@ for (const f of files) {
 assert.deepEqual(bareButtons, [], `UX-12b icon-only without tooltip:\n${bareButtons.join('\n')}`)
 
 console.log(`check-ux ok: ${files.length} files without native dialogs, ${Object.keys(zh).filter((x) => x.startsWith('menu.')).length} menu.* entries consistent`)
+
+// 4. C2: native <select> budget only goes down. Lower the baseline when you replace one.
+{
+  const baseline = JSON.parse(readFileSync(join(root, 'scripts/native-select-baseline.json'), 'utf8')).count as number
+  let count = 0
+  for (const f of files) if (f.includes(join('src', 'renderer'))) count += countNativeSelects(readFileSync(f, 'utf8'))
+  assert.ok(count <= baseline, `native <select> count rose to ${count} (baseline ${baseline}); use components/ui/Select`)
+  assert.ok(count >= baseline, `native <select> count fell to ${count}; lower scripts/native-select-baseline.json to ${count}`)
+}
