@@ -1629,7 +1629,6 @@ export default function SftpPanel({
                       >
                         {e.isDirectory ? <Icon name="folder" size={14} /> : <Icon name="file-text" size={14} />}{' '}
                         {e.name}
-                        {e.link ? <span className="sftp-link-mark" aria-hidden="true">↪</span> : null}
                       </button>
                     </td>
                     <td>{e.isDirectory ? '—' : formatBytes(e.size)}</td>

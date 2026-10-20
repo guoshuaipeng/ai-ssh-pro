@@ -228,6 +228,6 @@
 
 
 /* D12b */
-.sftp-link-mark { margin-left: 4px; color: var(--muted); font-size: 11px; }
+.sftp-name-btn.is-link::after { content: '\21AA'; margin-left: 4px; color: var(--muted); font-size: 11px; }
 .sftp-name-btn.is-broken { color: var(--muted); text-decoration: line-through; }
 
