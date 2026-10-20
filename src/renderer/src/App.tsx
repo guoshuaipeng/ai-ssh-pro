@@ -4623,13 +4623,13 @@ export default function App() {
     />
   )
 
-  const openLocalShell = useCallback(async () => {
+  const openLocalShell = useCallback(async (cwdOverride?: string | null) => {
     setError(null)
     setConnecting(true)
     try {
       // D25: a new local shell starts where the active local tab is (validated in main; home otherwise)
       const fromSid = activeSessionIdRef.current
-      const inherit = fromSid && fromSid.startsWith('local:') ? getSessionCwd(fromSid) : null
+      const inherit = (typeof cwdOverride === 'string' ? cwdOverride : null) ?? (fromSid && fromSid.startsWith('local:') ? getSessionCwd(fromSid) : null)
       const { sessionId, meta } = await window.aiss.ssh.openLocalShell(inherit ? { cwd: inherit } : undefined)
       if (meta.startCwd) setSessionCwd(sessionId, meta.startCwd)
       const tabId = uuid()
@@ -4664,6 +4664,25 @@ export default function App() {
       setConnecting(false)
     }
   }, [])
+
+  // D26: duplicate a tab into the same working directory (SSH: one leading-space cd after connect; local: spawn there)
+  const duplicateTab = useCallback(
+    async (tab: Tab) => {
+      const cwd = getSessionCwd(tab.sessionId) ?? tab.restoreCwd ?? null
+      if (tab.kind === 'local') {
+        await openLocalShell(cwd)
+        return
+      }
+      const sid = await openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
+      const cdLine = cdCommandFor(cwd)
+      if (sid && cwd && cdLine) {
+        setSessionCwd(sid, cwd)
+        window.setTimeout(() => void window.aiss.ssh.write(sid, cdLine + '\r').catch(() => undefined), 400)
+        showToast(tg('d26.dupIn', { path: cwd }))
+      }
+    },
+    [openLocalShell, openSession]
+  )
 
   const startRecording = useCallback(async () => {
     if (!activeSessionId) {
@@ -6246,7 +6265,7 @@ export default function App() {
       }
       if (action === 'reconnect' || action === 'duplicateSession') {
         const tab = tabs.find((x) => x.tabId === activeTabId)
-        if (!tab || (tab.view && tab.view !== 'session') || tab.kind === 'local') {
+        if (!tab || (tab.view && tab.view !== 'session') || (tab.kind === 'local' && action === 'reconnect')) {
           showToast(tg('toolbar.needSession'))
           return
         }
@@ -6259,7 +6278,7 @@ export default function App() {
           void reconnectTab(tab.tabId)
         } else {
           showToast(tg('sess.duplicating', { host }))
-          void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
+          void duplicateTab(tab)
         }
         return
       }
@@ -8165,7 +8184,7 @@ export default function App() {
             ? (() => {
                 const tab = orderedTabs.find((x) => x.tabId === tabMenu.tabId)
                 if (!tab) return null
-                const canDuplicate = (!tab.view || tab.view === 'session') && tab.kind !== 'local' && Boolean(tab.connectOpts?.host)
+                const canDuplicate = (!tab.view || tab.view === 'session') && (tab.kind === 'local' ? localShellAvailable : Boolean(tab.connectOpts?.host))
                 const sessionTools = Boolean(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local' && (!tab.view || tab.view === 'session'))
                 const canForward = Boolean(tab.status === 'connected' && tab.sessionId && tab.kind !== 'local')
                 const others = closeOthers(orderedTabs, tab.tabId)
@@ -8215,7 +8234,7 @@ export default function App() {
                         }
                       } else if (id === 'rename') startRename(tab.tabId)
                       else if (id === 'duplicate') {
-                        void openSession(tab.connectOpts, { profileId: tab.profileId, hostInventoryId: tab.hostInventoryId, kind: 'ssh' })
+                        void duplicateTab(tab)
                       } else if (id === 'sftp' && tab.sessionId) openSftpTransfer(tab.sessionId, { alignCwd: true })
                       else if (id === 'monitor') openMonitorForSession(tab.sessionId ?? null)
                       else if (id === 'forward' && tab.sessionId) openToolTabRef.current('forward', tab.sessionId)
