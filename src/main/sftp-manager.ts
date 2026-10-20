@@ -1,3 +1,4 @@
+import { isSymlinkMode } from '../shared/sftp-follow'
 import { mt } from './main-i18n'
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs'
@@ -89,11 +90,30 @@ export async function list(client: Client, remotePath: string): Promise<SftpList
           const mapped = entryToListItem(path, item)
           if (mapped) entries.push(mapped)
         }
-        entries.sort((a, b) => {
-          if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-          return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+        // D12b: readdir gives lstat attrs; resolve symlinks so linked dirs open as dirs
+        const links = entries.filter((e) => isSymlinkMode(e.mode)).slice(0, 256)
+        void Promise.all(
+          links.map(
+            (e) =>
+              new Promise<void>((done) => {
+                sftp.stat(e.path, (sErr, st) => {
+                  if (sErr || !st) e.link = 'broken'
+                  else {
+                    e.isDirectory = st.isDirectory()
+                    e.link = e.isDirectory ? 'dir' : 'file'
+                    if (!e.isDirectory && typeof st.size === 'number') e.size = st.size
+                  }
+                  done()
+                })
+              })
+          )
+        ).then(() => {
+          entries.sort((a, b) => {
+            if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+            return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+          })
+          resolve({ path, entries })
         })
-        resolve({ path, entries })
       })
     })
   })

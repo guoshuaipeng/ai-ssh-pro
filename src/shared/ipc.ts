@@ -363,6 +363,8 @@ export type SftpListEntry = {
   modifyTime?: number
   /** POSIX mode bits when the server provides them (remote pane). */
   mode?: number
+  /** D12b: symlink; isDirectory then describes the target. 'broken' = target missing / unreadable. */
+  link?: 'dir' | 'file' | 'broken'
 }
 
 export type SftpListResult = {
