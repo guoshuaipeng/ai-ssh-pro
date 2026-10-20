@@ -44,6 +44,7 @@ import { recallTransferQueue, registerSftpCloseGuard, rememberTransferQueue, tak
 import { loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
+import { openDecision } from '@shared/sftp-open'
 import Icon, { Twist } from './Icon'
 import FolderSyncModal from './FolderSyncModal'
 import { isLikelyTextFile } from './RemoteTextEditor'
@@ -1564,7 +1565,20 @@ export default function SftpPanel({
                       if (e.isDirectory) {
                         if (isLocal) void refreshLocal(e.path)
                         else void refreshRemote(e.path)
-                      } else if (!isLocal) onOpenRemoteFile?.({ remotePath: e.path, name: e.name, size: e.size })
+                      } else if (!isLocal && onOpenRemoteFile) {
+                        // D36: large or binary files: offer a download instead of a truncated / failing editor
+                        const how = openDecision(e.name, e.size)
+                        const open = () => onOpenRemoteFile({ remotePath: e.path, name: e.name, size: e.size })
+                        if (how === 'edit') open()
+                        else {
+                          const download = () =>
+                            void transferFiles('download', [{ name: e.name, localPath: joinLocal(localCwd, e.name), remotePath: e.path, size: e.size, mtime: e.modifyTime }])
+                          showToast(tg(how === 'binary' ? 'd36.binary' : 'd36.large', { name: e.name, size: formatBytes(e.size) }), {
+                            ms: 10000,
+                            actions: how === 'binary' ? [{ label: tg('d36.download'), run: download }] : [{ label: tg('d36.download'), run: download }, { label: tg('d36.openAnyway'), run: open }]
+                          })
+                        }
+                      }
                     }}
                     onContextMenu={(ev) => {
                       if (e.isDirectory) {

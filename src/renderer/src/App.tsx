@@ -7873,7 +7873,7 @@ export default function App() {
               <button
                 key={t.tabId}
                 type="button"
-                title={[sftpAddr, guardTip, tg('tab.pinTip')].filter(Boolean).join(' · ') || undefined}
+                title={[sftpAddr, guardTip, t.status === 'disconnected' && t.failRaw ? tg('d35.tabReason', { reason: friendlyErrorMessage(t.failRaw) }) : '', tg('tab.pinTip')].filter(Boolean).join(' · ') || undefined}
                 data-tab-id={t.tabId}
                 className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.pinned ? 'is-pinned' : ''} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${(isSession || t.view === 'sftp') && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
