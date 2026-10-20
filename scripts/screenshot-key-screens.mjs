@@ -120,6 +120,7 @@ const chrome = [
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
   { name: 'menu', size: W, steps: [{ click: '.titlebar-menu-trigger' }], wait: 700, close: true },
   { name: 'ai-safety-pop', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { op: 'aiComposerPop', which: 'safety' }], wait: 1400 },
+  { name: 'ai-more-menu', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { click: '[data-testid="ai-more"]' }], wait: 900 },
   { name: 'ai-model-menu', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { op: 'aiComposerPop', which: 'model' }], wait: 1400 },
   // 2.3: execution replay rows (collapsed + both expanded), then the audit jump
   { name: 'ai-exec-replay', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { eval: "document.querySelectorAll('[data-testid=ai-exec-toggle]').forEach((b)=>b.click()); document.querySelector('[data-testid=ai-exec-replay]')?.scrollIntoView({block:'center'}); document.querySelectorAll('[data-testid=ai-exec-replay]').length" }], wait: 1200 },
