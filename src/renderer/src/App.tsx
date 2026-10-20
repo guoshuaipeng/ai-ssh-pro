@@ -262,7 +262,7 @@ import { isSettingsSection, loadSettingsSection, saveSettingsSection, sectionFor
 import { editorOpenPlan, type EditorId } from '@shared/editor-surface'
 import SettingsPanel from './components/SettingsPanel'
 import DisconnectBanner from './components/DisconnectBanner'
-import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_USER, demoProfileLabel, profileDisplayLabel } from '@shared/demo-host'
+import { DEMO_HOST, DEMO_PROFILE_ID, DEMO_TAGS, DEMO_USER, demoProfileLabel, profileDisplayLabel } from '@shared/demo-host'
 import { findAlertDraft, playbookFromFixes, ruleShortName } from '@shared/playbook-draft'
 import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/timeline'
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
@@ -6775,6 +6775,7 @@ export default function App() {
           host: DEMO_HOST,
           port: 22,
           username: DEMO_USER,
+          tags: [...DEMO_TAGS],
           demo: true
         }
         await persistSessionState({ folders, profiles: [demo, ...profilesRef.current] })

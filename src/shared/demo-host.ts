@@ -7,6 +7,8 @@ export const DEMO_PROFILE_ID = 'demo-host'
 export const DEMO_HOST = 'demo.ai-ssh-pro.local'
 export const DEMO_USER = 'demo'
 export const DEMO_SESSION_PREFIX = 'demo:'
+/** D69: tags on a newly added demo host, so tag search and batch group picking are visible without setup */
+export const DEMO_TAGS = ['demo', 'web']
 
 export function isDemoSessionId(id: unknown): boolean {
   return typeof id === 'string' && id.startsWith(DEMO_SESSION_PREFIX)
