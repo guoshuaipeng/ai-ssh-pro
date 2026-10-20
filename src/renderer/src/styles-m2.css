@@ -289,3 +289,5 @@
 .qp-scope-btn.is-on { color: var(--accent); border-color: var(--accent); }
 /* D45: keep Recent next to Cd-in-terminal */
 .sftp-pane-title .sftp-cd-terminal + .sftp-cd-terminal { margin-left: 4px; }
+/* D48: local high-risk note on AI command actions */
+.ai-decision.ai-risk-local { color: var(--color-danger); font-weight: 600; }

@@ -9,7 +9,8 @@ import {
   sessionInFlightBook
 } from '@shared/safety-tier'
 import { askConfirm } from '../lib/dialogs'
-import { tg } from '../lib/i18n'
+import { tg, type MessageKey } from '../lib/i18n'
+import { assessCommandRisk } from '@shared/command-risk'
 
 type Props = {
   command: string
@@ -96,6 +97,9 @@ export default function SafetyCommandBar({
   const mode: SafetyMode | 'agree' = safetyMode ?? local?.mode ?? 'agree'
   const alternative = local?.alternative
   const warn = local?.warn === true
+  // D48: even with the safety tier off, a locally high-risk command (rm -rf, mkfs, dd, ...) shows why and asks once
+  const localRisk = assessCommandRisk(command)
+  const needsRiskConfirm = Boolean(localRisk) && mode !== 'strong'
 
   if (decision === 'agreed' || mode === 'auto' && safetyMode === 'auto') {
     return (
@@ -164,6 +168,16 @@ export default function SafetyCommandBar({
         return
       }
     }
+    if (needsRiskConfirm && localRisk) {
+      const ok = await askConfirm({
+        id: 'confirm.dangerCommand',
+        title: tg('d48.title', { reason: tg(localRisk.reasonKey as MessageKey) }),
+        body: command,
+        danger: true,
+        confirmText: tg('ux64.agreeRun')
+      })
+      if (!ok) return
+    }
     if (isInteractiveCommand(command)) book.note(command)
     onAgree(command)
   }
@@ -171,6 +185,11 @@ export default function SafetyCommandBar({
   return (
     <div className="ai-reply-actions" data-testid="safety-actions" data-safety={mode}>
       {warn ? <span className="ai-decision">{tg('safety.warnProd')}</span> : null}
+      {localRisk ? (
+        <span className="ai-decision ai-risk-local" data-testid="ai-risk-local">
+          {tg('d48.risk', { reason: tg(localRisk.reasonKey as MessageKey) })}
+        </span>
+      ) : null}
       {alternative ? <span className="ai-decision">{tg('safety.alt', { cmd: alternative })}</span> : null}
       <span className="ai-btn-wrap" title={!canRun ? tg('ux64.noSession') : undefined}>
         <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={disabled} onClick={() => void agree()}>
