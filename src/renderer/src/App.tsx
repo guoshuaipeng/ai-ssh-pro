@@ -434,6 +434,8 @@ type Tab = {
   restoreFailed?: boolean
   /** PNG-4: reopened from the last layout and not connected this launch. */
   restored?: boolean
+  /** D8: cwd saved with the workspace; used on the first connect */
+  restoreCwd?: string
   /** D7: first open lists this session's cwd. Focusing an existing tab leaves the path alone. */
   sftpAlignCwd?: boolean
   /** D5 compare payload */
@@ -2025,7 +2027,7 @@ export default function App() {
         notifyRecentChanged()
         // D2: return to the previous working directory (navigation only, no user command is replayed)
         {
-          const prevCwd = getSessionCwd(tab.sessionId)
+          const prevCwd = getSessionCwd(tab.sessionId) ?? tab.restoreCwd ?? null
           const cdLine = cdCommandFor(prevCwd)
           if (prevCwd && cdLine) {
             setSessionCwd(sessionId, prevCwd)
@@ -4196,7 +4198,8 @@ export default function App() {
         pinned: row.pinned === true,
         openSeq: (row.order + 1) * 10,
         cold: plan.autoConnect && needsSession,
-        restored: !plan.autoConnect && needsSession
+        restored: !plan.autoConnect && needsSession,
+        restoreCwd: row.kind === 'terminal' ? row.cwd : undefined
       } satisfies Tab
     })
     setTabs(next)
@@ -4266,8 +4269,21 @@ export default function App() {
       return changed ? next : prev
     })
   }, [tabs])
+  // D8: save each terminal's live cwd with the workspace, and once more when the window closes
+  const withLiveCwd = (list: Tab[]) => list.map((t) => ({ ...t, cwd: getSessionCwd(t.sessionId) ?? t.restoreCwd ?? null }))
+  useEffect(() => {
+    const onUnload = () => {
+      if (!sessionsReady || !bootedRef.current || !workspaceReadyRef.current) return
+      const snapshot = snapshotWorkspace(withLiveCwd(tabsRef.current), activeTabIdRef.current)
+      const ids = [...new Set(snapshot.filter((row) => row.kind === 'terminal' && row.profileId).map((row) => row.profileId!))]
+      saveLastWorkspace({ profileIds: snapshot.length ? ids : [], tabs: snapshot })
+    }
+    window.addEventListener('beforeunload', onUnload)
+    return () => window.removeEventListener('beforeunload', onUnload)
+  }, [sessionsReady])
   const restoreArmedAt = useRef(new Map<string, number>())
   const workspaceReady = useRef(false)
+  const workspaceReadyRef = workspaceReady
   useEffect(() => {
     const now = Date.now()
     const watching = restoreWatchIds(tabs, activeTabId)
@@ -4288,7 +4304,7 @@ export default function App() {
       workspaceReady.current = true
       return
     }
-    const snapshot = snapshotWorkspace(tabs, activeTabId)
+    const snapshot = snapshotWorkspace(withLiveCwd(tabs), activeTabId)
     const ids = [...new Set(snapshot.filter((row) => row.kind === 'terminal' && row.profileId).map((row) => row.profileId!))]
     saveLastWorkspace({ profileIds: snapshot.length ? ids : [], tabs: snapshot })
   }, [tabs, sessionsReady, activeTabId])
@@ -5539,7 +5555,7 @@ export default function App() {
         return
       }
       if (action === 'saveWorkspaceNow') {
-        const snapshot = snapshotWorkspace(tabsRef.current, activeTabId)
+        const snapshot = snapshotWorkspace(withLiveCwd(tabsRef.current), activeTabId)
         const ids = [
           ...new Set(snapshot.filter((row) => row.kind === 'terminal' && row.profileId).map((row) => row.profileId!))
         ]

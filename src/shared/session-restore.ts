@@ -83,6 +83,7 @@ export function snapshotWorkspace(
     playbookId?: string
     pinned?: boolean
     openSeq?: number
+    cwd?: string | null
   }>,
   activeId: string | null
 ): SavedWorkspaceTab[] {
@@ -109,6 +110,7 @@ export function snapshotWorkspace(
       active: t.tabId === activeId,
       pinned: t.pinned ? true : undefined
     }
+    if (kind === 'terminal' && t.cwd) row.cwd = t.cwd
     if (!isCompleteRestoreRow(row)) return
     rows.push(row)
   })

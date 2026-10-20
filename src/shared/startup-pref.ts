@@ -1,3 +1,4 @@
+import { cdCommandFor } from './session-cwd'
 /** L7 startup: ops home (default), last session, or a blank workspace. */
 
 export type StartupMode = 'home' | 'last' | 'blank'
@@ -45,6 +46,8 @@ export type SavedWorkspaceTab = {
   active?: boolean
   /** Tab pin; restored with arrangeTabs (pinned first). */
   pinned?: boolean
+  /** D8: terminal working directory to return to after reconnect */
+  cwd?: string
 }
 
 export type LastWorkspace = { profileIds: string[]; tabs?: SavedWorkspaceTab[] }
@@ -63,7 +66,8 @@ function cleanTab(raw: unknown, order: number): SavedWorkspaceTab | null {
     settingsSection: typeof o.settingsSection === 'string' ? o.settingsSection : undefined,
     playbookId: typeof o.playbookId === 'string' ? o.playbookId : undefined,
     active: o.active === true,
-    pinned: o.pinned === true
+    pinned: o.pinned === true,
+    ...(typeof o.cwd === 'string' && cdCommandFor(o.cwd) ? { cwd: o.cwd } : {})
   }
 }
 
