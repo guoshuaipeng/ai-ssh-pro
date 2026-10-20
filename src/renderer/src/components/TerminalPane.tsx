@@ -10,7 +10,7 @@ import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
 import { AISS_INJECT_TERMINAL_EVENT } from '../lib/terminal-inject'
 import { getXtermTheme } from '../lib/terminal-themes'
 import { attachZmodem, type ZmodemAttach } from '../lib/zmodem-attach'
-import { findInBuffer, AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
+import { findAllInBuffer, compileFind, pickMatch, seedQueryFromSelection, AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
 import { looksLikeError, rememberError, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
 import { registerTerminalSelection } from '../lib/terminal-selection'
 import { showToast } from '../lib/toast'
@@ -121,6 +121,9 @@ export default function TerminalPane({
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
   const [findMiss, setFindMiss] = useState(false)
+  const [findCase, setFindCase] = useState(false)
+  const [findRegex, setFindRegex] = useState(false)
+  const [findCount, setFindCount] = useState<{ index: number; total: number } | null>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
   const findPosRef = useRef<{ row: number; col: number } | null>(null)
   // A1: "Explain with AI" hint after output that looks like an error (auto-hides after 8 s)
@@ -159,6 +162,12 @@ export default function TerminalPane({
   useEffect(() => {
     const onFind = () => {
       if (!activeRef.current) return
+      const term = apiRef.current?.term
+      const seed = term?.hasSelection() ? seedQueryFromSelection(term.getSelection()) : ''
+      if (seed) {
+        setFindQuery(seed)
+        findPosRef.current = null
+      }
       setFindOpen(true)
       window.setTimeout(() => findInputRef.current?.select(), 0)
     }
@@ -166,19 +175,38 @@ export default function TerminalPane({
     return () => window.removeEventListener(AISS_TERMINAL_FIND_EVENT, onFind)
   }, [])
 
-  const runFind = (backwards: boolean) => {
+  const findError = findQuery ? compileFind(findQuery, { caseSensitive: findCase, regex: findRegex }).error : null
+  const runFind = (backwards: boolean, restart = false) => {
     const term = apiRef.current?.term
-    if (!term || !findQuery) return
+    if (!term) return
+    if (!findQuery || findError) {
+      setFindCount(null)
+      setFindMiss(false)
+      return
+    }
     const buf = term.buffer.active
     const lines: string[] = []
     for (let i = 0; i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? '')
-    const hit = findInBuffer(lines, findQuery, findPosRef.current, backwards)
-    setFindMiss(!hit)
-    if (!hit) return
-    findPosRef.current = hit
-    term.select(hit.col, hit.row, findQuery.length)
+    const matches = findAllInBuffer(lines, findQuery, { caseSensitive: findCase, regex: findRegex })
+    const from = restart && findPosRef.current ? { row: findPosRef.current.row, col: findPosRef.current.col - 1 } : findPosRef.current
+    const idx = pickMatch(matches, from, backwards)
+    setFindMiss(idx < 0)
+    setFindCount(idx < 0 ? { index: 0, total: 0 } : { index: idx + 1, total: matches.length })
+    if (idx < 0) {
+      term.clearSelection()
+      return
+    }
+    const hit = matches[idx]!
+    findPosRef.current = { row: hit.row, col: hit.col }
+    term.select(hit.col, hit.row, hit.len)
     term.scrollToLine(Math.max(0, hit.row - Math.floor(term.rows / 2)))
   }
+  const runFindRef = useRef(runFind)
+  runFindRef.current = runFind
+  // Live search while typing / toggling options (keeps the current match when it still matches)
+  useEffect(() => {
+    if (findOpen) runFindRef.current(false, true)
+  }, [findOpen, findQuery, findCase, findRegex])
 
 
   useEffect(() => {
@@ -596,7 +624,7 @@ export default function TerminalPane({
           <div className="terminal-find-bar" role="search" data-testid="terminal-find">
             <input
               ref={findInputRef}
-              className={findMiss ? 'is-miss' : ''}
+              className={findMiss || findError ? 'is-miss' : ''}
               placeholder={tg('find.placeholder')}
               aria-label={tg('find.placeholder')}
               value={findQuery}
@@ -618,8 +646,35 @@ export default function TerminalPane({
               }}
             />
             <span className="terminal-find-status" data-testid="terminal-find-hint">
-              {findMiss ? tg('find.none') : !findQuery.trim() ? tg('find.hintShortcut') : ''}
+              {findError ? tg('find.badRegex') : findMiss ? tg('find.none') : !findQuery.trim() ? tg('find.hintShortcut') : ''}
             </span>
+            {findCount && findCount.total > 0 && !findError ? (
+              <span className="terminal-find-count" data-testid="terminal-find-count">
+                {findCount.index}/{findCount.total}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className={`terminal-find-opt${findCase ? ' is-on' : ''}`}
+              data-testid="terminal-find-case"
+              aria-pressed={findCase}
+              title={tg('find.case')}
+              aria-label={tg('find.case')}
+              onClick={() => setFindCase((v) => !v)}
+            >
+              Aa
+            </button>
+            <button
+              type="button"
+              className={`terminal-find-opt${findRegex ? ' is-on' : ''}`}
+              data-testid="terminal-find-regex"
+              aria-pressed={findRegex}
+              title={tg('find.regex')}
+              aria-label={tg('find.regex')}
+              onClick={() => setFindRegex((v) => !v)}
+            >
+              .*
+            </button>
             <button type="button" title={tg('find.prev')} aria-label={tg('find.prev')} onClick={() => runFind(true)}>
               ↑
             </button>
