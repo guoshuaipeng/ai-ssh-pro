@@ -18,6 +18,7 @@ import {
 import { tg } from '../lib/i18n'
 import Icon, { Twist } from './Icon'
 import { showToast } from '../lib/toast'
+import { requestAskWithContext } from '../lib/ai-prefill'
 
 export function blocksAreOn(): boolean {
   return blocksEnabled()
@@ -139,6 +140,24 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
             <code>{b.command}</code>
             <button type="button" title={tg('m2.explain')} aria-label={tg('m2.explain')} onClick={() => explain(b)}><Icon name="sparkles" size={14} /></button>
             <button type="button" onClick={() => void navigator.clipboard.writeText(snippetFromBlock(b).body)}>{tg('m2.copy')}</button>
+            <button
+              type="button"
+              data-testid="block-copy-output"
+              disabled={!b.output.trim()}
+              title={b.output.trim() ? undefined : tg('d10.noOutput')}
+              onClick={() => void navigator.clipboard.writeText(b.output).then(() => showToast(tg('d10.copiedOutput')), () => showToast(tg('ai.copyFailed'), { kind: 'error' }))}
+            >
+              {tg('d10.copyOutput')}
+            </button>
+            <button
+              type="button"
+              data-testid="block-ask-ai"
+              onClick={() => {
+                if (sessionId) requestAskWithContext(sessionId, `$ ${b.command}\n${b.output.slice(-4000)}`)
+              }}
+            >
+              {tg('d10.ask')}
+            </button>
             <button type="button" onClick={() => saveSnippet(b)}>{tg('m2.saveSnippet')}</button>
           </div>
           {b.collapsed ? null : <pre>{b.large ? b.output.slice(0, 4000) : b.output}</pre>}
