@@ -10321,8 +10321,20 @@ export default function App() {
           if (activeSessionId) void window.aiss.ssh.write(activeSessionId, '\x12')
         }}
         onClose={() => setQuickPick(null)}
-        onPick={(it) => {
+        onPick={(it, opts) => {
           if (!activeSessionId) return
+          // D33: Ctrl+Enter runs right away, but only plain commands on normal hosts; otherwise fill and say why
+          if (opts?.run) {
+            const tab = tabs.find((x) => x.sessionId === activeSessionId)
+            const prof = tab?.profileId ? profiles.find((p) => p.id === tab.profileId) : undefined
+            const level = stricterLevel(effectiveLevel(prof), Boolean(tab?.profileId && sessionRo[tab.profileId]))
+            const risky = Boolean(assessCommandRisk(it.value))
+            if (level === 'normal' && !risky) {
+              dispatchInjectTerminal(activeSessionId, it.value, true)
+              return
+            }
+            showToast(tg(risky ? 'd33.risky' : 'd33.protected'))
+          }
           dispatchInjectTerminal(activeSessionId, it.value, false)
         }}
         onAskFailed={(it) => {

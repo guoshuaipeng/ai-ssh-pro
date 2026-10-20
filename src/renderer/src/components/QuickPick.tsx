@@ -15,7 +15,7 @@ type Props = {
   emptyTitle: string
   emptyDesc: string
   rank: (query: string) => PickItem[]
-  onPick: (item: PickItem) => void
+  onPick: (item: PickItem, opts?: { run?: boolean }) => void
   onClose: () => void
   /** D22b: ask AI about a failed history item */
   onAskFailed?: (item: PickItem) => void
@@ -56,10 +56,10 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
   }, [sel])
   if (!open) return null
-  const pick = (it: PickItem | undefined) => {
+  const pick = (it: PickItem | undefined, opts?: { run?: boolean }) => {
     if (!it) return
     onClose()
-    window.setTimeout(() => onPick(it), 0)
+    window.setTimeout(() => onPick(it, opts), 0)
   }
   return (
     <div className="cmdp-backdrop" role="presentation" onMouseDown={onClose}>
@@ -89,7 +89,8 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
               setSel((s) => (s + d + items.length) % items.length)
             } else if (e.key === 'Enter') {
               e.preventDefault()
-              pick(items[sel])
+              // D33: Ctrl+Enter runs (the caller decides whether that is allowed)
+              pick(items[sel], e.ctrlKey || e.metaKey ? { run: true } : undefined)
             } else if (e.key === 'Escape') {
               e.preventDefault()
               e.stopPropagation()
