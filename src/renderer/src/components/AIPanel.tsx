@@ -2425,6 +2425,8 @@ export default function AIPanel({
               setInputMenu({ x: e.clientX, y: e.clientY })
             }}
             onKeyDown={(e) => {
+              // P39: IME composition (pinyin) owns Enter / arrows; never send or recall mid-composition
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return
               // D52: ↑ on an empty box (or while recalling) brings back earlier questions; ↓ walks forward
               if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
                 const ta = e.currentTarget

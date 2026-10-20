@@ -171,6 +171,8 @@ export default function CommandInput({
           setOpen(true)
         }}
         onKeyDown={(e) => {
+          // P39: IME composition owns Enter / Tab / arrows (no run, completion or history mid-pinyin)
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return
           if (interceptKey?.(e)) {
             e.preventDefault()
             return
