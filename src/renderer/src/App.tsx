@@ -7696,7 +7696,25 @@ export default function App() {
             <aside className="sidebar" style={{ width: layout.sidebarWidth, minWidth: layout.sidebarWidth }}>
               <div className="sidebar-header">
                 <h3>{tr('sidebar.saved')}</h3>
-                <SessionSearchBar value={sessionSearch} onChange={setSessionSearch} onEnter={runSidebarQuick} />
+                <SessionSearchBar
+                  value={sessionSearch}
+                  onChange={setSessionSearch}
+                  onEnter={() => {
+                    if (runSidebarQuick()) return true
+                    // D53: exactly one saved host matches: Enter opens it (several: use ArrowDown to pick)
+                    const hits = sessionSearch.trim() ? filterProfiles(profiles, sessionSearch, treeDataForProfile) : []
+                    if (hits.length !== 1) return false
+                    openOrFocusProfile(hits[0]!)
+                    return true
+                  }}
+                  onArrowDown={() => {
+                    const hits = sessionSearch.trim() ? filterProfiles(profiles, sessionSearch, treeDataForProfile) : profiles
+                    if (!hits.length) return false
+                    setSelectedProfileId(hits[0]!.id)
+                    ;(document.querySelector('.sidebar-scroll') as HTMLElement | null)?.focus()
+                    return true
+                  }}
+                />
                 {sidebarQuickHit ? (
                   <button type="button" className="sidebar-quick" data-testid="sidebar-quick" onClick={runSidebarQuick}>
                     <span className="sidebar-quick-label">
