@@ -17,7 +17,7 @@ import { showToast, type ToastAction } from './toast'
  * Mount <DialogHost /> once (App does).
  */
 export type ConfirmOptions = { title: string; body?: string; confirmText?: string; danger?: boolean; detail?: string }
-export type PromptOptions = { title: string; label?: string; defaultValue?: string; validate?: (v: string) => string | null }
+export type PromptOptions = { title: string; label?: string; defaultValue?: string; validate?: (v: string) => string | null; /** D13d: password field (not echoed) */ secret?: boolean; detail?: string }
 
 type Request =
   | ({ kind: 'text'; resolve: (v: string | null) => void } & PromptOptions)
@@ -245,8 +245,12 @@ export function DialogHost() {
         {current.kind === 'text' ? (
           <>
             {current.label ? <label className="app-dialog-label">{current.label}</label> : null}
+              {current.kind === 'text' && current.detail ? <p className="app-dialog-detail">{current.detail}</p> : null}
             <input
               ref={inputRef}
+              type={current.kind === 'text' && current.secret ? 'password' : 'text'}
+              autoComplete={current.kind === 'text' && current.secret ? 'off' : undefined}
+              data-testid={current.kind === 'text' && current.secret ? 'dialog-secret' : undefined}
               className="dialog-text-input"
               style={{ width: '100%' }}
               value={value}
