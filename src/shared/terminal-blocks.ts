@@ -19,6 +19,14 @@ export type TermBlock = {
   running: boolean
   collapsed: boolean
   large: boolean
+  /** D20: the connection dropped while it was running */
+  interrupted?: boolean
+}
+
+/** D20: after a reconnect nothing is running any more; keep the blocks, mark the open one interrupted. */
+export function interruptRunning<T extends TermBlock>(blocks: T[]): T[] {
+  if (!blocks.some((b) => b.running)) return blocks
+  return blocks.map((b) => (b.running ? { ...b, running: false, interrupted: true } : b))
 }
 
 export function blocksEnabled(store: Pick<Storage, 'getItem'> = globalThis.localStorage): boolean {
