@@ -219,7 +219,7 @@ import { BLOCKS_HINT_KEY, shouldHintBlocks } from '@shared/blocks-hint'
 import { isDemoSessionId } from '@shared/demo-host'
 import { COMMAND_SUBMITTED_EVENT } from './lib/ai-events'
 import { matchProfile, parseQuickTarget, quickTargetLabel, type QuickTarget } from '@shared/quick-connect'
-import { recentQuickTarget, recentSaveTarget, sidebarQuick } from '@shared/recent-quick'
+import { recentConnectTarget, recentSaveTarget, shouldAskPassword, sidebarQuick } from '@shared/recent-quick'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import {
   delayForAttempt,
@@ -1653,6 +1653,8 @@ export default function App() {
         quiet?: boolean
         focus?: boolean
         onError?: (message: string) => void
+        /** D13d: raw failure + the tab that holds it */
+        onFailRaw?: (raw: string, tabId: string) => void
       }
     ): Promise<string | null> => {
       const quiet = Boolean(extra?.quiet)
@@ -1765,6 +1767,7 @@ export default function App() {
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected', failRaw: raw } : t))
         )
         extra?.onError?.(shown)
+        extra?.onFailRaw?.(raw, tabId)
         return null
       } finally {
         if (!quiet) setConnecting(false)
@@ -4144,7 +4147,7 @@ export default function App() {
         return
       }
       // D13c: quick rows reconnect with the same user / port / -i / -J
-      const qt = recentQuickTarget(row)
+      const qt = recentConnectTarget(row)
       if (qt) {
         openQuickTargetRef.current(qt)
         return
@@ -4214,6 +4217,21 @@ export default function App() {
       const prefill = () => prefillQuickTarget(t)
       // D13b: with a user we can try right away (key from -i or ~/.ssh defaults, like OpenSSH); saving is one click
       if (t.username) {
+        // D13d: password hosts — auth failure asks for the password in a small dialog (kept in memory for this tab only)
+        const askPassword = async (tabId: string, attempt: number): Promise<void> => {
+          const pw = await promptDialog({
+            title: tg('d13d.title', { target: quickTargetLabel(t) }),
+            label: tg(attempt > 0 ? 'd13d.again' : 'd13d.label'),
+            detail: tg('d13d.detail'),
+            secret: true
+          })
+          if (!pw) return
+          setTabs((prev) => prev.map((x) => (x.tabId === tabId ? { ...x, connectOpts: { ...x.connectOpts, password: pw, authMode: 'password' as const } } : x)))
+          await new Promise((r) => window.setTimeout(r, 60))
+          let failed = ''
+          const sid = await reconnectTabRef.current(tabId, { full: true, onError: (m) => { failed = m } })
+          if (!sid && shouldAskPassword(noticeKind(tabsRef.current.find((x) => x.tabId === tabId)?.failRaw || failed), t, attempt + 1)) await askPassword(tabId, attempt + 1)
+        }
         void openSession({
           host: t.host,
           port: t.port,
@@ -4221,7 +4239,7 @@ export default function App() {
           ...(t.identity ? { privateKeyPath: t.identity, authMode: 'key' as const } : {}),
           ...(jumpChain ? { jumpChain } : {}),
           quick: true
-        })
+        }, { onFailRaw: (raw, tabId) => { if (shouldAskPassword(noticeKind(raw), t, 0)) void askPassword(tabId, 0) } })
         showToast(tg('d13b.connecting', { target: quickTargetLabel(t) }), { action: { label: tg('d13b.save'), run: prefill } })
         return
       }

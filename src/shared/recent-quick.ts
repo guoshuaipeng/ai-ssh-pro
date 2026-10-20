@@ -41,3 +41,14 @@ export function recentSaveTarget(row: Pick<RecentConnection, 'host' | 'port' | '
   const target = recentQuickTarget({ ...row, quick: true }) ?? { host: row.host, port: row.port || 22, username: row.username }
   return { target, label: row.label?.trim() || '' }
 }
+
+/** D13d: any unsaved Recent row with a user reconnects directly (keys / agent first, password asked on auth failure). */
+export function recentConnectTarget(row: Pick<RecentConnection, 'host' | 'port' | 'username' | 'quick' | 'identity' | 'jump'>): QuickTarget | null {
+  if (!row.host || !row.username) return null
+  return recentQuickTarget(row) ?? { host: row.host, port: row.port || 22, username: row.username }
+}
+
+/** D13d: ask for a password only for an auth failure without an explicit key file, at most a few times. */
+export function shouldAskPassword(kind: string, target: Pick<QuickTarget, 'identity'>, attempt: number, max = 3): boolean {
+  return kind === 'auth' && !target.identity && attempt < max
+}
