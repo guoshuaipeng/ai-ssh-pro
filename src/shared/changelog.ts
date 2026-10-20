@@ -12,6 +12,17 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.7.0': [
+    {
+      icon: '⇩',
+      text: {
+        zh: '检查更新改为优先读取官网清单，失败再回退 GitHub；国内可走 123 云盘。更新提示为深色自绘弹层，有缓存时先显示上次结果',
+        en: 'Updates read the official manifest first, then GitHub; 123 Cloud is optional in China. The prompt is a dark custom overlay and shows the last cached result first'
+      },
+      where: { zh: '设置 → 关于 → 更新', en: 'Settings → About → Updates' },
+      action: 'updateChannel'
+    }
+  ],
   '0.6.63': [
     {
       icon: '▷',

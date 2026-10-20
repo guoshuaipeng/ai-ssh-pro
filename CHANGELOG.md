@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.7.0
+
+Released 2026-10-20 (CST).
+
+- **分发与文案对齐.** 检查更新优先读取官网清单 `https://guoshuaipeng.github.io/ai-ssh-pro/update.json`（version、发布说明、各平台 GitHub 与 123 云盘地址），失败再回退 GitHub Releases API；不再请求已 404 的 Gitee 更新接口。更新提示改为深色自绘弹层，文案正式，国内可选 123 云盘；有缓存时先显示「上次 · N 分钟前」，不出现「加载中」。README / 设计文档与现状对齐；新增清单格式说明、gh-pages 示例与发布说明模板。安装包限制 Electron 语言包为中英并提高压缩。无代码签名。 Official manifest first, GitHub fallback, 123 Cloud optional, cached update UI.
+
 ## v0.6.63
 
 Released 2026-10-20 (CST).

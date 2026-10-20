@@ -1,9 +1,9 @@
 /**
- * N1: domestic update channel.
- * Auto tries Gitee first, then GitHub. Download URLs always come from the source that answered.
+ * v0.7.0: official update.json first, GitHub Releases as fallback.
+ * Gitee is no longer an update probe. Download URLs always come from the source that answered.
  */
-export type UpdateChannel = 'auto' | 'gitee' | 'github' | 'custom'
-export type UpdateSourceId = 'gitee' | 'github' | 'custom'
+export type UpdateChannel = 'auto' | 'official' | 'github' | 'custom'
+export type UpdateSourceId = 'official' | 'github' | 'custom'
 
 export const SOURCE_TIMEOUT_MS = 8_000
 export const AUTO_BUDGET_MS = 16_000
@@ -13,7 +13,8 @@ export const GITHUB_RELEASES_URL = `${GITHUB_REPO_URL}/releases`
 export const GITHUB_LATEST_API = 'https://api.github.com/repos/guoshuaipeng/ai-ssh-pro/releases/latest'
 export const GITEE_REPO_URL = 'https://gitee.com/guoshuaipeng/ai-ssh-pro'
 export const GITEE_RELEASES_URL = `${GITEE_REPO_URL}/releases`
-export const GITEE_LATEST_API = 'https://gitee.com/api/v5/repos/guoshuaipeng/ai-ssh-pro/releases/latest'
+export const OFFICIAL_SITE_URL = 'https://guoshuaipeng.github.io/ai-ssh-pro/'
+export const OFFICIAL_UPDATE_JSON = `${OFFICIAL_SITE_URL}update.json`
 
 export const UPDATE_CHANNEL_KEY = 'aiss.update.channel'
 export const UPDATE_MIRROR_KEY = 'aiss.update.mirror'
@@ -21,8 +22,10 @@ export const UPDATE_LAST_KEY = 'aiss.update.last'
 
 export type UpdateChannelPrefs = { channel: UpdateChannel; mirror: string }
 
+/** Stored "gitee" (404 API) migrates to auto. */
 export function normalizeChannel(raw: unknown): UpdateChannel {
-  return raw === 'gitee' || raw === 'github' || raw === 'custom' || raw === 'auto' ? raw : 'auto'
+  if (raw === 'gitee') return 'auto'
+  return raw === 'official' || raw === 'github' || raw === 'custom' || raw === 'auto' ? raw : 'auto'
 }
 
 export function loadUpdateChannelPrefs(store: Pick<Storage, 'getItem'> = globalThis.localStorage): UpdateChannelPrefs {
@@ -54,13 +57,18 @@ export function rememberUpdateSource(info: LastUpdateSource, store: Pick<Storage
   }
 }
 
+function asSourceId(raw: unknown): UpdateSourceId | null {
+  return raw === 'official' || raw === 'github' || raw === 'custom' ? raw : null
+}
+
 export function loadLastUpdateSource(store: Pick<Storage, 'getItem'> = globalThis.localStorage): LastUpdateSource | null {
   try {
     const raw = store.getItem(UPDATE_LAST_KEY)
     if (!raw) return null
     const o = JSON.parse(raw) as Partial<LastUpdateSource>
-    if (o.source !== 'gitee' && o.source !== 'github' && o.source !== 'custom') return null
-    return { source: o.source, channel: normalizeChannel(o.channel), at: typeof o.at === 'number' ? o.at : 0 }
+    const source = asSourceId(o.source)
+    if (!source) return null
+    return { source, channel: normalizeChannel(o.channel), at: typeof o.at === 'number' ? o.at : 0 }
   } catch {
     return null
   }
@@ -68,14 +76,14 @@ export function loadLastUpdateSource(store: Pick<Storage, 'getItem'> = globalThi
 
 export function sourceLabel(id: UpdateSourceId | UpdateChannel, locale: string): string {
   const zh = locale === 'zh-CN'
-  if (id === 'gitee') return 'Gitee'
+  if (id === 'official') return zh ? '官网清单' : 'Official manifest'
   if (id === 'github') return 'GitHub'
-  if (id === 'custom') return zh ? '自定义镜像' : 'Custom mirror'
-  return zh ? '自动（Gitee → GitHub）' : 'Auto (Gitee → GitHub)'
+  if (id === 'custom') return zh ? '自定义清单' : 'Custom manifest'
+  return zh ? '自动（官网 → GitHub）' : 'Auto (official → GitHub)'
 }
 
 /**
- * N1★ presentation only. Shows the source that last answered when Auto has one,
+ * Presentation only. Shows the source that last answered when Auto has one,
  * otherwise the channel the user selected. Does not choose a new protocol.
  */
 export function effectiveChannelLabel(
@@ -122,20 +130,25 @@ export type PlannedSource = { id: UpdateSourceId; url: string }
 export function planSources(
   channel: UpdateChannel,
   customUrl?: string,
-  endpoints?: { gitee?: string; github?: string }
+  endpoints?: { official?: string; github?: string; gitee?: string }
 ): PlannedSource[] {
-  const gitee = endpoints?.gitee || GITEE_LATEST_API
+  const official = endpoints?.official || OFFICIAL_UPDATE_JSON
   const github = endpoints?.github || GITHUB_LATEST_API
-  if (channel === 'gitee') return [{ id: 'gitee', url: gitee }]
-  if (channel === 'github') return [{ id: 'github', url: github }]
-  if (channel === 'custom') {
+  const next = normalizeChannel(channel)
+  if (next === 'official') return [{ id: 'official', url: official }]
+  if (next === 'github') return [{ id: 'github', url: github }]
+  if (next === 'custom') {
     const url = (customUrl || '').trim()
     return url && isHttpUrl(url) ? [{ id: 'custom', url }] : []
   }
   return [
-    { id: 'gitee', url: gitee },
+    { id: 'official', url: official },
     { id: 'github', url: github }
   ]
+}
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function pickDownloadUrl(assets: unknown, platform: string): string | undefined {
@@ -175,9 +188,34 @@ function pickDownloadUrl(assets: unknown, platform: string): string | undefined 
 
 function releasePage(source: UpdateSourceId, tag: string, htmlUrl: string | undefined, requestUrl: string): string {
   if (htmlUrl && isHttpUrl(htmlUrl)) return htmlUrl
-  if (source === 'gitee') return `${GITEE_RELEASES_URL}/tag/${tag}`
   if (source === 'github') return `${GITHUB_RELEASES_URL}/tag/${tag}`
+  if (source === 'official') return OFFICIAL_SITE_URL
   return requestUrl
+}
+
+function platformDownloads(downloads: unknown, platform: string): Record<string, unknown> | null {
+  if (!downloads || typeof downloads !== 'object') return null
+  const map = downloads as Record<string, unknown>
+  const aliases: Record<string, string[]> = {
+    win32: ['win32', 'win', 'windows'],
+    darwin: ['darwin', 'mac', 'macos', 'osx'],
+    linux: ['linux']
+  }
+  for (const key of aliases[platform] || [platform]) {
+    const hit = map[key]
+    if (hit && typeof hit === 'object') return hit as Record<string, unknown>
+  }
+  return null
+}
+
+function pickPan123(data: Record<string, unknown>, platform: string): string | undefined {
+  const plat = platformDownloads(data.downloads, platform)
+  const fromPlat = str(plat?.pan123) || str(plat?.['123pan']) || str(plat?.cloud123)
+  if (fromPlat) return fromPlat
+  const top = data.pan123
+  if (typeof top === 'string') return str(top)
+  if (top && typeof top === 'object') return str((top as Record<string, unknown>).url)
+  return str(data.pan123Url)
 }
 
 export type NormalizedRelease = {
@@ -186,8 +224,13 @@ export type NormalizedRelease = {
   tag: string
   releaseUrl: string
   downloadUrl?: string
+  pan123Url?: string
   releaseName?: string
   notes?: string
+}
+
+function looksLikeOfficialManifest(data: Record<string, unknown>): boolean {
+  return Boolean(str(data.version) && (data.downloads || data.notes || data.pan123))
 }
 
 /** Parse one release document. Download URL is taken only from this document. */
@@ -197,6 +240,25 @@ export function normalizeRelease(
   requestUrl: string,
   platform: string
 ): NormalizedRelease | null {
+  if (source === 'official' || looksLikeOfficialManifest(data)) {
+    const version = (str(data.version) || str(data.tag_name) || '').replace(/^v/i, '')
+    if (!version) return null
+    const plat = platformDownloads(data.downloads, platform)
+    const downloadUrl =
+      str(plat?.github) || str(plat?.url) || str(plat?.download) || pickDownloadUrl(data.assets, platform)
+    const notes = str(data.notes) || str(data.body)
+    const tag = str(data.tag_name) || `v${version}`
+    return {
+      source: source === 'custom' ? 'custom' : source === 'github' ? 'github' : 'official',
+      version,
+      tag,
+      releaseUrl: releasePage(source === 'custom' ? 'custom' : source, tag, str(data.htmlUrl) || str(data.html_url), requestUrl),
+      downloadUrl,
+      pan123Url: pickPan123(data, platform),
+      releaseName: str(data.name),
+      notes: notes ? notes.slice(0, 8000) : undefined
+    }
+  }
   const tag = typeof data.tag_name === 'string' ? data.tag_name.trim() : ''
   const version = tag.replace(/^v/i, '')
   if (!version) return null
@@ -209,6 +271,7 @@ export function normalizeRelease(
     tag: tag || version,
     releaseUrl: releasePage(source, tag || version, html, requestUrl),
     downloadUrl: pickDownloadUrl(data.assets, platform),
+    pan123Url: pickPan123(data, platform),
     releaseName,
     notes
   }
@@ -224,6 +287,7 @@ export type ProbeResult = {
   latestVersion?: string
   releaseUrl?: string
   downloadUrl?: string
+  pan123Url?: string
   releaseName?: string
   notes?: string
   message: string
@@ -274,6 +338,7 @@ function fromRelease(
     latestVersion: rel.version,
     releaseUrl: rel.releaseUrl,
     downloadUrl: rel.downloadUrl,
+    pan123Url: rel.pan123Url,
     releaseName: rel.releaseName,
     notes: rel.notes,
     tried,
@@ -295,14 +360,16 @@ export async function probeUpdateSources(opts: {
   fetchImpl?: FetchLike
   timeoutMs?: number
   budgetMs?: number
-  giteeUrl?: string
+  officialUrl?: string
   githubUrl?: string
+  /** @deprecated ignored — Gitee is not an update source */
+  giteeUrl?: string
 }): Promise<ProbeResult> {
   const channel = normalizeChannel(opts.channel)
   const platform = opts.platform || 'linux'
   const fetchImpl = opts.fetchImpl || fetch
   const perSource = opts.timeoutMs ?? SOURCE_TIMEOUT_MS
-  const plan = planSources(channel, opts.customUrl, { gitee: opts.giteeUrl, github: opts.githubUrl })
+  const plan = planSources(channel, opts.customUrl, { official: opts.officialUrl, github: opts.githubUrl })
   const budgetMs = opts.budgetMs ?? (plan.length > 1 ? AUTO_BUDGET_MS : perSource)
   const currentVersion = opts.currentVersion
   if (!plan.length) {
@@ -311,7 +378,7 @@ export async function probeUpdateSources(opts: {
       status: 'error',
       channel,
       tried: [],
-      message: '自定义镜像地址无效（需要 http 或 https URL）。'
+      message: '自定义清单地址无效（需要 http 或 https URL）。'
     }
   }
   const budgetCtrl = new AbortController()
@@ -353,7 +420,8 @@ export async function probeUpdateSources(opts: {
   } finally {
     clearTimeout(budgetTimer)
   }
-  const fallbackPage = channel === 'gitee' ? GITEE_RELEASES_URL : channel === 'github' ? GITHUB_RELEASES_URL : opts.customUrl
+  const fallbackPage =
+    channel === 'official' ? OFFICIAL_SITE_URL : channel === 'github' ? GITHUB_RELEASES_URL : opts.customUrl
   return {
     currentVersion,
     status: tried.length && /没有 Release|未解析/.test(lastError) && channel !== 'auto' ? 'noRelease' : 'error',

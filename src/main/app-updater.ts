@@ -38,7 +38,7 @@ export async function checkForAppUpdate(opts?: {
   channel?: UpdateChannel
   customUrl?: string
   fetchImpl?: typeof fetch
-  giteeUrl?: string
+  officialUrl?: string
   githubUrl?: string
   timeoutMs?: number
   budgetMs?: number
@@ -51,7 +51,7 @@ export async function checkForAppUpdate(opts?: {
     currentVersion,
     platform: opts?.platform || process.platform,
     fetchImpl: opts?.fetchImpl,
-    giteeUrl: opts?.giteeUrl,
+    officialUrl: opts?.officialUrl,
     githubUrl: opts?.githubUrl,
     timeoutMs: opts?.timeoutMs,
     budgetMs: opts?.budgetMs
@@ -62,6 +62,7 @@ export async function checkForAppUpdate(opts?: {
     latestVersion: probed.latestVersion,
     releaseUrl: probed.releaseUrl,
     downloadUrl: probed.downloadUrl,
+    pan123Url: probed.pan123Url,
     releaseName: probed.releaseName,
     notes: probed.notes,
     message: probed.message,

@@ -72,7 +72,7 @@ const api = {
       return () => ipcRenderer.removeListener('app:open-dialog', fn)
     },
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
-    checkUpdate: (opts?: { channel?: 'auto' | 'gitee' | 'github' | 'custom'; customUrl?: string }): Promise<AppUpdateCheckResult> =>
+    checkUpdate: (opts?: { channel?: 'auto' | 'official' | 'github' | 'custom'; customUrl?: string }): Promise<AppUpdateCheckResult> =>
       ipcRenderer.invoke('app:checkUpdate', opts),
     focus: (): Promise<boolean> => ipcRenderer.invoke('app:focus'),
     openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('app:openExternal', url),

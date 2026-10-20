@@ -1,6 +1,6 @@
 # AI-SSH-Pro
 
-类 Xshell 的多会话 SSH 客户端，集成 AI 对话（Electron + TypeScript + React）。
+类 Xshell 的多会话 SSH 客户端，集成 AI 对话（Electron + TypeScript + React）。当前版本 **0.7.0**。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
@@ -19,6 +19,15 @@
 
 ![Keyboard shortcuts (F1)](docs/screenshots/shortcuts.png)
 
+## Download
+
+- **Official site / update manifest:** https://guoshuaipeng.github.io/ai-ssh-pro/ ([`update.json`](https://guoshuaipeng.github.io/ai-ssh-pro/update.json))
+- **GitHub Releases:** https://github.com/guoshuaipeng/ai-ssh-pro/releases
+- **123 Cloud Disk (123 云盘):** share link is published in the official manifest (`pan123`) for users in mainland China
+- **Gitee:** source mirror only — https://gitee.com/guoshuaipeng/ai-ssh-pro — not used as an update API
+
+The in-app checker reads the official manifest first and falls back to the GitHub Releases API. Builds are **not code-signed**.
+
 ## Features
 
 - **Multi-tab SSH** — password / private-key auth, xterm terminal, session groups
@@ -28,7 +37,9 @@
 - **Host key TOFU** — confirm fingerprint on first connect; warn on change
 - **Encrypted secrets** — session passwords, key passphrases, and API keys via Electron `safeStorage`
 - **Keepalive & reconnect** — SSH keepalive plus one-click reconnect after disconnect
-- **AI Core-A** — observe → plan → **commands run only after confirmation**; terminal snapshot auto-read
+- **AI Core-A** — observe → plan → run under one of three policies (**Suggest only** / **Confirm before run** / **Auto run**); terminal snapshot auto-read; chats are bound to the terminal tab
+- **Ops home** — host health, alerts, and shortcuts on the start page
+- **Docker / playbooks / audit** — container toolbox, dry-run playbooks, alert workbench, audit log
 - **Terminal prefs** — font, theme, and related terminal settings
 - **Snippets** — reusable command snippets
 - **Session export / import** — Xshell `.xsh`, OpenSSH `config`, PuTTY
@@ -68,7 +79,7 @@ Artifacts land under `release/`.
 
 ## Host inventory & MCP
 
-Host profiles live on disk (not cloud sync):
+Host profiles live on disk (separate from the optional encrypted backup in Settings → Backup):
 
 - Default root: `~/.ai-ssh-pro/inventory`
 - Override with env `AISS_INVENTORY_ROOT`
@@ -116,7 +127,7 @@ Tools: `list_hosts`, `get_host`, `search_hosts`, `upsert_host`, `upsert_service`
 
 1. Open **AI 配置** from the menu or toolbar
 2. Enter an OpenAI-compatible Provider (e.g. DashScope `.../compatible-mode/v1`) and API Key
-3. Core-A is on by default (`useOpenClaw`); turn it off for single-shot streaming chat
+3. Core-A is on by default; turn it off for single-shot streaming chat. AI write policy is **Suggest only** / **Confirm before run** / **Auto run** (Settings → AI, or per host)
 
 Optional environment variables:
 
@@ -131,7 +142,7 @@ Optional environment variables:
 - Passwords, key passphrases, and API keys are encrypted at rest with OS secure storage (e.g. Windows DPAPI). If encryption is unavailable, the app may fall back to plaintext and log a console warning.
 - Host keys live in a separate store: `ai-ssh-pro-known-hosts`.
 - Do not save production credentials on untrusted machines.
-- **No cloud sync.** Back up with JSON session export/import; there is no remote account or sync service.
+- There is **no vendor account**. Optional **encrypted cloud backup / sync** (Settings → Backup) is something you configure yourself; secrets still stay in OS secure storage on this machine. You can also export/import sessions as JSON.
 - Recent connections store host, user, port, label, and time only. They do not store passwords, key paths, or passphrases.
 - Command history stores the commands you choose to send (capped at about 200) in the same local store. If you type a secret into a command, that text stays on this machine until you clear history.
 - There is no telemetry.

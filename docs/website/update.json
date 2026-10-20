@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "version": "0.7.0",
+  "name": "AI-SSH-Pro 0.7.0",
+  "notes": "- 检查更新改为优先读取官网清单，失败再回退 GitHub Releases\n- 国内用户可选择 123 云盘下载\n- 更新提示改为深色自绘弹层，有缓存时先显示上次结果\n- 不再依赖 Gitee 更新接口",
+  "publishedAt": "2026-10-20T00:00:00+08:00",
+  "htmlUrl": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/tag/v0.7.0",
+  "downloads": {
+    "win32": {
+      "github": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.7.0/AI-SSH-Pro-0.7.0-win-x64.exe",
+      "pan123": "https://www.123pan.com/s/REPLACE"
+    },
+    "darwin": {
+      "github": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.7.0/AI-SSH-Pro-0.7.0-mac-x64.dmg",
+      "pan123": "https://www.123pan.com/s/REPLACE"
+    },
+    "linux": {
+      "github": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.7.0/AI-SSH-Pro-0.7.0-linux-x64.AppImage",
+      "pan123": "https://www.123pan.com/s/REPLACE"
+    }
+  },
+  "pan123": {
+    "url": "https://www.123pan.com/s/REPLACE",
+    "code": ""
+  }
+}

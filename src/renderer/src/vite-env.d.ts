@@ -56,7 +56,7 @@ export type AissPreload = {
   app: {
     onOpenDialog: (cb: (kind: AppDialogKind) => void) => () => void
     getVersion: () => Promise<string>
-    checkUpdate: (opts?: { channel?: 'auto' | 'gitee' | 'github' | 'custom'; customUrl?: string }) => Promise<AppUpdateCheckResult>
+    checkUpdate: (opts?: { channel?: 'auto' | 'official' | 'github' | 'custom'; customUrl?: string }) => Promise<AppUpdateCheckResult>
     focus: () => Promise<boolean>
     openExternal: (url: string) => Promise<boolean>
     openGithub: () => Promise<boolean>

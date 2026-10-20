@@ -44,7 +44,7 @@ export default function UpdateChannelPanel({ onClose }: Props) {
             {(
               [
                 ['auto', 'n1.auto'],
-                ['gitee', 'n1.gitee'],
+                ['official', 'n1.official'],
                 ['github', 'n1.github'],
                 ['custom', 'n1.custom']
               ] as const

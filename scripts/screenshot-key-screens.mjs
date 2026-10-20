@@ -85,6 +85,8 @@ const base = [
   { name: 'terminal', size: W, steps: [{ op: 'menu', action: 'demoHost' }], wait: 3200 },
   { name: 'sftp', size: W, steps: [{ op: 'sftpDual' }], wait: 2600 },
   { name: 'settings', size: W, steps: [{ op: 'menu', action: 'settings' }], wait: 1200 },
+  { name: 'settings-about', size: W, steps: [{ op: 'settingsAbout' }], wait: 1400 },
+  { name: 'update-modal', size: W, steps: [{ op: 'systemUpdate' }], wait: 1200, close: true },
   { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
   { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'ai' }], wait: 1400 },
@@ -128,6 +130,15 @@ async function seed(win) {
     localStorage.setItem('aiss.prefs.firstWeekTipsDismissed', 'true');
     // Last-known metrics for the demo host (M17 cache): cards render them at once with the stale hint.
     localStorage.setItem('aiss.metricCache.v1', JSON.stringify({ p1: { cpu: 23, mem: 41, disk: 87, load: null, at: Date.now() - 180000 } }));
+    localStorage.setItem('aiss.update.cache', JSON.stringify({
+      at: Date.now() - 3 * 60 * 1000,
+      currentVersion: '0.6.63',
+      status: 'available',
+      latestVersion: '0.7.0',
+      source: 'official',
+      downloadUrl: 'https://github.com/guoshuaipeng/ai-ssh-pro/releases/tag/v0.7.0',
+      pan123Url: 'https://www.123pan.com/s/example'
+    }));
     true
   \`, true)
   await win.webContents.executeJavaScript(\`
@@ -285,9 +296,12 @@ await import(${JSON.stringify(pathToFileURL(mainJs).href)})
 const electron = createRequire(import.meta.url)('electron')
 const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: appData, LOCALAPPDATA: join(root, 'AppData', 'Local') }
 for (const k of Object.keys(env)) if (k.startsWith('AISS_') || k === 'ELECTRON_RENDERER_URL') delete env[k]
-const child = spawn(electron, [wrapperDir], { env, stdio: ['ignore', 'pipe', 'pipe'] })
-child.stdout.on('data', (d) => { const s = String(d); if (s.includes('[cov]')) process.stdout.write(s) })
-child.stderr.on('data', (d) => { const s = String(d); if (s.includes('[cov]') || s.includes('Error')) process.stderr.write(s) })
+const electronArgs = process.platform === 'linux'
+  ? ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', wrapperDir]
+  : [wrapperDir]
+const child = spawn(electron, electronArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] })
+child.stdout.on('data', (d) => { const s = String(d); process.stdout.write(s.includes('[cov]') || s.includes('Error') ? s : '') })
+child.stderr.on('data', (d) => { const s = String(d); process.stderr.write(s) })
 const killTree = () => {
   if (process.platform === 'win32') spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'])
   else child.kill('SIGKILL')

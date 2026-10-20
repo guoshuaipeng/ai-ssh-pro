@@ -27,6 +27,10 @@ export type ScreenshotOp =
   | { op: "hostSafety" }
   /** Visual QA (M25): open a composer chip popover (model menu or safety policy). */
   | { op: "aiComposerPop"; which: "model" | "safety" }
+  /** v0.7.0: seed and open the update overlay. */
+  | { op: "systemUpdate" }
+  /** v0.7.0: open Settings → About (update channel). */
+  | { op: "settingsAbout" }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

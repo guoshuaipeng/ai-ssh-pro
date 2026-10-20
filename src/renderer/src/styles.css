@@ -5581,8 +5581,75 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
 }
 
 /* update dialog + what's new (V2/V3) */
-.update-modal-actions { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
+.update-modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); width: 100%; flex-wrap: wrap; }
 .update-modal ul { margin: 0; padding-left: 18px; line-height: 1.7; font-size: 13px; }
+
+.update-overlay {
+  width: min(92vw, 480px);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-dialog);
+  box-shadow: var(--shadow-modal);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.update-overlay-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+.update-overlay-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+.update-overlay-meta {
+  margin: var(--space-1) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+.update-overlay-body {
+  padding: 0 var(--space-4) var(--space-4);
+}
+.update-overlay-body ul {
+  margin: 0;
+  padding-left: var(--space-4);
+  line-height: var(--lh-relaxed);
+  font-size: var(--fs-base);
+  color: var(--color-text-primary);
+}
+.update-overlay-empty {
+  margin: 0;
+  font-size: var(--fs-base);
+  color: var(--color-text-secondary);
+}
+.update-overlay-cache {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+.update-overlay-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  flex-wrap: wrap;
+}
+.update-overlay-alt { min-width: 0; }
+.n1-cache {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
 .wn-icon { font-size: 18px; width: 24px; text-align: center; }
 .wn-where { font-size: 12px; color: var(--muted); background: none; border: none; padding: 0; text-align: left; }
 .wn-where--link { color: var(--accent); cursor: pointer; }

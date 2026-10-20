@@ -54,10 +54,9 @@ export default function AboutBlock({ version, isDev = false, checking = false, o
           ref={checkRef}
           data-testid="about-check"
           disabled={checking}
-          aria-busy={checking}
           onClick={onCheckUpdate}
         >
-          {checking ? t('upd.checking') : t('about.check')}
+          {t('about.check')}
         </button>
         <button type="button" className="secondary" data-testid="about-notes" onClick={onWhatsNew}>
           {t('about.whatsNew')}
