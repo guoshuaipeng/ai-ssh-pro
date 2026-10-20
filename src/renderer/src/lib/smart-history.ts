@@ -42,12 +42,17 @@ export function loadSmartHistory(): HistoryEntry[] {
           command: e.command,
           hostKey: typeof e.hostKey === 'string' ? e.hostKey : '',
           count: typeof e.count === 'number' ? e.count : 1,
-          lastUsed: typeof e.lastUsed === 'number' ? e.lastUsed : 0
+          lastUsed: typeof e.lastUsed === 'number' ? e.lastUsed : 0,
+          ...(typeof e.lastExit === 'number' ? { lastExit: e.lastExit } : {})
         }
       })
   } catch {
     return []
   }
+}
+
+export function saveSmartHistory(entries: HistoryEntry[]): void {
+  save(entries)
 }
 
 function save(entries: HistoryEntry[]): void {
@@ -67,6 +72,7 @@ export function recordSmartCommand(hostKey: string, command: string): HistoryEnt
     const prev = all[i]!
     all.splice(i, 1)
     all.unshift({ ...prev, count: prev.count + 1, lastUsed: Date.now() })
+    // D22: lastExit stays until this run reports its own code
   } else {
     all.unshift({ command: cmd, hostKey, count: 1, lastUsed: Date.now() })
   }

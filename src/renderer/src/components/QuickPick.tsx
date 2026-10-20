@@ -116,6 +116,7 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
                 {highlightRuns(it.label, it.indices).map((r, k) => (r.hit ? <mark key={k} className="qp-hit">{r.text}</mark> : <span key={k}>{r.text}</span>))}
               </span>
               {it.detail ? <span className="cmdp-group qp-detail">{it.detail}</span> : null}
+              {typeof it.failed === 'number' ? <span className="qp-badge qp-badge--failed" data-testid="qp-failed" title={tg('d22.failedTip', { code: it.failed })}>{tg('d22.failed', { code: it.failed })}</span> : null}
               {it.badge ? <span className={`qp-badge qp-badge--${it.badge}`}>{tg(BADGE_KEY[it.badge])}</span> : null}
             </button>
           ))}

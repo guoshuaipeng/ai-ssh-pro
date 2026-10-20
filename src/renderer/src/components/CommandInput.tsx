@@ -4,6 +4,7 @@ import { highlightMatch, rankSuggestions, type HistoryEntry, type Suggestion } f
 import { useI18n } from '../lib/i18n'
 import { HISTORY_CHANGED_EVENT, notifyHistoryChanged } from '../lib/workspace-events'
 import { loadSmartHistory, loadSmartPrefs } from '../lib/smart-history'
+import { lastExitOf, upHistoryList } from '@shared/history-exit'
 
 type Props = {
   placeholder?: string
@@ -107,6 +108,8 @@ export default function CommandInput({
         })
       : []
   const suggestions = smart ? ranked.map((s) => s.command) : suggest ? filterCommandHistory(history, text, 8) : []
+  // D22: ↑ walks this host's commands first
+  const upList = smart && hostKey && smartRows.length ? upHistoryList(hostKey, smartRows, history) : history
 
   const fill = (command: string) => {
     setText(command)
@@ -178,17 +181,17 @@ export default function CommandInput({
               })
               return
             }
-            if (history.length === 0) return
+            if (upList.length === 0) return
             e.preventDefault()
             setOpen(false)
             setHighlight(-1)
             const next =
               e.key === 'ArrowUp'
-                ? Math.min(history.length - 1, historyCursor + 1)
+                ? Math.min(upList.length - 1, historyCursor + 1)
                 : Math.max(-1, historyCursor - 1)
             if (historyCursor === -1) draftRef.current = text
             setHistoryCursor(next)
-            setText(next === -1 ? draftRef.current : history[next] ?? '')
+            setText(next === -1 ? draftRef.current : upList[next] ?? '')
             return
           }
           if (e.key === 'Tab' && smart && open && suggestions.length > 0) {
@@ -236,6 +239,12 @@ export default function CommandInput({
                   {smart && meta ? (
                     <span className="cmd-suggest-meta">
                       <span className={`cmd-src cmd-src--${meta.source}`}>{sourceLabel}</span>
+                        {(() => {
+                          const code = lastExitOf(smartRows, hostKey, cmd)
+                          return typeof code === 'number' && code !== 0 ? (
+                            <span className="cmd-src cmd-src--failed" data-testid="suggest-failed" title={t('d22.failedTip', { code })}>{t('d22.failed', { code })}</span>
+                          ) : null
+                        })()}
                       {meta.count > 0 ? <span>{meta.count}</span> : null}
                     </span>
                   ) : null}

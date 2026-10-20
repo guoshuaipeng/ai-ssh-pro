@@ -13,6 +13,7 @@ import { COMMAND_BAR_AI_MODE_EVENT, COMMAND_BAR_FILL_EVENT, aiHasKey, flashAiCon
 import { confirmAndRunAiCommand } from '../lib/ai-run'
 import { loadSmartPrefs, recordSmartCommand, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
+import { bindHistoryHost } from '../lib/history-exit'
 import type { CommandSnippet } from '@shared/ipc'
 import Icon, { Twist } from './Icon'
 
@@ -63,6 +64,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
   const [snippets, setSnippets] = useState<CommandSnippet[]>([])
 
   useEffect(() => {
+    bindHistoryHost(sessionId, hostKey)
     if (isDemoSessionId(sessionId) && hostKey) seedDemoHistory(hostKey)
     void window.aiss?.snippets?.list?.().then((rows) => setSnippets(Array.isArray(rows) ? rows : [])).catch(() => undefined)
   }, [sessionId, hostKey])
