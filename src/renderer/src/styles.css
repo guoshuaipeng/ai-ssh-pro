@@ -7139,3 +7139,11 @@ button.primary.danger:focus-visible {
 .batch-compare button { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; cursor: pointer; }
 .batch-exec-result.is-outlier { border-color: var(--color-accent); }
 .batch-outlier { padding: 0 var(--space-1); border-radius: var(--radius-sm); border: 1px solid var(--color-accent); color: var(--color-accent); font-size: var(--fs-xs); }
+/* D65: batch targets by folder / tag */
+.batch-groups { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: var(--space-1) 0 var(--space-2); }
+.batch-groups-label { font-size: var(--fs-xs); color: var(--color-text-secondary); margin-right: var(--space-1); }
+.batch-group { padding: 0 var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; font-size: var(--fs-xs); cursor: pointer; }
+.batch-group.is-all { border-color: var(--color-accent); color: var(--color-accent); }
+.batch-group.is-some { border-style: dashed; border-color: var(--color-accent); }
+.batch-group-n { color: var(--color-text-secondary); }
+.batch-open-host { margin-left: auto; padding: 0 var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; font-size: var(--fs-xs); cursor: pointer; }

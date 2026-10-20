@@ -1202,6 +1202,7 @@ export default function App() {
             username: tab.connectOpts.username,
             profileId: tab.profileId,
             folderId: prof?.folderId,
+            tags: prof?.tags,
             readonly: stricterLevel(effectiveLevel(prof), Boolean(tab.profileId && sessionRo[tab.profileId])) === 'readonly' && !isElevated(prof?.id, elevateMap)
           }
         }),
@@ -8997,6 +8998,13 @@ export default function App() {
                     embedded
                     sessions={connectedSshSessions}
                     preselect={t.batchPreselect}
+                    folders={folders}
+                    onOpenHost={(sid, command) => {
+                      // D65: fill only; the user reviews and presses Enter
+                      const live = tabs.find((x) => x.sessionId === sid && (!x.view || x.view === 'session'))
+                      if (live) setActiveTabId(live.tabId)
+                      window.setTimeout(() => fillCommandBar(sid, command), 60)
+                    }}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                   />
                 ) : t.view === 'home' ? (

@@ -9,6 +9,7 @@ import { assessCommandRisk } from '../../../shared/command-risk'
 import { askConfirm } from '../lib/dialogs'
 import Button from './ui/Button'
 import { batchDiffContext, compareBatch } from '@shared/batch-compare'
+import { batchGroups, groupState, toggleGroup } from '@shared/batch-targets'
 import { redactAuditText } from '@shared/audit-log'
 import { requestAskWithContext } from '../lib/ai-prefill'
 
@@ -20,6 +21,8 @@ export type BatchSessionOption = {
   username: string
   profileId?: string
   folderId?: string
+  /** D65: profile tags, for picking targets by tag */
+  tags?: string[]
   /** S4: this host is skipped. */
   readonly?: boolean
 }
@@ -32,6 +35,10 @@ type Props = {
   /** UX-14: render inside a center tab */
   embedded?: boolean
   onClose: () => void
+  /** D65: folders for group picking */
+  folders?: { id: string; name: string }[]
+  /** D65: jump to the host's terminal and fill the command (not run) */
+  onOpenHost?: (sessionId: string, command: string) => void
 }
 
 const ERROR_KEYS: Record<string, MessageKey> = {
@@ -43,7 +50,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   'no-sessions': 'batch.errNoSessions'
 }
 
-export default function BatchExecuteModal({ open, sessions, preselect, onClose, embedded }: Props) {
+export default function BatchExecuteModal({ open, sessions, preselect, onClose, embedded, folders = [], onOpenHost }: Props) {
   const { t } = useI18n()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [command, setCommand] = useState('')
@@ -51,6 +58,7 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
   const [formError, setFormError] = useState<string | null>(null)
   const [result, setResult] = useState<BatchExecResult | null>(null)
   const wasOpen = useRef(false)
+  const groups = useMemo(() => batchGroups(sessions, folders), [sessions, folders])
   // D64: group identical outputs; flag hosts that differ from the majority
   const cmp = useMemo(() => (result && result.results.length >= 2 ? compareBatch(result.results) : null), [result])
   const outlierSet = useMemo(() => new Set(cmp?.outliers ?? []), [cmp])
@@ -201,6 +209,26 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
               </button>
               <span className="batch-exec-count">{selectedCount}</span>
             </div>
+            {groups.length ? (
+              <div className="batch-groups" data-testid="batch-groups" role="group" aria-label={t('d65.groups')}>
+                <span className="batch-groups-label">{t('d65.groups')}</span>
+                {groups.map((g) => {
+                  const st = groupState(selected, g.ids)
+                  return (
+                    <button
+                      key={g.key}
+                      type="button"
+                      className={`batch-group is-${st}`}
+                      aria-pressed={st === 'all'}
+                      title={t(st === 'all' ? 'd65.groupOff' : 'd65.groupOn', { n: g.ids.length })}
+                      onClick={() => setSelected((p) => toggleGroup(p, g.ids))}
+                    >
+                      {g.label} <span className="batch-group-n">{g.ids.length}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
             <ul className="batch-exec-sessions">
               {sessions.map((s) => (
                 <li key={s.sessionId}>
@@ -255,6 +283,11 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
                 <header>
                   <strong>{row.label || row.sessionId}</strong>
                   {outlierSet.has(row.sessionId) ? <span className="batch-outlier" data-testid="batch-outlier">{t('d64.differs')}</span> : null}
+                  {onOpenHost && (outlierSet.has(row.sessionId) || !row.ok) ? (
+                    <button type="button" className="batch-open-host" data-testid="batch-open-host" title={t('d65.openTip')} onClick={() => onOpenHost(row.sessionId, result!.command)}>
+                      {t('d65.open')}
+                    </button>
+                  ) : null}
                   <span>
                     {row.username ? `${row.username}@${row.host}:${row.port}` : row.sessionId}
                   </span>
