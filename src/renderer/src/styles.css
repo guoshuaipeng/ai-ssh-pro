@@ -7101,3 +7101,19 @@ button.primary.danger:focus-visible {
 .qp-badge { flex: none; margin-left: var(--space-2); padding: 0 var(--space-1); border-radius: var(--radius-sm); font-size: var(--fs-xs); color: var(--color-text-secondary); border: 1px solid var(--color-border-muted); }
 .qp-badge--host, .qp-badge--current { color: var(--color-accent); border-color: var(--color-accent-muted); }
 .qp-badge--disconnected { color: var(--color-warn); border-color: var(--color-warn-muted); }
+/* D5: remote edit conflict */
+.remote-file-conflict { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2); background: var(--color-warn-muted); color: var(--color-text-primary); border-bottom: 1px solid var(--color-border-muted); font-size: var(--fs-sm); }
+.remote-file-conflict span { flex: 1 1 240px; }
+.d5-diff-legend { padding: var(--space-1) var(--space-2); font-size: var(--fs-xs); color: var(--color-text-secondary); }
+/* D7: multi-line paste preview */
+.paste-preview { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 6; width: min(640px, calc(100% - 32px)); padding: var(--space-2); background: var(--color-bg-surface); color: var(--color-text-primary); border: 1px solid var(--color-border-muted); border-radius: var(--radius-sm); box-shadow: var(--shadow-menu); font-size: var(--fs-sm); }
+.paste-preview-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+.paste-preview-risk { color: var(--color-warn); font-size: var(--fs-xs); }
+.paste-preview-lines { margin: 0; padding: var(--space-1) var(--space-1) var(--space-1) 2.4em; max-height: 220px; overflow: auto; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--color-text-secondary); }
+.paste-preview-lines li.is-risky { color: var(--color-warn); background: var(--color-warn-muted); }
+.paste-preview-lines code { white-space: pre; }
+.paste-preview-more, .paste-preview-hint { margin: var(--space-1) 0 0; font-size: var(--fs-xs); color: var(--color-text-secondary); }
+.paste-preview-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+.paste-preview-actions button { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-muted); background: none; color: inherit; cursor: pointer; }
+.paste-preview-actions button.is-primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-bg-surface); }
+.paste-preview-actions button:disabled { opacity: 0.5; cursor: not-allowed; }

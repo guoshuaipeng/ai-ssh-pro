@@ -10,6 +10,7 @@ import { showToast } from '../lib/toast'
 import Icon from './Icon'
 import Button from './ui/Button'
 import PanelHeader from './ui/PanelHeader'
+import { AUTO_SAVE_DELAY_MS, planAutoSave, remoteChanged } from '@shared/remote-edit'
 
 type Props = {
   tabId: string
@@ -49,6 +50,7 @@ function basename(path: string): string {
 
 const SHOW_DIFF_KEY = 'aiss.editor.showDiffBeforeSave'
 const BAK_KEY = 'aiss.editor.bakOnSave'
+const AUTO_KEY = 'aiss.editor.autoSave'
 
 export default function RemoteTextEditor({
   tabId,
@@ -69,7 +71,10 @@ export default function RemoteTextEditor({
   const [content, setContent] = useState('')
   const [baseline, setBaseline] = useState('')
   const [meta, setMeta] = useState<Pick<SftpReadTextResult, 'size' | 'truncated'> | null>(null)
-  const [mode, setMode] = useState<'edit' | 'diff'>('edit')
+  const [mode, setMode] = useState<'edit' | 'diff' | 'conflict'>('edit')
+  // D5: remote content when it changed under us; auto-save preference
+  const [conflict, setConflict] = useState<string | null>(null)
+  const [autoPref, setAutoPref] = useState(() => localStorage.getItem(AUTO_KEY) === '1')
   const [lang, setLang] = useState<LangId>('text')
   const [showDiffPref, setShowDiffPref] = useState(() => localStorage.getItem(SHOW_DIFF_KEY) !== '0')
   const [bakPref, setBakPref] = useState(() => localStorage.getItem(BAK_KEY) === '1')
@@ -79,7 +84,10 @@ export default function RemoteTextEditor({
 
   const dirty = content !== baseline
   const fileName = useMemo(() => basename(remotePath), [remotePath])
-  const diff = useMemo(() => (mode === 'diff' ? diffLines(baseline, content) : []), [mode, baseline, content])
+  const diff = useMemo(
+    () => (mode === 'diff' ? diffLines(baseline, content) : mode === 'conflict' && conflict != null ? diffLines(conflict, content) : []),
+    [mode, baseline, content, conflict]
+  )
   const stats = useMemo(() => diffStats(diff), [diff])
 
   useEffect(() => {
@@ -92,6 +100,7 @@ export default function RemoteTextEditor({
     setError(null)
     setStatus(null)
     setMode('edit')
+    setConflict(null)
     try {
       const res = await window.aiss.sftp.readText(sessionId, remotePath)
       setContent(res.content)
@@ -116,7 +125,7 @@ export default function RemoteTextEditor({
     return () => clearRemoteFileDirty(tabId)
   }, [load, tabId])
 
-  const doSave = useCallback(async () => {
+  const doSave = useCallback(async (opts?: { force?: boolean; auto?: boolean }) => {
     if (saving || loading) return
     if (meta?.truncated) {
       setError(tg('ui.259'))
@@ -126,6 +135,16 @@ export default function RemoteTextEditor({
     setError(null)
     setStatus(tg('ui.260'))
     try {
+      // D5: refuse to overwrite a file that changed on the server since we read it
+      if (!opts?.force && !remoteWritesBlocked) {
+        const now = await window.aiss.sftp.readText(sessionId, remotePath)
+        if (remoteChanged(baseline, now)) {
+          setConflict(now.content)
+          setStatus(null)
+          setMode('edit')
+          return
+        }
+      }
       if (beforeRemoteWrite && !(await beforeRemoteWrite())) {
         setError(remoteWritesBlocked ? tg('l4.readonlyBlocked') : null)
         setStatus(null)
@@ -154,9 +173,16 @@ export default function RemoteTextEditor({
       }
       await window.aiss.sftp.writeText(sessionId, remotePath, content)
       setBaseline(content)
+      setConflict(null)
       setRemoteFileDirty(tabId, false)
       setMeta((m) => (m ? { ...m, size: new TextEncoder().encode(content).length, truncated: false } : m))
-      setStatus(snapped ? tg('w3.savedWithSnap') : tg('ui.261', { 0: String(new Date().toLocaleTimeString()) }))
+      setStatus(
+        opts?.auto
+          ? tg('d5.autoSaved', { t: new Date().toLocaleTimeString() })
+          : snapped
+            ? tg('w3.savedWithSnap')
+            : tg('ui.261', { 0: String(new Date().toLocaleTimeString()) })
+      )
       setMode('edit')
     } catch (e) {
       setError(friendlyErrorMessage(e, locale === 'en' ? 'en' : 'zh-CN'))
@@ -165,6 +191,13 @@ export default function RemoteTextEditor({
       setSaving(false)
     }
   }, [bakPref, baseline, beforeRemoteWrite, content, loading, locale, meta?.truncated, profileId, remotePath, remoteWritesBlocked, saving, sessionId, tabId])
+
+  // D5: auto-save after a short pause (skips the diff preview; conflicts still stop it)
+  useEffect(() => {
+    if (!planAutoSave({ enabled: autoPref, dirty, blocked: remoteWritesBlocked, truncated: Boolean(meta?.truncated), conflict: conflict != null, saving, loading, mode })) return
+    const t = window.setTimeout(() => void doSave({ auto: true }), AUTO_SAVE_DELAY_MS)
+    return () => window.clearTimeout(t)
+  }, [autoPref, conflict, content, dirty, doSave, loading, meta?.truncated, mode, remoteWritesBlocked, saving])
 
   const requestSave = useCallback(() => {
     if (!dirty || saving || loading || meta?.truncated) return
@@ -232,6 +265,22 @@ export default function RemoteTextEditor({
           <>
             {mode === 'edit' ? (
               <>
+                <label
+                  className="remote-file-autosave"
+                  data-testid="remote-autosave"
+                  title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : tg('d5.autoHint')}
+                >
+                  <input
+                    type="checkbox"
+                    checked={autoPref && !remoteWritesBlocked}
+                    disabled={remoteWritesBlocked}
+                    onChange={(e) => {
+                      setAutoPref(e.target.checked)
+                      localStorage.setItem(AUTO_KEY, e.target.checked ? '1' : '0')
+                    }}
+                  />
+                  {tg('d5.auto')}
+                </label>
                 <label className="remote-file-autosave" title={tg('d4.showDiff')}>
                   <input
                     type="checkbox"
@@ -282,9 +331,9 @@ export default function RemoteTextEditor({
                 <Button variant="primary"
                   disabled={saving || remoteWritesBlocked}
                   title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
-                  onClick={() => void doSave()}
+                  onClick={() => void doSave(mode === 'conflict' ? { force: true } : undefined)}
                 >
-                  {saving ? tg('ui.185') : tg('d4.saveServer')}
+                  {saving ? tg('ui.185') : mode === 'conflict' ? tg('d5.overwrite') : tg('d4.saveServer')}
                 </Button>
               </>
             )}
@@ -321,6 +370,36 @@ export default function RemoteTextEditor({
         <span className="remote-file-shortcut">{tg('ui.269')}</span>
       </div>
 
+      {conflict != null ? (
+        <div className="remote-file-conflict" data-testid="remote-conflict" role="alert">
+          <span>{tg('d5.conflict')}</span>
+          <button type="button" data-testid="remote-conflict-diff" onClick={() => setMode('conflict')}>
+            {tg('d5.viewDiff')}
+          </button>
+          <button
+            type="button"
+            data-testid="remote-conflict-overwrite"
+            disabled={saving || remoteWritesBlocked}
+            title={remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
+            onClick={() => void doSave({ force: true })}
+          >
+            {tg('d5.overwrite')}
+          </button>
+          <button
+            type="button"
+            data-testid="remote-conflict-discard"
+            onClick={() => {
+              setContent(conflict)
+              setBaseline(conflict)
+              setConflict(null)
+              setMode('edit')
+              setStatus(tg('d5.reloaded'))
+            }}
+          >
+            {tg('d5.discard')}
+          </button>
+        </div>
+      ) : null}
       {error ? <div className="remote-file-error">{error}</div> : null}
 
       <div className="remote-file-editor-wrap">
@@ -328,8 +407,9 @@ export default function RemoteTextEditor({
           <div className="remote-file-loading">{tg('ui.270')}</div>
         ) : error && !content ? (
           <div className="remote-file-loading">{tg('ui.271')}</div>
-        ) : mode === 'diff' ? (
+        ) : mode !== 'edit' ? (
           <div className="d4-diff" data-testid="remote-diff">
+            {mode === 'conflict' ? <div className="d5-diff-legend">{tg('d5.diffLegend')}</div> : null}
             {diff.map((l, i) => (
               <div key={i} className={`d4-line d4-${l.type}`}>
                 <span className="d4-gutter">{l.type === 'add' ? '+' : l.type === 'del' ? '−' : ' '}</span>
