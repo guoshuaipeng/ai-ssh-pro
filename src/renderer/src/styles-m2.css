@@ -287,3 +287,5 @@
 .qp-scope { display: flex; justify-content: flex-end; padding: 4px 12px; border-bottom: 1px solid var(--border); }
 .qp-scope-btn { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; }
 .qp-scope-btn.is-on { color: var(--accent); border-color: var(--accent); }
+/* D45: keep Recent next to Cd-in-terminal */
+.sftp-pane-title .sftp-cd-terminal + .sftp-cd-terminal { margin-left: 4px; }
