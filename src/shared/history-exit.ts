@@ -17,6 +17,7 @@ export function withCwd<T extends HistoryEntry>(entries: T[], hostKey: string, c
   const c = String(cwd ?? '').trim()
   if (!c || !(c.startsWith('/') || c === '~' || c.startsWith('~/'))) return entries
   const cmd = command.trim()
+  if (/^(cd|pushd|popd)(\s|$)/.test(cmd)) return entries // navigation itself: the folder is noise
   const i = entries.findIndex((e) => e.hostKey === hostKey && e.command === cmd)
   if (i < 0 || entries[i]!.lastCwd === c) return entries
   const next = entries.slice()
