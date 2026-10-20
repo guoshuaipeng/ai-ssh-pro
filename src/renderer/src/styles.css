@@ -7154,6 +7154,11 @@ button.primary.danger:focus-visible {
 .session-folder-row.is-drop-target { outline: 1px dashed var(--color-accent); outline-offset: -1px; border-radius: var(--radius-sm); }
 .sidebar-ungroup-drop { margin: var(--space-1) var(--space-2); padding: var(--space-2); border: 1px dashed var(--color-border-default); border-radius: var(--radius-sm); color: var(--color-text-secondary); font-size: var(--fs-xs); text-align: center; }
 .sidebar-ungroup-drop.is-drop-target { border-color: var(--color-accent); color: var(--color-accent); }
+.ai-my-prompt { display: inline-flex; align-items: center; gap: var(--space-1); padding-right: var(--space-1); }
+.ai-my-prompt-text { all: unset; cursor: pointer; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-my-prompt-del { all: unset; cursor: pointer; color: var(--color-text-secondary); padding: 0 var(--space-1); }
+.ai-my-prompt-del:hover { color: var(--color-danger); }
+.ai-my-prompt-add { border-style: dashed; }
 .recent-fail-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--space-1); border-radius: 50%; background: var(--color-danger); vertical-align: middle; }
 .connect-trouble-diag { margin-left: auto; background: none; border: none; color: var(--color-text-secondary); font-size: var(--fs-xs); text-decoration: underline; cursor: pointer; }
 .connect-trouble-diag:hover { color: var(--color-accent); }

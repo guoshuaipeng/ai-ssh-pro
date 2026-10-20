@@ -12,6 +12,7 @@ import { commandBundle, highlightKeyNumbers, layoutOpsReply, splitFences, splitI
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import { chatToMarkdown } from '@shared/ai-chat-markdown'
+import { addPrompt, loadPrompts, savePrompts, AI_PROMPTS_MAX } from '@shared/ai-prompts'
 import { lastAssistantText } from '@shared/ai-last-reply'
 import { currentTerminalSelection } from '../lib/terminal-selection'
 import { fillCommandBar, lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
@@ -514,6 +515,8 @@ export default function AIPanel({
   /** D52: index into userPrompts(lines) while recalling, -1 otherwise */
   const recallRef = useRef(-1)
   const [input, setInput] = useState('')
+  // D95: user starter prompts
+  const [myPrompts, setMyPrompts] = useState<string[]>(() => loadPrompts())
   const [busy, setBusy] = useState(false)
   /** 2.2: auto-run progress shown in the composer ("step n / limit"). */
   const [runProgress, setRunProgress] = useState<{ step: number; max: number } | null>(null)
@@ -2004,6 +2007,53 @@ export default function AIPanel({
                   {tg(key)}
                 </button>
               ))}
+              {myPrompts.map((p) => (
+                <span key={p} className="ai-starter-prompt ai-my-prompt" data-testid="ai-my-prompt">
+                  <button
+                    type="button"
+                    className="ai-my-prompt-text"
+                    title={p}
+                    onClick={() => {
+                      setInput(p)
+                      queueMicrotask(() => inputRef.current?.focus())
+                    }}
+                  >
+                    {p}
+                  </button>
+                  <button
+                    type="button"
+                    className="ai-my-prompt-del"
+                    data-testid="ai-my-prompt-del"
+                    aria-label={tg('d95.delete')}
+                    title={tg('d95.delete')}
+                    onClick={() => {
+                      void (async () => {
+                        const ok = await confirmDialog({ title: tg('d95.deleteTitle'), body: p, confirmText: tg('d95.delete'), danger: true })
+                        if (ok) setMyPrompts(savePrompts(myPrompts.filter((x) => x !== p)))
+                      })()
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {input.trim() ? (
+                <button
+                  type="button"
+                  className="ai-starter-prompt ai-my-prompt-add"
+                  data-testid="ai-my-prompt-add"
+                  title={tg('d95.addTip', { max: AI_PROMPTS_MAX })}
+                  onClick={() => {
+                    const r = addPrompt(myPrompts, input)
+                    if (r.ok) {
+                      setMyPrompts(savePrompts(r.list))
+                      showToast(tg('d95.added'))
+                    } else showToast(tg(r.reason === 'full' ? 'd95.full' : r.reason === 'dup' ? 'd95.dup' : 'd95.empty', { max: AI_PROMPTS_MAX }))
+                  }}
+                >
+                  + {tg('d95.add')}
+                </button>
+              ) : null}
             </div>
           </div>
         )}
