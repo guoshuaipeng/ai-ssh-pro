@@ -1527,29 +1527,32 @@ export default function SftpPanel({
             <button type="button" onClick={() => (isLocal ? void refreshLocal(cwd) : void refreshRemote(cwd))}>
               {tg('sftp.refresh')}
             </button>
-            <button
-              type="button"
-              data-testid={isLocal ? undefined : 'sftp-remote-mkdir'}
-              title={isLocal ? undefined : readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined}
-              disabled={!isLocal && (readOnly || remoteWritesBlocked || !sessionId)}
-              onClick={() => void mkdir(side)}
-            >
-              {tg('sftp.mkdir')}
-            </button>
-            {!isLocal ? (
+            {isLocal ? (
+              <button type="button" onClick={() => void mkdir(side)}>
+                {tg('sftp.mkdir')}
+              </button>
+            ) : (
+              // D76: one "New ▾" menu for folder / file keeps the remote toolbar on one row
               <button
                 type="button"
-                data-testid="sftp-remote-newfile"
-                title={readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : tg('d71.tip')}
+                data-testid="sftp-remote-new"
+                aria-haspopup="menu"
+                title={readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : tg('d76.newTip')}
                 disabled={readOnly || remoteWritesBlocked || !sessionId}
-                onClick={() => void newRemoteFile()}
+                onClick={(ev) => {
+                  const r = ev.currentTarget.getBoundingClientRect()
+                  openContextMenu(ev, [
+                    { id: 'mkdir', label: tg('sftp.mkdir'), onSelect: () => void mkdir(side) },
+                    { id: 'newfile', label: tg('d71.button'), onSelect: () => void newRemoteFile() }
+                  ], { anchor: { x: r.left, y: r.bottom + 2 } })
+                }}
               >
-                {tg('d71.button')}
+                {tg('d76.new')}
               </button>
-            ) : null}
+            )}
             {!isLocal ? (
-              <button type="button" data-testid="sftp-remote-tree-search" title={tg('d75.tip')} disabled={!sessionId} onClick={() => setTreeOpen(true)}>
-                {tg('d75.button')}
+              <button type="button" className="sftp-icon-btn" data-testid="sftp-remote-tree-search" title={tg('d75.tip')} aria-label={tg('d75.button')} disabled={!sessionId} onClick={() => setTreeOpen(true)}>
+                <Icon name="search" size={14} />
               </button>
             ) : null}
             <input
@@ -1581,8 +1584,8 @@ export default function SftpPanel({
             >
               <span className="sftp-label">{tg(sortMode === 'mtime' ? 'sftp.sortMtime' : 'sftp.sortName')}</span>
             </button>
-            <button type="button" className={showHidden ? 'is-on' : ''} onClick={() => setShowHidden((v) => !v)} title={tg('d1.hidden')}>
-              <span className="sftp-label">{tg('d1.hidden')}</span>
+            <button type="button" className={showHidden ? 'is-on sftp-icon-btn' : 'sftp-icon-btn'} data-testid={isLocal ? 'sftp-local-hidden' : 'sftp-remote-hidden'} aria-pressed={showHidden} aria-label={tg('d1.hidden')} onClick={() => setShowHidden((v) => !v)} title={tg('d1.hidden')}>
+              <span className="sftp-label sftp-label-keep">{tg('d76.hiddenShort')}</span>
             </button>
           </div>
           ) : null}
