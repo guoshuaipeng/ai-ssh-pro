@@ -55,6 +55,8 @@ import { listedPathMatchesRequest, selectedDriveId, type LocalDrive } from '@sha
 import { SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import Button from './ui/Button'
 import PanelHeader from './ui/PanelHeader'
+import { SESSION_CWD_EVENT, getSessionCwd } from '../lib/session-cwd-store'
+import { SFTP_FOLLOW_KEY, followTarget, sftpFollowEnabled } from '@shared/sftp-follow'
 
 type Props = {
   /** D8: close confirm and queue belong to this tab only. */
@@ -276,6 +278,25 @@ export default function SftpPanel({
   const [remoteError, setRemoteError] = useState<string | null>(null)
   const [remoteOpening, setRemoteOpening] = useState(false)
   const [cwdFallback, setCwdFallback] = useState(false)
+  const remoteCwdRef = useRef(remoteCwd)
+  remoteCwdRef.current = remoteCwd
+  const [follow, setFollow] = useState(() => sftpFollowEnabled((k) => { try { return localStorage.getItem(k) } catch { return null } }))
+  const homeRef = useRef<{ sid: string; home: string | null } | null>(null)
+  /** D12: the terminal's tracked cwd as an absolute path (the exec channel's pwd is always $HOME). */
+  const resolveTracked = useCallback(async (): Promise<string | null> => {
+    const c = getSessionCwd(sessionId)
+    if (!c || !sessionId) return null
+    if (c.startsWith('~') && homeRef.current?.sid !== sessionId) {
+      let home: string | null = null
+      try {
+        home = (await window.aiss.sftp.home(sessionId)) || null
+      } catch {
+        home = null
+      }
+      homeRef.current = { sid: sessionId, home }
+    }
+    return followTarget({ follow: true, cwd: c, current: '\u0000', home: homeRef.current?.home ?? null })
+  }, [sessionId])
 
   const applyScreenshotDual = useCallback(() => {
     if (!screenshotHooksEnabled()) return
@@ -498,8 +519,8 @@ export default function SftpPanel({
     setCwdFallback(false)
     setRemoteOpening(true)
     try {
-      let target = ''
-      if (window.aiss?.ssh?.exec) {
+      let target = (await resolveTracked()) || ''
+      if (!target && window.aiss?.ssh?.exec) {
         try {
           const res = await window.aiss.ssh.exec(sessionId, 'pwd', PWD_TIMEOUT_MS)
           target = cwdFromPwd(res) || ''
@@ -532,7 +553,9 @@ export default function SftpPanel({
       setRemoteError(null)
       let target = ''
       let failedCwd = false
-      if (alignSessionCwd && window.aiss?.ssh?.exec) {
+      if (alignSessionCwd) target = (await resolveTracked()) || ''
+      if (cancel) return
+      if (alignSessionCwd && !target && window.aiss?.ssh?.exec) {
         setRemoteOpening(true)
         try {
           const res = await window.aiss.ssh.exec(sessionId, 'pwd', PWD_TIMEOUT_MS)
@@ -564,6 +587,27 @@ export default function SftpPanel({
     // Open once per session. A later focus of this tab must not reset the path.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, alignSessionCwd])
+
+  // D12: follow the terminal's cd (manual browsing stays until the next cd)
+  useEffect(() => {
+    if (!sessionId || !follow) return
+    let seq = 0
+    const onCwd = (e: Event) => {
+      const d = (e as CustomEvent<{ sessionId: string }>).detail
+      if (d?.sessionId !== sessionId || shotMockRef.current || remoteOpenedFor.current !== sessionId) return
+      const mine = ++seq
+      void resolveTracked().then((t) => {
+        if (mine !== seq || !t || t === remoteCwdRef.current) return
+        setCwdFallback(false)
+        void refreshRemote(t)
+      })
+    }
+    window.addEventListener(SESSION_CWD_EVENT, onCwd)
+    return () => {
+      seq += 1
+      window.removeEventListener(SESSION_CWD_EVENT, onCwd)
+    }
+  }, [sessionId, follow, resolveTracked, refreshRemote])
 
   useEffect(() => {
     const el = rootRef.current
@@ -834,8 +878,6 @@ export default function SftpPanel({
   // D9: files dropped on this session's terminal
   const transferFilesRef = useRef<typeof transferFiles | null>(null)
   transferFilesRef.current = transferFiles
-  const remoteCwdRef = useRef(remoteCwd)
-  remoteCwdRef.current = remoteCwd
   useEffect(() => {
     if (!sessionId) return
     const take = () => {
@@ -1645,6 +1687,16 @@ export default function SftpPanel({
             >
               <span className="sftp-label sftp-label-keep">{tg('d7.sessionCwd')}</span>
             </button>
+            <label className="sftp-follow" title={tg('d12.followTip')}>
+              <input type="checkbox" data-testid="sftp-follow-cwd" checked={follow} disabled={!sessionId}
+                onChange={(e) => {
+                  const v = e.currentTarget.checked
+                  try { if (v) localStorage.removeItem(SFTP_FOLLOW_KEY); else localStorage.setItem(SFTP_FOLLOW_KEY, '0') } catch { /* ignore */ }
+                  setFollow(v)
+                  if (v) void goSessionCwd()
+                }} />
+              <span className="sftp-label sftp-label-keep">{tg('d12.follow')}</span>
+            </label>
             <button
               type="button"
               title={compact ? tg('ux46.comfort') : tg('ux46.compact')}
