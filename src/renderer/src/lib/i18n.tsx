@@ -517,7 +517,7 @@ const zhCN = {
   'd45.btn': '最近',
   'd51.downloaded': '已下载 {name}',
   'd51.uploaded': '已上传 {name}',
-  'd51.doneN': '{n} 个文件传输完成',
+  'd51.doneN': '{n} 个文件已传完',
   'd44.keys': 'Tab 填入 · Ctrl+Enter 执行 · Shift+Del 删除历史',
   'd49.copyInfo': '复制会话信息',
   'd49.copied': '已复制会话信息（主机、状态、目录、最后一条命令，不含密码）',
