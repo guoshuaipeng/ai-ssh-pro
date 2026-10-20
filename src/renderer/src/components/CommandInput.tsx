@@ -30,6 +30,8 @@ type Props = {
   submitLabel?: string
   onStop?: () => void
   stopping?: boolean
+  /** D22b: ask AI about a history item that failed last time */
+  onAskFailed?: (command: string, code: number) => void
 }
 
 export default function CommandInput({
@@ -48,6 +50,7 @@ export default function CommandInput({
   smart = false,
   hostKey = '',
   snippets = [],
+  onAskFailed,
   submitLabel,
   onStop,
   stopping = false
@@ -242,7 +245,29 @@ export default function CommandInput({
                         {(() => {
                           const code = lastExitOf(smartRows, hostKey, cmd)
                           return typeof code === 'number' && code !== 0 ? (
-                            <span className="cmd-src cmd-src--failed" data-testid="suggest-failed" title={t('d22.failedTip', { code })}>{t('d22.failed', { code })}</span>
+                            <>
+                              <span className="cmd-src cmd-src--failed" data-testid="suggest-failed" title={t('d22.failedTip', { code })}>{t('d22.failed', { code })}</span>
+                              {onAskFailed ? (
+                                <span
+                                  role="button"
+                                  tabIndex={-1}
+                                  className="cmd-src cmd-ask-failed"
+                                  data-testid="suggest-ask-failed"
+                                  title={t('d22b.askTip')}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    onAskFailed(cmd, code)
+                                  }}
+                                >
+                                  {t('d22b.ask')}
+                                </span>
+                              ) : null}
+                            </>
                           ) : null
                         })()}
                       {meta.count > 0 ? <span>{meta.count}</span> : null}

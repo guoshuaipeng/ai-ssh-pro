@@ -15,6 +15,7 @@ import { loadSmartPrefs, recordSmartCommand, seedDemoHistory } from '../lib/smar
 import { isDemoSessionId } from '@shared/demo-host'
 import { bindHistoryHost } from '../lib/history-exit'
 import ScriptProgress from './ScriptProgress'
+import { askAboutHistoryFailure } from '../lib/failed-output'
 import type { CommandSnippet } from '@shared/ipc'
 import Icon, { Twist } from './Icon'
 
@@ -291,6 +292,9 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
         suggest={!inAi}
         smart={!inAi}
         hostKey={hostKey}
+        onAskFailed={(cmd, code) => {
+          if (sessionId) askAboutHistoryFailure(sessionId, cmd, code)
+        }}
         snippets={snippets.map((s) => ({ command: s.body }))}
         className={inAi ? 'command-input--ai' : undefined}
         placeholder={inAi ? t('a2.placeholder') : undefined}

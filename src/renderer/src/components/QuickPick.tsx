@@ -17,6 +17,8 @@ type Props = {
   rank: (query: string) => PickItem[]
   onPick: (item: PickItem) => void
   onClose: () => void
+  /** D22b: ask AI about a failed history item */
+  onAskFailed?: (item: PickItem) => void
   /** Pressing the opening chord again (e.g. Ctrl+R) closes and hands the key to the shell. */
   chord?: string
   onChord?: () => void
@@ -32,7 +34,7 @@ const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]
 }
 
 /** D3 / D4: themed fuzzy picker (reuses the command palette chrome). */
-export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, chord, onChord }: Props) {
+export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, chord, onChord }: Props) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -117,6 +119,23 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
               </span>
               {it.detail ? <span className="cmdp-group qp-detail">{it.detail}</span> : null}
               {typeof it.failed === 'number' ? <span className="qp-badge qp-badge--failed" data-testid="qp-failed" title={tg('d22.failedTip', { code: it.failed })}>{tg('d22.failed', { code: it.failed })}</span> : null}
+              {typeof it.failed === 'number' && onAskFailed ? (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  className="qp-badge qp-ask-failed"
+                  data-testid="qp-ask-failed"
+                  title={tg('d22b.askTip')}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClose()
+                    window.setTimeout(() => onAskFailed(it), 0)
+                  }}
+                >
+                  {tg('d22b.ask')}
+                </span>
+              ) : null}
               {it.badge ? <span className={`qp-badge qp-badge--${it.badge}`}>{tg(BADGE_KEY[it.badge])}</span> : null}
             </button>
           ))}

@@ -42,6 +42,7 @@ import { cdCommandFor } from '@shared/session-cwd'
 import { getSessionCwd, setSessionCwd } from './lib/session-cwd-store'
 import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
+import { askAboutHistoryFailure } from './lib/failed-output'
 import HostKeyConfirmModal from './components/HostKeyConfirmModal'
 import KnownHostsModal from './components/KnownHostsModal'
 import SessionSearchBar from './components/SessionSearchBar'
@@ -10228,6 +10229,9 @@ export default function App() {
         onPick={(it) => {
           if (!activeSessionId) return
           dispatchInjectTerminal(activeSessionId, it.value, false)
+        }}
+        onAskFailed={(it) => {
+          if (activeSessionId && typeof it.failed === 'number') askAboutHistoryFailure(activeSessionId, it.value, it.failed)
         }}
       />
       <QuickPick

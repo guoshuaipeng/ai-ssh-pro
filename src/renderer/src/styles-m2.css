@@ -267,3 +267,7 @@
 .hk-copy { height: 20px; font-size: 11px; padding: 0 6px; flex-shrink: 0; }
 .hk-verified { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--danger); }
 
+/* D22b */
+.cmd-ask-failed, .qp-ask-failed { cursor: pointer; color: var(--accent); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+.cmd-ask-failed:hover, .qp-ask-failed:hover { background: var(--hover); }
+
