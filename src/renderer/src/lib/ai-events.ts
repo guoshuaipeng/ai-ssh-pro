@@ -1,7 +1,7 @@
 /**
  * A1 / A2 glue between the terminal, the command bar and the AI panel (window CustomEvents, no global store).
  */
-import { hasUsableKey } from '@shared/ai-presets'
+import { hasUsableKey } from '../../../shared/ai-presets'
 import { planSelectionExplain } from '../../../shared/selection-explain'
 
 export const AI_EXPLAIN_EVENT = 'aiss-ai-explain'
