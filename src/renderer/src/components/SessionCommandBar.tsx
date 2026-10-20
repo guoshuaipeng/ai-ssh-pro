@@ -15,6 +15,7 @@ import { loadSmartPrefs, recordSmartCommand, seedDemoHistory } from '../lib/smar
 import { isDemoSessionId } from '@shared/demo-host'
 import { bindHistoryHost } from '../lib/history-exit'
 import ScriptProgress from './ScriptProgress'
+import { getDraft, putDraft } from '@shared/cmd-drafts'
 import { askAboutHistoryFailure } from '../lib/failed-output'
 import type { CommandSnippet } from '@shared/ipc'
 import Icon, { Twist } from './Icon'
@@ -39,6 +40,8 @@ type AiCard = { prompt: string } & ({ phase: 'loading' } | { phase: 'done'; resu
 
 /** Sends one line to the active terminal via the existing ssh.write path; "#" or Ctrl+Shift+Space switches to AI mode (A2). */
 const CMD_BAR_KEY = 'aiss.cmdBarOpen'
+/** D24: drafts survive tab switches (one bar instance is shared by all tabs) */
+const drafts = new Map<string, string>()
 
 export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', onOpenAiSettings, beforeSend, sendGuard }: Props) {
   const { t, locale } = useI18n()
@@ -49,7 +52,16 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
       return false
     }
   })
-  const [draft, setDraft] = useState('')
+  const [draft, setDraftState] = useState(() => getDraft(drafts, sessionId))
+  const draftSidRef = useRef(sessionId)
+  draftSidRef.current = sessionId
+  const setDraft = useCallback((v: string) => {
+    setDraftState(v)
+    putDraft(drafts, draftSidRef.current, v)
+  }, [])
+  useEffect(() => {
+    setDraftState(getDraft(drafts, sessionId))
+  }, [sessionId])
   const [aiMode, setAiMode] = useState(false)
   const [aiCard, setAiCard] = useState<AiCard | null>(null)
   const aiReqRef = useRef('')
@@ -97,7 +109,11 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
   useEffect(() => {
     const onFill = (e: Event) => {
       const d = (e as CustomEvent<{ sessionId: string; command: string }>).detail
-      if (!d || d.sessionId !== sessionId) return
+      if (!d) return
+      if (d.sessionId !== sessionId) {
+        putDraft(drafts, d.sessionId, d.command)
+        return
+      }
       setOpen(true)
       try {
         localStorage.setItem(CMD_BAR_KEY, '1')
