@@ -57,7 +57,19 @@ export default function ExecReplay({ exec }: { exec: ExecRecord }) {
           ) : (
             <div className="ai-exec-note">{tg('exec.noOutput')}</div>
           )}
-          {exec.status === 'sent' ? <div className="ai-exec-note">{tg('exec.sentNote')}</div> : null}
+          {exec.status === 'sent' ? (
+            <div className="ai-exec-note" data-testid="ai-exec-noexit">
+              {exec.noExit === 'timeout'
+                ? tg('exec.noExit.timeout')
+                : exec.noExit === 'unsupported'
+                  ? tg('exec.noExit.unsupported')
+                  : exec.noExit === 'ineligible'
+                  ? tg('exec.noExit.ineligible')
+                  : exec.noExit === 'disabled'
+                    ? tg('exec.noExit.disabled')
+                    : tg('exec.sentNote')}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

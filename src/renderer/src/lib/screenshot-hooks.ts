@@ -68,7 +68,8 @@ export const SCREENSHOT_AI_CHAT_DEMO: ScreenshotChatLine[] = [
       riskLevel: 'low'
     },
     exec: {
-      status: 'sent',
+      status: 'ok',
+      exitCode: 0,
       at: Date.UTC(2026, 9, 20, 6, 12, 41),
       durationMs: 1240,
       outputLines: 11,

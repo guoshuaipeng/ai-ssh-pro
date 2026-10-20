@@ -26,6 +26,7 @@ export default function SafetyTierSettings() {
   const [policy, setPolicy] = useState<AiPolicy>(DEFAULT_AI_POLICY)
   const [autoHigh, setAutoHigh] = useState(false)
   const [maxSteps, setMaxSteps] = useState(String(DEFAULT_AI_MAX_STEPS))
+  const [exitCapture, setExitCapture] = useState(true)
   const [overrides, setOverrides] = useState<HostOverride[]>([])
   const [showOverrides, setShowOverrides] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
@@ -35,6 +36,7 @@ export default function SafetyTierSettings() {
       setPolicy(globalAiPolicy(s))
       setAutoHigh(s.aiAutoHighRisk === true)
       setMaxSteps(String(resolveAiMaxSteps(s.aiMaxSteps)))
+      setExitCapture(s.aiExitCapture !== false)
     })
     void window.aiss.sessions
       .list()
@@ -123,6 +125,21 @@ export default function SafetyTierSettings() {
         />
       </label>
       <p className="l7-muted">{tg('policy.maxStepsHint', { min: MIN_AI_MAX_STEPS, max: MAX_AI_MAX_STEPS })}</p>
+      {/* B1: exit-code capture */}
+      <label className="settings-row l4-check" data-testid="ai-exit-capture-row">
+        <input
+          type="checkbox"
+          data-testid="ai-exit-capture"
+          checked={exitCapture}
+          onChange={(e) => {
+            const on = e.target.checked
+            setExitCapture(on)
+            void window.aiss.ai.setSettings({ aiExitCapture: on }).then(flash)
+          }}
+        />
+        {tg('policy.exitCapture')}
+      </label>
+      <p className="l7-muted">{tg('policy.exitCaptureHint')}</p>
       {overrides.length > 0 ? (
         <>
           <button
