@@ -2,6 +2,8 @@
 import { mt } from './main-i18n'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 // ssh2 attaches `utils` inside an object literal that contains a spread, so Node's
 // CJS named-export detector does not expose it. `import { utils } from 'ssh2'`
 // throws at load time in the Electron main process (asar). Default import works.
@@ -81,6 +83,8 @@ export async function applyConnectAuth(
   if (auth.password && auth.authMode !== 'key') connectConfig.password = auth.password
 
   let keyPath = auth.privateKeyPath?.trim() || ''
+  // D13b: `ssh -i ~/.ssh/key` pasted into quick connect
+  if (/^~[\\/]/.test(keyPath)) keyPath = join(homedir(), keyPath.slice(2))
   let keyBuf: Buffer | null = null
   if (keyPath) {
     keyBuf = await readFile(keyPath)

@@ -4148,21 +4148,37 @@ export default function App() {
         void connectProfile(match)
         return
       }
-      resetConnectionForm()
-      setEditingSavedId(null)
-      setError(null)
-      setHost(t.host)
-      setPort(String(t.port))
-      setUsername(t.username ?? '')
-      if (t.identity) {
-        setConnAuth('key')
-        setPrivateKeyPath(t.identity)
+      const jumpChain = t.jump?.length ? t.jump.map((h, i) => ({ id: `qc-${Date.now().toString(36)}-${i}`, host: h.host, port: h.port, username: h.username ?? t.username ?? '' })) : undefined
+      const prefill = () => {
+        resetConnectionForm()
+        setEditingSavedId(null)
+        setError(null)
+        setHost(t.host)
+        setPort(String(t.port))
+        setUsername(t.username ?? '')
+        if (t.identity) {
+          setConnAuth('key')
+          setPrivateKeyPath(t.identity)
+        }
+        if (jumpChain) setJumpChain(jumpChain)
+        openConnectionEditor()
       }
-      if (t.jump?.length) setJumpChain(t.jump.map((h, i) => ({ id: `qc-${Date.now().toString(36)}-${i}`, host: h.host, port: h.port, username: h.username ?? t.username ?? '' })))
-      openConnectionEditor()
+      // D13b: with a user we can try right away (key from -i or ~/.ssh defaults, like OpenSSH); saving is one click
+      if (t.username) {
+        void openSession({
+          host: t.host,
+          port: t.port,
+          username: t.username,
+          ...(t.identity ? { privateKeyPath: t.identity, authMode: 'key' as const } : {}),
+          ...(jumpChain ? { jumpChain } : {})
+        })
+        showToast(tg('d13b.connecting', { target: quickTargetLabel(t) }), { action: { label: tg('d13b.save'), run: prefill } })
+        return
+      }
+      prefill()
       showToast(tg('d13.prefilled', { target: quickTargetLabel(t) }))
     },
-    [connectProfile, openConnectionEditor, profiles, resetConnectionForm]
+    [connectProfile, openConnectionEditor, openSession, profiles, resetConnectionForm]
   )
 
   /** "Connect": focus an open tab for this host, otherwise connect (H1). */
@@ -10145,6 +10161,10 @@ export default function App() {
         onOpenHost={(id) => {
           const p = profiles.find((x) => x.id === id)
           if (p) void connectProfile(p)
+        }}
+        onQuickTarget={(text) => {
+          const qt = parseQuickTarget(text)
+          if (qt) openQuickTarget(qt)
         }}
         aiReady={aiConfigured}
         notes={{

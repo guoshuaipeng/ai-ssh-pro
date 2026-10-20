@@ -17,6 +17,7 @@ import { BUILTIN_SNIPPETS, localizeBuiltin } from '@shared/builtin-pack'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import type { CommandSnippet } from '@shared/ipc'
+import { parseQuickTarget, quickTargetLabel } from '@shared/quick-connect'
 
 type Props = {
   open: boolean
@@ -38,6 +39,8 @@ type Props = {
     recent?: boolean
   }>
   onOpenHost?: (profileId: string) => void
+  /** D13b: user@host:port / pasted ssh command */
+  onQuickTarget?: (text: string) => void
 }
 
 type Entry = PaletteEntry
@@ -58,7 +61,7 @@ const CAT_KEY: Record<string, 'palette.pinned' | 'palette.cat.connection' | 'pal
   help: 'palette.cat.help'
 }
 
-export default function CommandPalette({ open, onClose, onAction, aiReady = true, notes, activeSessionId = null, hostEntries = [], onOpenHost }: Props) {
+export default function CommandPalette({ open, onClose, onAction, aiReady = true, notes, activeSessionId = null, hostEntries = [], onOpenHost, onQuickTarget }: Props) {
   const { t, locale } = useI18n()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
@@ -157,7 +160,13 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
     })
   }, [aiReady, hostEntries, locale, notes, open, snipList, t])
   const usage = useMemo(() => (open ? loadPaletteUsage() : {}), [open])
-  const laid = useMemo(() => layoutPalette(entries, q, usage), [entries, q, usage])
+  const laid = useMemo(() => {
+    const qt = onQuickTarget ? parseQuickTarget(q) : null
+    if (!qt) return layoutPalette(entries, q, usage)
+    const label = t('d13.connect', { target: quickTargetLabel(qt) })
+    const qc: Entry = { id: 'connection', quickText: q, label, group: t('cmdp.hosts'), category: 'connection', order: 0, hay: `${q} ${label}`.toLowerCase() } as Entry
+    return layoutPalette([qc, ...entries], q, usage)
+  }, [entries, q, usage, onQuickTarget, t])
   const filtered = laid.items
   const indexes = paletteItemIndexes(laid.rows)
 
@@ -177,7 +186,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
   const run = (e?: Entry) => {
     if (!e || e.disabled) return
     onClose()
-    recordPaletteUse(e.sessionProfileId ? `host:${e.sessionProfileId}` : e.snippetId ? `snip:${e.snippetId}` : e.id)
+    if (!e.quickText) recordPaletteUse(e.sessionProfileId ? `host:${e.sessionProfileId}` : e.snippetId ? `snip:${e.snippetId}` : e.id)
     window.setTimeout(() => {
       if (e.snippetId && e.snippetBody != null) {
         if (!activeSessionId) {
@@ -186,6 +195,10 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
         }
         dispatchInjectTerminal(activeSessionId, e.snippetBody, false)
         showToast(t('snip.inserted'))
+        return
+      }
+      if (e.quickText) {
+        onQuickTarget?.(e.quickText)
         return
       }
       if (e.sessionProfileId) {

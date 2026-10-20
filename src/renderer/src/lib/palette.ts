@@ -18,6 +18,8 @@ export type PaletteEntry = {
   snippetBody?: string
   /** Open a saved SSH session (id stays connection) */
   sessionProfileId?: string
+  /** D13b: quick-connect text typed into the palette */
+  quickText?: string
   disabled?: boolean
 }
 
