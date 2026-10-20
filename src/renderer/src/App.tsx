@@ -4627,7 +4627,11 @@ export default function App() {
     setError(null)
     setConnecting(true)
     try {
-      const { sessionId, meta } = await window.aiss.ssh.openLocalShell()
+      // D25: a new local shell starts where the active local tab is (validated in main; home otherwise)
+      const fromSid = activeSessionIdRef.current
+      const inherit = fromSid && fromSid.startsWith('local:') ? getSessionCwd(fromSid) : null
+      const { sessionId, meta } = await window.aiss.ssh.openLocalShell(inherit ? { cwd: inherit } : undefined)
+      if (meta.startCwd) setSessionCwd(sessionId, meta.startCwd)
       const tabId = uuid()
       const title = meta.label ?? tg('localShell.label')
       const connectOpts: SshConnectOptions = {
@@ -4650,7 +4654,7 @@ export default function App() {
         }
       ])
       setActiveTabId(tabId)
-      showToast(tg('localShell.opened'))
+      showToast(meta.startCwd ? tg('d25.openedIn', { path: meta.startCwd }) : tg('localShell.opened'))
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e)
       const msg = /node-pty|本机 Shell 不可用|Local shell unavailable/i.test(raw) ? tg('localShell.unavailable') : raw
