@@ -51,6 +51,7 @@ import {
 import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTierEngaged, type SafetyMode } from '../shared/safety-tier'
 import { getInventoryStore } from './inventory-store'
 import { isAiPolicy, policyTier, resolveAiPolicy } from '../shared/ai-policy'
+import { resolveAiMaxSteps, writeUnlessStopped } from '../shared/ai-run-control'
 import { aiWriteVerdict, capSafetyModeForProtection, aiEffectiveLevel, protectionFromSafetyContext, stricterProtection } from '../shared/ai-write-guard'
 import { getSessionProtection } from './ai-protection-registry'
 import type { HostServiceKind } from '../shared/inventory'
@@ -862,11 +863,8 @@ export async function runOpenClawCoreAgentChat(
     return Number.isFinite(n) && n > 0 ? n : 45000
   })()
 
-  const maxSteps = (() => {
-    const raw = process.env.AISS_MAX_POLLS
-    const n = raw ? Number(raw) : 10
-    return Number.isFinite(n) && n > 0 ? Math.min(10, Math.floor(n)) : 10
-  })()
+  // 2.2: the step limit is a setting; AISS_MAX_POLLS remains a fallback for older setups.
+  const maxSteps = resolveAiMaxSteps(settings.aiMaxSteps, process.env.AISS_MAX_POLLS)
 
   const pollWaitMs = (() => {
     const raw = process.env.AISS_POLL_WAIT_MS
@@ -1683,7 +1681,14 @@ export async function runOpenClawCoreAgentChat(
         if (requestId) writtenRequestIds.add(requestId)
 
         logAi('ssh:write exec', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
-        lastWriteOk = ssh.write(targetSessionId, `${oneLineCmd}\n`)
+        const wrote = writeUnlessStopped(runCtx, ac.signal, () => ssh.write(targetSessionId, `${oneLineCmd}\n`))
+        if (wrote === null) {
+          logAi('ssh:write skipped after stop', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
+          send(wc, { type: 'cancelled', message: mt('已停止：此后不再向终端写入命令', 'Stopped: no further commands are written to the terminal') })
+          send(wc, { type: 'done' })
+          return
+        }
+        lastWriteOk = wrote
         emitAudit(oneLineCmd, 'allowed')
         lastCommand = oneLineCmd
         lastToolResult = null
@@ -1755,7 +1760,7 @@ export async function runOpenClawCoreAgentChat(
     send(wc, {
       type: 'step',
       structured: {
-        description: mt(`已轮询 ${maxSteps} 次仍未结束。建议你查看终端输出并提出更明确的下一步目标。`, `Still not finished after ${maxSteps} polls. Check the terminal output and give a clearer next goal.`),
+        description: mt(`已达到步数上限（${maxSteps} 步），本轮已停止。请查看终端输出并给出更明确的下一步目标；上限可在「设置 → AI 执行策略」中调整。`, `The step limit (${maxSteps} steps) was reached, so this run stopped. Check the terminal output and give a clearer next goal; the limit can be changed in Settings → AI execution policy.`),
         action: 'end',
         completed: true,
         riskLevel: 'low',

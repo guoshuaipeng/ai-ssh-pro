@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AI_POLICIES, DEFAULT_AI_POLICY, globalAiPolicy, isAiPolicy, policyTier, type AiPolicy } from '@shared/ai-policy'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import { tg, type MessageKey } from '../lib/i18n'
+import { DEFAULT_AI_MAX_STEPS, MAX_AI_MAX_STEPS, MIN_AI_MAX_STEPS, resolveAiMaxSteps } from '@shared/ai-run-control'
 
 const POLICY_KEY: Record<AiPolicy, MessageKey> = {
   suggest: 'policy.suggest',
@@ -24,6 +25,7 @@ type HostOverride = { id: string; label: string; policy: AiPolicy }
 export default function SafetyTierSettings() {
   const [policy, setPolicy] = useState<AiPolicy>(DEFAULT_AI_POLICY)
   const [autoHigh, setAutoHigh] = useState(false)
+  const [maxSteps, setMaxSteps] = useState(String(DEFAULT_AI_MAX_STEPS))
   const [overrides, setOverrides] = useState<HostOverride[]>([])
   const [showOverrides, setShowOverrides] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
@@ -32,6 +34,7 @@ export default function SafetyTierSettings() {
     void window.aiss.ai.getSettings().then((s) => {
       setPolicy(globalAiPolicy(s))
       setAutoHigh(s.aiAutoHighRisk === true)
+      setMaxSteps(String(resolveAiMaxSteps(s.aiMaxSteps)))
     })
     void window.aiss.sessions
       .list()
@@ -101,6 +104,25 @@ export default function SafetyTierSettings() {
           <p className="l7-muted">{tg('policy.autoHighRiskHint')}</p>
         </div>
       ) : null}
+      <label className="settings-row policy-steps" data-testid="ai-max-steps-row">
+        <span>{tg('policy.maxSteps')}</span>
+        <input
+          type="number"
+          className="policy-steps-input"
+          data-testid="ai-max-steps"
+          min={MIN_AI_MAX_STEPS}
+          max={MAX_AI_MAX_STEPS}
+          step={1}
+          value={maxSteps}
+          onChange={(e) => setMaxSteps(e.target.value)}
+          onBlur={() => {
+            const next = resolveAiMaxSteps(maxSteps)
+            setMaxSteps(String(next))
+            void window.aiss.ai.setSettings({ aiMaxSteps: next }).then(flash)
+          }}
+        />
+      </label>
+      <p className="l7-muted">{tg('policy.maxStepsHint', { min: MIN_AI_MAX_STEPS, max: MAX_AI_MAX_STEPS })}</p>
       {overrides.length > 0 ? (
         <>
           <button

@@ -6297,6 +6297,24 @@ button.primary.danger:focus-visible {
 .ai-composer-spacer {
   flex: 1 1 auto;
 }
+.ai-run-steps {
+  flex: 0 0 auto;
+  padding: 0 var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.policy-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.policy-steps-input {
+  width: 72px;
+  font-variant-numeric: tabular-nums;
+}
 .ai-chip-wrap {
   position: relative;
   display: inline-flex;

@@ -601,6 +601,8 @@ export type AiSettings = {
   aiPolicy?: 'suggest' | 'ask' | 'auto'
   /** M21: under auto, also run high-risk commands. Applies on production hosts too (M25); never on read-only. */
   aiAutoHighRisk?: boolean
+  /** 2.2: maximum planner steps per AI run (1–30, default 10). */
+  aiMaxSteps?: number
 }
 
 export type AiAssistantAction = 'tool_call' | 'command' | 'end'

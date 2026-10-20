@@ -456,6 +456,11 @@ export default function AIPanel({
   const [lines, setLines] = useState<Line[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  /** 2.2: auto-run progress shown in the composer ("step n / limit"). */
+  const [runProgress, setRunProgress] = useState<{ step: number; max: number } | null>(null)
+  useEffect(() => {
+    if (!busy) setRunProgress(null)
+  }, [busy])
   const [includeTerminal, setIncludeTerminal] = useState(true)
   const [pendingConfirm, setPendingConfirm] = useState<{ requestId: string; action: AiAssistantReply['action'] } | null>(() =>
     initialPending
@@ -808,6 +813,10 @@ export default function AIPanel({
           policyCappedBy: a.policyCappedBy
         })
         window.dispatchEvent(new Event('aiss-audit-changed'))
+        return
+      }
+      if (ev.type === 'progress') {
+        setRunProgress(ev.policy === 'auto' ? { step: ev.step, max: ev.maxSteps } : null)
         return
       }
       if (ev.type === 'status') {
@@ -1228,6 +1237,18 @@ export default function AIPanel({
   const stopGeneration = useCallback(() => {
     void window.aiss.ai.abortChat()
   }, [])
+  // 2.2: Ctrl+Shift+Backspace (⌘⇧⌫ on macOS) stops the run from anywhere while the AI is working.
+  useEffect(() => {
+    if (!busy) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Backspace' || !e.shiftKey || !(e.ctrlKey || e.metaKey) || e.altKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      stopGeneration()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [busy, stopGeneration])
 
   const clearConversation = useCallback(() => {
     if (busy) {
@@ -2321,6 +2342,11 @@ export default function AIPanel({
               <span>{snapshotBusy ? tg('ai.readingTerm') : tg('ai.consoleChip')}</span>
             </button>
             <span className="ai-composer-spacer" />
+            {busy && runProgress ? (
+              <span className="ai-run-steps" data-testid="ai-run-steps" title={tg('ai.runStepsTip')}>
+                {tg('ai.runSteps', { n: runProgress.step, max: runProgress.max })}
+              </span>
+            ) : null}
             {busy ? (
               <button
                 type="button"
