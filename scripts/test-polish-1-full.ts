@@ -57,7 +57,7 @@ const store = {
   setItem: (k: string, v: string) => void mem.set(k, v)
 }
 saveUpdateChannelPrefs({ channel: 'auto', mirror: '' }, store)
-assert.equal(effectiveChannelLabel('zh-CN', store), '自动（Gitee → GitHub）')
+assert.equal(effectiveChannelLabel('zh-CN', store), '自动（官网 → GitHub）')
 rememberUpdateSource({ source: 'gitee', channel: 'auto', at: 1 }, store)
 assert.equal(effectiveChannelLabel('zh-CN', store), 'Gitee')
 saveUpdateChannelPrefs({ channel: 'github', mirror: '' }, store)

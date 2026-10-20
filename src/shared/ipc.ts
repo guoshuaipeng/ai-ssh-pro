@@ -849,9 +849,13 @@ export type AppUpdateCheckResult = {
   notes?: string
   message: string
   /** N1: source that produced this result (download URL belongs to it) */
-  source?: 'gitee' | 'github' | 'custom'
+  source?: 'site' | 'gitee' | 'github' | 'custom'
   channel?: 'auto' | 'gitee' | 'github' | 'custom'
-  tried?: Array<'gitee' | 'github' | 'custom'>
+  tried?: Array<'site' | 'gitee' | 'github' | 'custom'>
+  /** Auto: true when the first source failed and a later one answered */
+  fellBack?: boolean
+  /** SHA-256 of the installer, when the site manifest provides it */
+  sha256?: string
 }
 
 /** A live local port forward (127.0.0.1:localPort → remoteHost:remotePort through an SSH session). */

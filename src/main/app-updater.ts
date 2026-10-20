@@ -38,6 +38,7 @@ export async function checkForAppUpdate(opts?: {
   channel?: UpdateChannel
   customUrl?: string
   fetchImpl?: typeof fetch
+  siteUrl?: string
   giteeUrl?: string
   githubUrl?: string
   timeoutMs?: number
@@ -50,6 +51,8 @@ export async function checkForAppUpdate(opts?: {
     customUrl: opts?.customUrl,
     currentVersion,
     platform: opts?.platform || process.platform,
+    arch: process.arch,
+    siteUrl: opts?.siteUrl,
     fetchImpl: opts?.fetchImpl,
     giteeUrl: opts?.giteeUrl,
     githubUrl: opts?.githubUrl,
@@ -67,7 +70,9 @@ export async function checkForAppUpdate(opts?: {
     message: probed.message,
     source: probed.source,
     channel: probed.channel,
-    tried: probed.tried
+    tried: probed.tried,
+    fellBack: probed.fellBack,
+    sha256: probed.sha256
   }
 }
 

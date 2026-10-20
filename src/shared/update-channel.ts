@@ -1,9 +1,11 @@
 /**
  * N1: domestic update channel.
- * Auto tries Gitee first, then GitHub. Download URLs always come from the source that answered.
+ * Auto tries the official site manifest (latest.json on GitHub Pages) first, then GitHub.
+ * Gitee remains available as an explicit channel but is not part of Auto.
+ * Download URLs always come from the source that answered.
  */
 export type UpdateChannel = 'auto' | 'gitee' | 'github' | 'custom'
-export type UpdateSourceId = 'gitee' | 'github' | 'custom'
+export type UpdateSourceId = 'site' | 'gitee' | 'github' | 'custom'
 
 export const SOURCE_TIMEOUT_MS = 8_000
 export const AUTO_BUDGET_MS = 16_000
@@ -11,6 +13,8 @@ export const AUTO_BUDGET_MS = 16_000
 export const GITHUB_REPO_URL = 'https://github.com/guoshuaipeng/ai-ssh-pro'
 export const GITHUB_RELEASES_URL = `${GITHUB_REPO_URL}/releases`
 export const GITHUB_LATEST_API = 'https://api.github.com/repos/guoshuaipeng/ai-ssh-pro/releases/latest'
+export const SITE_URL = 'https://guoshuaipeng.github.io/ai-ssh-pro'
+export const SITE_LATEST_URL = `${SITE_URL}/latest.json`
 export const GITEE_REPO_URL = 'https://gitee.com/guoshuaipeng/ai-ssh-pro'
 export const GITEE_RELEASES_URL = `${GITEE_REPO_URL}/releases`
 export const GITEE_LATEST_API = 'https://gitee.com/api/v5/repos/guoshuaipeng/ai-ssh-pro/releases/latest'
@@ -59,7 +63,7 @@ export function loadLastUpdateSource(store: Pick<Storage, 'getItem'> = globalThi
     const raw = store.getItem(UPDATE_LAST_KEY)
     if (!raw) return null
     const o = JSON.parse(raw) as Partial<LastUpdateSource>
-    if (o.source !== 'gitee' && o.source !== 'github' && o.source !== 'custom') return null
+    if (o.source !== 'site' && o.source !== 'gitee' && o.source !== 'github' && o.source !== 'custom') return null
     return { source: o.source, channel: normalizeChannel(o.channel), at: typeof o.at === 'number' ? o.at : 0 }
   } catch {
     return null
@@ -68,10 +72,11 @@ export function loadLastUpdateSource(store: Pick<Storage, 'getItem'> = globalThi
 
 export function sourceLabel(id: UpdateSourceId | UpdateChannel, locale: string): string {
   const zh = locale === 'zh-CN'
+  if (id === 'site') return zh ? '官网' : 'Official site'
   if (id === 'gitee') return 'Gitee'
   if (id === 'github') return 'GitHub'
   if (id === 'custom') return zh ? '自定义镜像' : 'Custom mirror'
-  return zh ? '自动（Gitee → GitHub）' : 'Auto (Gitee → GitHub)'
+  return zh ? '自动（官网 → GitHub）' : 'Auto (official site → GitHub)'
 }
 
 /**
@@ -122,8 +127,9 @@ export type PlannedSource = { id: UpdateSourceId; url: string }
 export function planSources(
   channel: UpdateChannel,
   customUrl?: string,
-  endpoints?: { gitee?: string; github?: string }
+  endpoints?: { site?: string; gitee?: string; github?: string }
 ): PlannedSource[] {
+  const site = endpoints?.site || SITE_LATEST_URL
   const gitee = endpoints?.gitee || GITEE_LATEST_API
   const github = endpoints?.github || GITHUB_LATEST_API
   if (channel === 'gitee') return [{ id: 'gitee', url: gitee }]
@@ -133,7 +139,7 @@ export function planSources(
     return url && isHttpUrl(url) ? [{ id: 'custom', url }] : []
   }
   return [
-    { id: 'gitee', url: gitee },
+    { id: 'site', url: site },
     { id: 'github', url: github }
   ]
 }
@@ -175,6 +181,7 @@ function pickDownloadUrl(assets: unknown, platform: string): string | undefined 
 
 function releasePage(source: UpdateSourceId, tag: string, htmlUrl: string | undefined, requestUrl: string): string {
   if (htmlUrl && isHttpUrl(htmlUrl)) return htmlUrl
+  if (source === 'site') return `${GITHUB_RELEASES_URL}/tag/${tag}`
   if (source === 'gitee') return `${GITEE_RELEASES_URL}/tag/${tag}`
   if (source === 'github') return `${GITHUB_RELEASES_URL}/tag/${tag}`
   return requestUrl
@@ -188,6 +195,46 @@ export type NormalizedRelease = {
   downloadUrl?: string
   releaseName?: string
   notes?: string
+  /** site manifest only: SHA-256 of the installer (lower-case hex) */
+  sha256?: string
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : ''
+}
+
+/**
+ * Parse the official site manifest (latest.json).
+ * Shape: { version, date, releaseNotesUrl, downloads: { "<platform>-<arch>": { file, size, sha256, url } } }.
+ * Download URLs are GitHub Release asset URLs.
+ */
+export function normalizeSiteManifest(
+  data: Record<string, unknown>,
+  requestUrl: string,
+  platform: string,
+  arch = 'x64'
+): NormalizedRelease | null {
+  const version = str(data.version).replace(/^v/i, '')
+  if (!version || !/^\d+\.\d+/.test(version)) return null
+  const tag = `v${version}`
+  const notesUrl = str(data.releaseNotesUrl)
+  const downloads = data.downloads && typeof data.downloads === 'object' ? (data.downloads as Record<string, unknown>) : {}
+  const key = `${platform}-${arch}`
+  const entryRaw = downloads[key] ?? Object.entries(downloads).find(([k]) => k.startsWith(`${platform}-`))?.[1]
+  const entry = entryRaw && typeof entryRaw === 'object' ? (entryRaw as Record<string, unknown>) : {}
+  const url = str(entry.url)
+  const downloadUrl = url && isHttpUrl(url) ? url : undefined
+  const sha = str(entry.sha256).toLowerCase()
+  return {
+    source: 'site',
+    version,
+    tag,
+    releaseUrl: releasePage('site', tag, notesUrl || undefined, requestUrl),
+    downloadUrl,
+    sha256: /^[0-9a-f]{64}$/.test(sha) ? sha : undefined,
+    releaseName: str(data.name) || undefined,
+    notes: typeof data.notes === 'string' ? data.notes.slice(0, 8000) : undefined
+  }
 }
 
 /** Parse one release document. Download URL is taken only from this document. */
@@ -229,6 +276,9 @@ export type ProbeResult = {
   message: string
   /** sources that were actually contacted, in order */
   tried: UpdateSourceId[]
+  /** true when the answering source is not the first planned one */
+  fellBack: boolean
+  sha256?: string
 }
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
@@ -266,7 +316,11 @@ function fromRelease(
   tried: UpdateSourceId[]
 ): ProbeResult {
   const newer = compareSemver(rel.version, currentVersion) > 0
+  const fellBack = tried.length > 1
+  const via = fellBack ? `${rel.source}，已从 ${tried[0]} 回退` : rel.source
   return {
+    fellBack,
+    sha256: rel.sha256,
     currentVersion,
     status: newer ? 'available' : 'upToDate',
     source: rel.source,
@@ -278,8 +332,8 @@ function fromRelease(
     notes: rel.notes,
     tried,
     message: newer
-      ? `发现新版本 ${rel.version}（当前 ${currentVersion}，来源 ${rel.source}）。`
-      : `已是最新版本 ${currentVersion}（来源 ${rel.source}）。`
+      ? `发现新版本 ${rel.version}（当前 ${currentVersion}，来源 ${via}）。`
+      : `已是最新版本 ${currentVersion}（来源 ${via}）。`
   }
 }
 
@@ -292,9 +346,11 @@ export async function probeUpdateSources(opts: {
   customUrl?: string
   currentVersion: string
   platform?: string
+  arch?: string
   fetchImpl?: FetchLike
   timeoutMs?: number
   budgetMs?: number
+  siteUrl?: string
   giteeUrl?: string
   githubUrl?: string
 }): Promise<ProbeResult> {
@@ -302,7 +358,7 @@ export async function probeUpdateSources(opts: {
   const platform = opts.platform || 'linux'
   const fetchImpl = opts.fetchImpl || fetch
   const perSource = opts.timeoutMs ?? SOURCE_TIMEOUT_MS
-  const plan = planSources(channel, opts.customUrl, { gitee: opts.giteeUrl, github: opts.githubUrl })
+  const plan = planSources(channel, opts.customUrl, { site: opts.siteUrl, gitee: opts.giteeUrl, github: opts.githubUrl })
   const budgetMs = opts.budgetMs ?? (plan.length > 1 ? AUTO_BUDGET_MS : perSource)
   const currentVersion = opts.currentVersion
   if (!plan.length) {
@@ -311,6 +367,7 @@ export async function probeUpdateSources(opts: {
       status: 'error',
       channel,
       tried: [],
+      fellBack: false,
       message: '自定义镜像地址无效（需要 http 或 https URL）。'
     }
   }
@@ -339,7 +396,10 @@ export async function probeUpdateSources(opts: {
           continue
         }
         const data = (await res.json()) as Record<string, unknown>
-        const rel = normalizeRelease(src.id, data, src.url, platform)
+        const rel =
+          src.id === 'site'
+            ? normalizeSiteManifest(data, src.url, platform, opts.arch || 'x64')
+            : normalizeRelease(src.id, data, src.url, platform)
         if (!rel) {
           lastError = `${src.id} 未解析到版本号`
           continue
@@ -360,6 +420,7 @@ export async function probeUpdateSources(opts: {
     channel,
     releaseUrl: fallbackPage,
     tried,
+    fellBack: tried.length > 1,
     message: lastError || '检查更新失败。'
   }
 }

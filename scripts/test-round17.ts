@@ -72,7 +72,7 @@ const github = await listen((_req, res) => {
 
 try {
   ok(SOURCE_TIMEOUT_MS === 8000 && AUTO_BUDGET_MS === 16000, 'timeout budget')
-  ok(planSources('auto').map((s) => s.id).join(',') === 'gitee,github', 'auto order')
+  ok(planSources('auto').map((s) => s.id).join(',') === 'site,github', 'auto order (site manifest, then GitHub; Gitee not in auto)')
   ok(planSources('github').length === 1 && planSources('github')[0]!.id === 'github', 'github only')
   ok(planSources('custom', 'notaurl').length === 0, 'bad mirror')
 
@@ -80,7 +80,7 @@ try {
     channel: 'auto',
     currentVersion: '0.3.19',
     platform: 'win32',
-    giteeUrl: gitee.url,
+    siteUrl: gitee.url,
     githubUrl: github.url,
     timeoutMs: 1000,
     budgetMs: 3000
@@ -142,7 +142,7 @@ try {
       channel: 'auto',
       currentVersion: '0.3.19',
       platform: 'linux',
-      giteeUrl: slow.url,
+      siteUrl: slow.url,
       githubUrl: fast.url,
       timeoutMs: 80,
       budgetMs: 400

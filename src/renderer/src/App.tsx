@@ -925,6 +925,11 @@ export default function App() {
         ]
       })
     }
+    const describeSource = (r: { source?: Parameters<typeof sourceLabel>[0]; tried?: Array<Parameters<typeof sourceLabel>[0]>; fellBack?: boolean }) => {
+      const src = r.source ? sourceLabel(r.source, locale) : ''
+      const first = r.tried?.[0]
+      return r.fellBack && first ? tg('upd.sourceFallback', { source: src, from: sourceLabel(first, locale) }) : src
+    }
     try {
       const prefs = loadUpdateChannelPrefs()
       const r = await window.aiss.app.checkUpdate({ channel: prefs.channel, customUrl: prefs.mirror })
@@ -936,7 +941,7 @@ export default function App() {
           version: r.latestVersion,
           url: r.downloadUrl || r.releaseUrl || '',
           notes: r.notes,
-          source: r.source ? sourceLabel(r.source, locale) : undefined
+          source: r.source ? describeSource(r) : undefined
         }
         if (!manual && isSkipped(r.latestVersion)) return
         setUpdateInfo(info)
@@ -945,7 +950,7 @@ export default function App() {
       }
       if (!manual) return
       if (r.status === 'error') failUpdate()
-      else showToast(tg('upd.upToDate', { version: r.currentVersion }))
+      else showToast(r.source ? `${tg('upd.upToDate', { version: r.currentVersion })} · ${tg('upd.source', { source: describeSource(r) })}` : tg('upd.upToDate', { version: r.currentVersion }))
     } catch {
       if (manual) failUpdate()
     } finally {
