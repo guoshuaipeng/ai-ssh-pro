@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiProvider, AiSettings } from '@shared/ipc'
 import { tg, useI18n } from '../lib/i18n'
 import Button from './ui/Button'
+import { openContextMenu } from './ContextMenu'
+import { AI_PRESETS, keyOptional, matchPreset, type AiPreset } from '@shared/ai-presets'
 
 const MASK = '••••••••'
 
@@ -130,6 +132,51 @@ export default function AiConfigForm() {
     setModel(p.modelList[0] ?? '')
   }, [commitEditorToProviders])
 
+  /** B2: new provider filled from a docs-verified preset. Fields stay editable. */
+  const addFromPreset = useCallback(
+    (preset: AiPreset) => {
+      const nextProviders = commitEditorToProviders()
+      const id = `provider_${Date.now()}`
+      const p: AiProvider = {
+        id,
+        name: locale === 'en' ? preset.name.en : preset.name.zh,
+        baseURL: preset.baseURL,
+        apiKey: '',
+        modelList: [...preset.models]
+      }
+      setProviders([...nextProviders, p])
+      setActiveProviderId(id)
+      setProviderName(p.name)
+      setBaseURL(p.baseURL)
+      setModelListText(p.modelList.join('\n'))
+      setStoredApiKey('')
+      setApiKey('')
+      setModel(p.modelList[0] ?? '')
+    },
+    [commitEditorToProviders, locale]
+  )
+
+  const openPresetMenu = useCallback(
+    (el: HTMLElement) => {
+      const r = el.getBoundingClientRect()
+      openContextMenu(
+        { clientX: r.left, clientY: r.bottom },
+        AI_PRESETS.map((preset) => ({
+          id: `preset-${preset.id}`,
+          label: locale === 'en' ? preset.name.en : preset.name.zh,
+          title: preset.baseURL,
+          shortcut: new URL(preset.baseURL).host,
+          onSelect: () => addFromPreset(preset)
+        })),
+        { anchor: { x: r.left, y: r.bottom + 4 } }
+      )
+    },
+    [addFromPreset, locale]
+  )
+
+  const preset = matchPreset(baseURL)
+  const localKeyless = keyOptional(baseURL)
+
   const removeActiveProvider = useCallback(() => {
     if (providers.length <= 1) return
     const nextProviders = commitEditorToProviders().filter((p) => p.id !== activeProviderId)
@@ -235,6 +282,9 @@ export default function AiConfigForm() {
             <button type="button" onClick={() => addProvider()}>
               {tg('ui.7')}
             </button>
+            <button type="button" data-testid="ai-preset-add" aria-haspopup="menu" onClick={(e) => openPresetMenu(e.currentTarget)}>
+              {tg('aiPreset.add')} ▾
+            </button>
             <button type="button" onClick={() => removeActiveProvider()} disabled={providers.length <= 1}>
               {tg('ui.8')}
             </button>
@@ -250,6 +300,14 @@ export default function AiConfigForm() {
       <div className="field">
         <label>Base URL</label>
         <input value={baseURL} onChange={(e) => setBaseURL(e.target.value)} placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+        {preset ? (
+          <p className="ai-preset-note" data-testid="ai-preset-note">
+            {preset.note ? <span>{locale === 'en' ? preset.note.en : preset.note.zh} </span> : null}
+            <button type="button" className="link-btn" onClick={() => void window.aiss.app.openExternal(preset.docsUrl).catch(() => undefined)}>
+              {tg('aiPreset.docs')}
+            </button>
+          </p>
+        ) : null}
       </div>
 
       <div className="field">
@@ -288,7 +346,7 @@ export default function AiConfigForm() {
         <input
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={tg('ui.14')}
+          placeholder={localKeyless ? tg('aiPreset.keyOptional') : tg('ui.14')}
           type="password"
           autoComplete="off"
         />
