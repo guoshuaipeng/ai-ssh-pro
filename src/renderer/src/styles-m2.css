@@ -255,3 +255,7 @@
 .script-progress.is-failed .script-progress-label, .script-progress.is-risky .script-progress-label { color: var(--danger); }
 .script-progress button { height: 20px; font-size: 11px; padding: 0 6px; }
 
+/* D16d: floats under the command bar (same pattern as .cmd-explain) so the input keeps its width */
+.session-command-bar > .script-progress { position: absolute; top: calc(100% + 4px); right: 8px; z-index: 40; margin: 0; max-width: calc(100% - 16px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.script-progress-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
