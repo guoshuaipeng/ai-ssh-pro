@@ -2069,3 +2069,10 @@ legend {
 
 /* P39: permissions read as aligned rwx (was clipped to 'rwxr-x...') */
 .sftp-table td.sftp-perm { font-family: var(--font-mono); font-size: var(--fs-xs); }
+
+/* P40: a narrow SFTP pane keeps the filename; the modified-time column (4th) yields first */
+.sftp-pane { container-type: inline-size; }
+@container (max-width: 480px) {
+  .sftp-table th:nth-child(4),
+  .sftp-table td:nth-child(4) { display: none; }
+}
