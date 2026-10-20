@@ -28,7 +28,9 @@
 - **Host key TOFU** — confirm fingerprint on first connect; warn on change
 - **Encrypted secrets** — session passwords, key passphrases, and API keys via Electron `safeStorage`
 - **Keepalive & reconnect** — SSH keepalive plus one-click reconnect after disconnect
-- **AI Core-A** — observe → plan → **commands run only after confirmation**; terminal snapshot auto-read
+- **AI Core-A** — observe → plan → execute under one of three execution policies: **Suggest only**, **Confirm before run** (default) or **Auto run**. The policy is resolved globally, per host and per tab; terminal snapshot auto-read
+- **Host protection** — hosts are marked normal, production or read-only. On read-only hosts the main process blocks AI writes to the terminal and caps the policy at Suggest only; production hosts show a reminder banner and keep the chosen policy
+- **Encrypted cloud sync (optional, since v0.4.0)** — File → Cloud sync… with a private GitHub Gist or WebDAV. Data is encrypted on this device (scrypt + AES-256-GCM); the passphrase never leaves it, and credentials are excluded by default
 - **Terminal prefs** — font, theme, and related terminal settings
 - **Snippets** — reusable command snippets
 - **Session export / import** — Xshell `.xsh`, OpenSSH `config`, PuTTY
@@ -68,7 +70,7 @@ Artifacts land under `release/`.
 
 ## Host inventory & MCP
 
-Host profiles live on disk (not cloud sync):
+Host profiles live on local disk:
 
 - Default root: `~/.ai-ssh-pro/inventory`
 - Override with env `AISS_INVENTORY_ROOT`
@@ -131,7 +133,7 @@ Optional environment variables:
 - Passwords, key passphrases, and API keys are encrypted at rest with OS secure storage (e.g. Windows DPAPI). If encryption is unavailable, the app may fall back to plaintext and log a console warning.
 - Host keys live in a separate store: `ai-ssh-pro-known-hosts`.
 - Do not save production credentials on untrusted machines.
-- **No cloud sync.** Back up with JSON session export/import; there is no remote account or sync service.
+- **Local-first, no account.** All data is stored on this machine. Cloud sync is optional and off by default; when enabled, data is encrypted locally before it is uploaded to your own private Gist or WebDAV. No product account or vendor server is involved. JSON session export/import remains available for backups.
 - Recent connections store host, user, port, label, and time only. They do not store passwords, key paths, or passphrases.
 - Command history stores the commands you choose to send (capped at about 200) in the same local store. If you type a secret into a command, that text stays on this machine until you clear history.
 - There is no telemetry.
