@@ -6,6 +6,7 @@ import Icon, { Twist } from './Icon'
 import { useI18n } from '../lib/i18n'
 import { RECENT_CHANGED_EVENT } from '../lib/workspace-events'
 import { filterRecent } from '@shared/recent-quick'
+import { CONNECT_FAIL_EVENT, connectFailKey, getConnectFail } from '../lib/connect-fail-store'
 
 /** D21: show the filter once Recent is longer than this */
 export const RECENT_FILTER_MIN = 5
@@ -61,6 +62,13 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
     window.addEventListener(RECENT_CHANGED_EVENT, reload)
     return () => window.removeEventListener(RECENT_CHANGED_EVENT, reload)
   }, [reload])
+  // D88: repaint failure dots
+  const [, setFailTick] = useState(0)
+  useEffect(() => {
+    const bump = () => setFailTick((n) => n + 1)
+    window.addEventListener(CONNECT_FAIL_EVENT, bump)
+    return () => window.removeEventListener(CONNECT_FAIL_EVENT, bump)
+  }, [])
 
   const pin = async (row: RecentConnection) => {
     const next = await window.aiss.workspace.recent.pin(row.id, !row.pinned)
@@ -146,7 +154,21 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
                   title={`${row.username}@${row.host}:${row.port || 22}${row.jump?.length ? ' -J ' + row.jump.map((h) => (h.username ? h.username + '@' : '') + h.host + (h.port !== 22 ? ':' + h.port : '')).join(',') : ''}${row.quick && !saved.has(ident) ? '\n' + t('d13c.tempTip') : ''}`}
                   onClick={() => onQuickConnect(row)}
                 >
-                  <span className="recent-connections-name">{title}</span>
+                  <span className="recent-connections-name">
+                    {(() => {
+                      const fail = getConnectFail(connectFailKey(row.username, row.host, row.port))
+                      return fail ? (
+                        <span
+                          className="recent-fail-dot"
+                          data-testid="recent-fail-dot"
+                          role="img"
+                          aria-label={t('d88.failed', { reason: fail.reason })}
+                          title={t('d88.failed', { reason: fail.reason })}
+                        />
+                      ) : null
+                    })()}
+                    {title}
+                  </span>
                   <span className="recent-connections-meta">
                     {saved.has(ident) ? <span className="recent-connections-badge">{t('recent.saved')}</span> : row.quick ? <span className="recent-connections-badge is-quick" data-testid="recent-quick-badge">{t('d13c.temp')}</span> : null}
                     {whenText}

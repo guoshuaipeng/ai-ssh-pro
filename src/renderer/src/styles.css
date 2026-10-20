@@ -7151,6 +7151,7 @@ button.primary.danger:focus-visible {
 .sync-conflict { margin-right: var(--space-1); font-size: var(--fs-xs); background: none; color: inherit; border: 1px solid var(--color-border-default); border-radius: var(--radius-sm); }
 .sync-conflicts { margin-left: var(--space-2); font-size: var(--fs-xs); color: var(--color-accent); }
 /* D73: cancel a pending connection */
+.recent-fail-dot { display: inline-block; width: 6px; height: 6px; margin-right: var(--space-1); border-radius: 50%; background: var(--color-danger); vertical-align: middle; }
 .connect-trouble-diag { margin-left: auto; background: none; border: none; color: var(--color-text-secondary); font-size: var(--fs-xs); text-decoration: underline; cursor: pointer; }
 .connect-trouble-diag:hover { color: var(--color-accent); }
 .session-connecting-stage { margin-left: var(--space-2); color: var(--color-accent); font-size: var(--fs-xs); }

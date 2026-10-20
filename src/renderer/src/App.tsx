@@ -48,6 +48,7 @@ import SearchAllTermsModal from './components/SearchAllTermsModal'
 import ConnectingElapsed from './components/ConnectingElapsed'
 import { stageTarget, type ConnectStageEvent } from '@shared/connect-stage'
 import { buildConnectDiag } from '@shared/connect-diag'
+import { clearConnectFail, connectFailKey, noteConnectFail } from './lib/connect-fail-store'
 import { cmdDrafts } from './lib/cmd-draft-store'
 import { getDraft, persistableDraft, putDraft } from '@shared/cmd-drafts'
 import { sessionInfoText } from '@shared/session-info'
@@ -1789,6 +1790,7 @@ export default function App() {
           jumpRetryFromFailedHop: policy.jumpRetryFromFailedHop,
           readyTimeoutSec: policy.connectTimeoutSec
         })
+        clearConnectFail(connectFailKey(opts.username, opts.host, opts.port))
         // C3: every session that carries the agent is audited
         if (opts.agentForward) {
           appendAudit({ type: 'session.agentForward', host: opts.label || opts.host, source: 'user', outcome: 'allowed', detail: agentForwardAuditDetail('session', opts.host) })
@@ -1878,6 +1880,8 @@ export default function App() {
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected', failRaw: raw } : t))
         )
+        // D88: Recent shows a red dot with this reason until the next success
+        noteConnectFail(connectFailKey(opts.username, opts.host, opts.port), shown)
         extra?.onError?.(shown)
         extra?.onFailRaw?.(raw, tabId)
         return null
