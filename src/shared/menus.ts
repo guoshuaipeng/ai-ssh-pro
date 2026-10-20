@@ -42,6 +42,7 @@ export type MenuAction =
   | 'clearAiChat'
   | 'copyLastAiReply'
   | 'copyLastOutput'
+  | 'searchAllTerms'
   | 'toggleSplit'
   | 'toggleHostStatus'
   | 'uiTheme'
@@ -250,6 +251,7 @@ export const SHARED_MENUS: SharedMenu[] = [
       it('zoomReset', '重置终端字体', 'Reset terminal font size'),
       it('clearScrollback', '清空终端回滚缓冲', 'Clear terminal scrollback'),
       it('copyLastOutput', '复制上一条命令的输出', 'Copy last command output'),
+      it('searchAllTerms', '搜索所有终端标签…', 'Search all terminal tabs…'),
       it('toggleMuteBell', '静音终端铃', 'Mute terminal bell', { toggle: true }),
       it('toggleTabPin', '固定/取消固定当前标签', 'Pin/unpin current tab', { toggle: true }),
       it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),

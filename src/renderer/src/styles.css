@@ -7119,3 +7119,11 @@ button.primary.danger:focus-visible {
 .paste-preview-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* D9: drop files on terminal */
 .term-drop-hint { position: absolute; inset: var(--space-2); z-index: 6; display: flex; align-items: center; justify-content: center; pointer-events: none; border: 2px dashed var(--color-accent); border-radius: var(--radius-sm); background: var(--color-accent-muted); color: var(--color-text-primary); font-size: var(--fs-sm); }
+/* D60: search all terminal tabs */
+.search-all-input { width: 100%; padding: var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; font-size: var(--fs-sm); }
+.search-all-summary { margin: var(--space-2) 0; font-size: var(--fs-xs); color: var(--color-text-secondary); }
+.search-all-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; }
+.search-all-hit { display: flex; gap: var(--space-2); width: 100%; padding: var(--space-1) var(--space-2); border: none; border-radius: var(--radius-sm); background: none; color: inherit; text-align: left; cursor: pointer; }
+.search-all-hit.is-sel { background: var(--color-border-muted); }
+.search-all-tab { flex: 0 0 auto; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-accent); font-size: var(--fs-xs); }
+.search-all-text { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--color-text-primary); }

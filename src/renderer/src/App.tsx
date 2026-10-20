@@ -44,6 +44,7 @@ import { getSessionCwd, setSessionCwd } from './lib/session-cwd-store'
 import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
 import { askAboutHistoryFailure, lastRunFor } from './lib/failed-output'
+import SearchAllTermsModal from './components/SearchAllTermsModal'
 import { sessionInfoText } from '@shared/session-info'
 import { isSensitiveCommand } from '@shared/workspace-features'
 import { runInCwdLine } from '@shared/history-exit'
@@ -113,7 +114,7 @@ import { applyImportPolicy, buildImportPreview, type ImportPolicy, type ImportPr
 import { completeTask, dismissTasksForever, loadTaskState, pendingTasks, reopenTasks, skipTask, TASK_IDS, type TaskId, type TaskState } from '@shared/retention-tasks'
 import { loadSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT } from '@shared/sftp-density'
 import type { ServerToolsTab } from './components/ServerToolsModal'
-import { requestTerminalFind } from './lib/terminal-find'
+import { requestTerminalFind, AISS_TERMINAL_FIND_EVENT } from './lib/terminal-find'
 import { keysFor, matchKeymap } from '@shared/keymap'
 import { matchSnippetHotkey, SNIPPET_HOTKEY_EVENT } from '@shared/snippet-hotkey'
 import { dispatchInjectTerminal } from './lib/terminal-inject'
@@ -1847,6 +1848,18 @@ export default function App() {
   )
 
   const tabsRef = useRef(tabs)
+  // D60: search across all terminal tabs
+  const [searchAllOpen, setSearchAllOpen] = useState(false)
+  const searchAllLabel = useCallback((sid: string) => {
+    const t = tabsRef.current.find((x) => x.sessionId === sid && !x.view)
+    return t ? t.title : null
+  }, [])
+  const searchAllPick = useCallback((sid: string, query: string) => {
+    const t = tabsRef.current.find((x) => x.sessionId === sid && !x.view)
+    if (!t) return
+    setActiveTabId(t.tabId)
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent(AISS_TERMINAL_FIND_EVENT, { detail: { query } })), 80)
+  }, [])
   const activeTabIdRef = useRef(activeTabId)
   const revealTab = (tabId: string) => {
     const scroll = tabBarRef.current?.querySelector('.tab-bar-scroll')
@@ -5587,6 +5600,10 @@ export default function App() {
         updateLayout((p) => withPaneToggle(p, 'ai', true))
         setRightPane('ai')
         window.dispatchEvent(new CustomEvent('aiss-ai-clear-chat'))
+        return
+      }
+      if (action === 'searchAllTerms') {
+        setSearchAllOpen(true)
         return
       }
       if (action === 'copyLastOutput') {
@@ -10657,6 +10674,7 @@ export default function App() {
         />
       ) : null}
 
+      <SearchAllTermsModal open={searchAllOpen} onClose={() => setSearchAllOpen(false)} labelFor={searchAllLabel} onPick={searchAllPick} />
       <ToastHost />
 
       {sessionMenu && (() => {

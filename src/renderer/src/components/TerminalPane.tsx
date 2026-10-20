@@ -5,6 +5,7 @@ import { openContextMenu, type ContextMenuItem } from './ContextMenu'
 import { pathFromSelection } from '@shared/term-path'
 import { requestSftpGoto } from '../lib/sftp-goto'
 import { lastRunFor, recentRunsText, selectionWithLastRun } from '../lib/failed-output'
+import { registerTermBuffer } from '../lib/term-buffers'
 import { Terminal, type IMarker } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -199,10 +200,12 @@ export default function TerminalPane({
   useEffect(() => {
     const onFind = (e: Event) => {
       if (!activeRef.current) return
-      const want = (e as CustomEvent<{ scope?: FindScope } | undefined>).detail?.scope
+      const detail = (e as CustomEvent<{ scope?: FindScope; query?: string } | undefined>).detail
+      const want = detail?.scope
       if (want) findScopeRef.current(want)
       const term = apiRef.current?.term
-      const seed = term?.hasSelection() ? seedQueryFromSelection(term.getSelection()) : ''
+      // D60: a hit picked in "search all tabs" seeds the query
+      const seed = detail?.query ? detail.query : term?.hasSelection() ? seedQueryFromSelection(term.getSelection()) : ''
       if (seed) {
         setFindQuery(seed)
         findPosRef.current = null
@@ -814,6 +817,19 @@ export default function TerminalPane({
     window.addEventListener('aiss-clear-scrollback', onClear)
     return () => window.removeEventListener('aiss-clear-scrollback', onClear)
   }, [sessionId])
+
+  // D60: let "search all tabs" read this buffer (on demand, memory only)
+  useEffect(
+    () =>
+      registerTermBuffer(sessionId, () => {
+        const buf = apiRef.current?.term.buffer.active
+        if (!buf) return []
+        const lines: string[] = []
+        for (let i = 0; i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? '')
+        return lines
+      }),
+    [sessionId]
+  )
 
   useEffect(() => {
     const api = apiRef.current
