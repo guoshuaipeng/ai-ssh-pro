@@ -3,6 +3,7 @@ import type { Client } from 'ssh2'
 import type { ActiveForward, ForwardRestoreResult } from '../shared/ipc'
 import { CarryStore, parseRemoteSpec, type CarrySpec } from '../shared/remote-forward'
 import { mt } from './main-i18n'
+import { GREETING_NO_AUTH, GREETING_REJECT, parseGreeting, parseRequest, socksReply } from '../shared/socks5'
 
 /**
  * Runtime registry of port forwards.
@@ -41,8 +42,9 @@ export function validateForwardSpec(raw: unknown): { localPort: number; remoteHo
   return { localPort, remoteHost, remotePort }
 }
 
-function directionOf(spec: unknown): 'L' | 'R' {
-  return spec && typeof spec === 'object' && (spec as { direction?: unknown }).direction === 'R' ? 'R' : 'L'
+function directionOf(spec: unknown): 'L' | 'R' | 'D' {
+  const d = spec && typeof spec === 'object' ? (spec as { direction?: unknown }).direction : undefined
+  return d === 'R' || d === 'D' ? d : 'L'
 }
 
 export function startTrackedForward(
@@ -51,16 +53,17 @@ export function startTrackedForward(
   spec: unknown,
   source: 'profile' | 'manual'
 ): Promise<ActiveForward> {
-  return directionOf(spec) === 'R'
-    ? startRemoteForward(sessionId, client, spec, source)
-    : startLocalForward(sessionId, client, spec, source)
+  const d = directionOf(spec)
+  if (d === 'R') return startRemoteForward(sessionId, client, spec, source)
+  if (d === 'D') return startDynamicForward(sessionId, client, spec, source)
+  return startLocalForward(sessionId, client, spec, source)
 }
 
 function baseEntry(
   id: string,
   sessionId: string,
   source: 'profile' | 'manual',
-  direction: 'L' | 'R',
+  direction: 'L' | 'R' | 'D',
   f: { localHost?: string; localPort: number; remoteHost: string; remotePort: number },
   stop: () => void
 ): Entry {
@@ -304,6 +307,127 @@ function startRemoteForward(sessionId: string, client: Client, raw: unknown, sou
     } catch (e) {
       fail(e instanceof Error ? e.message : String(e))
     }
+  })
+}
+
+/* ---------- dynamic (-D, SOCKS5) ---------- */
+
+function startDynamicForward(sessionId: string, client: Client, raw: unknown, source: 'profile' | 'manual'): Promise<ActiveForward> {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const localPort = Number(o.localPort)
+  if (!Number.isInteger(localPort) || localPort < 0 || localPort > 65535) {
+    return Promise.reject(new Error(mt(`无效的本地端口: ${String(o.localPort)}`, `Invalid local port: ${String(o.localPort)}`)))
+  }
+  const id = `fwd-${++seq}`
+  const sockets = new Set<net.Socket>()
+  const server = net.createServer((socket) => {
+    const e = entries.get(id)
+    if (!e) return socket.destroy()
+    sockets.add(socket)
+    e.connections++
+    e.totalConnections++
+    let closed = false
+    socket.on('close', () => {
+      if (closed) return
+      closed = true
+      sockets.delete(socket)
+      if (e.connections > 0) e.connections--
+    })
+    socket.on('error', () => socket.destroy())
+    let buf = Buffer.alloc(0)
+    let stage: 'greet' | 'req' | 'pipe' = 'greet'
+    const onData = (d: Buffer) => {
+      buf = Buffer.concat([buf, d])
+      if (buf.length > 1024) return socket.destroy()
+      if (stage === 'greet') {
+        const g = parseGreeting(buf)
+        if (g.kind === 'more') return
+        if (g.kind === 'bad' || !g.noAuth) {
+          socket.end(Buffer.from(GREETING_REJECT))
+          return
+        }
+        socket.write(Buffer.from(GREETING_NO_AUTH))
+        buf = buf.subarray(g.used)
+        stage = 'req'
+      }
+      if (stage === 'req') {
+        const r = parseRequest(buf)
+        if (r.kind === 'more') return
+        if (r.kind === 'bad') {
+          socket.end(Buffer.from(socksReply(r.rep)))
+          return
+        }
+        stage = 'pipe'
+        socket.off('data', onData)
+        socket.pause()
+        const rest = buf.subarray(r.used)
+        e.lastTarget = `${r.host}:${r.port}`
+        try {
+          client.forwardOut('127.0.0.1', socket.remotePort || 0, r.host, r.port, (err, stream) => {
+            if (err || !stream) {
+              e.lastError = mt(`无法连接 ${r.host}:${r.port}：${err?.message ?? ''}`, `Cannot reach ${r.host}:${r.port}: ${err?.message ?? ''}`)
+              socket.end(Buffer.from(socksReply(0x05)))
+              return
+            }
+            socket.write(Buffer.from(socksReply(0)))
+            if (rest.length) {
+              e.bytesOut += rest.length
+              stream.write(rest)
+            }
+            stream.on('data', (x: Buffer) => {
+              e.bytesIn += x.length
+            })
+            socket.on('data', (x: Buffer) => {
+              e.bytesOut += x.length
+            })
+            stream.on('error', () => socket.destroy())
+            stream.on('close', () => socket.destroy())
+            socket.on('close', () => {
+              try {
+                stream.close()
+              } catch {
+                /* ignore */
+              }
+            })
+            socket.pipe(stream)
+            stream.pipe(socket)
+            socket.resume()
+          })
+        } catch (x) {
+          e.lastError = x instanceof Error ? x.message : String(x)
+          socket.end(Buffer.from(socksReply(0x01)))
+        }
+      }
+    }
+    socket.on('data', onData)
+  })
+  const entry = baseEntry(id, sessionId, source, 'D', { localPort, remoteHost: '*', remotePort: 0 }, () => {
+    for (const s of sockets) s.destroy()
+    sockets.clear()
+    try {
+      server.close()
+    } catch {
+      /* ignore */
+    }
+  })
+  entries.set(id, entry)
+  return new Promise((resolve, reject) => {
+    server.once('listening', () => {
+      const addr = server.address()
+      entry.localPort = typeof addr === 'object' && addr ? addr.port : localPort
+      entry.status = 'listening'
+      resolve(pub(entry))
+    })
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      const msg = err.code === 'EADDRINUSE' ? mt(`本地端口 ${localPort} 已被占用`, `Local port ${localPort} is already in use`) : err.message
+      entry.lastError = msg
+      if (entry.status === 'starting') {
+        entry.status = 'error'
+        if (source === 'manual') entries.delete(id)
+        reject(new Error(msg))
+      }
+    })
+    server.listen(localPort, '127.0.0.1')
   })
 }
 

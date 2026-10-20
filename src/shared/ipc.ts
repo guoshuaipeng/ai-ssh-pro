@@ -28,7 +28,7 @@ export type SshJumpHostOptions = {
 
 export type LocalPortForward = {
   /** B3: 'R' = remote forward (server remoteHost:remotePort → localHost:localPort). Missing means L. */
-  direction?: 'L' | 'R'
+  direction?: 'L' | 'R' | 'D'
   localHost?: string
   localPort: number
   remoteHost: string
@@ -889,8 +889,10 @@ export type ActiveForward = {
   id: string
   sessionId: string
   source: 'profile' | 'manual'
-  /** B3: L = local listens (forwardOut), R = server listens (forwardIn). Missing means L. */
-  direction: 'L' | 'R'
+  /** B3: L = local listens (forwardOut), R = server listens (forwardIn). C1: D = local SOCKS5. Missing means L. */
+  direction: 'L' | 'R' | 'D'
+  /** D only: last host:port a SOCKS client asked for. */
+  lastTarget?: string
   /** R only: target host on this computer. */
   localHost?: string
   /** L: local listen port. R: local target port. */
@@ -910,7 +912,7 @@ export type ActiveForward = {
 
 export type AddForwardRequest = {
   sessionId: string
-  direction?: 'L' | 'R'
+  direction?: 'L' | 'R' | 'D'
   localHost?: string
   localPort: number
   remoteHost: string
@@ -920,7 +922,7 @@ export type AddForwardRequest = {
 export type ForwardRestoreResult = {
   restored: ActiveForward[]
   skipped: Array<{
-    spec: { direction: 'L' | 'R'; localHost?: string; localPort: number; remoteHost: string; remotePort: number }
+    spec: { direction: 'L' | 'R' | 'D'; localHost?: string; localPort: number; remoteHost: string; remotePort: number }
     reason: 'readonly' | 'error'
     message?: string
   }>

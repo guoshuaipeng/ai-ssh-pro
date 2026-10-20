@@ -2,7 +2,7 @@
 
 import type { ProtectionLevel } from './protection'
 
-export type ForwardDirection = 'L' | 'R'
+export type ForwardDirection = 'L' | 'R' | 'D'
 
 export type RemoteForwardSpec = {
   /** Address the SSH server binds on its side. Servers without GatewayPorts force loopback. */
