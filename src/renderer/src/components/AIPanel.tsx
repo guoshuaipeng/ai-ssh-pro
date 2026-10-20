@@ -13,6 +13,7 @@ import { showToast } from '../lib/toast'
 import { lastAssistantText } from '@shared/ai-last-reply'
 import { currentTerminalSelection } from '../lib/terminal-selection'
 import { lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
+import { AI_PREFILL_EVENT, takeAiPrefill } from '../lib/ai-prefill'
 import { confirmDialog, isDialogOpen } from '../lib/dialogs'
 import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
@@ -1272,6 +1273,25 @@ export default function AIPanel({
     }
     window.addEventListener('aiss-ai-ask-again', onAsk)
     return () => window.removeEventListener('aiss-ai-ask-again', onAsk)
+  }, [])
+
+  // D6: selection → composer (context block, caret at the end for the follow-up question; never auto-sends)
+  useEffect(() => {
+    const take = () => {
+      const t = takeAiPrefill()
+      if (!t) return
+      setInput((v) => (v.trim() ? `${v.replace(/\s+$/, '')}\n\n${t}` : t))
+      window.setTimeout(() => {
+        const el = inputRef.current
+        if (!el) return
+        el.focus()
+        el.setSelectionRange(el.value.length, el.value.length)
+        el.scrollTop = el.scrollHeight
+      }, 0)
+    }
+    take()
+    window.addEventListener(AI_PREFILL_EVENT, take)
+    return () => window.removeEventListener(AI_PREFILL_EVENT, take)
   }, [])
 
   const stopGeneration = useCallback(() => {

@@ -33,6 +33,8 @@ import type { TitlebarMenuAction } from './components/TitlebarMenus'
 import AiConfigModal from './components/AiConfigModal'
 import ConnectionConfigModal from './components/ConnectionConfigModal'
 import QuickPick from './components/QuickPick'
+import { AI_ASK_CONTEXT_EVENT, setAiPrefill } from './lib/ai-prefill'
+import { fenceSelection } from '@shared/ask-context'
 import type { CommandSnippet } from '@shared/ipc'
 import { loadSmartHistory } from './lib/smart-history'
 import { mruOrder, mruTouch, rankHistoryPick, rankSwitchPick, type PickItem } from '@shared/quick-pick'
@@ -6961,6 +6963,23 @@ export default function App() {
     const tab = tabsRef.current.find((x) => x.sessionId === sid && (!x.view || x.view === 'session'))
     if (tab) setActiveTabId(tab.tabId)
   }, [])
+  // D6: "Ask AI" from a terminal selection → that tab's conversation, context prefilled, user types the question
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const d = (e as CustomEvent<{ sessionId: string; text: string }>).detail
+      if (!d?.sessionId || !d.text?.trim()) return
+      focusSessionTab(d.sessionId)
+      const tab = tabsRef.current.find((x) => x.sessionId === d.sessionId)
+      const host = tab ? tab.connectOpts.label?.trim() || tab.title : ''
+      const cwd = getSessionCwd(d.sessionId)
+      const head = cwd ? tg('d6.ctxHeadCwd', { host, cwd }) : tg('d6.ctxHead', { host })
+      setAiPrefill(`${head}\n${fenceSelection(d.text)}\n`)
+      updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+      openRightPanelRef.current('ai')
+    }
+    window.addEventListener(AI_ASK_CONTEXT_EVENT, onAsk)
+    return () => window.removeEventListener(AI_ASK_CONTEXT_EVENT, onAsk)
+  }, [focusSessionTab, updateLayout])
   // H2: TCP probe every 60 s while the window is visible
   useEffect(() => {
     if (!showHostStatus) return
