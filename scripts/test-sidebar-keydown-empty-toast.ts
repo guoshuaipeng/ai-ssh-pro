@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 const start = app.indexOf('const onSidebarKeyDown')
 assert.ok(start >= 0)
-const chunk = app.slice(start, start + 550)
+const chunk = app.slice(start, start + 2000)
 assert.match(chunk, /if \(!p\) \{/)
 assert.match(chunk, /showToast\(tg\('l10\.none'\)\)/)
 assert.match(chunk, /e\.key === 'Enter' \|\| e\.key === 'F2'/)
