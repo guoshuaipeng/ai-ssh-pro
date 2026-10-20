@@ -1003,7 +1003,7 @@ await step('UX-01: Ctrl+B in a focused terminal reaches the shell, Ctrl+Alt+1 to
   await expectHidden(find)
 })
 
-await step('H1: host right-click menu order, Copy user@host, SFTP / toolbox auto-connect, multi-select', async () => {
+await step('H1: host right-click menu order, Copy ssh command, SFTP / toolbox auto-connect, multi-select', async () => {
   await page.keyboard.press('Escape')
   const host = page.locator('aside').first().getByText('e2e-local', { exact: true }).last()
   await host.click({ button: 'right' })
@@ -1015,13 +1015,13 @@ await step('H1: host right-click menu order, Copy user@host, SFTP / toolbox auto
   assert(order[order.length - 1] === 'delete', 'delete is last')
   assert((await m.locator('[data-ctx="delete"]').getAttribute('class')).includes('danger'), 'delete is red')
   await cjkScan('host menu')
-  await m.getByRole('menuitem', { name: 'Copy user@host' }).click()
+  await m.getByRole('menuitem', { name: 'Copy ssh command' }).click()
   await expectVisible(page.getByTestId('toast').filter({ hasText: 'Copied' }))
   await expectVisible(page.getByTestId('toast').filter({ hasText: 'Copied' }), 5000)
   let clip = ''
   try { clip = await page.evaluate(() => window.aiss.clipboard.readText()) } catch {}
   if (!clip) try { clip = await app.evaluate(({ clipboard }) => clipboard.readText()) } catch {}
-  assert(!clip || clip.startsWith('e2e@127.0.0.1'), 'clipboard: ' + clip)
+  assert(!clip || (clip.startsWith('ssh ') && clip.includes('e2e@127.0.0.1')), 'clipboard: ' + clip)
   await host.click({ button: 'right' })
   await page.getByTestId('host-menu').getByRole('menuitem', { name: 'SFTP files' }).click()
   await expectVisible(page.locator('.tab-bar .tab').filter({ hasText: /SFTP · |SFTP files/ }), 15000)

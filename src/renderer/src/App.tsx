@@ -25,7 +25,7 @@ import type {
 import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
 import { bumpTerminalFontSize, resetTerminalFontSize } from '@shared/terminal-zoom'
 import { normalizeSessionNote, sessionNotePreview } from '@shared/session-note'
-import { formatConnectionString, statusHostChipLabel } from '@shared/connection-string'
+import { formatConnectionString, formatSshCommand, statusHostChipLabel } from '@shared/connection-string'
 import TerminalPane from './components/TerminalPane'
 import SplitTerminalView from './components/SplitTerminalView'
 import AIPanel, { type AiPendingInfo } from './components/AIPanel'
@@ -8402,6 +8402,7 @@ export default function App() {
                   canDuplicate,
                   canSessionTools: sessionTools,
                   canForward,
+                  canCopySsh: tab.kind !== 'local' && Boolean(tab.connectOpts?.host) && !tab.connectOpts?.demo,
                   closeOthersDisabled: others.length === 0,
                   closeRightDisabled: right.disabled
                 }
@@ -8455,6 +8456,12 @@ export default function App() {
                         })
                         void navigator.clipboard.writeText(text).then(
                           () => showToast(tg('d49.copied')),
+                          () => showToast(tg('d49.copyFail'), { kind: 'error' })
+                        )
+                      } else if (id === 'copySsh') {
+                        const cmd = formatSshCommand(tab.connectOpts)
+                        void navigator.clipboard.writeText(cmd).then(
+                          () => showToast(tg('d84.copied', { cmd })),
                           () => showToast(tg('d49.copyFail'), { kind: 'error' })
                         )
                       } else if (id === 'sftp' && tab.sessionId) openSftpTransfer(tab.sessionId, { alignCwd: true })
@@ -10858,12 +10865,13 @@ export default function App() {
           }
           if (id === 'copyAddr') {
             setSessionMenu(null)
-            const addr = `${p.username}@${p.host}${p.port && p.port !== 22 ? ` -p ${p.port}` : ''}`
+            // D84: a runnable ssh command (port, key path, jump hops; never secrets)
+            const addr = formatSshCommand(connectOptsFromProfile(p))
             try {
               window.aiss.clipboard.writeText(addr)
-              showToast(tg('ctx.copied'))
+              showToast(tg('d84.copied', { cmd: addr }))
             } catch {
-              void navigator.clipboard.writeText(addr).then(() => showToast(tg('ctx.copied')))
+              void navigator.clipboard.writeText(addr).then(() => showToast(tg('d84.copied', { cmd: addr })))
             }
             return
           }

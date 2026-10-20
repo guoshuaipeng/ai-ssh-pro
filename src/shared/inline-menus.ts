@@ -51,6 +51,8 @@ export type HostMenuCtx = {
 }
 
 export type TabMenuCtx = {
+  /** D84: ssh tabs only */
+  canCopySsh?: boolean
   pinned: boolean
   readOnlyOn: boolean
   canDuplicate: boolean
@@ -202,6 +204,7 @@ export function buildTabMenu(ctx: TabMenuCtx): BuiltNode[] {
     { type: 'item', id: 'rename', labelKey: 'tab.rename' },
     { type: 'item', id: 'duplicate', labelKey: 'tab.duplicate', disabled: !ctx.canDuplicate },
     { type: 'item', id: 'copyInfo', labelKey: 'd49.copyInfo', testId: 'tab-copy-info' },
+    { type: 'item', id: 'copySsh', labelKey: 'ctx.copyAddr', testId: 'tab-copy-ssh', disabled: ctx.canCopySsh === false },
     { type: 'sep' },
     { type: 'item', id: 'sftp', labelKey: 'ctx.sftp', disabled: !ctx.canSessionTools },
     { type: 'item', id: 'monitor', labelKey: 'menu.resourceMonitor', disabled: !ctx.canSessionTools },
