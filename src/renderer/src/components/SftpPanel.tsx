@@ -53,6 +53,7 @@ import { AI_FILE_MAX_BYTES, buildFileContext, canAttachFile } from '@shared/ai-f
 import { requestAskWithContext } from '../lib/ai-prefill'
 import Icon, { Twist } from './Icon'
 import FolderSyncModal from './FolderSyncModal'
+import { newFileProblem } from '@shared/sftp-new-file'
 import { isLikelyTextFile } from './RemoteTextEditor'
 import { captureRemoteSnapshot } from '../lib/remote-snapshot'
 import { loadSftpDensity, resolveSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT, type SftpDensityPref } from '@shared/sftp-density'
@@ -1188,6 +1189,33 @@ export default function SftpPanel({
     }
   }
 
+  // D71: new empty remote file, then open it in the editor; never overwrites
+  const newRemoteFile = async () => {
+    if (!sessionId || !(await allowRemoteWrite())) return
+    const name = await askText(tg('d71.name'))
+    if (name == null) return
+    const problem = newFileProblem(name, remoteEntries.map((e) => e.name))
+    if (problem) {
+      if (problem !== 'empty') showToast(tg(`d71.${problem}` as 'd71.exists', { name: name.trim() }), { kind: 'error' })
+      return
+    }
+    const path = joinPosix(remoteCwd, name.trim())
+    try {
+      // re-check on the server in case the listing is stale
+      const st = await window.aiss.sftp.stat(sessionId, path).catch(() => null)
+      if (st) {
+        showToast(tg('d71.exists', { name: name.trim() }), { kind: 'error' })
+        return
+      }
+      await window.aiss.sftp.writeText(sessionId, path, '')
+    } catch (err) {
+      showToast(tg('d71.fail', { msg: err instanceof Error ? err.message : String(err) }), { kind: 'error' })
+      return
+    }
+    await refreshRemote(remoteCwd)
+    onOpenRemoteFile?.({ remotePath: path, name: name.trim(), size: 0 })
+  }
+
   const renameEntry = async (side: PaneId, entry: SftpListEntry) => {
     if (side === 'remote' && (!sessionId || !(await allowRemoteWrite()))) return
     const next = await askText(tg('sftp.newName'), entry.name)
@@ -1505,6 +1533,17 @@ export default function SftpPanel({
             >
               {tg('sftp.mkdir')}
             </button>
+            {!isLocal ? (
+              <button
+                type="button"
+                data-testid="sftp-remote-newfile"
+                title={readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : tg('d71.tip')}
+                disabled={readOnly || remoteWritesBlocked || !sessionId}
+                onClick={() => void newRemoteFile()}
+              >
+                {tg('d71.button')}
+              </button>
+            ) : null}
             <input
               type="search"
               className="sftp-name-filter"
