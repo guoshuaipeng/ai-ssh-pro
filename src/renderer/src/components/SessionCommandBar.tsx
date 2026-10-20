@@ -14,6 +14,7 @@ import { confirmAndRunAiCommand } from '../lib/ai-run'
 import { loadSmartPrefs, recordSmartCommand, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
 import { bindHistoryHost } from '../lib/history-exit'
+import ScriptProgress from './ScriptProgress'
 import type { CommandSnippet } from '@shared/ipc'
 import Icon, { Twist } from './Icon'
 
@@ -277,6 +278,7 @@ export default function SessionCommandBar({ sessionId, hostLabel, hostKey = '', 
 
   return (
     <div className={`session-command-bar${inAi ? ' is-ai' : ''}`} data-testid="session-command-bar">
+      <ScriptProgress sessionId={sessionId} />
       <button type="button" className="session-command-collapse" title={t('ux44.collapse')} aria-label={t('ux44.collapse')} onClick={() => toggleOpen(false)}>
         <Twist open size={12} />
       </button>

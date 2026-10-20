@@ -239,3 +239,19 @@
 /* D21 */
 .recent-connections-filter { width: 100%; height: 22px; font-size: 11px; padding: 0 6px; margin: 2px 0 4px; }
 
+
+/* D22 */
+.cmd-src--failed, .qp-badge--failed { color: var(--danger); border-color: var(--danger); }
+
+
+/* D16d */
+.script-progress { display: flex; align-items: center; gap: 6px; padding: 2px 8px; margin: 0 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+.script-progress-title { color: var(--accent); font-weight: 600; }
+.script-progress-count { font-variant-numeric: tabular-nums; }
+.script-progress-bar { width: 48px; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.script-progress-bar > span { display: block; height: 100%; background: var(--accent); }
+.script-progress-label { color: var(--muted); }
+.script-progress.is-failed { border-color: var(--danger); }
+.script-progress.is-failed .script-progress-label, .script-progress.is-risky .script-progress-label { color: var(--danger); }
+.script-progress button { height: 20px; font-size: 11px; padding: 0 6px; }
+
