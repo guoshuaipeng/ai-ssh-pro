@@ -1824,12 +1824,14 @@ export default function SftpPanel({
         if (row.kind !== 'new' && row.kind !== 'changed') continue
         const localPath = joinLocal(plan.localRoot, row.rel)
         const remotePath = joinPosix(plan.remoteRoot, row.rel)
-        if (plan.direction === 'upload' && row.kind === 'changed' && sessionId) {
+        // D67: a conflict resolved as "keep target" copies the newer target back to the source side
+        const dir = row.reverse ? (plan.direction === 'upload' ? 'download' : 'upload') : plan.direction
+        if (dir === 'upload' && row.kind === 'changed' && sessionId) {
           const snap = await captureRemoteSnapshot({ sessionId, profileId, path: remotePath, source: 'sync' })
           if (snap === 'kept') kept += 1
           else if (snap === 'skipped') skipped += 1
         }
-        await enqueueFile(plan.direction, localPath, remotePath, baseName(row.rel))
+        await enqueueFile(dir, localPath, remotePath, baseName(row.rel))
       }
       if (kept) showToast(tg('w3.syncSnapN', { n: kept }))
       if (skipped) showToast(tg('w3.syncSkippedN', { n: skipped }))

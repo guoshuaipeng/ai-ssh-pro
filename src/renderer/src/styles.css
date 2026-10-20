@@ -7147,3 +7147,6 @@ button.primary.danger:focus-visible {
 .batch-group.is-some { border-style: dashed; border-color: var(--color-accent); }
 .batch-group-n { color: var(--color-text-secondary); }
 .batch-open-host { margin-left: auto; padding: 0 var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; font-size: var(--fs-xs); cursor: pointer; }
+/* D67: sync conflicts */
+.sync-conflict { margin-right: var(--space-1); font-size: var(--fs-xs); background: none; color: inherit; border: 1px solid var(--color-border-default); border-radius: var(--radius-sm); }
+.sync-conflicts { margin-left: var(--space-2); font-size: var(--fs-xs); color: var(--color-accent); }

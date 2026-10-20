@@ -19,6 +19,8 @@ export type SyncRow = {
   isDir?: boolean
   /** D62: changed, and the target copy is newer (syncing would overwrite newer work) */
   targetNewer?: boolean
+  /** D67: copy this row the other way (keep the newer target, bring it back to the source side) */
+  reverse?: boolean
 }
 
 export const DEFAULT_EXCLUDES = ['.git', 'node_modules', '*.log']
@@ -110,6 +112,24 @@ export function defaultPicks(rows: SyncRow[]): Record<string, boolean> {
   const init: Record<string, boolean> = {}
   for (const r of rows) if (r.kind !== 'same' && !r.targetNewer) init[r.rel] = true
   return init
+}
+
+/** D67: what to do with a conflict (changed, target newer). Default skip. */
+export type ConflictChoice = 'skip' | 'source' | 'target'
+
+export function conflictChoice(picked: Record<string, boolean>, keep: Record<string, 'target' | undefined>, rel: string): ConflictChoice {
+  return keep[rel] === 'target' ? 'target' : picked[rel] ? 'source' : 'skip'
+}
+
+/** Rows to run: picked, non-same; conflicts resolved to "target" run reversed. Reversed rows never delete. */
+export function resolvePlanRows(rows: SyncRow[], picked: Record<string, boolean>, keep: Record<string, 'target' | undefined>): SyncRow[] {
+  const out: SyncRow[] = []
+  for (const r of rows) {
+    if (r.kind === 'same') continue
+    if (r.targetNewer && keep[r.rel] === 'target') out.push({ ...r, reverse: true })
+    else if (picked[r.rel]) out.push(r)
+  }
+  return out
 }
 
 export function countKinds(rows: SyncRow[]): Record<SyncKind, number> {

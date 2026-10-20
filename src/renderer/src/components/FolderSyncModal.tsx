@@ -4,6 +4,8 @@ import {
   DEFAULT_EXCLUDES,
   countKinds,
   defaultPicks,
+  conflictChoice,
+  resolvePlanRows,
   diffTrees,
   isProductionHost,
   matchExclude,
@@ -123,6 +125,9 @@ export default function FolderSyncModal({
   const [deleteExtra, setDeleteExtra] = useState(false)
   const [rows, setRows] = useState<SyncRow[]>([])
   const [picked, setPicked] = useState<Record<string, boolean>>({})
+  // D67: conflicts where the user keeps the newer target copy
+  const [keep, setKeep] = useState<Record<string, 'target' | undefined>>({})
+  const conflicts = rows.filter((r) => r.targetNewer).length
   const [collapsed, setCollapsed] = useState<Record<SyncKind, boolean>>({ new: false, changed: false, deleted: false, same: true })
   const [comparing, setComparing] = useState(false)
   const [compared, setCompared] = useState(0)
@@ -150,7 +155,7 @@ export default function FolderSyncModal({
   const targetLabel = direction === 'upload' ? `${hostLabel}:${remoteRoot}` : localRoot
   const prod = isProductionHost(`${hostLabel} ${hostName}`, tags)
   const deleteCount = deleteExtra ? [...selected].filter((rel) => rows.find((r) => r.rel === rel && r.kind === 'deleted')).length : 0
-  const copyCount = rows.filter((r) => (r.kind === 'new' || r.kind === 'changed') && picked[r.rel]).length
+  const copyCount = rows.filter((r) => (r.kind === 'new' || r.kind === 'changed') && (picked[r.rel] || keep[r.rel] === 'target')).length
 
   const runCompare = async () => {
     cancelRef.current = { cancelled: false }
@@ -190,6 +195,7 @@ export default function FolderSyncModal({
       }
       setRows(next)
       setPicked(defaultPicks(next))
+      setKeep({})
       if (onPin && shouldPinSyncPreview(changeCount(next), false)) {
         onPin({ direction, localRoot, remoteRoot, rows: next.filter((r) => r.kind !== 'same'), deleteExtra })
       }
@@ -199,12 +205,12 @@ export default function FolderSyncModal({
   }
 
   const pinPlan = () => {
-    const chosen = rows.filter((r) => picked[r.rel] && r.kind !== 'same')
+    const chosen = resolvePlanRows(rows, picked, keep)
     onPin?.({ direction, localRoot, remoteRoot, rows: chosen, deleteExtra })
   }
 
   const confirmRun = async () => {
-    const chosen = rows.filter((r) => picked[r.rel] && r.kind !== 'same')
+    const chosen = resolvePlanRows(rows, picked, keep)
     const deleting = deleteExtra ? chosen.filter((r) => r.kind === 'deleted') : []
     if (prod && deleting.length > 0) {
       const typed = await askText(tg('d2.typeHost', { host: hostName }), '')
@@ -352,6 +358,7 @@ export default function FolderSyncModal({
                   </button>
                 ))}
                 <span className="sync-bytes">{formatBytes(bytes)}</span>
+                {conflicts ? <span className="sync-conflicts" data-testid="sync-conflicts">{tg('d67.summary', { n: conflicts })}</span> : null}
               </div>
               {deleteCount > 0 ? (
                 <div className="sync-delete-warn" data-testid="sync-delete-warn">
@@ -375,7 +382,7 @@ export default function FolderSyncModal({
                               <input
                                 type="checkbox"
                                 checked={Boolean(picked[r.rel])}
-                                disabled={r.kind === 'same'}
+                                disabled={r.kind === 'same' || Boolean(r.targetNewer)}
                                 onChange={(e) => setPicked((p) => ({ ...p, [r.rel]: e.target.checked }))}
                               />
                               <span className={`sync-kind sync-kind--${r.kind}`}>{kindLabel[r.kind]}</span>
@@ -383,6 +390,23 @@ export default function FolderSyncModal({
                                 <span className="sync-kind sync-kind--newer" data-testid="sync-target-newer" title={tg('d62.targetNewerTip')}>
                                   {tg('d62.targetNewer')}
                                 </span>
+                              ) : null}
+                              {r.targetNewer ? (
+                                <select
+                                  className="sync-conflict"
+                                  data-testid="sync-conflict"
+                                  aria-label={tg('d67.choice', { name: r.rel })}
+                                  value={conflictChoice(picked, keep, r.rel)}
+                                  onChange={(e) => {
+                                    const v = e.target.value
+                                    setPicked((p) => ({ ...p, [r.rel]: v === 'source' }))
+                                    setKeep((k) => ({ ...k, [r.rel]: v === 'target' ? 'target' : undefined }))
+                                  }}
+                                >
+                                  <option value="skip">{tg('d67.skip')}</option>
+                                  <option value="source">{tg('d67.source')}</option>
+                                  <option value="target">{tg('d67.target')}</option>
+                                </select>
                               ) : null}
                               <span className="sync-rel">{r.rel}</span>
                               <span className="sync-size">{formatBytes(r.size)}</span>
