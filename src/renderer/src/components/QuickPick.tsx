@@ -72,6 +72,7 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
       <div className="cmdp qp" role="dialog" aria-label={title} data-testid={testId} onMouseDown={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
+          spellCheck={false}
           className="cmdp-input"
           placeholder={placeholder}
           aria-label={title}

@@ -102,6 +102,7 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
           <>
             <input
               ref={inputRef}
+              spellCheck={false}
               className="cmdp-input"
               placeholder={t('ux09.search')}
               aria-label={t('ux09.search')}

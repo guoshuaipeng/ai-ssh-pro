@@ -214,6 +214,7 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
       <div className="cmdp" role="dialog" aria-label={t('cmdp.title')} onMouseDown={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
+          spellCheck={false}
           className="cmdp-input"
           placeholder={t('cmdp.placeholder')}
           aria-label={t('cmdp.title')}
