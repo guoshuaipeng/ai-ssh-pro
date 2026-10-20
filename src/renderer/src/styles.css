@@ -7134,3 +7134,8 @@ button.primary.danger:focus-visible {
 .paste-skip-empty { margin: var(--space-1) 0; font-size: var(--fs-xs); color: var(--color-text-secondary); }
 /* D62: folder sync — target copy is newer */
 .sync-kind--newer { margin-right: var(--space-1); padding: 0 var(--space-1); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); font-size: var(--fs-xs); color: var(--color-text-secondary); }
+/* D64: batch result comparison */
+.batch-compare { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: var(--space-2) 0; font-size: var(--fs-xs); color: var(--color-text-secondary); }
+.batch-compare button { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; cursor: pointer; }
+.batch-exec-result.is-outlier { border-color: var(--color-accent); }
+.batch-outlier { padding: 0 var(--space-1); border-radius: var(--radius-sm); border: 1px solid var(--color-accent); color: var(--color-accent); font-size: var(--fs-xs); }

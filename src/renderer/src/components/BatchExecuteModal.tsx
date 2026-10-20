@@ -8,6 +8,9 @@ import CommandInput from './CommandInput'
 import { assessCommandRisk } from '../../../shared/command-risk'
 import { askConfirm } from '../lib/dialogs'
 import Button from './ui/Button'
+import { batchDiffContext, compareBatch } from '@shared/batch-compare'
+import { redactAuditText } from '@shared/audit-log'
+import { requestAskWithContext } from '../lib/ai-prefill'
 
 export type BatchSessionOption = {
   sessionId: string
@@ -48,6 +51,15 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
   const [formError, setFormError] = useState<string | null>(null)
   const [result, setResult] = useState<BatchExecResult | null>(null)
   const wasOpen = useRef(false)
+  // D64: group identical outputs; flag hosts that differ from the majority
+  const cmp = useMemo(() => (result && result.results.length >= 2 ? compareBatch(result.results) : null), [result])
+  const outlierSet = useMemo(() => new Set(cmp?.outliers ?? []), [cmp])
+  const askDiff = () => {
+    if (!result || !cmp) return
+    const text = batchDiffContext(result.command, result.results, cmp, redactAuditText)
+    // prefill only: the user reviews and presses send
+    if (text) requestAskWithContext(cmp.outliers[0]!, text, t('d64.q'))
+  }
 
   useEffect(() => {
     if (open && !wasOpen.current) {
@@ -218,14 +230,31 @@ export default function BatchExecuteModal({ open, sessions, preselect, onClose, 
           ariaLabel={t('batch.command')}
         />
         {formError ? <p className="batch-exec-error">{formError}</p> : null}
+        {cmp ? (
+          <div className="batch-compare" data-testid="batch-compare">
+            <span>
+              {cmp.groups.length === 1
+                ? t('d64.same', { n: result!.results.length })
+                : cmp.majority
+                  ? t('d64.outliers', { groups: cmp.groups.length, n: cmp.outliers.length })
+                  : t('d64.noMajority', { groups: cmp.groups.length })}
+            </span>
+            {cmp.outliers.length ? (
+              <button type="button" data-testid="batch-ask-diff" title={t('d64.askTip')} onClick={askDiff}>
+                {t('d64.ask')}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="batch-exec-results" aria-live="polite">
           {!result || result.results.length === 0 ? (
             <p className="batch-exec-empty">{t('batch.emptyResult')}</p>
           ) : (
             result.results.map((row) => (
-              <article key={row.sessionId} className={`batch-exec-result ${row.ok ? 'is-ok' : 'is-bad'}`}>
+              <article key={row.sessionId} className={`batch-exec-result ${row.ok ? 'is-ok' : 'is-bad'}${outlierSet.has(row.sessionId) ? ' is-outlier' : ''}`}>
                 <header>
                   <strong>{row.label || row.sessionId}</strong>
+                  {outlierSet.has(row.sessionId) ? <span className="batch-outlier" data-testid="batch-outlier">{t('d64.differs')}</span> : null}
                   <span>
                     {row.username ? `${row.username}@${row.host}:${row.port}` : row.sessionId}
                   </span>
