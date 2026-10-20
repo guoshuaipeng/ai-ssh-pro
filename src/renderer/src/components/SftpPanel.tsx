@@ -46,6 +46,7 @@ import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
 import { openDecision } from '@shared/sftp-open'
 import { parentPath } from '@shared/term-path'
+import { noteRecentDir, recentDirs } from '@shared/sftp-recent-dirs'
 import { SFTP_GOTO_EVENT, takeSftpGoto } from '../lib/sftp-goto'
 import { AI_FILE_MAX_BYTES, buildFileContext, canAttachFile } from '@shared/ai-file-context'
 import { requestAskWithContext } from '../lib/ai-prefill'
@@ -503,6 +504,7 @@ export default function SftpPanel({
     try {
       const res = await api.list(sessionId, path || remoteCwd || '/')
       if (shotMockRef.current) return
+      noteRecentDir(hostKey, res.path)
       setRemoteCwd(res.path)
       setRemoteInput(res.path)
       setRemoteEntries(res.entries)
@@ -512,7 +514,7 @@ export default function SftpPanel({
     } finally {
       setRemoteLoading(false)
     }
-  }, [remoteCwd, sessionId])
+  }, [remoteCwd, sessionId, hostKey])
 
   useEffect(() => {
     const onGoto = (ev: Event) => {
@@ -1332,6 +1334,25 @@ export default function SftpPanel({
           <div className="sftp-pane-title">
             <span className="sftp-pane-name">{isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}</span>
             {isLocal && !showPath ? driveControl : null}
+            {!isLocal && hostKey ? (
+              <button
+                type="button"
+                className="sftp-cd-terminal"
+                data-testid="sftp-recent-dirs"
+                title={tg('d45.tip')}
+                onClick={(ev) => {
+                  // D45: recent folders on this host
+                  const dirs = recentDirs(hostKey).filter((d) => d !== cwd)
+                  if (!dirs.length) {
+                    showToast(tg('d45.empty'))
+                    return
+                  }
+                  openContextMenu(ev, dirs.map((d, i) => ({ id: `recent-${i}`, label: d, onSelect: () => void refreshRemote(d) })))
+                }}
+              >
+                {tg('d45.btn')}
+              </button>
+            ) : null}
             {!isLocal && onCdInTerminal && cwd ? (
               <button type="button" className="sftp-cd-terminal" data-testid="sftp-cd-terminal" title={tg('d28.tip')} onClick={() => onCdInTerminal(cwd)}>
                 {tg('d28.btn')}
