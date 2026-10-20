@@ -213,6 +213,7 @@ import { peekAuditExportContext, type AuditExportSeed } from '@shared/audit-expo
 import { hideFromDashboard, hostInScope, loadDashScope, restoreToDashboard, saveDashScope, type DashScope } from '@shared/dashboard-scope'
 import { dropCenterSnippetTabs, redirectCenterSnippets, type RightPaneId } from '@shared/right-panel'
 import { assessCommandRisk } from '@shared/command-risk'
+import { setStrictPasteHosts } from './lib/paste-pref'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import {
   delayForAttempt,
@@ -1173,6 +1174,16 @@ export default function App() {
     [tabs, profiles, sessionRo, elevateMap]
   )
   const onlineSessionIds = useMemo(() => new Set(connectedSshSessions.map((s) => s.sessionId)), [connectedSshSessions])
+  // D7b: production / read-only hosts always preview multi-line pastes
+  useEffect(() => {
+    const keys: string[] = []
+    for (const tab of tabs) {
+      if (tab.kind === 'local') continue
+      const prof = profiles.find((p) => p.id === tab.profileId)
+      if (stricterLevel(effectiveLevel(prof), Boolean(tab.profileId && sessionRo[tab.profileId])) !== 'normal') keys.push(sessionHostKey(tab))
+    }
+    setStrictPasteHosts(keys)
+  }, [tabs, profiles, sessionRo])
   const cmdkHostEntries = useMemo(() => {
     const out: Array<{ id: string; label: string; host: string; username: string; port: number; recent?: boolean }> = []
     const seen = new Set<string>()
@@ -6982,14 +6993,14 @@ export default function App() {
   // D6: "Ask AI" from a terminal selection → that tab's conversation, context prefilled, user types the question
   useEffect(() => {
     const onAsk = (e: Event) => {
-      const d = (e as CustomEvent<{ sessionId: string; text: string }>).detail
+      const d = (e as CustomEvent<{ sessionId: string; text: string; question?: string }>).detail
       if (!d?.sessionId || !d.text?.trim()) return
       focusSessionTab(d.sessionId)
       const tab = tabsRef.current.find((x) => x.sessionId === d.sessionId)
       const host = tab ? tab.connectOpts.label?.trim() || tab.title : ''
       const cwd = getSessionCwd(d.sessionId)
       const head = cwd && cwd !== '~' ? tg('d6.ctxHeadCwd', { host, cwd }) : tg('d6.ctxHead', { host })
-      setAiPrefill(`${head}\n${fenceSelection(d.text)}\n`)
+      setAiPrefill(`${head}\n${fenceSelection(d.text)}\n${d.question ?? ''}`)
       updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
       openRightPanelRef.current('ai')
     }

@@ -21,6 +21,8 @@ import { HISTORY_CHANGED_EVENT } from '../lib/workspace-events'
 import { parseOsc52Payload } from '@shared/osc52'
 import { cwdFromOsc7, cwdFromPrompt } from '@shared/session-cwd'
 import { planPaste, type PastePlan } from '@shared/paste-plan'
+import { canSkipHost, pasteDecision } from '@shared/paste-skip'
+import { isStrictPasteHost, pasteSkipHost, setPasteSkipHost } from '../lib/paste-pref'
 import { requestAskWithContext } from '../lib/ai-prefill'
 import { dropTargetDir, typedCommandOnEnter } from '@shared/typed-command'
 import { setPendingUpload } from '../lib/pending-upload'
@@ -130,7 +132,7 @@ export default function TerminalPane({
   // D7: multi-line paste waits here for a decision
   // D9: files dragged over the terminal → upload target hint
   const [dropHint, setDropHint] = useState<string | null>(null)
-  const [pastePreview, setPastePreview] = useState<{ text: string; plan: PastePlan } | null>(null)
+  const [pastePreview, setPastePreview] = useState<{ text: string; plan: PastePlan; strict: boolean; bracketed: boolean } | null>(null)
   const guardedPasteRef = useRef<(text: string) => void>(() => {})
   const [findQuery, setFindQuery] = useState('')
   const [findMiss, setFindMiss] = useState(false)
@@ -264,11 +266,14 @@ export default function TerminalPane({
     }
     guardedPasteRef.current = (text: string) => {
       const plan = planPaste(text)
-      if (!plan.multiline || mirrorOnlyRef.current) {
+      const hk = hostKeyRef.current
+      const strict = isStrictPasteHost(hk)
+      const bracketed = Boolean(term.modes?.bracketedPasteMode)
+      if (mirrorOnlyRef.current || pasteDecision(plan, { strict, skipHost: pasteSkipHost(hk), bracketed }) === 'paste') {
         term.paste(text)
         return
       }
-      setPastePreview({ text, plan })
+      setPastePreview({ text, plan, strict, bracketed })
     }
     // Native paste (menu / middle click) goes through the same preview
     const onNativePaste = (ev: ClipboardEvent) => {
@@ -752,7 +757,14 @@ export default function TerminalPane({
               })}
             </ol>
             {pastePreview.plan.lines.length > 12 ? <div className="paste-preview-more">{tg('d7.more', { n: pastePreview.plan.lines.length - 12 })}</div> : null}
-            <p className="paste-preview-hint">{pastePreview.plan.runsLast ? tg('d7.runsAll') : tg('d7.runsButLast')}</p>
+            <p className="paste-preview-hint">{pastePreview.bracketed ? tg('d7b.bracketed') : pastePreview.plan.runsLast ? tg('d7.runsAll') : tg('d7.runsButLast')}</p>
+            {canSkipHost(pastePreview.strict, hostKeyRef.current) ? (
+              <label className="paste-preview-skip" title={tg('d7b.skipTip')}>
+                <input type="checkbox" data-testid="paste-preview-skip" defaultChecked={pasteSkipHost(hostKeyRef.current)}
+                  onChange={(e) => setPasteSkipHost(hostKeyRef.current, e.currentTarget.checked)} />
+                {tg('d7b.skip')}
+              </label>
+            ) : pastePreview.strict ? <p className="paste-preview-hint" data-testid="paste-preview-strict">{tg('d7b.strict')}</p> : null}
             <div className="paste-preview-actions">
               <button type="button" data-testid="paste-preview-cancel" autoFocus={pastePreview.plan.risky.length > 0}
                 onClick={() => { setPastePreview(null); apiRef.current?.term.focus() }}>
