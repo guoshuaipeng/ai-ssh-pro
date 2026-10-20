@@ -108,6 +108,8 @@ export default function HostPicker({ open, feature, profiles, recentKeys, status
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {
+                // P39: IME candidate Enter must not run / pick
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return
                 if (e.key === 'ArrowDown') {
                   e.preventDefault()
                   setSel((s) => Math.min(list.length - 1, s + 1))

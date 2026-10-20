@@ -220,6 +220,8 @@ export default function CommandPalette({ open, onClose, onAction, aiReady = true
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
+            // P39: IME candidate Enter must not run / pick
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
             const step = paletteKeyStep(e.key, sel, filtered.length)
             if (step.type === 'noop') return
             e.preventDefault()

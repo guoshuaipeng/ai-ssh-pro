@@ -81,6 +81,8 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
+            // P39: Enter that confirms an IME candidate must not pick / run
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
             if (chord && e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === chord) {
               e.preventDefault()
               e.stopPropagation()
