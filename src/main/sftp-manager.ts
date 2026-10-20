@@ -243,6 +243,20 @@ export async function rename(client: Client, fromPath: string, toPath: string): 
   })
 }
 
+/** D93: change permission bits via SFTP (no shell command). */
+export async function chmod(client: Client, remotePath: string, mode: number): Promise<void> {
+  const p = normalizeRemotePath(remotePath)
+  const bits = mode & 0o7777
+  await withSftp(client, (sftp) => {
+    return new Promise<void>((resolve, reject) => {
+      sftp.chmod(p, bits, (err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
+  })
+}
+
 /** 上传时若只给了目录，拼上本地文件名 */
 export function resolveUploadRemotePath(localPath: string, remotePath: string): string {
   const remote = String(remotePath ?? '').replace(/\\/g, '/').trim()

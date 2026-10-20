@@ -683,6 +683,10 @@ function registerIpc(): void {
   ipcMain.handle('sftp:remove', async (_e, sessionId: string, remotePath: string) => {
     await sftpManager.remove(requireSshClient(sessionId), remotePath)
   })
+  ipcMain.handle('sftp:chmod', async (_e, sessionId: string, remotePath: string, mode: number) => {
+    if (typeof mode !== 'number' || !Number.isInteger(mode) || mode < 0 || mode > 0o7777) throw new Error('invalid mode')
+    await sftpManager.chmod(requireSshClient(sessionId), remotePath, mode)
+  })
   ipcMain.handle('sftp:rename', async (_e, sessionId: string, fromPath: string, toPath: string) => {
     await sftpManager.rename(requireSshClient(sessionId), fromPath, toPath)
   })

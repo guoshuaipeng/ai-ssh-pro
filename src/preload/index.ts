@@ -164,6 +164,8 @@ const api = {
       ipcRenderer.invoke('sftp:remove', sessionId, remotePath),
     rename: (sessionId: string, fromPath: string, toPath: string): Promise<void> =>
       ipcRenderer.invoke('sftp:rename', sessionId, fromPath, toPath),
+    chmod: (sessionId: string, remotePath: string, mode: number): Promise<void> =>
+      ipcRenderer.invoke('sftp:chmod', sessionId, remotePath, mode),
     readText: (
       sessionId: string,
       remotePath: string,

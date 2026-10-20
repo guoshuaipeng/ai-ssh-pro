@@ -107,6 +107,7 @@ export type AissPreload = {
     mkdir: (sessionId: string, remotePath: string) => Promise<void>
     remove: (sessionId: string, remotePath: string) => Promise<void>
     rename: (sessionId: string, fromPath: string, toPath: string) => Promise<void>
+    chmod: (sessionId: string, remotePath: string, mode: number) => Promise<void>
     readText: (
       sessionId: string,
       remotePath: string,

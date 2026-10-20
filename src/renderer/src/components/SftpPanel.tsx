@@ -36,6 +36,7 @@ import { noticeKind } from '@shared/product-error'
 import ErrorNotice from './ErrorNotice'
 import ConnectTrouble from './ConnectTrouble'
 import { askText, confirmDialog } from '../lib/dialogs'
+import { parseMode, permBits, toOctal, toRwx } from '@shared/sftp-perm'
 import { showToast } from '../lib/toast'
 import { PENDING_UPLOAD_EVENT, takePendingUpload } from '../lib/pending-upload'
 import { resolveHomePath, retryableTransfers } from '@shared/typed-command'
@@ -1182,6 +1183,31 @@ export default function SftpPanel({
     return beforeRemoteWrite()
   }
 
+  // D93: permissions via SFTP chmod; read-only / write guard first, then old → new confirm
+  const chmodEntry = async (entry: SftpListEntry) => {
+    if (!sessionId || !(await allowRemoteWrite())) return
+    const cur = permBits(entry.mode)
+    if (cur == null) return showToast(tg('d93.noMode'))
+    const text = await askText(tg('d93.ask', { name: entry.name }), toOctal(cur))
+    if (text == null) return
+    const next = parseMode(text, cur)
+    if (next == null) return showToast(tg('d93.invalid'), { kind: 'error' })
+    if (next === cur) return showToast(tg('d93.same'))
+    const ok = await confirmDialog({
+      title: tg('d93.confirmTitle', { name: entry.name }),
+      body: `${toOctal(cur)} ${toRwx(cur)}  →  ${toOctal(next)} ${toRwx(next)}`,
+      confirmText: tg('d93.apply')
+    })
+    if (!ok) return
+    try {
+      await window.aiss.sftp.chmod(sessionId, entry.path, next)
+      showToast(tg('d93.done', { mode: toOctal(next) }))
+      await refreshRemote(remoteCwd)
+    } catch (err) {
+      showToast(tg('d93.fail', { reason: String((err as Error)?.message ?? err) }), { kind: 'error' })
+    }
+  }
+
   const mkdir = async (side: PaneId) => {
     if (side === 'remote' && (!sessionId || !(await allowRemoteWrite()))) return
     const name = await askText(tg('sftp.newDirName'))
@@ -1828,6 +1854,15 @@ export default function SftpPanel({
                               remoteSize: e.size
                             })
                           }
+                        }]
+                          : []),
+                        ...(sessionId
+                          ? [{
+                          id: 'chmod',
+                          label: tg('d93.menu'),
+                          disabled: readOnly || remoteWritesBlocked || permBits(e.mode) == null,
+                          title: readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : undefined,
+                          onSelect: () => void chmodEntry(e)
                         }]
                           : []),
                         {
