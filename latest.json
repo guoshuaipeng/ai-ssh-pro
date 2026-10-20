@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "version": "0.6.63",
+  "date": "2026-10-20",
+  "releaseNotesUrl": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/tag/v0.6.63",
+  "downloads": {
+    "win32-x64": {
+      "file": "AI-SSH-Pro-0.6.63-win-x64.exe",
+      "size": 176609919,
+      "sha256": "6cfbea441067b7921ef9a3fade0ae73e4fd90ed3fcdf0de82c94f0827d630595",
+      "pan123": null,
+      "github": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.6.63/AI-SSH-Pro-0.6.63-win-x64.exe"
+    },
+    "darwin-arm64": {
+      "file": "AI-SSH-Pro-0.6.63-mac-arm64.dmg",
+      "size": 194270163,
+      "sha256": "d54492333e4a2f608ad444e2fb648c851ea2cb7c7b26930084d394381830ea8d",
+      "pan123": null,
+      "github": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.6.63/AI-SSH-Pro-0.6.63-mac-arm64.dmg"
+    },
+    "linux-x64": {
+      "file": "AI-SSH-Pro-0.6.63-linux-x86_64.AppImage",
+      "size": 204351532,
+      "sha256": "1373e32a3e887b24c7c4d681325a5b0ad1bf7214034050fa4ca3e39411ccd900",
+      "pan123": null,
+      "github": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.6.63/AI-SSH-Pro-0.6.63-linux-x86_64.AppImage"
+    }
+  }
+}
