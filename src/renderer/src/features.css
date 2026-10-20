@@ -2066,3 +2066,6 @@ legend {
   font-size: var(--fs-xs);
   white-space: nowrap;
 }
+
+/* P39: permissions read as aligned rwx (was clipped to 'rwxr-x...') */
+.sftp-table td.sftp-perm { font-family: var(--font-mono); font-size: var(--fs-xs); }

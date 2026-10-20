@@ -1796,7 +1796,7 @@ export default function SftpPanel({
                       </th>
                     )
                   })}
-                  {!isLocal ? <th style={{ width: 78 }}>{tg('d1.perm')}</th> : null}
+                  {!isLocal ? <th style={{ width: 100 }}>{tg('d1.perm')}</th> : null}
                 </tr>
               </thead>
               <tbody>
