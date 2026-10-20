@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { tg } from '../lib/i18n'
 import Icon from './Icon'
 import { openContextMenu, type ContextMenuItem } from './ContextMenu'
+import { pathFromSelection } from '@shared/term-path'
+import { requestSftpGoto } from '../lib/sftp-goto'
 import { Terminal, type IMarker } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -572,6 +574,7 @@ export default function TerminalPane({
     const onContextMenu = (ev: MouseEvent): void => {
       const term = apiRef.current?.term
       const hasSel = Boolean(term?.hasSelection())
+      const selPath = hasSel ? pathFromSelection(term?.getSelection() ?? '', getSessionCwd(sessionId)) : null
       const items: ContextMenuItem[] = [
         {
           id: 'copy',
@@ -655,6 +658,17 @@ export default function TerminalPane({
           shortcut: 'Ctrl+Alt+F',
           disabled: mirrorOnlyRef.current,
           onSelect: () => onOpenSftpRef.current?.(sessionId)
+        },
+        {
+          // D41: selected path → SFTP (file → its folder)
+          id: 'sftpPath',
+          label: tg('d41.openInSftp'),
+          disabled: mirrorOnlyRef.current || !selPath,
+          onSelect: () => {
+            if (!selPath) return
+            requestSftpGoto(sessionId, selPath)
+            onOpenSftpRef.current?.(sessionId)
+          }
         },
         {
           id: 'find',

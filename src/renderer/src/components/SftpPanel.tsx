@@ -45,6 +45,8 @@ import { loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
 import { openContextMenu } from './ContextMenu'
 import EmptyState from './EmptyState'
 import { openDecision } from '@shared/sftp-open'
+import { parentPath } from '@shared/term-path'
+import { SFTP_GOTO_EVENT, takeSftpGoto } from '../lib/sftp-goto'
 import { AI_FILE_MAX_BYTES, buildFileContext, canAttachFile } from '@shared/ai-file-context'
 import { requestAskWithContext } from '../lib/ai-prefill'
 import Icon, { Twist } from './Icon'
@@ -305,6 +307,26 @@ export default function SftpPanel({
     return followTarget({ follow: true, cwd: c, current: '\u0000', home: homeRef.current?.home ?? null })
   }, [sessionId])
 
+  /** D41: a path from the terminal: expand ~, and a file (or missing path) falls back to its folder */
+  const resolveGotoRef = useRef<(p: string) => Promise<string | null>>(async () => null)
+  resolveGotoRef.current = async (p: string) => {
+    if (!sessionId) return null
+    let target = p
+    if (p === '~' || p.startsWith('~/')) {
+      let home = homeRef.current?.sid === sessionId ? homeRef.current.home : null
+      if (!home) home = (await window.aiss.sftp.home(sessionId).catch(() => null)) || null
+      if (!home) return null
+      target = p === '~' ? home : `${home.replace(/\/+$/, '')}/${p.slice(2)}`
+    }
+    try {
+      await window.aiss.sftp.list(sessionId, target)
+      return target
+    } catch {
+      showToast(tg('d41.fileParent'))
+      return parentPath(target)
+    }
+  }
+
   const applyScreenshotDual = useCallback(() => {
     if (!screenshotHooksEnabled()) return
     shotMockRef.current = true
@@ -493,6 +515,17 @@ export default function SftpPanel({
   }, [remoteCwd, sessionId])
 
   useEffect(() => {
+    const onGoto = (ev: Event) => {
+      const sid = (ev as CustomEvent<{ sessionId: string }>).detail?.sessionId
+      if (!sid || sid !== sessionId || remoteOpenedFor.current !== sessionId) return
+      const p = takeSftpGoto(sid)
+      if (p) void resolveGotoRef.current(p).then((t) => { if (t) void refreshRemote(t) })
+    }
+    window.addEventListener(SFTP_GOTO_EVENT, onGoto)
+    return () => window.removeEventListener(SFTP_GOTO_EVENT, onGoto)
+  }, [sessionId, refreshRemote])
+
+  useEffect(() => {
     void (async () => {
       const home = await window.aiss?.localFs?.home?.().catch(() => '')
       await refreshLocal(home || '')
@@ -570,7 +603,9 @@ export default function SftpPanel({
       setRemoteError(null)
       let target = ''
       let failedCwd = false
-      if (alignSessionCwd) target = (await resolveTracked()) || ''
+      const goto = takeSftpGoto(sessionId)
+      if (goto) target = (await resolveGotoRef.current(goto)) || ''
+      if (!target && alignSessionCwd) target = (await resolveTracked()) || ''
       if (cancel) return
       if (alignSessionCwd && !target && window.aiss?.ssh?.exec) {
         setRemoteOpening(true)
