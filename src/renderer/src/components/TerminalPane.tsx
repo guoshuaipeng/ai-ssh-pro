@@ -18,6 +18,9 @@ import { findAllInBuffer, compileFind, pickMatch, seedQueryFromSelection, AISS_T
 import { looksLikeError, rememberError, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
 import { registerTerminalSelection } from '../lib/terminal-selection'
 import { showToast } from '../lib/toast'
+import { findUrls } from '@shared/term-links'
+/** D70: the plain-click hint shows at most every 30 s */
+let linkHintAt = 0
 import { extractPromptCommand, ghostSuffix, rankSuggestions, terminalKeyAction } from '@shared/smart-complete'
 import { loadSmartHistory, loadSmartPrefs, seedDemoHistory } from '../lib/smart-history'
 import { isDemoSessionId } from '@shared/demo-host'
@@ -291,6 +294,28 @@ export default function TerminalPane({
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(el)
+    // D70: http(s) links; Ctrl+click opens in the browser, a plain click only hints (no accidental opens)
+    term.registerLinkProvider({
+      provideLinks: (y, cb) => {
+        const text = term.buffer.active.getLine(y - 1)?.translateToString(true) ?? ''
+        const hits = findUrls(text)
+        if (!hits.length) return cb(undefined)
+        cb(
+          hits.map((h) => ({
+            text: h.url,
+            range: { start: { x: h.start + 1, y }, end: { x: h.end, y } },
+            decorations: { underline: true, pointerCursor: true },
+            activate: (ev: MouseEvent, url: string) => {
+              if (ev.ctrlKey || ev.metaKey) void window.aiss.app.openExternal(url).catch(() => undefined)
+              else if (Date.now() - linkHintAt > 30_000) {
+                linkHintAt = Date.now()
+                showToast(tg('d70.hint'))
+              }
+            }
+          }))
+        )
+      }
+    })
     term.onBell(() => {
       if (muteBellRef.current) return
       const host = wrapRef.current?.parentElement ?? wrapRef.current
