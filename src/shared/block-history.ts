@@ -53,11 +53,13 @@ export function mergeForSave(prev: StoredBlock[], live: StoredBlock[], max = BLO
 }
 
 /** Case-insensitive match on command or output. Empty query → all. Returns indexes. */
-export function searchBlocks(blocks: Pick<TermBlock, 'command' | 'output'>[], query: string): number[] {
+export function searchBlocks(blocks: Pick<TermBlock, 'command' | 'output'>[], query: string, match?: ((s: string) => boolean) | null): number[] {
   const q = query.trim().toLowerCase()
   const out: number[] = []
   blocks.forEach((b, i) => {
-    if (!q || b.command.toLowerCase().includes(q) || b.output.toLowerCase().includes(q)) out.push(i)
+    if (match) {
+      if (match(b.command) || match(b.output)) out.push(i)
+    } else if (!q || b.command.toLowerCase().includes(q) || b.output.toLowerCase().includes(q)) out.push(i)
   })
   return out
 }
