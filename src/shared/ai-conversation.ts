@@ -72,6 +72,23 @@ export type AiArchivedConversation = {
 
 export type AiArchiveSummary = Omit<AiArchivedConversation, 'messages'> & { count: number }
 
+/** D29: newest archived conversation of this host group, if recent enough to offer "continue". */
+export const RESUME_WINDOW_MS = 7 * 24 * 3600 * 1000
+export function resumeCandidate<T extends { group: string; savedAt: number; count?: number }>(
+  archives: ReadonlyArray<T>,
+  group: string | null | undefined,
+  now: number,
+  windowMs = RESUME_WINDOW_MS
+): T | null {
+  if (!group || group === GENERAL_CONVERSATION_KEY) return null
+  let best: T | null = null
+  for (const a of archives) {
+    if (a.group !== group || now - a.savedAt > windowMs || a.count === 0) continue
+    if (!best || a.savedAt > best.savedAt) best = a
+  }
+  return best
+}
+
 /** Title for an archived conversation: the first user ask, trimmed. */
 export function archiveTitle(messages: ReadonlyArray<AiChatMessage>): string {
   const first = messages.find((m) => m.role === 'user' && m.content.trim())

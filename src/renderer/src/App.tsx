@@ -2,6 +2,7 @@ import { agentForwardAuditDetail } from '@shared/agent-forward'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
+  archiveTitle,
   assignConversationOrdinals,
   conversationGroup,
   conversationKey,
@@ -1146,6 +1147,25 @@ export default function App() {
     [convTabs, convOrdinals]
   )
   const activeConv = activeIsSession ? convFor(activeTabId) : null
+  // D29: a closed tab's #2/#3 conversation would be unreachable (reopening gets #1); archive it so it can be continued
+  const convSeenRef = useRef<Map<string, { key: string; group: string; label: string; n: number }>>(new Map())
+  useEffect(() => {
+    const live = new Set(convTabs.map((t) => t.tabId))
+    for (const [tabId, c] of convSeenRef.current) {
+      if (live.has(tabId)) continue
+      convSeenRef.current.delete(tabId)
+      if (c.n <= 1 || !window.aiss.ai.chatArchive) continue
+      void window.aiss.ai.getChatHistory(c.key).then(async (msgs) => {
+        if (!msgs.length) return
+        await window.aiss.ai.chatArchive!.add({ id: `${Date.now().toString(36)}-${c.n}`, group: c.group, hostLabel: c.label, key: c.key, title: archiveTitle(msgs) || tg('ai.untitledChat'), savedAt: Date.now(), messages: msgs })
+        await window.aiss.ai.setChatHistory(c.key, [])
+      }).catch(() => undefined)
+    }
+    for (const t of convTabs) {
+      const c = convFor(t.tabId)
+      if (c) convSeenRef.current.set(t.tabId, { key: c.key, group: c.group, label: c.label, n: c.n })
+    }
+  }, [convTabs, convFor])
   const aiTargets = useMemo(
     () =>
       convTabs

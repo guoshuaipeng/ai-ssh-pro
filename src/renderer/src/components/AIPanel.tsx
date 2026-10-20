@@ -36,6 +36,7 @@ import {
   conversationLabel,
   GENERAL_CONVERSATION_KEY,
   groupArchives,
+  resumeCandidate,
   type AiArchiveSummary
 } from '@shared/ai-conversation'
 import { policyCapNote } from './HostSafetyCard'
@@ -1442,6 +1443,24 @@ export default function AIPanel({
     }
   }, [historyOpen])
 
+  // D29: empty conversation on a host that had one recently -> offer to continue it
+  const [resumeHit, setResumeHit] = useState<AiArchiveSummary | null>(null)
+  const resumeGroup = conversation?.group ?? null
+  useEffect(() => {
+    setResumeHit(null)
+    if (!resumeGroup || lines.length > 0 || !window.aiss.ai.chatArchive) return
+    let cancelled = false
+    void window.aiss.ai.chatArchive.list().then(
+      (rows) => {
+        if (!cancelled) setResumeHit(resumeCandidate(rows, resumeGroup, Date.now()))
+      },
+      () => undefined
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [resumeGroup, persistKey, lines.length === 0])
+
   const restoreArchived = (id: string) => {
     if (busy || !persistKey || !window.aiss.ai.chatArchive) return
     setHistoryOpen(false)
@@ -1905,6 +1924,17 @@ export default function AIPanel({
         {lines.length === 0 && (
           <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">
             <p>{tg('ux64.emptyHint')}</p>
+            {resumeHit ? (
+              <button
+                type="button"
+                className="ai-starter-prompt ai-resume-last"
+                data-testid="ai-resume-last"
+                title={tg('d29.tip')}
+                onClick={() => restoreArchived(resumeHit.id)}
+              >
+                {tg('d29.resume', { title: resumeHit.title || tg('ai.untitledChat') })}
+              </button>
+            ) : null}
             <div className="ai-starter-prompts" data-testid="ai-starter-prompts">
               {(['ux64.starterLoad', 'ux64.starterError', 'ux64.starterProcess'] as const).map((key) => (
                 <button
