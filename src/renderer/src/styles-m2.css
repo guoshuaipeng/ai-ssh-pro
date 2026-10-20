@@ -291,3 +291,5 @@
 .sftp-pane-title .sftp-cd-terminal + .sftp-cd-terminal { margin-left: 4px; }
 /* D48: local high-risk note on AI command actions */
 .ai-decision.ai-risk-local { color: var(--color-danger); font-weight: 600; }
+/* D44b: key hint row under cmdbar suggestions */
+.command-input-suggest .cmd-suggest-keys { padding: 3px 10px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); list-style: none; pointer-events: none; }

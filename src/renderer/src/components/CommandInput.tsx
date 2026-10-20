@@ -327,6 +327,11 @@ export default function CommandInput({
               </li>
             )
           })}
+          {smart && ranked.some((r) => r.source !== 'snippet') ? (
+            <li className="cmd-suggest-keys" role="presentation" data-testid="cmd-suggest-keys">
+              {tg('d44.keys')}
+            </li>
+          ) : null}
         </ul>
       ) : null}
       </div>
