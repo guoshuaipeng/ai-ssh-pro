@@ -48,6 +48,7 @@ import SearchAllTermsModal from './components/SearchAllTermsModal'
 import ConnectingElapsed from './components/ConnectingElapsed'
 import { stageTarget, type ConnectStageEvent } from '@shared/connect-stage'
 import { buildConnectDiag } from '@shared/connect-diag'
+import { decodeHostDrag, dragIds, dropPlan, encodeHostDrag, HOST_DRAG_MIME } from '@shared/host-drag'
 import { clearConnectFail, connectFailKey, noteConnectFail } from './lib/connect-fail-store'
 import { cmdDrafts } from './lib/cmd-draft-store'
 import { getDraft, persistableDraft, putDraft } from '@shared/cmd-drafts'
@@ -4760,6 +4761,11 @@ export default function App() {
           entry
         })
       }}
+      onDragHost={(e) => {
+        const ids = dragIds(p.id, multiSelected)
+        e.dataTransfer.setData(HOST_DRAG_MIME, encodeHostDrag(ids))
+        e.dataTransfer.effectAllowed = 'move'
+      }}
       onToggleHost={() => toggleHostExpanded(p)}
       onToggleCompose={() =>
         setExpandedDockerGroups((prev) => ({
@@ -7943,6 +7949,24 @@ export default function App() {
                         onContextMenu={(e) => {
                           e.preventDefault()
                           setFolderMenu({ x: e.clientX, y: e.clientY, folderId: f.id, folderName: f.name })
+                        }}
+                        data-testid="session-folder-row"
+                        onDragOver={(e) => {
+                          if (!e.dataTransfer.types.includes(HOST_DRAG_MIME)) return
+                          e.preventDefault()
+                          e.dataTransfer.dropEffect = 'move'
+                          e.currentTarget.classList.add('is-drop-target')
+                        }}
+                        onDragLeave={(e) => e.currentTarget.classList.remove('is-drop-target')}
+                        onDrop={(e) => {
+                          e.currentTarget.classList.remove('is-drop-target')
+                          const ids = decodeHostDrag(e.dataTransfer.getData(HOST_DRAG_MIME))
+                          if (!ids.length) return
+                          e.preventDefault()
+                          // D87: same path as right-click Move to; hosts already there are skipped
+                          const moving = dropPlan(ids, profilesRef.current, f.id)
+                          if (moving.length) moveProfileToFolder(moving, f.id)
+                          else showToast(tg('d87.already', { name: f.name }))
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {

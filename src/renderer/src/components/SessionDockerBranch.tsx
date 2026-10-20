@@ -1,6 +1,6 @@
 import { tg } from '../lib/i18n'
 import { useMemo } from 'react'
-import type { MouseEvent } from 'react'
+import type { DragEvent, MouseEvent } from 'react'
 import type {
   DockerComposeProject,
   DockerContainer,
@@ -41,6 +41,8 @@ type Props = {
   onConnect: () => void
   /** IX-5: ⋯ and right-click share one opener. The menu list lives in buildHostMenu. */
   onOpenMenu: (e: MouseEvent, entry: 'overflow' | 'context') => void
+  /** D87: drag this host onto a folder */
+  onDragHost?: (e: DragEvent) => void
   onToggleHost: () => void
   onToggleCompose: () => void
   onToggleSwarm: () => void
@@ -95,6 +97,7 @@ export default function SessionDockerBranch({
   hostStatus,
   onConnect,
   onOpenMenu,
+  onDragHost,
   onToggleHost,
   onToggleCompose,
   onToggleSwarm,
@@ -240,6 +243,8 @@ export default function SessionDockerBranch({
         onClick={onSelect}
         onDoubleClick={onConnect}
         onContextMenu={(e) => onOpenMenu(e, 'context')}
+        draggable={Boolean(onDragHost)}
+        onDragStart={onDragHost}
       >
         <button
           type="button"
