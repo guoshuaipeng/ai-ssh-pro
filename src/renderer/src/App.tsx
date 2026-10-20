@@ -88,7 +88,7 @@ import WhatsNewModal, { WHATS_NEW_AUTO_KEY } from './components/WhatsNewModal'
 import UpdateModal from './components/UpdateModal'
 import { ToastHost, clearToasts, showToast } from './lib/toast'
 import { SCREENSHOT_EVENT, screenshotHooksEnabled, type ScreenshotOp } from './lib/screenshot-hooks'
-import { isSkipped, markChecked, shouldAutoCheck, skipVersion } from './lib/update-check'
+import { formatCacheAge, isSkipped, loadUpdateCache, markChecked, saveUpdateCache, shouldAutoCheck, skipVersion } from './lib/update-check'
 import { loadUpdateChannelPrefs, rememberUpdateSource, sourceLabel } from '@shared/update-channel'
 import { alertHostIds, ignoreAlert, locateTargetFor, reconcileAlerts } from '@shared/alert-locate'
 import { buildAlertContext } from '@shared/alert-context'
@@ -905,16 +905,35 @@ export default function App() {
       .catch(() => {})
   }, [])
   // V2: update check (silent once a day 10 s after start; manual from Help / More)
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string; notes?: string; source?: string } | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<{
+    version: string
+    url: string
+    pan123Url?: string
+    notes?: string
+    source?: string
+    cachedAt?: number
+  } | null>(null)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
   const checkingUpdateRef = useRef(false)
+  const applyAvailable = useCallback((
+    r: { latestVersion?: string; downloadUrl?: string; releaseUrl?: string; pan123Url?: string; notes?: string; source?: 'official' | 'github' | 'custom' },
+    cachedAt?: number
+  ) => {
+    if (!r.latestVersion) return
+    setUpdateInfo({
+      version: r.latestVersion,
+      url: r.downloadUrl || r.releaseUrl || '',
+      pan123Url: r.pan123Url,
+      notes: r.notes,
+      source: r.source ? sourceLabel(r.source, locale) : undefined,
+      cachedAt
+    })
+  }, [locale])
   const runUpdateCheck = useCallback(async (manual: boolean) => {
+    if (!manual && screenshotHooksEnabled()) return
     if (checkingUpdateRef.current) return
     checkingUpdateRef.current = true
-    if (manual) {
-      setUpdateChecking(true)
-      showToast(tg('upd.checking'))
-    }
+    if (manual) setUpdateChecking(true)
     const failUpdate = () => {
       const prefs = loadUpdateChannelPrefs()
       showToast(tg('pf5.updateFail', { channel: sourceLabel(prefs.channel, locale) }), {
@@ -925,35 +944,54 @@ export default function App() {
         ]
       })
     }
+    const cached = loadUpdateCache()
+    if (cached?.status === 'available' && cached.latestVersion && (manual || !isSkipped(cached.latestVersion))) {
+      applyAvailable(cached, cached.at)
+      if (manual) setUpdateModalOpen(true)
+    }
     try {
       const prefs = loadUpdateChannelPrefs()
       const r = await window.aiss.app.checkUpdate({ channel: prefs.channel, customUrl: prefs.mirror })
       markChecked()
+      saveUpdateCache({
+        currentVersion: r.currentVersion,
+        status: r.status,
+        latestVersion: r.latestVersion,
+        releaseUrl: r.releaseUrl,
+        downloadUrl: r.downloadUrl,
+        pan123Url: r.pan123Url,
+        releaseName: r.releaseName,
+        notes: r.notes,
+        source: r.source,
+        channel: r.channel,
+        message: r.message
+      })
       if (r.source) rememberUpdateSource({ source: r.source, channel: prefs.channel, at: Date.now() })
       window.dispatchEvent(new Event('aiss-update-channel'))
       if (r.status === 'available' && r.latestVersion) {
-        const info = {
-          version: r.latestVersion,
-          url: r.downloadUrl || r.releaseUrl || '',
-          notes: r.notes,
-          source: r.source ? sourceLabel(r.source, locale) : undefined
-        }
         if (!manual && isSkipped(r.latestVersion)) return
-        setUpdateInfo(info)
+        applyAvailable(r)
         if (manual) setUpdateModalOpen(true)
         return
       }
-      if (!manual) return
-      if (r.status === 'error') failUpdate()
-      else showToast(tg('upd.upToDate', { version: r.currentVersion }))
+      if (r.status !== 'error') {
+        setUpdateInfo(null)
+        if (manual) {
+          setUpdateModalOpen(false)
+          showToast(tg('upd.upToDate', { version: r.currentVersion }))
+        }
+        return
+      }
+      if (manual && !(cached?.status === 'available')) failUpdate()
     } catch {
-      if (manual) failUpdate()
+      if (manual && !(cached?.status === 'available')) failUpdate()
     } finally {
       checkingUpdateRef.current = false
       if (manual) setUpdateChecking(false)
     }
-  }, [locale])
+  }, [locale, applyAvailable])
   useEffect(() => {
+    if (screenshotHooksEnabled()) return
     if (!shouldAutoCheck()) return
     const id = window.setTimeout(() => void runUpdateCheck(false), 10_000)
     return () => window.clearTimeout(id)
@@ -6627,6 +6665,30 @@ export default function App() {
         // AIPanel also listens for the same event to fill the dock
         return
       }
+      if (detail.op === 'systemUpdate') {
+        setQuickOpen(false)
+        setTourOpen(false)
+        setWhatsNewOpen(false)
+        setUpdateInfo({
+          version: '0.7.0',
+          url: 'https://github.com/guoshuaipeng/ai-ssh-pro/releases/tag/v0.7.0',
+          pan123Url: 'https://www.123pan.com/s/example',
+          notes: '- 检查更新改为优先读取官网清单\n- 国内用户可选择 123 云盘下载\n- 更新提示改为深色自绘弹层，文案正式',
+          source: locale === 'zh-CN' ? '官网清单' : 'Official manifest',
+          cachedAt: Date.now() - 3 * 60 * 1000
+        })
+        setUpdateModalOpen(true)
+        return
+      }
+      if (detail.op === 'settingsAbout') {
+        setQuickOpen(false)
+        setTourOpen(false)
+        handleTitlebarMenuAction('updateChannel')
+        window.setTimeout(() => {
+          document.querySelector('[data-testid="settings-update-channel"]')?.scrollIntoView({ block: 'center' })
+        }, 400)
+        return
+      }
     }
     window.addEventListener(SCREENSHOT_EVENT, onShot)
     return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
@@ -9909,9 +9971,14 @@ export default function App() {
         version={updateInfo?.version ?? ''}
         notes={updateInfo?.notes}
         sourceLabel={updateInfo?.source}
+        cacheAge={updateInfo?.cachedAt ? formatCacheAge(updateInfo.cachedAt, Date.now(), locale) : undefined}
+        pan123Url={updateInfo?.pan123Url}
         onDownload={() => {
           setUpdateModalOpen(false)
           if (updateInfo?.url) void window.aiss.app.openExternal(updateInfo.url)
+        }}
+        onPan123={() => {
+          if (updateInfo?.pan123Url) void window.aiss.app.openExternal(updateInfo.pan123Url)
         }}
         onLater={() => setUpdateModalOpen(false)}
         onSkip={() => {

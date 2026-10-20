@@ -28,7 +28,7 @@ export const SETTINGS_SEARCH_TERMS: Record<SettingsSection, readonly string[]> =
   security: ['安全', '审计', '密钥', 'key', 'audit'],
   files: ['快照', 'snapshot', '文件'],
   backup: ['备份', '同步', 'backup', 'sync'],
-  about: ['更新', 'update', '通道', 'channel', 'github', '版本', 'version', '许可证', 'license']
+  about: ['更新', 'update', '通道', 'channel', 'github', '官网', '123', '云盘', '版本', 'version', '许可证', 'license']
 }
 
 export const SETTINGS_PRIMARY: readonly SettingsSection[] = [

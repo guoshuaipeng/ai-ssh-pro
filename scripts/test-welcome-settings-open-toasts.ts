@@ -24,6 +24,6 @@ assert.ok(i18n.includes('about.desc'))
 assert.ok(i18n.includes("settings.title': '设置'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.63')
+assert.equal(pkg.version, '0.7.0')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-welcome-settings-open-toasts/)
 console.log('test-welcome-settings-open-toasts ok')

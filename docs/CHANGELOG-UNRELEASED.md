@@ -910,7 +910,7 @@
 - Tests: `scripts/test-terminal-zoom.ts`, `scripts/test-session-note.ts` (wired into `npm test`).
 
 
-Draft notes for a future GitHub Release / What’s new. **Not published.** Package stays `0.4.14`. No tag, no Release, no website.
+Historical draft from 2026-10-16 (package was `0.4.14` then). Current package is `0.7.0`; official site and GitHub Releases are the download channels. Do not treat this file as the live changelog — use `CHANGELOG.md`.
 
 
 ## AI provider & tab pin (2026-10-16)

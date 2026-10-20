@@ -968,7 +968,10 @@ function registerIpc(): void {
 
   ipcMain.handle('app:getVersion', () => getAppVersion())
   ipcMain.handle('app:checkUpdate', (_e, opts?: { channel?: string; customUrl?: string }) => {
-    const channel = opts?.channel === 'gitee' || opts?.channel === 'github' || opts?.channel === 'custom' ? opts.channel : 'auto'
+    const channel =
+      opts?.channel === 'official' || opts?.channel === 'github' || opts?.channel === 'custom'
+        ? opts.channel
+        : 'auto'
     const customUrl = typeof opts?.customUrl === 'string' ? opts.customUrl : undefined
     return checkForAppUpdate({ channel, customUrl })
   })

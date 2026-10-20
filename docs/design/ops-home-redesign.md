@@ -1,6 +1,6 @@
 # 运维首页（OpsHomeTab）重设计 · 设计稿 v1
 
-状态：**待评审，未实现**。Mockup：`docs/design/ops-home-redesign.html`（静态 HTML，使用 app 真实 token / Inter + Noto Sans SC；`?theme=light` 切浅色）。
+状态：**已在 v0.6.55 落地**（后续 0.6.x / 0.7.0 继续沿用）。下文「现状盘点」记录的是改版前的 0.6.54 三栏。Mockup：`docs/design/ops-home-redesign.html`（静态 HTML，使用 app 真实 token / Inter + Noto Sans SC；`?theme=light` 切浅色）。
 
 ## 1. 现状盘点（0.6.54）
 

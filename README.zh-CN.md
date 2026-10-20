@@ -1,6 +1,6 @@
 # AI-SSH-Pro
 
-类 Xshell 的多会话 SSH 客户端，集成 AI 对话（Electron + TypeScript + React）。
+类 Xshell 的多会话 SSH 客户端，集成 AI 对话（Electron + TypeScript + React）。当前版本 **0.7.0**。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
@@ -27,6 +27,15 @@
 
 ![键盘快捷键（F1）](docs/screenshots/shortcuts.png)
 
+## 下载
+
+- **官网 / 更新清单：** https://guoshuaipeng.github.io/ai-ssh-pro/（[`update.json`](https://guoshuaipeng.github.io/ai-ssh-pro/update.json)）
+- **GitHub Releases：** https://github.com/guoshuaipeng/ai-ssh-pro/releases
+- **123 云盘：** 分享链接写在官网清单的 `pan123` 字段，国内下载可选
+- **Gitee：** 仅源码镜像 — https://gitee.com/guoshuaipeng/ai-ssh-pro — **不是**更新接口
+
+应用内检查更新会先读官网清单，失败再回退 GitHub Releases API。安装包**不做代码签名**。
+
 ## 功能
 
 - **多标签 SSH** — 密码 / 私钥认证、xterm 终端、会话分组
@@ -36,7 +45,9 @@
 - **主机密钥** — 首次连接确认指纹，变更时告警
 - **加密机密** — 会话密码、密钥口令和 API Key 使用 Electron `safeStorage`
 - **保活与重连** — SSH keepalive，断开后可一键重连
-- **AI Core-A** — 观察 → 计划 → **命令仅在确认后执行**；终端快照自动读取
+- **AI Core-A** — 观察 → 计划 → 按三种策略执行（**仅建议** / **执行前确认** / **自动执行**）；终端快照自动读取；对话绑定终端标签页
+- **运维首页** — 主机健康、告警与快捷入口
+- **Docker / 剧本 / 审计** — 容器工具箱、剧本试运行、告警工作台、审计日志
 - **终端外观** — 字体、主题等
 - **命令片段** — 可复用的命令片段
 - **会话导入 / 导出** — Xshell `.xsh`、OpenSSH `config`、PuTTY
@@ -76,7 +87,7 @@ npm run dist
 
 ## 主机档案与 MCP
 
-主机档案在本地磁盘上（没有云同步）：
+主机档案在本地磁盘上（与「设置 → 备份与同步」的可选加密备份是两回事）：
 
 - 默认目录：`~/.ai-ssh-pro/inventory`
 - 可用环境变量 `AISS_INVENTORY_ROOT` 覆盖
@@ -124,7 +135,7 @@ Cursor / Claude Desktop 配置示例：
 
 1. 从菜单或工具栏打开 **AI 配置**
 2. 填写 OpenAI 兼容的 Provider（例如 DashScope 的 `.../compatible-mode/v1`）和 API Key
-3. Core-A 默认开启（`useOpenClaw`）；关闭后为单次流式对话
+3. Core-A 默认开启；关闭后为单次流式对话。AI 写入策略为 **仅建议** / **执行前确认** / **自动执行**（设置 → AI，或按主机）
 
 可选环境变量：
 
@@ -139,7 +150,7 @@ Cursor / Claude Desktop 配置示例：
 - 密码、密钥口令和 API Key 使用操作系统安全存储加密（例如 Windows DPAPI）。如果加密不可用，应用可能回退到明文并在控制台给出警告。
 - 主机密钥存在单独的存储：`ai-ssh-pro-known-hosts`。
 - 不要在不受信任的机器上保存生产凭据。
-- **没有云同步。** 用 JSON 会话导入/导出做备份；没有远程账号或同步服务。
+- **没有厂商账号。** 设置里的加密备份 / 云同步由你自己配置；密钥仍在本机系统安全存储。也可以用 JSON 导入/导出会话。
 - 最近连接只保存主机、用户、端口、标签和时间，不保存密码、密钥路径或口令。
 - 命令历史把你选择发送的命令保存在同一套本地存储中（大约 200 条）。如果命令文本里包含机密，它会留在本机，直到你清空历史。
 - 没有遥测。

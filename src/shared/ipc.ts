@@ -837,21 +837,23 @@ export const TERMINAL_PREFS_DEFAULTS: TerminalPrefs = {
   muteBell: false
 }
 
-/** 检查 GitHub Releases 的结果（由主进程返回） */
+/** 检查官网清单 / GitHub Releases 的结果（由主进程返回） */
 export type AppUpdateCheckResult = {
   currentVersion: string
   status: 'upToDate' | 'available' | 'noRelease' | 'error'
   latestVersion?: string
   releaseUrl?: string
   downloadUrl?: string
+  /** 123 云盘分享链接（官网清单字段；GitHub 回退通常没有） */
+  pan123Url?: string
   releaseName?: string
   /** release notes (markdown body of the release that was actually read) */
   notes?: string
   message: string
-  /** N1: source that produced this result (download URL belongs to it) */
-  source?: 'gitee' | 'github' | 'custom'
-  channel?: 'auto' | 'gitee' | 'github' | 'custom'
-  tried?: Array<'gitee' | 'github' | 'custom'>
+  /** source that produced this result (download URL belongs to it) */
+  source?: 'official' | 'github' | 'custom'
+  channel?: 'auto' | 'official' | 'github' | 'custom'
+  tried?: Array<'official' | 'github' | 'custom'>
 }
 
 /** A live local port forward (127.0.0.1:localPort → remoteHost:remotePort through an SSH session). */

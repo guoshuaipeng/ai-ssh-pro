@@ -57,9 +57,9 @@ const store = {
   setItem: (k: string, v: string) => void mem.set(k, v)
 }
 saveUpdateChannelPrefs({ channel: 'auto', mirror: '' }, store)
-assert.equal(effectiveChannelLabel('zh-CN', store), '自动（Gitee → GitHub）')
-rememberUpdateSource({ source: 'gitee', channel: 'auto', at: 1 }, store)
-assert.equal(effectiveChannelLabel('zh-CN', store), 'Gitee')
+assert.equal(effectiveChannelLabel('zh-CN', store), '自动（官网 → GitHub）')
+rememberUpdateSource({ source: 'official', channel: 'auto', at: 1 }, store)
+assert.equal(effectiveChannelLabel('zh-CN', store), '官网清单')
 saveUpdateChannelPrefs({ channel: 'github', mirror: '' }, store)
 assert.equal(effectiveChannelLabel('zh-CN', store), 'GitHub')
 
@@ -117,6 +117,6 @@ const opsEnd = toolbar.indexOf(']', opsStart)
 assert.equal((toolbar.slice(opsStart, opsEnd).match(/id: '/g) ?? []).length, 3)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
-assert.equal(pkg.version, '0.6.63')
+assert.equal(pkg.version, '0.7.0')
 
 console.log('test-polish-1-full ok')

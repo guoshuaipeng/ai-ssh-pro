@@ -23,6 +23,6 @@ assert.ok(i18n.includes("o2.historyTitle': '告警历史'"))
 assert.ok(i18n.includes("o2.historyTitle': 'Alert history'"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.63')
+assert.equal(pkg.version, '0.7.0')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ops-panels-open-toast/)
 console.log('test-ops-panels-open-toast ok')

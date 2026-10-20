@@ -17,7 +17,7 @@ import {
 import { setSnapshotKeep, setSnapshotsEnabled, snapshotKeep, snapshotsEnabled, SNAPSHOT_KEEP_OPTIONS } from '@shared/snapshots'
 import { useI18n, type MessageKey } from '../lib/i18n'
 import { applyUiTheme, loadUiThemeId, suggestedTerminalTheme, UI_THEME_OPTIONS, type UiThemeId } from '../lib/ui-themes'
-import { loadAutoUpdate, saveAutoUpdate } from '../lib/update-check'
+import { formatCacheAge, loadAutoUpdate, loadUpdateCache, saveAutoUpdate } from '../lib/update-check'
 import { TOUR_DONE_KEY } from './WelcomeTour'
 import type { TerminalPrefs } from '@shared/ipc'
 import type { ProbePrefs } from '@shared/health-probe'
@@ -124,9 +124,16 @@ export default function SettingsPanel({
   const [channel, setChannel] = useState<UpdateChannel>(() => loadUpdateChannelPrefs().channel)
   const [mirror, setMirror] = useState(() => loadUpdateChannelPrefs().mirror)
   const [channelError, setChannelError] = useState<string | null>(null)
+  const [updateCache, setUpdateCache] = useState(() => loadUpdateCache())
   useEffect(() => {
     if (section === 'ops' || section === 'files') setAdvancedOpen(true)
   }, [section])
+  useEffect(() => {
+    const refresh = () => setUpdateCache(loadUpdateCache())
+    refresh()
+    window.addEventListener('aiss-update-channel', refresh)
+    return () => window.removeEventListener('aiss-update-channel', refresh)
+  }, [channelEpoch])
   useEffect(() => {
     if (section !== 'files') return
     void window.aiss?.snapshots?.stats?.().then((s) => setSnapStats(s)).catch(() => undefined)
@@ -479,7 +486,7 @@ export default function SettingsPanel({
                   {(
                     [
                       ['auto', 'n1.auto'],
-                      ['gitee', 'n1.gitee'],
+                      ['official', 'n1.official'],
                       ['github', 'n1.github'],
                       ['custom', 'n1.custom']
                     ] as const
@@ -511,6 +518,17 @@ export default function SettingsPanel({
                 <p className="n1-current" data-testid="settings-update-source">
                   {t('n1.current', { source: sourceLabel(channel, locale) })}
                 </p>
+                {updateCache ? (
+                  <p className="n1-cache" data-testid="settings-update-cache">
+                    {formatCacheAge(updateCache.at, Date.now(), locale)}
+                    {' · '}
+                    {updateCache.status === 'available' && updateCache.latestVersion
+                      ? t('upd.badge', { version: updateCache.latestVersion })
+                      : updateCache.status === 'error'
+                        ? t('upd.failed')
+                        : t('upd.upToDate', { version: updateCache.currentVersion })}
+                  </p>
+                ) : null}
                 {channelError ? <p className="st-error">{channelError}</p> : null}
               </fieldset>
             </section>

@@ -72,35 +72,35 @@ const github = await listen((_req, res) => {
 
 try {
   ok(SOURCE_TIMEOUT_MS === 8000 && AUTO_BUDGET_MS === 16000, 'timeout budget')
-  ok(planSources('auto').map((s) => s.id).join(',') === 'gitee,github', 'auto order')
+  ok(planSources('auto').map((s) => s.id).join(',') === 'official,github', 'auto order')
   ok(planSources('github').length === 1 && planSources('github')[0]!.id === 'github', 'github only')
+  ok(planSources('official').length === 1 && planSources('official')[0]!.id === 'official', 'official only')
   ok(planSources('custom', 'notaurl').length === 0, 'bad mirror')
 
   const fallback = await probeUpdateSources({
     channel: 'auto',
     currentVersion: '0.3.19',
     platform: 'win32',
-    giteeUrl: gitee.url,
+    officialUrl: gitee.url,
     githubUrl: github.url,
     timeoutMs: 1000,
     budgetMs: 3000
   })
-  ok(fallback.status === 'available' && fallback.source === 'github', 'gitee failure falls back to github')
+  ok(fallback.status === 'available' && fallback.source === 'github', 'official failure falls back to github')
   ok(fallback.downloadUrl?.includes('github.com') === true, 'download url is the github asset')
   ok(!fallback.downloadUrl?.includes('gitee.com'), 'fallback does not keep a gitee url')
   ok(githubHits.n === 1 && giteeHits.n === 1, 'both sources contacted once')
 
-  const giteeOnly = await probeUpdateSources({
-    channel: 'gitee',
+  const officialOnly = await probeUpdateSources({
+    channel: 'official',
     currentVersion: '0.3.19',
     platform: 'win32',
-    giteeUrl: gitee.url,
+    officialUrl: gitee.url,
     githubUrl: github.url,
     timeoutMs: 1000
   })
-  ok(giteeOnly.source === 'gitee' && giteeOnly.downloadUrl?.includes('gitee.com') === true, 'gitee channel downloads from gitee')
-  ok(giteeOnly.releaseUrl?.includes('gitee.com') === true, 'gitee release page')
-  ok(githubHits.n === 1, 'github not called for gitee channel')
+  ok(officialOnly.source === 'official' && officialOnly.downloadUrl?.includes('gitee.com') === true, 'official channel stays on that document')
+  ok(githubHits.n === 1, 'github not called for official channel')
 
   const mirror = await listen((_req, res) => {
     res.setHeader('content-type', 'application/json')
@@ -116,7 +116,7 @@ try {
       customUrl: mirror.url,
       currentVersion: '0.1.0',
       platform: 'win32',
-      giteeUrl: gitee.url,
+      officialUrl: gitee.url,
       githubUrl: github.url,
       timeoutMs: 1000
     })
@@ -142,13 +142,13 @@ try {
       channel: 'auto',
       currentVersion: '0.3.19',
       platform: 'linux',
-      giteeUrl: slow.url,
+      officialUrl: slow.url,
       githubUrl: fast.url,
       timeoutMs: 80,
       budgetMs: 400
     })
     const elapsed = Date.now() - started
-    ok(raced.source === 'github' && raced.downloadUrl?.includes('github.com') === true, 'slow gitee times out then github answers')
+    ok(raced.source === 'github' && raced.downloadUrl?.includes('github.com') === true, 'slow official times out then github answers')
     ok(elapsed < 2000, `auto stays inside a short budget (${elapsed}ms)`)
   } finally {
     slow.server.close()
@@ -159,8 +159,8 @@ try {
   github.server.close()
 }
 
-const rel = normalizeRelease('gitee', giteeBody, 'http://gitee.local/latest', 'win32')
-ok(rel?.downloadUrl?.startsWith('https://gitee.com/') === true, 'normalize keeps gitee asset')
+const rel = normalizeRelease('official', giteeBody, 'http://official.local/latest', 'win32')
+ok(rel?.downloadUrl?.startsWith('https://gitee.com/') === true, 'normalize keeps this document\'s asset')
 
 ok(locateTargetFor('disk').kind === 'toolbox' && locateTargetFor('disk').kind === 'toolbox' && (locateTargetFor('disk') as { tab?: string }).tab === 'df', 'disk → df')
 ok((locateTargetFor('cpu') as { tab?: string }).tab === 'processes', 'cpu → processes')
