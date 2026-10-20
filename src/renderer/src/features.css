@@ -2055,3 +2055,6 @@ legend {
 .ai-more-menu > button:disabled { opacity: .45; cursor: default; }
 .ai-more-menu > button.danger { color: var(--danger); }
 .ai-more-sep { height: 1px; margin: 4px var(--space-1); background: var(--color-border-default); }
+
+/* D92: checkbox rows in terminal prefs (input was stretched to full width) */
+[data-testid="terminal-prefs"] .field > input[type="checkbox"] { width: auto; flex: 0 0 auto; }
