@@ -5,6 +5,10 @@ import { DEMO_HOST, DEMO_USER, demoProfileLabel } from '@shared/demo-host'
 import Icon, { Twist } from './Icon'
 import { useI18n } from '../lib/i18n'
 import { RECENT_CHANGED_EVENT } from '../lib/workspace-events'
+import { filterRecent } from '@shared/recent-quick'
+
+/** D21: show the filter once Recent is longer than this */
+export const RECENT_FILTER_MIN = 5
 
 type Props = {
   variant?: 'sidebar' | 'menu' | 'welcome'
@@ -17,6 +21,8 @@ type Props = {
   savedKeys?: string[]
   /** UX-39b: a renamed demo host keeps its stored label. */
   demoRenamed?: boolean
+  /** D21: open the connection editor pre-filled from this row */
+  onSaveAsHost?: (row: RecentConnection) => void
 }
 
 function formatWhen(ts: number, locale: string): string {
@@ -33,7 +39,8 @@ function formatWhen(ts: number, locale: string): string {
   }
 }
 
-export default function RecentConnections({ variant = 'sidebar', limit, hideWhenEmpty, onQuickConnect, savedKeys = [], demoRenamed = false }: Props) {
+export default function RecentConnections({ variant = 'sidebar', limit, hideWhenEmpty, onQuickConnect, savedKeys = [], demoRenamed = false, onSaveAsHost }: Props) {
+  const [filter, setFilter] = useState('')
   const { t, locale } = useI18n()
   const [rows, setRows] = useState<RecentConnection[]>([])
   const [open, setOpen] = useState(() => (variant === 'sidebar' ? loadRecentExpanded() : true))
@@ -65,7 +72,11 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
     setRows(next)
   }
 
-  const shown = useMemo(() => dedupeRecent(rows, limit ?? (variant === 'sidebar' ? 5 : rows.length)), [limit, rows, variant])
+  const unique = useMemo(() => dedupeRecent(rows, rows.length), [rows])
+  const shown = useMemo(
+    () => (filter.trim() ? filterRecent(unique, filter).slice(0, 30) : dedupeRecent(rows, limit ?? (variant === 'sidebar' ? 5 : rows.length))),
+    [filter, unique, limit, rows, variant]
+  )
   const saved = useMemo(() => new Set(savedKeys.map((k) => k.toLowerCase())), [savedKeys])
   if (hideWhenEmpty && rows.length === 0) return null
   const collapsed = variant === 'sidebar' && !open
@@ -92,6 +103,19 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
           <h3>{t('recent.title')}</h3>
         )}
       </header>
+      {!collapsed && unique.length > RECENT_FILTER_MIN ? (
+        <input
+          type="search"
+          className="recent-connections-filter"
+          data-testid="recent-filter"
+          value={filter}
+          placeholder={t('d21.filter', { n: unique.length })}
+          aria-label={t('d21.filterLabel')}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape' && filter) { e.stopPropagation(); setFilter('') } }}
+        />
+      ) : null}
+      {!collapsed && filter.trim() && shown.length === 0 ? <p className="recent-connections-empty">{t('d21.none')}</p> : null}
       {collapsed ? null : rows.length === 0 ? (
         <p className="recent-connections-empty">{t('recent.emptyHint')}</p>
       ) : (
@@ -128,6 +152,18 @@ export default function RecentConnections({ variant = 'sidebar', limit, hideWhen
                     {whenText}
                   </span>
                 </button>
+                {onSaveAsHost && !saved.has(ident) && !(row.host === DEMO_HOST && row.username === DEMO_USER) ? (
+                  <button
+                    type="button"
+                    className="recent-connections-icon"
+                    data-testid="recent-save-host"
+                    title={t('d21.save')}
+                    aria-label={t('d21.save')}
+                    onClick={() => onSaveAsHost(row)}
+                  >
+                    <Icon name="plus" size={14} />
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={`recent-connections-icon${row.pinned ? ' is-on' : ''}`}

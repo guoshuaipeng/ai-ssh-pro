@@ -23,3 +23,21 @@ export function sidebarQuick<P extends { host: string; port?: number; username?:
   if (!target) return null
   return { target, saved: matchProfile(profiles, target) }
 }
+
+type RecentLike = Pick<RecentConnection, 'host' | 'port' | 'username' | 'label' | 'jump'>
+
+/** D21: filter Recent by user / host / port / label / jump host (case-insensitive, all words must match). */
+export function filterRecent<T extends RecentLike>(rows: T[], query: string): T[] {
+  const words = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return rows
+  return rows.filter((r) => {
+    const hay = [`${r.username}@${r.host}:${r.port || 22}`, r.label ?? '', ...(r.jump ?? []).map((h) => h.host)].join(' ').toLowerCase()
+    return words.every((w) => hay.includes(w))
+  })
+}
+
+/** D21: what "Save as host" pre-fills (never a secret: the key is a path). */
+export function recentSaveTarget(row: Pick<RecentConnection, 'host' | 'port' | 'username' | 'label' | 'quick' | 'identity' | 'jump'>): { target: QuickTarget; label: string } {
+  const target = recentQuickTarget({ ...row, quick: true }) ?? { host: row.host, port: row.port || 22, username: row.username }
+  return { target, label: row.label?.trim() || '' }
+}

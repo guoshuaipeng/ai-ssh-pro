@@ -219,7 +219,7 @@ import { BLOCKS_HINT_KEY, shouldHintBlocks } from '@shared/blocks-hint'
 import { isDemoSessionId } from '@shared/demo-host'
 import { COMMAND_SUBMITTED_EVENT } from './lib/ai-events'
 import { matchProfile, parseQuickTarget, quickTargetLabel, type QuickTarget } from '@shared/quick-connect'
-import { recentQuickTarget, sidebarQuick } from '@shared/recent-quick'
+import { recentQuickTarget, recentSaveTarget, sidebarQuick } from '@shared/recent-quick'
 import { effectiveLevel, elevateUntil, hostNameMatches, isElevated, loadElevate, saveElevate, wantsProductionHint, type ElevateMap, type ProtectionLevel } from '@shared/protection'
 import {
   delayForAttempt,
@@ -4174,6 +4174,34 @@ export default function App() {
   )
 
   // D13: quick connect from Ctrl+P — saved host connects, otherwise a prefilled form (password / key still needed)
+  /** D13b/D21: connection editor pre-filled from a quick target (save is the user's click) */
+  const prefillQuickTarget = useCallback(
+    (t: QuickTarget, name = '') => {
+      const jumpChain = t.jump?.length ? t.jump.map((h, i) => ({ id: `qc-${Date.now().toString(36)}-${i}`, host: h.host, port: h.port, username: h.username ?? t.username ?? '' })) : undefined
+      resetConnectionForm()
+      setEditingSavedId(null)
+      setError(null)
+      setHost(t.host)
+      setPort(String(t.port))
+      setUsername(t.username ?? '')
+      if (name) setLabel(name)
+      if (t.identity) {
+        setConnAuth('key')
+        setPrivateKeyPath(t.identity)
+      }
+      if (jumpChain) setJumpChain(jumpChain)
+      openConnectionEditor()
+    },
+    [openConnectionEditor, resetConnectionForm]
+  )
+  const saveRecentAsHost = useCallback(
+    (row: RecentConnection) => {
+      const { target, label: name } = recentSaveTarget(row)
+      prefillQuickTarget(target, name)
+      showToast(tg('d21.prefilled', { target: quickTargetLabel(target) }))
+    },
+    [prefillQuickTarget]
+  )
   const openQuickTarget = useCallback(
     (t: QuickTarget) => {
       const match = matchProfile(profiles, t)
@@ -4183,20 +4211,7 @@ export default function App() {
         return
       }
       const jumpChain = t.jump?.length ? t.jump.map((h, i) => ({ id: `qc-${Date.now().toString(36)}-${i}`, host: h.host, port: h.port, username: h.username ?? t.username ?? '' })) : undefined
-      const prefill = () => {
-        resetConnectionForm()
-        setEditingSavedId(null)
-        setError(null)
-        setHost(t.host)
-        setPort(String(t.port))
-        setUsername(t.username ?? '')
-        if (t.identity) {
-          setConnAuth('key')
-          setPrivateKeyPath(t.identity)
-        }
-        if (jumpChain) setJumpChain(jumpChain)
-        openConnectionEditor()
-      }
+      const prefill = () => prefillQuickTarget(t)
       // D13b: with a user we can try right away (key from -i or ~/.ssh defaults, like OpenSSH); saving is one click
       if (t.username) {
         void openSession({
@@ -4213,7 +4228,7 @@ export default function App() {
       prefill()
       showToast(tg('d13.prefilled', { target: quickTargetLabel(t) }))
     },
-    [connectProfile, openConnectionEditor, openSession, profiles, resetConnectionForm]
+    [connectProfile, openSession, prefillQuickTarget, profiles]
   )
   openQuickTargetRef.current = openQuickTarget
   const sidebarQuickHit = useMemo(() => sidebarQuick(sessionSearch, profiles), [sessionSearch, profiles])
@@ -7526,6 +7541,7 @@ export default function App() {
                 <RecentConnections
                   hideWhenEmpty={profiles.length === 0}
                   onQuickConnect={quickConnectRecent}
+                  onSaveAsHost={saveRecentAsHost}
                   savedKeys={profiles.map((p) => `${p.username}@${p.host}:${p.port || 22}`)}
                   demoRenamed={profiles.some((p) => p.id === DEMO_PROFILE_ID && p.demoRenamed)}
                 />
