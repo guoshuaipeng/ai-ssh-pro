@@ -12,8 +12,11 @@ import { dispatchInjectTerminal } from '../lib/terminal-inject'
 import { showToast } from '../lib/toast'
 import { lastAssistantText } from '@shared/ai-last-reply'
 import { currentTerminalSelection } from '../lib/terminal-selection'
-import { lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
+import { fillCommandBar, lastErrorFor, lastErrorSessionId, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
 import { AI_PREFILL_EVENT, takeAiPrefill } from '../lib/ai-prefill'
+import { fillableCommand } from '@shared/ai-fill'
+import { blocksEnabled } from '@shared/terminal-blocks'
+import { aiOrigins, aiPanelSession } from '../lib/ai-origin'
 import { confirmDialog, isDialogOpen } from '../lib/dialogs'
 import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
@@ -140,6 +143,7 @@ function HighlightedText({ text }: { text: string }): ReactNode {
 }
 
 function AiCodeBlock({ code, lang }: { code: string; lang: string }) {
+  const fill = fillableCommand(code, lang)
   return (
     <div className="ai-code-block" data-testid="ai-code-block" data-lang={lang || undefined}>
       <div className="ai-code-head">
@@ -156,6 +160,26 @@ function AiCodeBlock({ code, lang }: { code: string; lang: string }) {
         >
           {tg('common.copy')}
         </button>
+        {fill ? (
+          <button
+            type="button"
+            className="ai-code-copy ai-code-fill"
+            data-testid="ai-code-fill"
+            title={tg('d16.fillTip')}
+            onClick={() => {
+              const sid = aiPanelSession.current
+              if (!sid) {
+                showToast(tg('d16.noSession'))
+                return
+              }
+              aiOrigins.mark(sid, fill)
+              fillCommandBar(sid, fill)
+              showToast(tg(blocksEnabled() ? 'd15.filled' : 'd16.needBlocks'))
+            }}
+          >
+            {tg('d16.fill')}
+          </button>
+        ) : null}
       </div>
       <pre className="ai-code-pre">
         <code>{code}</code>
@@ -594,6 +618,7 @@ export default function AIPanel({
   const linesRef = useRef<Line[]>([])
   linesRef.current = lines
   const persistKey = resolveHistoryKey(historyKey, activeSessionId)
+  aiPanelSession.current = activeSessionId
   // M23: the bound tab's state. Offline tabs keep their history but cannot continue.
   const convStatus: 'connected' | 'connecting' | 'disconnected' | 'none' = conversation ? conversation.status : 'none'
   const convOffline = convStatus === 'disconnected' || convStatus === 'connecting'

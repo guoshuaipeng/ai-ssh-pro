@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { applyExitHits, blockFailed, createBlockExitParser, failedBlockContext } from '@shared/block-exit'
 import { blockExitOn, setBlockExitOn } from '../lib/block-wire'
+import { aiOrigins } from '../lib/ai-origin'
 import { SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, setShellIntOn, shellIntOn } from '../lib/shell-integration'
 import { COMMAND_SUBMITTED_EVENT, fillCommandBar } from '../lib/ai-events'
 import {
@@ -212,6 +213,12 @@ export default function TerminalBlocks({ sessionId }: { sessionId: string | null
                 {b.exitCode === 0 ? '✓' : `✗ ${b.exitCode}`}
               </span>
             )}
+            {!b.running && sessionId && aiOrigins.has(sessionId, b.command) ? (
+              <button type="button" className="term-block-send" data-testid="block-send-ai" title={tg('d16.sendTip')}
+                onClick={() => { if (sessionId) requestAskWithContext(sessionId, failedBlockContext(b), b.exitCode == null ? tg('d16.resultQNoCode') : tg('d16.resultQ', { code: b.exitCode })) }}>
+                {tg('d16.send')}
+              </button>
+            ) : null}
             {blockFailed(b) ? (
               <button type="button" className="term-block-why" data-testid="block-why-failed"
                 onClick={() => { if (sessionId) requestAskWithContext(sessionId, failedBlockContext(b), tg('d11.whyQ', { code: b.exitCode ?? '' })) }}>
