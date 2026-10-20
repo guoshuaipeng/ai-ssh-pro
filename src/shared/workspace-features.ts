@@ -56,7 +56,13 @@ export type RecentConnection = {
   label?: string
   lastConnectedAt: number
   pinned?: boolean
+  /** D13c: opened by quick connect (not from a saved host); reconnect directly. */
+  quick?: boolean
+  /** D13c: key file path (a path, never key material) and jump hops, for quick rows. */
+  identity?: string
+  jump?: RecentHop[]
 }
+export type RecentHop = { host: string; port: number; username?: string }
 
 export type RecentConnectionInput = {
   host: string
@@ -64,6 +70,33 @@ export type RecentConnectionInput = {
   username: string
   label?: string
   lastConnectedAt?: number
+  quick?: boolean
+  identity?: string
+  jump?: RecentHop[]
+}
+
+function normalizeHops(raw: unknown): RecentHop[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: RecentHop[] = []
+  for (const h of raw.slice(0, 5)) {
+    if (!h || typeof h !== 'object') continue
+    const o = h as Record<string, unknown>
+    const host = typeof o.host === 'string' ? o.host.trim() : ''
+    const port = typeof o.port === 'number' && o.port > 0 && o.port < 65536 ? Math.floor(o.port) : 22
+    if (!host) continue
+    const hop: RecentHop = { host, port }
+    if (typeof o.username === 'string' && o.username.trim()) hop.username = o.username.trim()
+    out.push(hop)
+  }
+  return out.length ? out : undefined
+}
+
+function applyQuick(row: RecentConnection, o: { quick?: unknown; identity?: unknown; jump?: unknown }): void {
+  if (o.quick !== true) return
+  row.quick = true
+  if (typeof o.identity === 'string' && o.identity.trim()) row.identity = o.identity.trim().slice(0, 400)
+  const jump = normalizeHops(o.jump)
+  if (jump) row.jump = jump
 }
 
 /** Single-line shell command, or null when empty / multiline / too long. */
@@ -165,6 +198,7 @@ export function normalizeRecentInput(input: RecentConnectionInput): RecentConnec
     lastConnectedAt
   }
   if (label) row.label = label
+  applyQuick(row, input)
   return row
 }
 
@@ -194,6 +228,7 @@ export function normalizeRecentList(raw: unknown): RecentConnection[] {
     }
     if (label && label !== `${username}@${host}`) row.label = label
     if (o.pinned === true) row.pinned = true
+    applyQuick(row, o)
     out.push(row)
   }
   out.sort((a, b) => {

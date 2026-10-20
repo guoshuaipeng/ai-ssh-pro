@@ -635,7 +635,10 @@ export function recordRecentConnection(input: RecentConnectionInput): RecentConn
     port: input.port,
     username: input.username,
     label: input.label,
-    lastConnectedAt: input.lastConnectedAt
+    lastConnectedAt: input.lastConnectedAt,
+    quick: input.quick,
+    identity: input.identity,
+    jump: input.jump
   })
   appStore.set('recentConnections', next)
   return next

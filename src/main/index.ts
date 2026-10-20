@@ -402,7 +402,10 @@ function registerIpc(): void {
         port: result.meta.port,
         username: result.meta.username,
         label: result.meta.label,
-        lastConnectedAt: result.meta.connectedAt
+        lastConnectedAt: result.meta.connectedAt,
+        ...(opts?.quick
+          ? { quick: true, identity: opts.privateKeyPath, jump: opts.jumpChain?.map((h) => ({ host: h.host, port: h.port, username: h.username })) }
+          : {})
       })
     } catch (err) {
       console.error(
