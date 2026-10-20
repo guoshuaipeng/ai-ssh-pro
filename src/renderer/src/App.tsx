@@ -7546,6 +7546,8 @@ export default function App() {
         showToast(tg('snip.hotkeyFired', { title: snip.title }))
         return
       }
+      // P39: the focused block copies its own output (was mis-wired to toggleBlockStrip, hiding the strip)
+      if (action === 'copyBlockOutput') return
       e.preventDefault()
       e.stopPropagation()
       // IX-6: Ctrl+W closes outside a terminal. Inside one, only Ctrl+Shift+W matches.

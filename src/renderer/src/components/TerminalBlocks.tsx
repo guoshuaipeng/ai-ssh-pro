@@ -314,6 +314,12 @@ export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId:
               return
             }
             if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey)) return
+            if (e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) {
+              e.preventDefault()
+              e.stopPropagation()
+              void navigator.clipboard.writeText(b.output).then(() => showToast(tg('d10.copiedOutput')), () => showToast(tg('ai.copyFailed'), { kind: 'error' }))
+              return
+            }
             if (e.key.toLowerCase() !== 'e') return
             e.preventDefault()
             e.stopPropagation()

@@ -66,7 +66,7 @@ export const KEYMAP: ReadonlyArray<KeymapEntry> = [
   { id: 'fixPlaybook', keys: 'Ctrl+Shift+Enter', scope: 'alertWorkbench', group: 'session', label: { zh: '为当前告警生成修复剧本', en: 'Create fix playbook for selected alert' } },
   { id: 'dryRunPlaybook', keys: 'Ctrl+Enter', scope: 'playbookRun', group: 'session', label: { zh: '试运行 / 开始执行', en: 'Dry run / start' } },
   { id: 'fileHistory', keys: 'Ctrl+H', scope: 'fileHistory', group: 'session', label: { zh: '打开文件历史', en: 'Open file history' } },
-  { id: 'toggleBlockStrip', keys: 'Ctrl+Shift+C', scope: 'blocks', group: 'terminal', label: { zh: '复制块输出', en: 'Copy block output' } }
+  { id: 'copyBlockOutput', keys: 'Ctrl+Shift+C', scope: 'blocks', group: 'terminal', label: { zh: '复制块输出', en: 'Copy block output' } }
 ]
 
 /** Actions that open the palette (both key combos map to the same action). */
