@@ -9287,6 +9287,19 @@ export default function App() {
                     connected={tabs.some((x) => x.sessionId === t.boundSessionId && x.status === 'connected')}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     onPickHost={() => setHostPicker({ action: 'sftp', feature: tg('pf4.pickHost') })}
+                    onCdInTerminal={(path) => {
+                      // D28: SFTP -> terminal. Filled, not run: the shell may be busy, and Enter stays with the user.
+                      const term = tabs.find((x) => x.sessionId === t.boundSessionId && x.status === 'connected' && (!x.view || x.view === 'session'))
+                      const line = cdCommandFor(path)
+                      if (!term?.sessionId || !line) {
+                        showToast(tg('d28.noTerm'))
+                        return
+                      }
+                      setActiveTabId(term.tabId)
+                      const sid = term.sessionId
+                      window.setTimeout(() => dispatchInjectTerminal(sid, line, false), 60)
+                      showToast(tg('d28.filled', { path }))
+                    }}
                     onOpenRemoteFile={(info) => {
                       if (!t.boundSessionId) return
                       openRemoteFileEditor({

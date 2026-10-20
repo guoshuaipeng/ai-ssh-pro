@@ -87,6 +87,8 @@ type Props = {
   /** W3: host profile that owns snapshots for this session. */
   profileId?: string
   onOpenHistory?: (remotePath: string) => void
+  /** D28: fill `cd <remote dir>` into this session's terminal (not run) */
+  onCdInTerminal?: (remotePath: string) => void
 }
 
 type PaneId = 'local' | 'remote'
@@ -200,6 +202,7 @@ function pathCrumbs(cwd: string, isLocal: boolean): { label: string; path: strin
 
 export default function SftpPanel({
   tabId = '',
+  onCdInTerminal,
   sessionId,
   alignSessionCwd = false,
   pendingConnect = false,
@@ -1333,6 +1336,17 @@ export default function SftpPanel({
               >
                 {tg('sftp.copyPath')}
               </button>
+              {!isLocal && onCdInTerminal && cwd ? (
+                <button
+                  type="button"
+                  className="sftp-copy-path"
+                  data-testid="sftp-cd-terminal"
+                  title={tg('d28.tip')}
+                  onClick={() => onCdInTerminal(cwd)}
+                >
+                  {tg('d28.btn')}
+                </button>
+              ) : null}
             </nav>
             <input
               ref={isLocal ? undefined : remotePathRef}
