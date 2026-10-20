@@ -47,6 +47,7 @@ import { askAboutHistoryFailure, lastRunFor } from './lib/failed-output'
 import SearchAllTermsModal from './components/SearchAllTermsModal'
 import ConnectingElapsed from './components/ConnectingElapsed'
 import { stageTarget, type ConnectStageEvent } from '@shared/connect-stage'
+import { buildConnectDiag } from '@shared/connect-diag'
 import { cmdDrafts } from './lib/cmd-draft-store'
 import { getDraft, persistableDraft, putDraft } from '@shared/cmd-drafts'
 import { sessionInfoText } from '@shared/session-info'
@@ -1634,8 +1635,14 @@ export default function App() {
 
   // D77b: latest connect stage per target host:port
   const [connectStages, setConnectStages] = useState<Record<string, ConnectStageEvent>>({})
+  const connectStagesRef = useRef<Record<string, ConnectStageEvent>>({})
+  // D83: last failed attempt, for "copy diagnostics"
+  const lastAttemptRef = useRef<{ opts: SshConnectOptions; startedAt: number; endedAt: number; stage: ConnectStageEvent | null } | null>(null)
   useEffect(() => {
-    return window.aiss.ssh.onStage?.((e) => setConnectStages((prev) => ({ ...prev, [e.target]: e })))
+    return window.aiss.ssh.onStage?.((e) => {
+      connectStagesRef.current = { ...connectStagesRef.current, [e.target]: e }
+      setConnectStages((prev) => ({ ...prev, [e.target]: e }))
+    })
   }, [])
 
   useEffect(() => {
@@ -1861,6 +1868,12 @@ export default function App() {
           setJumpFail(hop ? { hop: hop.hop, total: hop.total, name: hop.name, reason: hop.reason, profileId: extra?.profileId } : null)
           failedProfileIdRef.current = extra?.profileId ?? null
           lastConnectErrorRef.current = noteFailure(raw)
+          lastAttemptRef.current = {
+            opts,
+            startedAt: connectingSinceRef.current.get(tabId) ?? Date.now(),
+            endedAt: Date.now(),
+            stage: connectStagesRef.current[stageTarget(opts.host, opts.port)] ?? null
+          }
         }
         setTabs((prev) =>
           prev.map((t) => (t.tabId === tabId ? { ...t, status: 'disconnected', failRaw: raw } : t))
@@ -7684,6 +7697,24 @@ export default function App() {
       busy={connecting || reconnectingTabId !== null}
       onEdit={openFailedConnection}
       onRetry={retryFailedConnection}
+      diag={() => {
+        const a = lastAttemptRef.current
+        const o = a?.opts
+        return buildConnectDiag({
+          target: o ? stageTarget(o.host, o.port) : failureHostLabel(),
+          user: o?.username ?? '?',
+          authMode: o?.authMode,
+          jumpHops: o?.jumpChain?.length ?? (o?.jumpHost?.host ? 1 : 0),
+          kind: errorKind ?? 'unknown',
+          stage: a?.stage?.stage ?? null,
+          elapsedMs: a ? a.endedAt - a.startedAt : null,
+          timeoutSec: policyRef.current.connectTimeoutSec,
+          keepAliveSec: policyRef.current.keepAliveSec,
+          appVersion: appVersion ?? undefined,
+          raw: errorRaw ?? '',
+          at: new Date()
+        })
+      }}
     />
   ) : null
 

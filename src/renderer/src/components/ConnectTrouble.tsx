@@ -11,6 +11,7 @@ import {
 } from '@shared/connect-trouble'
 import { disconnectStatusSentence } from '@shared/status-bar'
 import { useI18n, type MessageKey } from '../lib/i18n'
+import { showToast } from '../lib/toast'
 
 /** Human primary-cause lines. Dropped connections reuse the PNG-7 status sentence. */
 export const PNG5_CAUSE: Record<TroubleId, MessageKey> = {
@@ -30,10 +31,12 @@ type Props = {
   busy?: boolean
   onEdit: (focus?: 'jump' | 'cert' | null) => void
   onRetry: () => void
+  /** D83: builds redacted diagnostics text on demand */
+  diag?: () => string
 }
 
 /** PNG-5: one cause sentence, at most three checks, technical detail collapsed. */
-export default function ConnectTrouble({ raw, host = '', busy = false, onEdit, onRetry }: Props) {
+export default function ConnectTrouble({ raw, host = '', busy = false, onEdit, onRetry, diag }: Props) {
   const { t, locale } = useI18n()
   const item = troubleshootConnection(raw)
   const actions = orderedActions(item)
@@ -106,6 +109,23 @@ export default function ConnectTrouble({ raw, host = '', busy = false, onEdit, o
             </button>
           )
         })}
+        {diag ? (
+          <button
+            type="button"
+            className="connect-trouble-diag"
+            data-testid="connect-copy-diag"
+            title={t('d83.tip')}
+            onClick={() => {
+              const text = diag()
+              void navigator.clipboard.writeText(text).then(
+                () => showToast(t('d83.copied')),
+                () => showToast(t('d49.copyFail'), { kind: 'error' })
+              )
+            }}
+          >
+            {t('d83.copy')}
+          </button>
+        ) : null}
       </div>
       {showDetail ? (
         <details className="pf5-details connect-trouble-details" data-testid="png5-details">
