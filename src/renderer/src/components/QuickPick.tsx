@@ -19,6 +19,10 @@ type Props = {
   onClose: () => void
   /** D22b: ask AI about a failed history item */
   onAskFailed?: (item: PickItem) => void
+  /** D31: fill `cd <dir> && cmd` for a history item that last ran elsewhere */
+  onRunInCwd?: (item: PickItem) => void
+  /** D31: current session cwd (hides the action when it already matches) */
+  currentCwd?: string | null
   /** Pressing the opening chord again (e.g. Ctrl+R) closes and hands the key to the shell. */
   chord?: string
   onChord?: () => void
@@ -34,7 +38,7 @@ const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]
 }
 
 /** D3 / D4: themed fuzzy picker (reuses the command palette chrome). */
-export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, chord, onChord }: Props) {
+export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, onRunInCwd, currentCwd, chord, onChord }: Props) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -117,7 +121,24 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
               <span className={`cmdp-label${it.kind === 'history' || it.kind === 'snippet' ? ' qp-mono' : ''}`}>
                 {highlightRuns(it.label, it.indices).map((r, k) => (r.hit ? <mark key={k} className="qp-hit">{r.text}</mark> : <span key={k}>{r.text}</span>))}
               </span>
-              {it.detail ? <span className="cmdp-group qp-detail">{it.detail}</span> : null}
+              {it.detail ? <span className="cmdp-group qp-detail">{it.detail}</span> : it.cwd ? <span className="cmdp-group qp-detail qp-cwd" data-testid="qp-cwd" title={tg('d31.cwdTip', { dir: it.cwd })}>{it.cwd}</span> : null}
+              {it.cwd && onRunInCwd && it.cwd !== currentCwd ? (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  className="qp-badge qp-ask-failed"
+                  data-testid="qp-run-in-cwd"
+                  title={tg('d31.runTip', { dir: it.cwd })}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClose()
+                    window.setTimeout(() => onRunInCwd(it), 0)
+                  }}
+                >
+                  {tg('d31.run')}
+                </span>
+              ) : null}
               {typeof it.failed === 'number' ? <span className="qp-badge qp-badge--failed" data-testid="qp-failed" title={tg('d22.failedTip', { code: it.failed })}>{tg('d22.failed', { code: it.failed })}</span> : null}
               {typeof it.failed === 'number' && onAskFailed ? (
                 <span

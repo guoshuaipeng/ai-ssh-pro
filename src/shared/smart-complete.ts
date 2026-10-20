@@ -9,6 +9,8 @@ export type HistoryEntry = {
   lastUsed: number
   /** D22: exit code of the latest run, when known */
   lastExit?: number
+  /** D31: working directory of the latest run (posix path), when known */
+  lastCwd?: string
 }
 
 export type Suggestion = {

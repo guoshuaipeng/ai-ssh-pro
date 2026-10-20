@@ -280,3 +280,6 @@
 .sftp-pathbar input:not(.sftp-name-filter) { min-width: 9rem; flex: 1 1 9rem; }
 .sftp-pathbar .sftp-name-filter { flex: 0 0 auto; min-width: 6rem; }
 
+/* D31 */
+.cmd-cwd, .qp-cwd { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); opacity: 0.75; }
+

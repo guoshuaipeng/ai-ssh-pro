@@ -43,7 +43,8 @@ export function loadSmartHistory(): HistoryEntry[] {
           hostKey: typeof e.hostKey === 'string' ? e.hostKey : '',
           count: typeof e.count === 'number' ? e.count : 1,
           lastUsed: typeof e.lastUsed === 'number' ? e.lastUsed : 0,
-          ...(typeof e.lastExit === 'number' ? { lastExit: e.lastExit } : {})
+          ...(typeof e.lastExit === 'number' ? { lastExit: e.lastExit } : {}),
+          ...(typeof e.lastCwd === 'string' && e.lastCwd.length <= 1024 ? { lastCwd: e.lastCwd } : {})
         }
       })
   } catch {

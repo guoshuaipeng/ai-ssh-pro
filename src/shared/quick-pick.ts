@@ -38,6 +38,8 @@ export type PickItem = {
   badge?: 'host' | 'common' | 'snippet' | 'connected' | 'disconnected' | 'current'
   /** D22: last run failed with this code */
   failed?: number
+  /** D31: directory of the latest run */
+  cwd?: string
   value: string
   indices: number[]
 }
@@ -46,7 +48,7 @@ export type PickItem = {
 export function rankHistoryPick(input: {
   query: string
   hostKey: string
-  entries: { command: string; hostKey: string; count: number; lastUsed: number; lastExit?: number }[]
+  entries: { command: string; hostKey: string; count: number; lastUsed: number; lastExit?: number; lastCwd?: string }[]
   snippets?: { id: string; title: string; body: string }[]
   limit?: number
 }): PickItem[] {
@@ -65,7 +67,7 @@ export function rankHistoryPick(input: {
       continue
     }
     seen.set(cmd, {
-      item: { id: `h:${cmd}`, kind: 'history', label: cmd, badge: hostHit ? 'host' : 'common', value: cmd, indices: m.indices, ...(typeof e.lastExit === 'number' && e.lastExit !== 0 ? { failed: e.lastExit } : {}) },
+      item: { id: `h:${cmd}`, kind: 'history', label: cmd, badge: hostHit ? 'host' : 'common', value: cmd, indices: m.indices, ...(typeof e.lastExit === 'number' && e.lastExit !== 0 ? { failed: e.lastExit } : {}), ...(e.lastCwd ? { cwd: e.lastCwd } : {}) },
       // D22: a command that last failed ranks a little lower among equals
       score: m.score + Math.min(50, (e.count || 1) * 2) - (typeof e.lastExit === 'number' && e.lastExit !== 0 ? 30 : 0),
       tier,

@@ -44,6 +44,7 @@ import { getSessionCwd, setSessionCwd } from './lib/session-cwd-store'
 import AboutModal from './components/AboutModal'
 import ShortcutsModal from './components/ShortcutsModal'
 import { askAboutHistoryFailure } from './lib/failed-output'
+import { runInCwdLine } from '@shared/history-exit'
 import HostKeyConfirmModal from './components/HostKeyConfirmModal'
 import KnownHostsModal from './components/KnownHostsModal'
 import SessionSearchBar from './components/SessionSearchBar'
@@ -10326,6 +10327,12 @@ export default function App() {
         }}
         onAskFailed={(it) => {
           if (activeSessionId && typeof it.failed === 'number') askAboutHistoryFailure(activeSessionId, it.value, it.failed)
+        }}
+        currentCwd={quickPick === 'history' ? getSessionCwd(activeSessionId) : null}
+        onRunInCwd={(it) => {
+          // D31: filled, not run
+          const line = activeSessionId ? runInCwdLine(it.cwd, it.value, getSessionCwd(activeSessionId)) : null
+          if (activeSessionId && line) dispatchInjectTerminal(activeSessionId, line, false)
         }}
       />
       <QuickPick

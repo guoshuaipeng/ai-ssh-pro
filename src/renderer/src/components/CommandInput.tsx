@@ -4,7 +4,7 @@ import { highlightMatch, rankSuggestions, type HistoryEntry, type Suggestion } f
 import { useI18n } from '../lib/i18n'
 import { HISTORY_CHANGED_EVENT, notifyHistoryChanged } from '../lib/workspace-events'
 import { loadSmartHistory, loadSmartPrefs } from '../lib/smart-history'
-import { lastExitOf, upHistoryList } from '@shared/history-exit'
+import { lastCwdOf, lastExitOf, upHistoryList } from '@shared/history-exit'
 
 type Props = {
   placeholder?: string
@@ -242,6 +242,10 @@ export default function CommandInput({
                   {smart && meta ? (
                     <span className="cmd-suggest-meta">
                       <span className={`cmd-src cmd-src--${meta.source}`}>{sourceLabel}</span>
+                      {(() => {
+                        const dir = lastCwdOf(smartRows, hostKey, cmd)
+                        return dir ? <span className="cmd-src cmd-cwd" data-testid="suggest-cwd" title={t('d31.cwdTip', { dir })}>{dir}</span> : null
+                      })()}
                         {(() => {
                           const code = lastExitOf(smartRows, hostKey, cmd)
                           return typeof code === 'number' && code !== 0 ? (
