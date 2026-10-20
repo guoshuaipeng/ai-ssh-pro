@@ -92,7 +92,9 @@ export default function AppToolbar({
         setCompactLevel(0)
         return
       }
-      const w = el.clientWidth
+      // P39: the update badge takes real titlebar room; without this the search box squeezed the panel icons
+      const badge = el.querySelector<HTMLElement>('[data-testid="update-badge"]')
+      const w = el.clientWidth - (badge ? badge.offsetWidth + 8 : 0)
       // Reference widths from UX-17; ResizeObserver measured, not hard breakpoints alone
       let level = 0
       if (w < 1366) level = 1
@@ -114,7 +116,7 @@ export default function AppToolbar({
       window.removeEventListener('aiss-toolbar-auto-icon', onPref)
       if (timer) window.clearTimeout(timer)
     }
-  }, [autoIcon])
+  }, [autoIcon, updateVersion])
 
   useEffect(() => {
     const onTheme = (e: Event) => {
