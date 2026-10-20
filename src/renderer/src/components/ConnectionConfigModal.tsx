@@ -433,7 +433,7 @@ export default function ConnectionConfigModal({
                 </div>
               ) : null}
               {setAgentForward ? (
-                <div className="field agent-fwd" data-testid="conn-agent-forward-row">
+                <div className="agent-fwd" data-testid="conn-agent-forward-row">
                   <label className="l4-check">
                     <input
                       type="checkbox"
