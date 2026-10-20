@@ -19,6 +19,8 @@ import { loadSmartHistory, loadSmartPrefs, seedDemoHistory } from '../lib/smart-
 import { isDemoSessionId } from '@shared/demo-host'
 import { HISTORY_CHANGED_EVENT } from '../lib/workspace-events'
 import { parseOsc52Payload } from '@shared/osc52'
+import { cwdFromOsc7, cwdFromPrompt } from '@shared/session-cwd'
+import { setSessionCwd } from '../lib/session-cwd-store'
 
 type Props = {
   sessionId: string
@@ -270,6 +272,19 @@ export default function TerminalPane({
         return true
       }
       return true
+    })
+
+    // D2: remember cwd (OSC 7 or the bash prompt) so reconnect can return to it
+    const osc7Disp = term.parser.registerOscHandler(7, (data) => {
+      const p = cwdFromOsc7(data)
+      if (p) setSessionCwd(sessionId, p)
+      return true
+    })
+    const cwdMove = term.onCursorMove(() => {
+      const b = term.buffer.active
+      const line = b.getLine(b.baseY + b.cursorY)?.translateToString(true) ?? ''
+      const c = cwdFromPrompt(line.slice(0, Math.min(b.cursorX, line.length)))
+      if (c) setSessionCwd(sessionId, c)
     })
 
     apiRef.current = { term, fit }
@@ -525,6 +540,8 @@ export default function TerminalPane({
       el.removeEventListener('contextmenu', onContextMenu)
       ro.disconnect()
       ghostMove.dispose()
+      cwdMove.dispose()
+      try { osc7Disp.dispose() } catch { /* ignore */ }
       window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)
       subInput.dispose()
       unsubData()
