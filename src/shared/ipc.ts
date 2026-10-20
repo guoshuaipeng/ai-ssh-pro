@@ -607,6 +607,8 @@ export type AiSettings = {
   aiAutoHighRisk?: boolean
   /** 2.2: maximum planner steps per AI run (1–30, default 10). */
   aiMaxSteps?: number
+  /** B1: append an exit-code marker to AI commands (default on; stored only when false). */
+  aiExitCapture?: boolean
 }
 
 export type AiAssistantAction = 'tool_call' | 'command' | 'end'

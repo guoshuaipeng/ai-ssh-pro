@@ -22,6 +22,18 @@ export type ExecRecord = {
   outputLines?: number
   /** 对应的审计记录 id（审计关闭时为空） */
   auditId?: string
+  /** B1：状态为「已执行」时没有退出码的原因 */
+  noExit?: NoExitReason
+}
+
+export type NoExitReason = 'disabled' | 'ineligible' | 'timeout' | 'unsupported'
+const NO_EXIT: readonly NoExitReason[] = ['disabled', 'ineligible', 'timeout', 'unsupported']
+
+/** B1：等待退出码的上限（毫秒）；超过后先按「已执行」记录，长命令不阻塞 AI */
+export const EXIT_WAIT_DEFAULT_MS = 10_000
+export function exitWaitMs(env?: string): number {
+  const n = env ? Number(env) : EXIT_WAIT_DEFAULT_MS
+  return Number.isFinite(n) && n >= 500 ? Math.min(60_000, Math.floor(n)) : EXIT_WAIT_DEFAULT_MS
 }
 
 export const SUMMARY_MAX_LINES = 8
@@ -85,6 +97,7 @@ export function normalizeExecRecord(raw: unknown): ExecRecord | undefined {
   const n = Number(r.outputLines)
   if (r.outputLines != null && Number.isInteger(n) && n >= 0) out.outputLines = n
   if (typeof r.auditId === 'string' && r.auditId.trim()) out.auditId = r.auditId.trim().slice(0, 96)
+  if (out.status === 'sent' && typeof r.noExit === 'string' && (NO_EXIT as readonly string[]).includes(r.noExit)) out.noExit = r.noExit as NoExitReason
   return out
 }
 

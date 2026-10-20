@@ -328,6 +328,7 @@ function normalizeAi(merged: AiSettings): AiSettings {
       : anyMerged.aiPolicy === undefined && anyMerged.safetyTier === 'autopilot' && autopilotAllowHighRisk
 
   const aiMaxSteps = normalizeAiMaxSteps(anyMerged.aiMaxSteps)
+  const aiExitCapture = anyMerged.aiExitCapture === false ? false : undefined
 
   return {
     providers,
@@ -341,6 +342,7 @@ function normalizeAi(merged: AiSettings): AiSettings {
     aiPolicy,
     ...(aiAutoHighRisk ? { aiAutoHighRisk } : {}),
     ...(aiMaxSteps != null ? { aiMaxSteps } : {}),
+    ...(aiExitCapture === false ? { aiExitCapture } : {}),
     ...(safetyTierHosts ? { safetyTierHosts } : {}),
     ...(safetyTierSessions ? { safetyTierSessions } : {}),
     ...(autopilotAllowHosts ? { autopilotAllowHosts } : {}),

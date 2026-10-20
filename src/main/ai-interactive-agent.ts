@@ -52,7 +52,7 @@ import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTie
 import { getInventoryStore } from './inventory-store'
 import { isAiPolicy, policyTier, resolveAiPolicy } from '../shared/ai-policy'
 import { resolveAiMaxSteps, writeUnlessStopped } from '../shared/ai-run-control'
-import { execStatusFrom, summarizeExecOutput } from '../shared/ai-exec-replay'
+import { execStatusFrom, exitWaitMs, summarizeExecOutput, type NoExitReason } from '../shared/ai-exec-replay'
 import { aiWriteVerdict, capSafetyModeForProtection, aiEffectiveLevel, protectionFromSafetyContext, stricterProtection } from '../shared/ai-write-guard'
 import { getSessionProtection } from './ai-protection-registry'
 import type { HostServiceKind } from '../shared/inventory'
@@ -1685,7 +1685,20 @@ export async function runOpenClawCoreAgentChat(
         logAi('ssh:write exec', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
         const execStartedAt = Date.now()
         let execSnapshot: string | null = null
-        const wrote = writeUnlessStopped(runCtx, ac.signal, () => ssh.write(targetSessionId, `${oneLineCmd}\n`))
+        // B1: exit-code capture (setting, default on)
+        const captureExit = settings.aiExitCapture !== false
+        let exitNonce: string | null = null
+        let exitUnsupported = false
+        const wrote = writeUnlessStopped(runCtx, ac.signal, () => {
+          const r =
+            typeof ssh.writeAiCommand === 'function'
+              ? ssh.writeAiCommand(targetSessionId, oneLineCmd, captureExit)
+              : { ok: ssh.write(targetSessionId, `${oneLineCmd}\n`), nonce: null }
+          exitNonce = r.nonce
+          exitUnsupported = 'unsupported' in r && r.unsupported === true
+          return r.ok
+        })
+        let noExit: NoExitReason | undefined = captureExit ? (exitNonce ? undefined : exitUnsupported ? 'unsupported' : 'ineligible') : 'disabled'
         if (wrote === null) {
           logAi('ssh:write skipped after stop', { targetSessionId, cmd: trimForLog(oneLineCmd, 200) })
           send(wc, { type: 'cancelled', message: mt('已停止：此后不再向终端写入命令', 'Stopped: no further commands are written to the terminal') })
@@ -1710,7 +1723,14 @@ export async function runOpenClawCoreAgentChat(
         })
 
         if (lastWriteOk && targetSessionId) {
-          await new Promise<void>((r) => setTimeout(r, settleMsAfterCommand()))
+          if (exitNonce) {
+            const code = typeof ssh.waitCommandExit !== 'function' ? null : await ssh.waitCommandExit(targetSessionId, exitNonce, exitWaitMs(process.env.AISS_EXIT_WAIT_MS), ac.signal)
+            if (code == null) noExit = 'timeout'
+            // let the trailing output and prompt arrive
+            await new Promise<void>((r) => setTimeout(r, 200))
+          } else {
+            await new Promise<void>((r) => setTimeout(r, settleMsAfterCommand()))
+          }
           const postCmdSnap = await captureTerminalSnapshot(ssh, targetSessionId, true)
           if (postCmdSnap?.trim()) {
             lastToolResult = postCmdSnap
@@ -1742,7 +1762,8 @@ export async function runOpenClawCoreAgentChat(
               at: execStartedAt,
               durationMs: Date.now() - execStartedAt,
               ...(typeof reported?.exitCode === 'number' ? { exitCode: reported.exitCode } : {}),
-              ...(sum.summary ? { summary: sum.summary, outputLines: sum.outputLines } : {})
+              ...(sum.summary ? { summary: sum.summary, outputLines: sum.outputLines } : {}),
+              ...(typeof reported?.exitCode !== 'number' && noExit ? { noExit } : {})
             }
           })
         }
