@@ -45,12 +45,18 @@ export function promptHostKey(
   if (owner.isDestroyed()) return Promise.resolve({ accept: false, alwaysTrust: false })
 
   const requestId = randomUUID()
-  const event: SshHostKeyPromptEvent = { ...payload, requestId }
+  const event: SshHostKeyPromptEvent = { ...payload, requestId, expiresAt: Date.now() + PROMPT_TIMEOUT_MS }
 
   return new Promise<HostKeyPromptResult>((resolve) => {
     const timer = setTimeout(() => {
       waiters.delete(requestId)
       resolve({ accept: false, alwaysTrust: false })
+      // D23: tell the renderer so the dialog does not stay open with dead buttons
+      try {
+        if (!owner.isDestroyed()) owner.send('ssh:hostKeyExpired', { requestId })
+      } catch {
+        /* ignore */
+      }
     }, PROMPT_TIMEOUT_MS)
 
     waiters.set(requestId, { resolve, timer })

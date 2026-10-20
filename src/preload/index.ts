@@ -113,6 +113,11 @@ const api = {
       ipcRenderer.on('ssh:status', fn)
       return () => unsub('ssh:status', fn)
     },
+    onHostKeyExpired: (cb: (payload: { requestId: string }) => void): (() => void) => {
+      const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as { requestId: string })
+      ipcRenderer.on('ssh:hostKeyExpired', fn)
+      return () => unsub('ssh:hostKeyExpired', fn)
+    },
     onHostKeyPrompt: (cb: (payload: SshHostKeyPromptEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as SshHostKeyPromptEvent)
       ipcRenderer.on('ssh:hostKeyPrompt', fn)

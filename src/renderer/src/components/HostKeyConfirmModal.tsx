@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import { tg } from '../lib/i18n'
 import type { SshHostKeyPromptEvent } from '@shared/ipc'
+import { canTrust, hostKeyLabel, verifyCommand } from '@shared/host-key-info'
+import { showToast } from '../lib/toast'
 
 type Props = {
   prompt: SshHostKeyPromptEvent | null
@@ -14,9 +16,17 @@ export default function HostKeyConfirmModal({ prompt, onRespond }: Props) {
     detail?: string
   }>({ status: 'idle' })
 
+  const [verified, setVerified] = useState(false)
   useEffect(() => {
     setLookup({ status: 'idle' })
+    setVerified(false)
   }, [prompt?.host, prompt?.port, prompt?.fingerprint])
+  const copy = (text: string) => {
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => showToast(tg('d23.copied')))
+      .catch(() => undefined)
+  }
 
   if (!prompt) return null
 
@@ -70,13 +80,14 @@ export default function HostKeyConfirmModal({ prompt, onRespond }: Props) {
             <button type="button" data-testid="hk-reject" onClick={() => onRespond(false, false)}>
               {tg('hk.reject')}
             </button>
-            <button type="button" data-testid="hk-once" onClick={() => onRespond(true, false)}>
+            <button type="button" data-testid="hk-once" disabled={!canTrust(prompt.reason, verified)} onClick={() => onRespond(true, false)}>
               {tg('hk.once')}
             </button>
             <button
               type="button"
               className={isChanged ? 'danger' : 'primary'}
               data-testid="hk-trust"
+              disabled={!canTrust(prompt.reason, verified)}
               onClick={() => onRespond(true, true)}
             >
               {isChanged ? tg('hk.trustChanged') : tg('hk.trust')}
@@ -101,14 +112,33 @@ export default function HostKeyConfirmModal({ prompt, onRespond }: Props) {
           </code>
         </div>
         <div>
-          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{tg('hk.fp')}</div>
-          <code style={{ wordBreak: 'break-all' }}>{prompt.fingerprint}</code>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>
+            {tg('hk.fp')}
+            {prompt.keyType ? <span className="hk-keytype" data-testid="hk-keytype">{hostKeyLabel(prompt.keyType)}</span> : null}
+          </div>
+          <div className="hk-copy-row">
+            <code style={{ wordBreak: 'break-all' }}>{prompt.fingerprint}</code>
+            <button type="button" className="hk-copy" data-testid="hk-copy-fp" onClick={() => copy(prompt.fingerprint)}>{tg('d23.copy')}</button>
+          </div>
+        </div>
+        <div className="hk-verify" data-testid="hk-verify">
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{tg('d23.verifyLead')}</div>
+          <div className="hk-copy-row">
+            <code>{verifyCommand(prompt.keyType)}</code>
+            <button type="button" className="hk-copy" data-testid="hk-copy-cmd" onClick={() => copy(verifyCommand(prompt.keyType))}>{tg('d23.copy')}</button>
+          </div>
         </div>
         {prompt.previousFingerprint ? (
           <div>
             <div style={{ color: 'var(--muted)', fontSize: 12 }}>{tg('hk.savedFp')}</div>
             <code style={{ wordBreak: 'break-all' }}>{prompt.previousFingerprint}</code>
           </div>
+        ) : null}
+        {isChanged ? (
+          <label className="hk-verified" data-testid="hk-verified">
+            <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.currentTarget.checked)} />
+            {tg('d23.verified')}
+          </label>
         ) : null}
         <div className="hk-lookup-box" data-testid="hk-lookup-box">
           <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>{tg('hk.lookupLead')}</p>

@@ -23,6 +23,7 @@ import type {
 import { RingBuffer } from './ring-buffer'
 import { checkHostKey, trustHostKey } from './known-hosts'
 import { promptHostKey } from './host-key-prompt'
+import { hostKeyType } from '../shared/host-key-info'
 import { startTrackedForward, stopSessionForwards } from './forward-manager'
 import { appendRecording } from './session-recorder'
 import { assertSafeDockerId } from './docker-manager'
@@ -99,6 +100,7 @@ function makeHostVerifier(
           fingerprint: result.fingerprint,
           reason: result.status,
           previousFingerprint: result.status === 'changed' ? result.previousFingerprint : undefined,
+          keyType: hostKeyType(key),
           hopIndex: hop?.hopIndex,
           hopTotal: hop?.hopTotal
         })

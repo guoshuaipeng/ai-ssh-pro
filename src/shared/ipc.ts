@@ -124,6 +124,10 @@ export type SshHostKeyPromptEvent = {
   fingerprint: string
   reason: 'unknown' | 'changed'
   previousFingerprint?: string
+  /** D23: wire algorithm, e.g. ssh-ed25519 */
+  keyType?: string
+  /** D23: when the prompt expires (epoch ms) */
+  expiresAt?: number
   /** Which hop in a jump chain this prompt belongs to (1-based). */
   hopIndex?: number
   hopTotal?: number

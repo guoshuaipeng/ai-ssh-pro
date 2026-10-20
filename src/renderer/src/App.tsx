@@ -1577,6 +1577,21 @@ export default function App() {
     })
   }, [])
 
+  // D23: an unanswered prompt times out in main; close it here instead of leaving dead buttons
+  useEffect(() => {
+    const off = window.aiss.ssh.onHostKeyExpired?.(({ requestId }) => {
+      const cur = hostKeyShownRef.current
+      if (cur?.requestId === requestId) {
+        const advanced = advanceHostKey(hostKeyQueueRef.current)
+        hostKeyShownRef.current = advanced.current
+        hostKeyQueueRef.current = advanced.queue
+        setHostKeyPrompt(advanced.current)
+        showToast(tg('d23.expired', { host: `${cur.host}:${cur.port}` }), { kind: 'error' })
+      } else hostKeyQueueRef.current = hostKeyQueueRef.current.filter((p) => p.requestId !== requestId)
+    })
+    return () => off?.()
+  }, [])
+
   const respondHostKey = useCallback(async (accept: boolean, alwaysTrust: boolean) => {
     const prompt = hostKeyShownRef.current
     if (!prompt) return
