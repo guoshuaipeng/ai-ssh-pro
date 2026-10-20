@@ -22,6 +22,10 @@ import { parseOsc52Payload } from '@shared/osc52'
 import { cwdFromOsc7, cwdFromPrompt } from '@shared/session-cwd'
 import { planPaste, type PastePlan } from '@shared/paste-plan'
 import { requestAskWithContext } from '../lib/ai-prefill'
+import { dropTargetDir, typedCommandOnEnter } from '@shared/typed-command'
+import { setPendingUpload } from '../lib/pending-upload'
+import { getSessionCwd } from '../lib/session-cwd-store'
+import { noteSubmitted } from '../lib/ai-events'
 import { setSessionCwd } from '../lib/session-cwd-store'
 
 type Props = {
@@ -124,6 +128,8 @@ export default function TerminalPane({
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   // D7: multi-line paste waits here for a decision
+  // D9: files dragged over the terminal → upload target hint
+  const [dropHint, setDropHint] = useState<string | null>(null)
   const [pastePreview, setPastePreview] = useState<{ text: string; plan: PastePlan } | null>(null)
   const guardedPasteRef = useRef<(text: string) => void>(() => {})
   const [findQuery, setFindQuery] = useState('')
@@ -243,6 +249,13 @@ export default function TerminalPane({
         onInputBlockedRef.current?.()
         return
       }
+      // D10: a command typed at the prompt starts a command block
+      if (data === '\r') {
+        const b = term.buffer.active
+        const line = b.getLine(b.baseY + b.cursorY)?.translateToString(true) ?? ''
+        const cmd = typedCommandOnEnter(data, line.slice(0, Math.min(b.cursorX, line.length)), b.type === 'alternate')
+        if (cmd) noteSubmitted(sessionId, cmd)
+      }
       if (onUserDataRef.current) {
         onUserDataRef.current(data)
         return
@@ -266,6 +279,39 @@ export default function TerminalPane({
       guardedPasteRef.current(text)
     }
     el.addEventListener('paste', onNativePaste, true)
+    // D9: drop local files on the terminal → upload into this session's cwd via its SFTP panel
+    const hasFiles = (ev: DragEvent) => Array.from(ev.dataTransfer?.types ?? []).includes('Files')
+    const onDragOver = (ev: DragEvent) => {
+      if (!hasFiles(ev) || mirrorOnlyRef.current || !onOpenSftpRef.current) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      setDropHint(dropTargetDir(getSessionCwd(sessionId)))
+    }
+    const onDragLeave = (ev: DragEvent) => {
+      if (ev.target === el || !el.contains(ev.relatedTarget as Node | null)) setDropHint(null)
+    }
+    const onDrop = (ev: DragEvent) => {
+      if (!hasFiles(ev) || mirrorOnlyRef.current || !onOpenSftpRef.current) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      setDropHint(null)
+      if (inputBlockedRef.current) {
+        showToast(tg('ux34.noUpload'), { kind: 'error' })
+        return
+      }
+      const paths = Array.from(ev.dataTransfer?.files ?? [])
+        .map((f) => window.aiss.fs.pathForFile?.(f) || (f as File & { path?: string }).path)
+        .filter((p): p is string => Boolean(p))
+      if (!paths.length) {
+        showToast(tg('sftp.dropNeedPath'), { kind: 'error' })
+        return
+      }
+      setPendingUpload(sessionId, dropTargetDir(getSessionCwd(sessionId)), paths)
+      onOpenSftpRef.current(sessionId)
+    }
+    el.addEventListener('dragover', onDragOver)
+    el.addEventListener('dragleave', onDragLeave)
+    el.addEventListener('drop', onDrop)
     attachTerminalClipboardKeys(term, (ev) => {
       const action = terminalKeyAction(ev.key, { atEnd: ghostRef.current.atEnd, hasGhost: Boolean(ghostRef.current.suffix) })
       if (action === 'accept-ghost') {
@@ -571,6 +617,9 @@ export default function TerminalPane({
       ro.disconnect()
       ghostMove.dispose()
       el.removeEventListener('paste', onNativePaste, true)
+      el.removeEventListener('dragover', onDragOver)
+      el.removeEventListener('dragleave', onDragLeave)
+      el.removeEventListener('drop', onDrop)
       cwdMove.dispose()
       try { osc7Disp.dispose() } catch { /* ignore */ }
       window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)
@@ -667,6 +716,11 @@ export default function TerminalPane({
           <button type="button" className="ai-explain-hint" data-testid="ai-explain-hint" onClick={() => explainWithAi('auto')}>
             <Icon name="sparkles" size={14} /> {tg('a1.button')}
           </button>
+        ) : null}
+        {dropHint ? (
+          <div className="term-drop-hint" data-testid="term-drop-hint" aria-live="polite">
+            {tg('d9.dropHint', { dir: dropHint })}
+          </div>
         ) : null}
         {pastePreview ? (
           <div className="paste-preview" role="dialog" aria-label={tg('d7.title', { n: pastePreview.plan.lines.length })} data-testid="paste-preview"

@@ -37,6 +37,8 @@ import ErrorNotice from './ErrorNotice'
 import ConnectTrouble from './ConnectTrouble'
 import { askText, confirmDialog } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
+import { PENDING_UPLOAD_EVENT, takePendingUpload } from '../lib/pending-upload'
+import { resolveHomePath, retryableTransfers } from '@shared/typed-command'
 import { registerFolderSyncRunner } from '../lib/folder-sync-run'
 import { recallTransferQueue, registerSftpCloseGuard, rememberTransferQueue, takeFolderSync } from '../lib/sftp-activity'
 import { loadSmartPrefs, saveSmartPrefs } from '../lib/smart-history'
@@ -809,6 +811,42 @@ export default function SftpPanel({
   )
   const resumeRef = useRef(resumeTask)
   resumeRef.current = resumeTask
+  // D9: one click for every failed / interrupted transfer (sequential, each keeps its resume offset)
+  const [retryingAll, setRetryingAll] = useState(false)
+  const retryAll = useCallback(async () => {
+    const list = retryableTransfers(tasks)
+    if (!list.length) return
+    setRetryingAll(true)
+    try {
+      for (const t of list) await resumeRef.current(t)
+    } finally {
+      setRetryingAll(false)
+    }
+  }, [tasks])
+  // D9: files dropped on this session's terminal
+  const transferFilesRef = useRef<typeof transferFiles | null>(null)
+  transferFilesRef.current = transferFiles
+  const remoteCwdRef = useRef(remoteCwd)
+  remoteCwdRef.current = remoteCwd
+  useEffect(() => {
+    if (!sessionId) return
+    const take = () => {
+      const p = takePendingUpload(sessionId)
+      if (!p) return
+      void (async () => {
+        const home = p.dir.startsWith('/') ? null : await window.aiss.sftp.home(sessionId).catch(() => null)
+        const dir = resolveHomePath(p.dir, home) ?? remoteCwdRef.current
+        await transferFilesRef.current?.(
+          'upload',
+          p.paths.map((lp) => ({ name: baseName(lp), localPath: lp, remotePath: joinPosix(dir, baseName(lp)), size: 0 }))
+        )
+        showToast(tg('d9.dropQueued', { n: p.paths.length, dir }))
+      })()
+    }
+    take()
+    window.addEventListener(PENDING_UPLOAD_EVENT, take)
+    return () => window.removeEventListener(PENDING_UPLOAD_EVENT, take)
+  }, [sessionId])
 
   useEffect(() => {
     let alive = true
@@ -1687,6 +1725,18 @@ export default function SftpPanel({
             <Twist open={queueOpen} size={12} /> {tg('d1.queue')}
             {summary.active > 0 ? ` · ${tg('d1.summary', { n: summary.active, speed: formatSpeed(summary.speed) })}` : ''}
           </button>
+          {retryableTransfers(tasks).length > 0 ? (
+            <button
+              type="button"
+              className="sftp-transfers-clear"
+              data-testid="sftp-xfer-retry-all"
+              disabled={retryingAll}
+              title={tg('d9.retryAllHint')}
+              onClick={() => void retryAll()}
+            >
+              {tg('d9.retryAll', { n: retryableTransfers(tasks).length })}
+            </button>
+          ) : null}
           {finishedCount > 0 ? (
             <button
               type="button"
