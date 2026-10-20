@@ -2080,5 +2080,5 @@ legend {
 /* P40: find bar and paste preview never touch; preview drops below an open find bar */
 .terminal-pane-wrap:has(.terminal-find-bar) .paste-preview { top: 52px; }
 /* P40: command FAB sits in the scrollbar gutter and fades at rest so it covers less of the last column */
-.session-command-fab { right: 6px; bottom: 10px; width: 30px; height: 30px; opacity: .6; transition: opacity var(--duration-fast) var(--easing-standard); }
+.session-command-fab { right: 12px; bottom: 12px; width: 30px; height: 30px; opacity: .6; transition: opacity var(--duration-fast) var(--easing-standard); }
 .session-command-fab:hover, .session-command-fab:focus-visible { opacity: 1; }
