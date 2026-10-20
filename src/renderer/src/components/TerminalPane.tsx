@@ -31,6 +31,9 @@ import { noteSubmitted } from '../lib/ai-events'
 import { setSessionCwd } from '../lib/session-cwd-store'
 import { COMMAND_SUBMITTED_EVENT } from '../lib/ai-events'
 import { blockNavIndex, blockNavKey } from '@shared/block-nav'
+import { blockMatcher, effectiveScope, loadFindScope, saveFindScope, type FindScope } from '@shared/find-scope'
+import { blocksEnabled } from '@shared/terminal-blocks'
+import { BLOCKS_HITS_EVENT, BLOCKS_QUERY_EVENT, BLOCKS_STEP_EVENT, type BlocksHitsDetail } from '../lib/find-bridge'
 import { SHELL_INT_TIMEOUT_MS, atIdlePrompt, canInject, parseOsc133, shellIntegrationScript } from '@shared/shell-integration'
 import { SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, noteInjected, noteMarker, shellIntOn, wasInjected } from '../lib/shell-integration'
 
@@ -143,6 +146,18 @@ export default function TerminalPane({
   const [findCase, setFindCase] = useState(false)
   const [findRegex, setFindRegex] = useState(false)
   const [findCount, setFindCount] = useState<{ index: number; total: number } | null>(null)
+  // D19: one search entry — scope terminal / blocks
+  const [findScopePref, setFindScopePref] = useState<FindScope>(() => loadFindScope())
+  const [blocksOnHere, setBlocksOnHere] = useState(() => blocksEnabled())
+  const [blockHits, setBlockHits] = useState<{ index: number; total: number } | null>(null)
+  useEffect(() => {
+    const sync = () => setBlocksOnHere(blocksEnabled())
+    window.addEventListener('aiss-blocks', sync)
+    return () => window.removeEventListener('aiss-blocks', sync)
+  }, [])
+  const findScope = effectiveScope(findScopePref, blocksOnHere)
+  const findScopeRef = useRef<(s: FindScope) => void>(() => undefined)
+  findScopeRef.current = (s) => setFindScopePref(saveFindScope(s))
   const findInputRef = useRef<HTMLInputElement>(null)
   const findPosRef = useRef<{ row: number; col: number } | null>(null)
   // A1: "Explain with AI" hint after output that looks like an error (auto-hides after 8 s)
@@ -179,8 +194,10 @@ export default function TerminalPane({
   }, [active, sessionId])
 
   useEffect(() => {
-    const onFind = () => {
+    const onFind = (e: Event) => {
       if (!activeRef.current) return
+      const want = (e as CustomEvent<{ scope?: FindScope } | undefined>).detail?.scope
+      if (want) findScopeRef.current(want)
       const term = apiRef.current?.term
       const seed = term?.hasSelection() ? seedQueryFromSelection(term.getSelection()) : ''
       if (seed) {
@@ -194,8 +211,31 @@ export default function TerminalPane({
     return () => window.removeEventListener(AISS_TERMINAL_FIND_EVENT, onFind)
   }, [])
 
-  const findError = findQuery ? compileFind(findQuery, { caseSensitive: findCase, regex: findRegex }).error : null
+  const findError = findQuery
+    ? findScope === 'blocks'
+      ? blockMatcher(findQuery, { caseSensitive: findCase, regex: findRegex }) === 'error'
+        ? 'regex'
+        : null
+      : compileFind(findQuery, { caseSensitive: findCase, regex: findRegex }).error
+    : null
+  // D19: blocks scope drives the strip's filter; closing the bar or switching back clears it
+  useEffect(() => {
+    const q = findOpen && findScope === 'blocks' ? findQuery : ''
+    window.dispatchEvent(new CustomEvent(BLOCKS_QUERY_EVENT, { detail: { sessionId, query: q, caseSensitive: findCase, regex: findRegex } }))
+  }, [findOpen, findScope, findQuery, findCase, findRegex, sessionId])
+  useEffect(() => {
+    const onHits = (e: Event) => {
+      const d = (e as CustomEvent<BlocksHitsDetail>).detail
+      if (d && d.sessionId === sessionId) setBlockHits({ index: d.index, total: d.total })
+    }
+    window.addEventListener(BLOCKS_HITS_EVENT, onHits)
+    return () => window.removeEventListener(BLOCKS_HITS_EVENT, onHits)
+  }, [sessionId])
   const runFind = (backwards: boolean, restart = false) => {
+    if (findScope === 'blocks') {
+      if (!restart) window.dispatchEvent(new CustomEvent(BLOCKS_STEP_EVENT, { detail: { sessionId, back: backwards } }))
+      return
+    }
     const term = apiRef.current?.term
     if (!term) return
     if (!findQuery || findError) {
@@ -225,7 +265,9 @@ export default function TerminalPane({
   // Live search while typing / toggling options (keeps the current match when it still matches)
   useEffect(() => {
     if (findOpen) runFindRef.current(false, true)
-  }, [findOpen, findQuery, findCase, findRegex])
+  }, [findOpen, findQuery, findCase, findRegex, findScope])
+  const blocksMiss = findScope === 'blocks' && !!findQuery.trim() && !findError && blockHits?.total === 0
+  const shownCount = findScope === 'blocks' ? (findQuery.trim() && blockHits && blockHits.total > 0 ? blockHits : null) : findCount
 
 
   useEffect(() => {
@@ -852,12 +894,33 @@ export default function TerminalPane({
           </div>
         ) : null}
         {findOpen ? (
-          <div className="terminal-find-bar" role="search" data-testid="terminal-find">
+          <div className="terminal-find-bar" role="search" data-testid="terminal-find" data-scope={findScope}>
+            {blocksOnHere ? (
+              <span className="terminal-find-scope" role="group" aria-label={tg('d19.scope')}>
+                {(['terminal', 'blocks'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`terminal-find-opt${findScope === s ? ' is-on' : ''}`}
+                    data-testid={`terminal-find-scope-${s}`}
+                    aria-pressed={findScope === s}
+                    title={tg(s === 'blocks' ? 'd19.blocksTip' : 'd19.terminalTip')}
+                    onClick={() => {
+                      findScopeRef.current(s)
+                      findPosRef.current = null
+                      findInputRef.current?.focus()
+                    }}
+                  >
+                    {tg(s === 'blocks' ? 'd19.blocks' : 'd19.terminal')}
+                  </button>
+                ))}
+              </span>
+            ) : null}
             <input
               ref={findInputRef}
-              className={findMiss || findError ? 'is-miss' : ''}
-              placeholder={tg('find.placeholder')}
-              aria-label={tg('find.placeholder')}
+              className={(findScope === 'blocks' ? blocksMiss : findMiss) || findError ? 'is-miss' : ''}
+              placeholder={tg(findScope === 'blocks' ? 'd19.placeholderBlocks' : 'find.placeholder')}
+              aria-label={tg(findScope === 'blocks' ? 'd19.placeholderBlocks' : 'find.placeholder')}
               value={findQuery}
               onChange={(e) => {
                 setFindQuery(e.target.value)
@@ -877,11 +940,11 @@ export default function TerminalPane({
               }}
             />
             <span className="terminal-find-status" data-testid="terminal-find-hint">
-              {findError ? tg('find.badRegex') : findMiss ? tg('find.none') : !findQuery.trim() ? tg('find.hintShortcut') : ''}
+              {findError ? tg('find.badRegex') : (findScope === 'blocks' ? blocksMiss : findMiss) ? tg('find.none') : !findQuery.trim() ? tg('find.hintShortcut') : ''}
             </span>
-            {findCount && findCount.total > 0 && !findError ? (
+            {shownCount && shownCount.total > 0 && !findError ? (
               <span className="terminal-find-count" data-testid="terminal-find-count">
-                {findCount.index}/{findCount.total}
+                {findScope === 'blocks' && shownCount.index < 1 ? tg('d19.blockCount', { n: shownCount.total }) : `${shownCount.index}/${shownCount.total}`}
               </span>
             ) : null}
             <button

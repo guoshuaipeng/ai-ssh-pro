@@ -22,6 +22,9 @@ import {
   type TermBlock
 } from '@shared/terminal-blocks'
 import { tg } from '../lib/i18n'
+import { blockMatcher, stepMatch } from '@shared/find-scope'
+import { BLOCKS_HITS_EVENT, BLOCKS_QUERY_EVENT, BLOCKS_STEP_EVENT, type BlocksQueryDetail, type BlocksStepDetail } from '../lib/find-bridge'
+import { AISS_TERMINAL_FIND_EVENT } from '../lib/terminal-find'
 import Icon, { Twist } from './Icon'
 import { showToast } from '../lib/toast'
 import { requestAskWithContext } from '../lib/ai-prefill'
@@ -49,6 +52,37 @@ export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId:
   const stripRef = useRef<HTMLDivElement>(null)
   const [siOn, setSiOn] = useState(() => shellIntOn())
   const [query, setQuery] = useState('')
+  const [qOpts, setQOpts] = useState({ caseSensitive: false, regex: false })
+  // D19: the query comes from the terminal find bar (Ctrl+F, scope = blocks)
+  useEffect(() => {
+    const onQuery = (e: Event) => {
+      const d = (e as CustomEvent<BlocksQueryDetail>).detail
+      if (!d || d.sessionId !== sessionId) return
+      setQuery(d.query)
+      setQOpts({ caseSensitive: d.caseSensitive, regex: d.regex })
+    }
+    window.addEventListener(BLOCKS_QUERY_EVENT, onQuery)
+    return () => window.removeEventListener(BLOCKS_QUERY_EVENT, onQuery)
+  }, [sessionId])
+  const matcherOf = (q: string) => {
+    const m = blockMatcher(q, qOpts)
+    return m === 'error' ? () => false : m
+  }
+  const blocksRef = useRef<TermBlock[]>([])
+  const selectedRef = useRef(0)
+  useEffect(() => {
+    const onStep = (e: Event) => {
+      const d = (e as CustomEvent<BlocksStepDetail>).detail
+      if (!d || d.sessionId !== sessionId) return
+      const list = searchBlocks(blocksRef.current, query, matcherOf(query))
+      const next = stepMatch(list, selectedRef.current, d.back)
+      if (next < 0) return
+      setSelected(next)
+      window.setTimeout(() => stripRef.current?.querySelector(`[data-block-index="${next}"]`)?.scrollIntoView({ block: 'nearest' }), 0)
+    }
+    window.addEventListener(BLOCKS_STEP_EVENT, onStep)
+    return () => window.removeEventListener(BLOCKS_STEP_EVENT, onStep)
+  })
   const histRef = useRef<StoredBlock[]>([])
   // D17: restore this host's recent blocks (local only; never for production / read-only hosts)
   useEffect(() => {
@@ -149,8 +183,18 @@ export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId:
     window.addEventListener(SHELL_INT_EVENT, sync)
     return () => window.removeEventListener(SHELL_INT_EVENT, sync)
   }, [])
+  blocksRef.current = blocks
+  selectedRef.current = selected
+  const matchList = searchBlocks(blocks, query, matcherOf(query))
+  const pos = matchList.indexOf(selected)
+  const hitsKey = `${matchList.length}:${pos}:${query}`
+  useEffect(() => {
+    if (!sessionId) return
+    window.dispatchEvent(new CustomEvent(BLOCKS_HITS_EVENT, { detail: { sessionId, index: pos + 1, total: query.trim() ? matchList.length : 0 } }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hitsKey, sessionId])
   if (!on || !sessionId || blocks.length === 0) return null
-  const matches = new Set(searchBlocks(blocks, query))
+  const matches = new Set(matchList)
   const height = collapsed ? 24 : blockStripPx(600, ratio).px
   const explain = (b: TermBlock) => {
     window.dispatchEvent(new CustomEvent('aiss-ai-explain', { detail: { sessionId, text: b.output || b.command, source: 'palette' } }))
@@ -202,9 +246,15 @@ export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId:
       />
       <div className="term-blocks-head">
         <span>{tg('blocks.title', { n: blocks.length })}</span>
-        <input className="term-blocks-search" data-testid="blocks-search" type="search" value={query} placeholder={tg('d17.search')} aria-label={tg('d17.search')} onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setQuery('') } }} />
-        {query.trim() ? <span className="term-blocks-hits" data-testid="blocks-hits">{tg('d17.hits', { n: matches.size })}</span> : null}
+        {query.trim() ? (
+          <button type="button" className="term-blocks-hits" data-testid="blocks-hits" title={tg('d19.chipTip')} onClick={() => window.dispatchEvent(new Event(AISS_TERMINAL_FIND_EVENT))}>
+            {tg('d19.chip', { q: query.trim(), n: matches.size })}
+          </button>
+        ) : (
+          <button type="button" className="term-blocks-findbtn" data-testid="blocks-search" title={tg('d19.searchTip')} onClick={() => window.dispatchEvent(new CustomEvent(AISS_TERMINAL_FIND_EVENT, { detail: { scope: 'blocks' } }))}>
+            {tg('d17.search')}
+          </button>
+        )}
         {hostKey && !isStrictPasteHost(hostKey) && blocks.some((b) => (b as { restored?: boolean }).restored) ? (
           <button type="button" data-testid="blocks-clear-history" title={tg('d17.clearTip')} onClick={clearHistory}>{tg('d17.clear')}</button>
         ) : null}
@@ -223,6 +273,7 @@ export default function TerminalBlocks({ sessionId, hostKey = '' }: { sessionId:
       {collapsed ? null : blocks.map((b, index) => !matches.has(index) ? null : (
         <div
           key={b.id}
+          data-block-index={index}
           className={`term-block${(b as { restored?: boolean }).restored ? ' is-restored' : ''}${b.collapsed && !query.trim() ? ' is-collapsed' : ''}${index === selected ? ' is-selected' : ''}`}
           tabIndex={0}
           onClick={() => setSelected(index)}

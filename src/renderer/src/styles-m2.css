@@ -213,8 +213,9 @@
 
 
 /* D17 */
-.term-blocks-search { width: 140px; height: 20px; font-size: 11px; padding: 0 6px; }
-.term-blocks-hits { font-size: 11px; color: var(--muted); }
+.term-blocks-findbtn, .term-blocks-hits { height: 20px; font-size: 11px; padding: 0 6px; }
+.term-blocks-hits { color: var(--accent); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-find-scope { display: inline-flex; gap: 2px; margin-right: 4px; }
 .term-block.is-restored { opacity: 0.72; }
 
 
