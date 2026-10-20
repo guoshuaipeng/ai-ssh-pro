@@ -6972,7 +6972,7 @@ export default function App() {
       const tab = tabsRef.current.find((x) => x.sessionId === d.sessionId)
       const host = tab ? tab.connectOpts.label?.trim() || tab.title : ''
       const cwd = getSessionCwd(d.sessionId)
-      const head = cwd ? tg('d6.ctxHeadCwd', { host, cwd }) : tg('d6.ctxHead', { host })
+      const head = cwd && cwd !== '~' ? tg('d6.ctxHeadCwd', { host, cwd }) : tg('d6.ctxHead', { host })
       setAiPrefill(`${head}\n${fenceSelection(d.text)}\n`)
       updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
       openRightPanelRef.current('ai')
