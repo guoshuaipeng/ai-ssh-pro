@@ -271,3 +271,6 @@
 .cmd-ask-failed, .qp-ask-failed { cursor: pointer; color: var(--accent); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
 .cmd-ask-failed:hover, .qp-ask-failed:hover { background: var(--row-hover-bg); }
 
+/* D28 */
+.sftp-cd-terminal { margin-left: auto; height: 20px; font-size: 11px; padding: 0 6px; flex-shrink: 0; }
+

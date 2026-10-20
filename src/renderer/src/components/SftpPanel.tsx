@@ -1294,6 +1294,11 @@ export default function SftpPanel({
           <div className="sftp-pane-title">
             <span className="sftp-pane-name">{isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}</span>
             {isLocal && !showPath ? driveControl : null}
+            {!isLocal && onCdInTerminal && cwd ? (
+              <button type="button" className="sftp-cd-terminal" data-testid="sftp-cd-terminal" title={tg('d28.tip')} onClick={() => onCdInTerminal(cwd)}>
+                {tg('d28.btn')}
+              </button>
+            ) : null}
             {compact ? (
               <button type="button" className="sftp-crumb-toggle" onClick={() => setCrumbOpen((v) => !v)}>
                 {tg('ux46.crumb')}
@@ -1336,17 +1341,6 @@ export default function SftpPanel({
               >
                 {tg('sftp.copyPath')}
               </button>
-              {!isLocal && onCdInTerminal && cwd ? (
-                <button
-                  type="button"
-                  className="sftp-copy-path"
-                  data-testid="sftp-cd-terminal"
-                  title={tg('d28.tip')}
-                  onClick={() => onCdInTerminal(cwd)}
-                >
-                  {tg('d28.btn')}
-                </button>
-              ) : null}
             </nav>
             <input
               ref={isLocal ? undefined : remotePathRef}
