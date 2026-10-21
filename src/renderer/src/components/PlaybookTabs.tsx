@@ -51,6 +51,8 @@ import Icon from './Icon'
 import EmptyState from './EmptyState'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
+import Select from './ui/Select'
+import { moveStep } from '@shared/playbook-steps'
 
 function persist(list: Playbook[]) {
   savePlaybooks(list)
@@ -282,6 +284,7 @@ export function PlaybookEditor({
     void window.aiss.snippets.list().then(setSnippets).catch(() => undefined)
   }, [snippetsProp])
   const [pb, setPb] = useState<Playbook | null>(() => resolvePlaybook(playbookId))
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
   const edited = useRef(0)
   const locked = Boolean(pb && isBuiltinPlaybookId(pb.id))
   useEffect(() => {
@@ -313,41 +316,18 @@ export function PlaybookEditor({
     setPb({ ...pb, steps: pb.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) })
   }
   return (
-    <div className="workspace-panel" data-testid="playbook-edit" data-builtin={locked ? 'true' : 'false'}>
+    <div className="workspace-panel pb2" data-testid="playbook-edit" data-builtin={locked ? 'true' : 'false'}>
+      {/* PB2: header = playbook name + badge; actions on the right, "运行" is the primary button */}
       <PanelHeader
-        title={tg('m2.edit')}
+        title={
+          <span className="pb2-title">
+            <span className="pb2-title-name">{pb.name || tg('m2.edit')}</span>
+            {locked ? <span className="w9-badge">{tg('w9.builtin')}</span> : null}
+            {pb.draft ? <span className="w9-badge">{tg('pb2.draft')}</span> : null}
+          </span>
+        }
         actions={
           <>
-            {locked ? (
-              <Button variant="primary"
-                data-testid="w9-pb-save-as"
-                onClick={() => {
-                  const copy = saveAsPlaybook(pb)
-                  persist(upsertPlaybook(loadPlaybooks(), copy))
-                  showToast(tg('w9.savedAs', { name: copy.name }))
-                }}
-              >
-                {tg('w9.saveAs')}
-              </Button>
-            ) : pb.draft ? (
-              <Button variant="primary"
-                data-testid="w1-save-as"
-                onClick={() => {
-                  const next = promoteDraft({ ...pb, vars: discoverVars(pb) })
-                  setPb(next)
-                  persist(upsertPlaybook(loadPlaybooks(), next))
-                  showToast(tg('w1.saved'))
-                }}
-              >
-                {tg('w1.saveAs')}
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={() => onRun(pb.id)}>{tg('m2.run')}</Button>
-            )}
-            {locked ? (
-              <button type="button" onClick={() => onRun(pb.id)}>{tg('m2.run')}</button>
-            ) : null}
-            <button type="button" onClick={() => void navigator.clipboard.writeText(exportPlaybook(pb))}>{tg('m2.export')}</button>
             {pb.draft ? (
               <button
                 type="button"
@@ -361,14 +341,43 @@ export function PlaybookEditor({
                 {tg('w1.discard')}
               </button>
             ) : null}
+            <button type="button" title={tg('pb2.exportTip')} onClick={() => void navigator.clipboard.writeText(exportPlaybook(pb)).then(() => showToast(tg('pb2.exported')))}>{tg('m2.export')}</button>
+            {locked ? (
+              <button
+                type="button"
+                data-testid="w9-pb-save-as"
+                onClick={() => {
+                  const copy = saveAsPlaybook(pb)
+                  persist(upsertPlaybook(loadPlaybooks(), copy))
+                  showToast(tg('w9.savedAs', { name: copy.name }))
+                }}
+              >
+                {tg('w9.saveAs')}
+              </button>
+            ) : null}
+            {pb.draft ? (
+              <Button variant="primary"
+                data-testid="w1-save-as"
+                onClick={() => {
+                  const next = promoteDraft({ ...pb, vars: discoverVars(pb) })
+                  setPb(next)
+                  persist(upsertPlaybook(loadPlaybooks(), next))
+                  showToast(tg('w1.saved'))
+                }}
+              >
+                {tg('w1.saveAs')}
+              </Button>
+            ) : (
+              <Button variant="primary" data-testid="pb2-run" onClick={() => onRun(pb.id)}>{tg('m2.run')}</Button>
+            )}
           </>
         }
       />
-      <div className="workspace-panel-body m2-form">
+      <div className="workspace-panel-body m2-form pb2-body">
         {locked ? (
-          <div className="w1-banner" data-testid="w9-playbook-locked">
-            <span className="w9-badge">{tg('w9.builtin')}</span>
-            <span>{tg('w9.sampleNoAuto')}</span>
+          <div className="w1-banner pb2-locked" data-testid="w9-playbook-locked" role="note">
+            <Icon name="lock" size={14} />
+            <span>{tg('pb2.lockedWhy')}</span>
           </div>
         ) : null}
         {pb.origin ? (
@@ -378,11 +387,19 @@ export function PlaybookEditor({
               : tg('w1.banner', { host: pb.origin.hostTitle, rule: pb.origin.ruleId || '', time: new Date(pb.origin.at).toLocaleTimeString() })}
           </div>
         ) : null}
-        <input value={pb.name} readOnly={locked} onChange={(e) => setPb({ ...pb, name: e.target.value })} aria-label={tg('m2.name')} />
-        <input value={pb.description} readOnly={locked} onChange={(e) => setPb({ ...pb, description: e.target.value })} aria-label={tg('m2.desc')} />
-        <div className="w2-vars" data-testid="w2-vars">
-          <div className="w2-vars-head">{tg('w2.varsN', { n: (pb.vars ?? []).length })}</div>
-          {(pb.vars ?? []).length === 0 ? <p className="l7-muted">{tg('w2.varsEmptyHint')}</p> : null}
+        <section className="pb2-section">
+          <label className="pb2-field">
+            <span className="pb2-label">{tg('m2.name')}</span>
+            <input value={pb.name} readOnly={locked} onChange={(e) => setPb({ ...pb, name: e.target.value })} aria-label={tg('m2.name')} />
+          </label>
+          <label className="pb2-field">
+            <span className="pb2-label">{tg('m2.desc')}</span>
+            <input value={pb.description} readOnly={locked} onChange={(e) => setPb({ ...pb, description: e.target.value })} aria-label={tg('m2.desc')} placeholder={locked ? undefined : tg('pb2.descPh')} />
+          </label>
+        </section>
+        <section className="pb2-section w2-vars" data-testid="w2-vars">
+          <h3 className="pb2-h">{tg('w2.varsN', { n: (pb.vars ?? []).length })}</h3>
+          {(pb.vars ?? []).length === 0 ? <p className="pb2-empty">{tg('w2.varsEmptyHint')}</p> : null}
           {(pb.vars ?? []).map((v) => (
             <div key={v.name} className="w2-var-row">
               <code>{v.name}</code>
@@ -400,41 +417,121 @@ export function PlaybookEditor({
               {v.unused ? <span>{tg('w2.unused')}</span> : null}
             </div>
           ))}
-        </div>
-        {pb.steps.map((step, i) => (
-          <div key={step.id} className="m2-step">
-            <div className="jump-hop-title">
-              <span>{i + 1}</span>
-              <select disabled={locked} value={step.type} onChange={(e) => patchStep(step.id, { type: e.target.value as PlaybookStep['type'] })}>
-                <option value="command">{tg('m2.stepCommand')}</option>
-                <option value="snippet">{tg('m2.stepSnippet')}</option>
-                <option value="toolbox">{tg('m2.stepToolbox')}</option>
-              </select>
-              {locked ? null : <button type="button" onClick={() => setPb({ ...pb, steps: pb.steps.filter((s) => s.id !== step.id) })}>{tg('app.delete')}</button>}
-            </div>
-            {step.type === 'toolbox' ? (
-              <p className="l4-soon">{tg('m2.toolboxSoon')}</p>
-            ) : step.type === 'snippet' ? (
-              <select disabled={locked} value={step.snippetId ?? ''} onChange={(e) => patchStep(step.id, { snippetId: e.target.value })}>
-                <option value="">{tg('m2.pickSnippet')}</option>
-                {snippets.map((s) => (
-                  <option key={s.id} value={s.id}>{s.title}</option>
-                ))}
-              </select>
-            ) : (
-              <textarea readOnly={locked} value={step.command ?? ''} onChange={(e) => patchStep(step.id, { command: e.target.value })} rows={2} />
-            )}
-            <label className="l4-check" title={step.lockedConfirm ? tg('w1.lockedConfirm') : undefined}>
-              <input type="checkbox" checked={step.confirm || Boolean(step.lockedConfirm)} disabled={locked || Boolean(step.lockedConfirm)} onChange={(e) => patchStep(step.id, { confirm: e.target.checked })} />
-              {tg('m2.confirmStep')}
-              {step.lockedConfirm ? <Icon name="lock" size={14} /> : null}
-            </label>
-            {step.checkPlaceholder ? <span className="l4-soon">{tg('w1.checkPlaceholder')}</span> : null}
-            <label className="l4-check"><input type="checkbox" checked={step.stopOnError} disabled={locked} onChange={(e) => patchStep(step.id, { stopOnError: e.target.checked })} />{tg('m2.stopOnError')}</label>
-            <label className="l4-check">{tg('m2.timeout')}<input type="number" min={1} max={600} value={step.timeoutSec} readOnly={locked} onChange={(e) => patchStep(step.id, { timeoutSec: Number(e.target.value) || 60 })} /></label>
-          </div>
-        ))}
-        {locked ? null : <button type="button" onClick={() => setPb({ ...pb, steps: [...pb.steps, blankStep()] })}>{tg('m2.addStep')}</button>}
+        </section>
+        <section className="pb2-section">
+          <h3 className="pb2-h">{tg('pb2.stepsN', { n: pb.steps.length })}</h3>
+          <ol className="pb2-steps">
+            {pb.steps.map((step, i) => (
+              <li
+                key={step.id}
+                className={`pb2-card m2-step${dragFrom === i ? ' is-dragging' : ''}`}
+                data-testid="pb2-step"
+                onDragOver={(e) => {
+                  if (dragFrom == null || locked) return
+                  e.preventDefault()
+                }}
+                onDrop={(e) => {
+                  if (dragFrom == null || locked) return
+                  e.preventDefault()
+                  setPb({ ...pb, steps: moveStep(pb.steps, dragFrom, i) })
+                  setDragFrom(null)
+                }}
+              >
+                <div className="pb2-card-head">
+                  {locked ? null : (
+                    <span
+                      className="pb2-handle"
+                      draggable
+                      role="button"
+                      tabIndex={0}
+                      data-testid="pb2-handle"
+                      title={tg('pb2.dragTip')}
+                      aria-label={tg('pb2.dragTip')}
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'move'
+                        setDragFrom(i)
+                      }}
+                      onDragEnd={() => setDragFrom(null)}
+                      onKeyDown={(e) => {
+                        // keyboard reorder: Alt+↑ / Alt+↓ (or ↑ / ↓ on the handle)
+                        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+                        e.preventDefault()
+                        const to = e.key === 'ArrowUp' ? i - 1 : i + 1
+                        if (to < 0 || to >= pb.steps.length) return
+                        setPb({ ...pb, steps: moveStep(pb.steps, i, to) })
+                      }}
+                    >
+                      ⋮⋮
+                    </span>
+                  )}
+                  <span className="pb2-no">{i + 1}</span>
+                  <Select
+                    className="pb2-type"
+                    disabled={locked}
+                    ariaLabel={tg('pb2.type')}
+                    value={step.type}
+                    onChange={(v) => patchStep(step.id, { type: v as PlaybookStep['type'] })}
+                    options={[
+                      { value: 'command', label: tg('m2.stepCommand') },
+                      { value: 'snippet', label: tg('m2.stepSnippet') },
+                      { value: 'toolbox', label: tg('m2.stepToolbox') }
+                    ]}
+                  />
+                  <span className="pb2-grow" />
+                  {locked ? null : (
+                    <>
+                      <button type="button" className="pb2-icon" data-testid="pb2-dup" title={tg('pb2.dup')} aria-label={tg('pb2.dup')} onClick={() => setPb({ ...pb, steps: [...pb.steps.slice(0, i + 1), { ...step, id: blankStep().id }, ...pb.steps.slice(i + 1)] })}>
+                        <Icon name="clipboard-list" size={14} />
+                      </button>
+                      <button type="button" className="pb2-icon is-danger" data-testid="pb2-del" title={tg('app.delete')} aria-label={tg('app.delete')} onClick={() => { setPb({ ...pb, steps: pb.steps.filter((s) => s.id !== step.id) }); showToast(tg('pb2.deleted', { n: i + 1 })) }}>
+                        <Icon name="x" size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+                {step.type === 'toolbox' ? (
+                  <p className="l4-soon">{tg('m2.toolboxSoon')}</p>
+                ) : step.type === 'snippet' ? (
+                  <Select
+                    disabled={locked}
+                    ariaLabel={tg('m2.pickSnippet')}
+                    value={step.snippetId ?? ''}
+                    placeholder={tg('m2.pickSnippet')}
+                    onChange={(v) => patchStep(step.id, { snippetId: v })}
+                    options={[{ value: '', label: tg('m2.pickSnippet') }, ...snippets.map((s) => ({ value: s.id, label: s.title }))]}
+                  />
+                ) : (
+                  <textarea className="pb2-cmd" spellCheck={false} aria-label={tg('m2.stepCommand')} readOnly={locked} value={step.command ?? ''} onChange={(e) => patchStep(step.id, { command: e.target.value })} rows={2} />
+                )}
+                <div className="pb2-opts">
+                  <label className="pb2-check" title={step.lockedConfirm ? tg('w1.lockedConfirm') : tg('pb2.confirmTip')}>
+                    <input type="checkbox" checked={step.confirm || Boolean(step.lockedConfirm)} disabled={locked || Boolean(step.lockedConfirm)} onChange={(e) => patchStep(step.id, { confirm: e.target.checked })} />
+                    <span>{tg('m2.confirmStep')}</span>
+                    {step.lockedConfirm ? <Icon name="lock" size={12} /> : null}
+                  </label>
+                  <label className="pb2-check" title={tg('pb2.stopTip')}>
+                    <input type="checkbox" checked={step.stopOnError} disabled={locked} onChange={(e) => patchStep(step.id, { stopOnError: e.target.checked })} />
+                    <span>{tg('m2.stopOnError')}</span>
+                  </label>
+                  {step.checkPlaceholder ? <span className="l4-soon">{tg('w1.checkPlaceholder')}</span> : null}
+                  <span className="pb2-grow" />
+                  <label className="pb2-timeout">
+                    <span>{tg('pb2.timeout')}</span>
+                    <input type="number" min={1} max={600} value={step.timeoutSec} readOnly={locked} aria-label={tg('m2.timeout')} onChange={(e) => patchStep(step.id, { timeoutSec: Number(e.target.value) || 60 })} />
+                    <span className="pb2-suffix">{tg('pb2.sec')}</span>
+                  </label>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {locked ? null : (
+            <button type="button" className="pb2-add" data-testid="pb2-add" onClick={() => setPb({ ...pb, steps: [...pb.steps, blankStep()] })}>
+              <Icon name="plus" size={14} />
+              <span>{tg('m2.addStep')}</span>
+            </button>
+          )}
+        </section>
+
         {locked ? null : <section className="w6-section" data-testid="w6-reminder">
           <h3>{tg('w6.section')}</h3>
           <label>

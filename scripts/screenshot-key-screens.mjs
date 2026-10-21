@@ -104,6 +104,8 @@ const base = [
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
   { name: 'ai-empty', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }], wait: 1400 },
   // M18: 4 tabs open (ops home, playbooks, terminal, audit) for the tab bar.
+  // PB2: built-in playbook opened in the editor
+  { name: 'playbook-edit', size: W, steps: [{ op: 'menu', action: 'playbooks' }, { click: '[data-testid="w9-pb-preview"]' }], wait: 1400 },
   { name: 'tabs', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'playbooks' }, { op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'auditLog' }], wait: 2400 }
 ]
 // AISS_SHOT_SET=chrome: overlays + AI chat + protection-edge tabs (radius/shadow/chat QA).
