@@ -50,6 +50,8 @@ type SlotProps = {
   pane: PaneModel
   /** S41: 'primary' = the tab's own session; 'secondary' = mirror or another session */
   role: 'primary' | 'secondary'
+  /** D104: shows the primary's own session, so it follows the PTY size */
+  follow?: boolean
   flex: string
   active: boolean
   prefs?: TerminalPrefs
@@ -73,6 +75,7 @@ function SplitPaneSlot({
   title,
   pane,
   role,
+  follow = false,
   flex,
   active,
   prefs,
@@ -122,6 +125,7 @@ function SplitPaneSlot({
           active={active}
           prefs={prefs}
           mirrorOnly={pane.mirror}
+          followPtySize={follow}
           hostKey={hostKey}
           inputBlocked={inputBlocked}
           onInputBlocked={onInputBlocked}
@@ -280,6 +284,7 @@ export default function SplitTerminalView({
           focused={focused}
           title={titleOf(a)}
           pane={a}
+          follow={secondIsA && a.id === sessionId}
           role={secondIsA ? 'secondary' : 'primary'}
           label={secondIsA ? sessionSelect : primaryLabel}
           controls={sharedControls}
@@ -308,6 +313,7 @@ export default function SplitTerminalView({
           focused={focused}
           title={titleOf(b)}
           pane={b}
+          follow={!secondIsA && b.id === sessionId}
           role={secondIsA ? 'primary' : 'secondary'}
           label={secondIsA ? primaryLabel : sessionSelect}
           flex="1 1 0"

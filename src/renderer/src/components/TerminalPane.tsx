@@ -18,6 +18,8 @@ import { findAllInBuffer, compileFind, pickMatch, seedQueryFromSelection, AISS_T
 import { looksLikeError, rememberError, requestAiExplain, requestSelectionExplain } from '../lib/ai-events'
 import { registerTerminalSelection } from '../lib/terminal-selection'
 import { showToast } from '../lib/toast'
+import { followDims } from '@shared/pty-follow'
+import { PTY_SIZE_EVENT, ptySizeOf, reportPtySize } from '../lib/pty-size'
 import { findPaths, findUrls } from '@shared/term-links'
 /** D70: the plain-click hint shows at most every 30 s */
 let linkHintAt = 0
@@ -51,6 +53,8 @@ type Props = {
   prefs?: TerminalPrefs
   /** Display-only: subscribe to ssh:data but do not send keystrokes */
   mirrorOnly?: boolean
+  /** D104: same session as the other split pane: follow its PTY columns, never resize the PTY */
+  followPtySize?: boolean
   /**
    * Optional hook for broadcast / coordinated input.
    * When provided, called with user keystrokes instead of (or in addition via caller) writing.
@@ -115,6 +119,7 @@ export default function TerminalPane({
   active,
   prefs,
   mirrorOnly = false,
+  followPtySize = false,
   onUserData,
   broadcastRef,
   hostKey = '',
@@ -133,6 +138,19 @@ export default function TerminalPane({
   activeRef.current = active
   const mirrorOnlyRef = useRef(mirrorOnly)
   mirrorOnlyRef.current = mirrorOnly
+  const followRef = useRef(followPtySize)
+  followRef.current = followPtySize
+  const syncSize = (f: FitAddon, t: Terminal) => {
+    if (followRef.current) {
+      const d = followDims(f.proposeDimensions(), ptySizeOf(sessionId))
+      if (!d) f.fit()
+      else if (d.cols !== t.cols || d.rows !== t.rows) t.resize(d.cols, d.rows)
+      return
+    }
+    f.fit()
+    reportPtySize(sessionId, t.cols, t.rows)
+    void window.aiss.ssh.resize(sessionId, t.cols, t.rows)
+  }
   const onUserDataRef = useRef(onUserData)
   onUserDataRef.current = onUserData
   const inputBlockedRef = useRef(inputBlocked)
@@ -627,8 +645,7 @@ export default function TerminalPane({
     const fitAndResize = () => {
       if (!activeRef.current) return
       try {
-        fit.fit()
-        void window.aiss.ssh.resize(sessionId, term.cols, term.rows)
+        syncSize(fit, term)
       } catch {
         /* xterm 在尺寸为 0 时会抛错 */
       }
@@ -913,8 +930,7 @@ export default function TerminalPane({
     if (active) {
       requestAnimationFrame(() => {
         try {
-          api.fit.fit()
-          void window.aiss.ssh.resize(sessionId, api.term.cols, api.term.rows)
+          syncSize(api.fit, api.term)
         } catch {
           /* ignore */
         }
@@ -945,13 +961,27 @@ export default function TerminalPane({
     if (!api) return
     requestAnimationFrame(() => {
       try {
-        api.fit.fit()
-        void window.aiss.ssh.resize(sessionId, api.term.cols, api.term.rows)
+        syncSize(api.fit, api.term)
       } catch {
         /* ignore */
       }
     })
   }, [active, sessionId])
+
+  useEffect(() => {
+    if (!followPtySize) return
+    const onSize = (e: Event) => {
+      const api = apiRef.current
+      if (!api || (e as CustomEvent<{ sessionId?: string }>).detail?.sessionId !== sessionId) return
+      try {
+        syncSize(api.fit, api.term)
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener(PTY_SIZE_EVENT, onSize)
+    return () => window.removeEventListener(PTY_SIZE_EVENT, onSize)
+  }, [followPtySize, sessionId])
 
   useEffect(() => {
     const el = wrapRef.current
