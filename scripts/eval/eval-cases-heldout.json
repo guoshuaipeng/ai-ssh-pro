@@ -111,5 +111,37 @@
   "q": "Restart the docker service",
   "name": "none",
   "p": {}
+ },
+ {
+  "lang": "zh",
+  "q": "做一个上线前检查的剧本：git status、npm test、npm run build",
+  "name": "playbook.create",
+  "p": {}
+ },
+ {
+  "lang": "en",
+  "q": "Save these steps as a runbook called restart-redis: redis-cli ping; systemctl restart redis",
+  "name": "playbook.create",
+  "p": {
+   "name": "restart-redis"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "从 demo-mysql 拉一下 /etc/my.cnf 到桌面 C:\\Users\\me\\Desktop\\my.cnf",
+  "name": "sftp.transfer",
+  "p": {
+   "target": "demo-mysql",
+   "direction": "download"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Push my local /home/me/nginx.conf up to demo-web-01 as /etc/nginx/nginx.conf",
+  "name": "sftp.transfer",
+  "p": {
+   "direction": "upload",
+   "remotePath": "/etc/nginx/nginx.conf"
+  }
  }
 ]

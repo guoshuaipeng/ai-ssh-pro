@@ -18,5 +18,9 @@
  {"lang":"en","q":"Connect to web-01 and web-02","name":"connection.open","p":{"targets":["web-01","web-02"]}},
  {"lang":"en","q":"Find the docker compose command I ran before and put it in the command bar","name":"history.fill","p":{"query":"docker"}},
  {"lang":"en","q":"Open the file browser on api-gw-02","name":"sftp.open","p":{"target":"api-gw-02"}},
- {"lang":"en","q":"Notify me if a host goes offline","name":"monitor.configure","p":{"metric":"offline"}}
+ {"lang":"en","q":"Notify me if a host goes offline","name":"monitor.configure","p":{"metric":"offline"}},
+ {"lang":"zh","q":"帮我建一个剧本叫“磁盘巡检”，依次执行 df -h 和 du -sh /var/log","name":"playbook.create","p":{"name":"磁盘巡检"}},
+ {"lang":"en","q":"Create a playbook named nginx-check that runs nginx -t then systemctl status nginx","name":"playbook.create","p":{"name":"nginx-check"}},
+ {"lang":"zh","q":"把 demo-web-01 上的 /var/log/nginx/error.log 下载到 D:\\logs\\error.log","name":"sftp.transfer","p":{"target":"demo-web-01","direction":"download","remotePath":"/var/log/nginx/error.log"}},
+ {"lang":"en","q":"Upload C:\\build\\app.tar.gz to /opt/releases/app.tar.gz on demo-web-01","name":"sftp.transfer","p":{"target":"demo-web-01","direction":"upload","remotePath":"/opt/releases/app.tar.gz"}}
 ]

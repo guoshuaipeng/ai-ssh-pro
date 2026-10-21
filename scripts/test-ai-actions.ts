@@ -8,13 +8,14 @@ import { cleanIpcError, proposalFromReply } from '../src/shared/ai-actions'
 import { BATCH_RISK_MIN, parseTargets, pickHistoryForAction, resolveTargets, sftpPathOk } from '../src/shared/ai-actions'
 import { auditDetailForAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction } from '../src/shared/ai-actions'
 import { parseAiAssistantReply } from '../src/shared/ipc'
+import { buildPlaybookFromAction, splitPlaybookCommands, transferPathsOk } from '../src/shared/ai-actions'
 import { DEFAULT_ALERT_RULES } from '../src/shared/alert-rules'
 
 let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 
 // registry
-ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill', 'registry order (c53+c54)')
+ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer', 'registry order (c53..c57)')
 for (const a of AI_ACTIONS) ok(a.fields.every((f) => f.labelKey.startsWith('aa.')), `${a.name} fields use aa.* i18n`)
 
 // sanitize: secrets from the model are dropped, unknown keys/actions ignored
@@ -153,4 +154,22 @@ ok(shots.includes('[cov] EVAL FAILED'), 'a throwing eval step fails an E2E run')
 ok(!/aud\('[^']+','(allowed|blocked)'\)(?!===)/.test(shots), 'every audit check compares an exact count')
 ok(shots.includes("name: 'term-cmd-explain'") && readFileSync('src/renderer/src/features.css', 'utf8').includes('floating tip needs its own surface'), 'cmd explain tip has an opaque surface + check')
 ok(/PRIORITY: requests about this app/.test(actionsPrompt()), 'prompt states app-action priority')
+// c57: playbook.create + sftp.transfer + loopback sshd forward E2E
+ok(getAction('playbook.create') && getAction('sftp.transfer'), 'c57 actions registered')
+ok(JSON.stringify(splitPlaybookCommands('uptime; df -h；\nfree -m;;')) === JSON.stringify(['uptime', 'df -h', 'free -m']), 'playbook commands split on ; ； newline')
+const pb = buildPlaybookFromAction({ name: ' disk ', commands: 'df -h; du -sh /var' }, 'pb-x', 1)
+ok(pb?.name === 'disk' && pb.steps.length === 2 && pb.steps.every((s) => s.confirm && s.lockedConfirm && s.stopOnError && s.type === 'command'), 'AI playbook steps always ask before running')
+ok(buildPlaybookFromAction({ name: 'x', commands: ' ; ' }, 'i', 1) === null && buildPlaybookFromAction({ name: '', commands: 'ls' }, 'i', 1) === null, 'empty playbook rejected')
+ok(splitPlaybookCommands(Array(40).fill('ls').join(';')).length === 30, 'playbook capped at 30 steps')
+const xf = getAction('sftp.transfer')!
+ok(xf.risk?.({ direction: 'upload' }) === true && xf.risk?.({ direction: 'download' }) === false && xf.riskNoteKey === 'aa.uploadNote', 'upload is high risk with its own note; download is not')
+ok(transferPathsOk({ direction: 'download', remotePath: '/var/log/syslog', localPath: 'C:\\Users\\me\\syslog' }) && transferPathsOk({ direction: 'upload', remotePath: '~/a.txt', localPath: '/tmp/a.txt' }), 'valid transfer paths')
+ok(!transferPathsOk({ direction: 'download', remotePath: 'etc/x', localPath: '/tmp/x' }) && !transferPathsOk({ direction: 'download', remotePath: '/etc/../x', localPath: '/tmp/x' }) && !transferPathsOk({ direction: 'download', remotePath: '/x', localPath: 'rel.txt' }) && !transferPathsOk({ direction: 'move', remotePath: '/x', localPath: '/x' }), 'bad transfer paths / direction rejected')
+ok(xf.fields.every((f) => f.type !== 'secret') && getAction('playbook.create')!.fields.every((f) => f.type !== 'secret'), 'c57 actions carry no secret fields')
+ok(/playbook\.create/.test(actionsPrompt()) && /sftp\.transfer/.test(actionsPrompt()), 'prompt lists the c57 actions')
+const card57 = readFileSync('src/renderer/src/components/AiActionCard.tsx', 'utf8')
+ok(card57.includes("def.riskNoteKey ?? 'aa.armedNote'") && card57.includes('ai-action-count'), 'card: per-action risk note + target count')
+ok(['e2e-playbook', 'e2e-err-pb-missing', 'e2e-xfer-dl', 'e2e-xfer-ul-armed', 'e2e-err-xfer-badpath', 'e2e-forward-ok'].every((x) => shots.includes(`name: '${x}'`)) && shots.includes('expectFile'), 'c57 E2E scenarios')
+const sshd = readFileSync('scripts/e2e-sshd.mjs', 'utf8')
+ok(sshd.includes("listen(0, '127.0.0.1'") && sshd.includes("info.destIP !== '127.0.0.1'") && !/10\.\d+\.\d+\.\d+|\.internal|\.com\b/.test(sshd), 'test sshd is loopback-only')
 console.log(`test-ai-actions: ${n} passed`)
