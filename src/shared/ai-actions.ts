@@ -63,7 +63,7 @@ const CONNECTION_ADD: ActionDef = {
 const MONITOR_CONFIGURE: ActionDef = {
   name: 'monitor.configure',
   titleKey: 'aa.monitor.title',
-  hint: 'set an alert threshold rule (metric cpu|mem|disk|offline, threshold %, sustain minutes)',
+  hint: 'create, change, enable or disable an alert rule of THIS APP (metric cpu|mem|disk|offline; threshold % not needed for offline; enabled on|off). "turn off disk alerts" -> metric=disk, enabled=off',
   fields: [
     {
       key: 'metric',
@@ -116,14 +116,14 @@ const CONNECTION_OPEN: ActionDef = {
 const HISTORY_FILL: ActionDef = {
   name: 'history.fill',
   titleKey: 'aa.hist.title',
-  hint: 'find a previously run command in local history and put it in the command bar (never sent automatically); query = keywords',
+  hint: 'find a command the user ran before in THIS APP\'s local history and put it in the command bar (never sent); query = 1-3 keywords. Do not run `history` on the server',
   fields: [{ key: 'query', labelKey: 'aa.f.query', type: 'text', required: true, placeholder: 'nginx' }]
 }
 
 const SNIPPET_CREATE: ActionDef = {
   name: 'snippet.create',
   titleKey: 'aa.snippet.title',
-  hint: 'save a reusable command snippet (title, command, optional category)',
+  hint: 'save a reusable command snippet in THIS APP (title, command, optional category); never write it to the server',
   fields: [
     { key: 'title', labelKey: 'aa.f.title', type: 'text', required: true },
     { key: 'command', labelKey: 'aa.f.command', type: 'text', required: true, placeholder: 'df -h' },
@@ -206,6 +206,7 @@ export function actionsPrompt(): string {
     return `- ${a.name}: ${a.hint}; params { ${ps.join(', ')} }`
   })
   return [
+    'PRIORITY: requests about this app\'s own features (alert/monitor rules, snippets, the app\'s command history, opening saved connections or SFTP, port forwards, adding connections) are app actions. Answer them with appAction right away; do NOT use tool_call or command for them and do not inspect the server first.',
     'App actions: when the user asks to operate this app itself (not the remote server), reply with action=end, completed=true and an "appAction" object { "name": string, "params": object }. Never put the action name into the action field. Example: {"description":"...","action":"end","completed":true,"riskLevel":"low","appAction":{"name":"sftp.open","params":{"target":"web-01","path":"/var/log"}}}',
     'The UI shows a prefilled form; nothing runs until the user confirms. Leave unknown params out (the form asks the user).',
     'Never include passwords, private keys, passphrases or tokens in params.',

@@ -9,7 +9,8 @@ const rows: string[] = []
 for (const c of r.out) {
   const rawP = pick(c.raw)
   const p = parseAiAssistantReply(c.raw)?.appAction ?? null // the production parser
-  const nOk = p?.name === c.name
+  // c56: name 'none' = a server task; the model must NOT propose an app action
+  const nOk = c.name === 'none' ? !p : p?.name === c.name
   let pOk = nOk
   if (nOk) for (const [k, v] of Object.entries(c.p)) {
     const got = String((p!.params as Record<string, unknown>)[k] ?? '')

@@ -1,0 +1,115 @@
+[
+ {
+  "lang": "zh",
+  "q": "给我加一台机器 172.20.1.8，账号 ops",
+  "name": "connection.add",
+  "p": {
+   "host": "172.20.1.8",
+   "username": "ops"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "内存用到 80% 就提醒我",
+  "name": "monitor.configure",
+  "p": {
+   "metric": "mem",
+   "threshold": "80"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "打开 db-01 的 SFTP，到 /data/backup 目录",
+  "name": "sftp.open",
+  "p": {
+   "target": "db-01",
+   "path": "/data/backup"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "把 tail -f /var/log/syslog 存成片段，叫看系统日志",
+  "name": "snippet.create",
+  "p": {
+   "command": "tail -f /var/log/syslog"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "帮我把以前跑过的 kubectl get pods 找出来",
+  "name": "history.fill",
+  "p": {
+   "query": "kubectl"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Please open connections to api-gw-01 and api-gw-02",
+  "name": "connection.open",
+  "p": {
+   "targets": [
+    "api-gw-01",
+    "api-gw-02"
+   ]
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Turn off the CPU alert",
+  "name": "monitor.configure",
+  "p": {
+   "metric": "cpu",
+   "enabled": "off"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Set up a port forward from local 3000 to remote 3000",
+  "name": "forward.create",
+  "p": {
+   "localPort": "3000",
+   "remotePort": "3000"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Save 'journalctl -u nginx -n 100' as a snippet named nginx logs",
+  "name": "snippet.create",
+  "p": {
+   "command": "journalctl -u nginx -n 100"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Browse files on web-02 under /srv/www",
+  "name": "sftp.open",
+  "p": {
+   "target": "web-02",
+   "path": "/srv/www"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "看一下这台机器的磁盘使用情况",
+  "name": "none",
+  "p": {}
+ },
+ {
+  "lang": "zh",
+  "q": "nginx 为什么起不来？",
+  "name": "none",
+  "p": {}
+ },
+ {
+  "lang": "en",
+  "q": "Show me the top 5 processes by memory on this server",
+  "name": "none",
+  "p": {}
+ },
+ {
+  "lang": "en",
+  "q": "Restart the docker service",
+  "name": "none",
+  "p": {}
+ }
+]
