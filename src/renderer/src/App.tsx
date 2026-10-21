@@ -123,7 +123,8 @@ import { loadSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT } from '@shared/sf
 import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind, AISS_TERMINAL_FIND_EVENT } from './lib/terminal-find'
 import { keysFor, matchKeymap } from '@shared/keymap'
-import { applySplitToggle } from '@shared/split-toggle'
+import { applySplitMode, applySplitToggle, splitModeOf, type SplitMode, type SplitOrientation } from '@shared/split-toggle'
+import SplitModeMenu from './components/SplitModeMenu'
 import { matchSnippetHotkey, SNIPPET_HOTKEY_EVENT } from '@shared/snippet-hotkey'
 import { dispatchInjectTerminal } from './lib/terminal-inject'
 import { closeControlTipKey } from '@shared/close-tab'
@@ -581,6 +582,13 @@ export default function App() {
   const broadcastEnabledRef = useRef(false)
   splitEnabledRef.current = splitEnabled
   broadcastEnabledRef.current = broadcastEnabled
+  // S41b: layout lives here so the tab-bar popover owns off / side by side / top and bottom
+  const [splitOrientation, setSplitOrientation] = useState<SplitOrientation>(() =>
+    localStorage.getItem('aiss.split.orientation') === 'vertical' ? 'vertical' : 'horizontal'
+  )
+  const splitOrientationRef = useRef<SplitOrientation>(splitOrientation)
+  splitOrientationRef.current = splitOrientation
+  useEffect(() => localStorage.setItem('aiss.split.orientation', splitOrientation), [splitOrientation])
   const [broadcastTargets, setBroadcastTargets] = useState<string[]>([])
   const [broadcastPickerOpen, setBroadcastPickerOpen] = useState(false)
   const [alertRules, setAlertRules] = useState<AlertRulesState>(() => loadAlertRules())
@@ -6717,6 +6725,26 @@ export default function App() {
   )
   const handleTitlebarMenuActionRef = useRef(handleTitlebarMenuAction)
   handleTitlebarMenuActionRef.current = handleTitlebarMenuAction
+  /** S41b: popover pick; decides from splitEnabledRef / splitOrientationRef (live), never from memoised state. */
+  const pickSplitMode = useCallback((target: SplitMode) => {
+    const live = tabsRef.current.filter(
+      (x) => x.sessionId && x.status === 'connected' && (!x.view || x.view === 'session') && x.kind !== 'local'
+    )
+    const alsoBroadcast = broadcastEnabledRef.current
+    const r = applySplitMode(splitEnabledRef, splitOrientationRef, live.length, target)
+    if (r.toast === 'noop') return
+    if (r.toast === 'needTwo') {
+      showToast(tg('sb.splitNeedTwo'))
+      return
+    }
+    setSplitOrientation(r.orientation)
+    setSplitEnabled(r.enabled)
+    if (r.toast === 'off') {
+      broadcastEnabledRef.current = false
+      setBroadcastEnabled(false)
+      showToast(alsoBroadcast ? tg('sb.splitOffAlsoBroadcast') : tg('sb.splitOff'))
+    } else showToast(tg('s41.modeDone', { mode: tg(r.orientation === 'horizontal' ? 's41.modeH' : 's41.modeV') }))
+  }, [])
   // D99: Ctrl+wheel over a terminal reuses the zoom actions (limits + toast + persisted prefs)
   useEffect(() => {
     const onZoom = (ev: Event) => {
@@ -8321,20 +8349,8 @@ export default function App() {
                 →
               </button>
             ) : null}
-            <button
-              type="button"
-              className={`tab-split-btn${splitEnabled ? ' is-on' : ''}`}
-              data-testid="tab-split"
-              aria-pressed={splitEnabled}
-              aria-label={splitEnabled ? tr('tab.splitExit') : tr('tab.split')}
-              title={splitEnabled ? tr('tab.splitExit') : tr('tab.split')}
-              onClick={() => handleTitlebarMenuAction('toggleSplit')}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
-                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" />
-                <path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.35" />
-              </svg>
-            </button>
+            {/* S41b: one entry for split mode (off / side by side / top and bottom) */}
+            <SplitModeMenu mode={splitModeOf(splitEnabled, splitOrientation)} onPick={pickSplitMode} />
             {tabs.length > 0 ? (
               <button
                 ref={tabOverflowBtnRef}
@@ -9918,7 +9934,7 @@ export default function App() {
                       onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
                       onSecondaryChange={setSplitSecondary}
                       onToggleBroadcast={() => handleTitlebarMenuActionRef.current('toggleBroadcast')}
-                      onCloseSplit={() => handleTitlebarMenuActionRef.current('toggleSplit')}
+                      orientation={splitOrientation}
                       primaryTitle={labelFor(t)}
                       peers={connectedSshSessions
                         .filter((x) => x.sessionId !== t.sessionId)

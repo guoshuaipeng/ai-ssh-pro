@@ -29,12 +29,11 @@ type Props = {
   onOpenSftp?: (sessionId: string) => void
   /** S41: broadcast pill on the strip (App decides: opens the target picker or turns it off). */
   onToggleBroadcast?: () => void
-  /** S41: × on the strip; App runs the same toggleSplit path as the tab-bar button (live ref). */
-  onCloseSplit?: () => void
+  /** S41b: layout is chosen from the tab-bar split popover (App state, persisted there). */
+  orientation?: 'horizontal' | 'vertical'
 }
 
 const LS_RATIO = 'aiss.split.ratio'
-const LS_ORIENT = 'aiss.split.orientation'
 const clampRatio = (r: number) => Math.min(0.85, Math.max(0.15, r))
 
 function readRatio(): number {
@@ -165,12 +164,9 @@ export default function SplitTerminalView({
   onGateInput,
   onOpenSftp,
   onToggleBroadcast,
-  onCloseSplit
+  orientation: orientationProp
 }: Props) {
-  const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>(() => {
-    const v = localStorage.getItem(LS_ORIENT)
-    return v === 'horizontal' || v === 'vertical' ? v : defaultOrientation
-  })
+  const orientation = orientationProp ?? defaultOrientation
   const [ratio, setRatio] = useState(readRatio)
   const [secondary, setSecondary] = useState('')
   const [swapped, setSwapped] = useState(false)
@@ -179,7 +175,6 @@ export default function SplitTerminalView({
   const dragging = useRef(false)
 
   useEffect(() => onSecondaryChange?.(secondary), [secondary, onSecondaryChange])
-  useEffect(() => localStorage.setItem(LS_ORIENT, orientation), [orientation])
   useEffect(() => localStorage.setItem(LS_RATIO, String(ratio)), [ratio])
   useEffect(() => {
     if (secondary && !peers.some((p) => p.sessionId === secondary)) {
@@ -260,29 +255,12 @@ export default function SplitTerminalView({
         <span className="split-bc-dot" aria-hidden />
         {tg(broadcastEnabled ? 's41.bcOn' : 's41.bcOff')}
       </button>
-      <StripBtn
-        testId="split-orient"
-        label={tg('split.toggleTip')}
-        tip={tg(horizontal ? 's41.orientH' : 's41.orientV')}
-        onClick={() => setOrientation((o) => (o === 'horizontal' ? 'vertical' : 'horizontal'))}
-      >
-        {horizontal ? (
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" /><path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.35" /></svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" /><path d="M1.5 8h13" stroke="currentColor" strokeWidth="1.35" /></svg>
-        )}
-      </StripBtn>
       <StripBtn testId="split-swap" label={tg('s41.swap')} tip={swapTip} disabled={!secondary} onClick={() => setSwapped((v) => !v)}>
         <Icon name="arrow-left-right" size={14} />
       </StripBtn>
       <StripBtn testId="split-equal" label={tg('s41.equal')} tip={tg('s41.equal')} disabled={ratio === 0.5} onClick={() => setRatio(0.5)}>
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden><path d="M3 5.5h10M3 10.5h10" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" /></svg>
       </StripBtn>
-      {onCloseSplit ? (
-        <StripBtn testId="split-close" label={tg('s41.close')} tip={tg('s41.close')} onClick={onCloseSplit}>
-          <Icon name="x" size={14} />
-        </StripBtn>
-      ) : null}
     </>
   )
 

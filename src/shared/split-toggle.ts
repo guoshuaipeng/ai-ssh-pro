@@ -19,3 +19,30 @@ export function applySplitToggle(flag: LiveFlag, liveSessions: number): ToggleOu
   flag.current = r.next
   return r
 }
+
+/** S41b: the tab-bar split popover picks one of three modes. */
+export type SplitOrientation = 'horizontal' | 'vertical'
+export type SplitMode = 'off' | SplitOrientation
+export type ModeOutcome = { enabled: boolean; orientation: SplitOrientation; toast: 'on' | 'off' | 'needTwo' | 'orient' | 'noop' }
+
+export function splitModeOf(enabled: boolean, orientation: SplitOrientation): SplitMode {
+  return enabled ? orientation : 'off'
+}
+
+/** Decide from the live boxes (never from memoised state); writes them synchronously for rapid picks. */
+export function applySplitMode(flag: LiveFlag, orient: { current: SplitOrientation }, liveSessions: number, target: SplitMode): ModeOutcome {
+  const on = flag.current
+  if (target === 'off') {
+    flag.current = false
+    return { enabled: false, orientation: orient.current, toast: on ? 'off' : 'noop' }
+  }
+  if (!on) {
+    if (liveSessions < 2) return { enabled: false, orientation: orient.current, toast: 'needTwo' }
+    flag.current = true
+    orient.current = target
+    return { enabled: true, orientation: target, toast: 'on' }
+  }
+  if (orient.current === target) return { enabled: true, orientation: target, toast: 'noop' }
+  orient.current = target
+  return { enabled: true, orientation: target, toast: 'orient' }
+}
