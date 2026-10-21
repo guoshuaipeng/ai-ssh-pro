@@ -5,7 +5,7 @@
  * and never sent to it.
  */
 import type { AlertMetric, AlertRulesState } from './alert-rules'
-import type { AddForwardRequest, CommandSnippet, SavedSessionProfile } from './ipc'
+import type { AddForwardRequest, CommandSnippet, SavedSessionFolder, SavedSessionProfile } from './ipc'
 import type { Playbook } from './playbook'
 
 export type ActionFieldType = 'text' | 'number' | 'select' | 'secret'
@@ -137,7 +137,7 @@ const PLAYBOOK_CREATE: ActionDef = {
 const PLAYBOOK_FROM_RECENT: ActionDef = {
   name: 'playbook.fromRecent',
   titleKey: 'aa.pbr.title',
-  hint: 'save the commands the user recently ran in THIS APP (current host first) as a playbook; count = how many recent commands (default 10, max 30). Saved only, never run. Use playbook.create when the user lists the commands',
+  hint: 'save the commands the user recently ran in THIS APP (current host first) as a playbook; count = how many recent commands (default 10, max 30). Saved only, never run. Also use it when the user refers to what they just did (those steps, what I ran, the work done today) without spelling out the commands. Use playbook.create only when the user lists the commands',
   fields: [
     { key: 'name', labelKey: 'aa.f.name', type: 'text', required: true },
     { key: 'count', labelKey: 'aa.f.count', type: 'number', placeholder: '10' }
@@ -149,6 +149,18 @@ const ALERT_EXPLAIN: ActionDef = {
   titleKey: 'aa.alx.title',
   hint: 'open THIS APP\'s alert workbench on the newest alert, active ones first, and start the AI explanation; target = host name to narrow it, empty = newest alert. Read-only, never changes the server',
   fields: [{ key: 'target', labelKey: 'aa.f.target', type: 'text', placeholder: 'web-01' }]
+}
+
+const CONNECTION_ORGANIZE: ActionDef = {
+  name: 'connection.organize',
+  titleKey: 'aa.org.title',
+  hint: 'organize ONE saved connection in THIS APP: move it to a folder (created if missing), rename it, and/or add tags (comma separated). Only changes local metadata, never the server or credentials',
+  fields: [
+    { key: 'target', labelKey: 'aa.f.target', type: 'text', required: true },
+    { key: 'folder', labelKey: 'aa.f.folder', type: 'text' },
+    { key: 'label', labelKey: 'aa.f.newLabel', type: 'text' },
+    { key: 'tags', labelKey: 'aa.f.tags', type: 'text', placeholder: 'prod, web' }
+  ]
 }
 
 const SFTP_TRANSFER: ActionDef = {
@@ -215,7 +227,7 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT, ALERT_EXPLAIN]
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT, ALERT_EXPLAIN, CONNECTION_ORGANIZE]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)
@@ -354,6 +366,38 @@ export function buildProfileFromAction(
   }
   const next = existing ? profiles.map((p) => (p.id === existing.id ? profile : p)) : [...profiles, profile]
   return { profiles: next, profile, updated: Boolean(existing) }
+}
+
+/** c61: folder (reuse by name or create), rename, add tags. null = nothing to change. */
+export function organizeProfileFromAction(
+  v: Record<string, string>,
+  prof: SavedSessionProfile,
+  profiles: readonly SavedSessionProfile[],
+  folders: readonly SavedSessionFolder[],
+  newId: () => string
+): { profiles: SavedSessionProfile[]; folders: SavedSessionFolder[]; profile: SavedSessionProfile } | null {
+  const label = (v.label ?? '').trim()
+  const fname = (v.folder ?? '').trim()
+  const tags = (v.tags ?? '').split(/[,，\s]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean)
+  if (!label && !fname && !tags.length) return null
+  const nextFolders = [...folders]
+  let folderId = prof.folderId
+  if (fname) {
+    const ex = folders.find((f) => f.name.toLowerCase() === fname.toLowerCase())
+    if (ex) folderId = ex.id
+    else {
+      const f = { id: newId(), name: fname }
+      nextFolders.push(f)
+      folderId = f.id
+    }
+  }
+  const profile: SavedSessionProfile = {
+    ...prof,
+    ...(label ? { label } : {}),
+    ...(folderId ? { folderId } : {}),
+    ...(tags.length ? { tags: [...new Set([...(prof.tags ?? []), ...tags])] } : {})
+  }
+  return { profiles: profiles.map((p) => (p.id === prof.id ? profile : p)), folders: nextFolders, profile }
 }
 
 export function applyMonitorAction(state: AlertRulesState, v: Record<string, string>): AlertRulesState {

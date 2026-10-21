@@ -1,6 +1,6 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
 import { requestSftpGoto } from './lib/sftp-goto'
-import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, buildPlaybookFromAction, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction, transferPathsOk, type ActionResult } from '@shared/ai-actions'
+import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, buildPlaybookFromAction, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction, organizeProfileFromAction, transferPathsOk, type ActionResult } from '@shared/ai-actions'
 import { loadPlaybooks as loadPlaybooksAA, savePlaybooks as savePlaybooksAA, upsertPlaybook as upsertPlaybookAA } from '@shared/playbook'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -2607,6 +2607,15 @@ export default function App() {
         if (!cmd) return { ok: false, message: tg('aa.noHistory', { query: v.query ?? '' }) }
         fillCommandBar(activeSessionId, cmd)
         return { ok: true, message: tg('aa.histFilled', { cmd }) }
+      }
+      if (name === 'connection.organize') {
+        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
+        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
+        if (prof.demo) return { ok: false, message: tg('aa.orgDemo') }
+        const r = organizeProfileFromAction(v, prof, profilesRef.current, folders, uuid)
+        if (!r) return { ok: false, message: tg('aa.orgNothing') }
+        await persistSessionState({ folders: r.folders, profiles: r.profiles })
+        return { ok: true, message: tg('aa.orgDone', { name: r.profile.label }) }
       }
       if (name === 'alert.explain') {
         const hist = loadAlertHistory()
