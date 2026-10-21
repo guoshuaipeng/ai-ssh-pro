@@ -287,6 +287,8 @@ const ONLY = ${JSON.stringify(only)}
 const THEMES = ${JSON.stringify(themes)}
 const PREFIX = ${JSON.stringify(emptySeed ? 'empty-' : '')}
 const picked = (${JSON.stringify(shotSet)} === 'chrome' ? chrome : base).filter((s) => !ONLY.length || ONLY.includes(s.name))
+// --narrow: re-run the picked scenarios at 1024x760 (designer review at 1024 with the right panel open)
+if (${argv.includes('--narrow') ? 'true' : 'false'}) for (const s of picked) s.size = [1024, 760]
 if (!picked.length) { console.error('[cov] --only matched no shots in set ' + ${JSON.stringify(shotSet || 'base')} + ': ' + ONLY.join(',') + ' (available: ' + (${JSON.stringify(shotSet)} === 'chrome' ? chrome : base).map((s) => s.name).join(',') + ')'); process.exit(2) }
 const shots = [
   ...(THEMES.includes('dark') ? picked.map((s) => ({ ...s, theme: 'github-dark', file: PREFIX + 'dark-' + s.name + '.png' })) : []),
