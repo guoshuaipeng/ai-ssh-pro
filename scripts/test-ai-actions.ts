@@ -147,4 +147,10 @@ ok(e2eNames.every((x) => shots.includes(`name: '${x}'`)) && shots.includes("argv
 ok(AI_ACTIONS.every((a) => shots.includes(`aiAction', name: '${a.name}'`)), 'E2E: every registered action has a scenario')
 const bar = readFileSync('src/renderer/src/components/SessionCommandBar.tsx', 'utf8')
 ok(bar.indexOf('const homeRef = useRef') < bar.indexOf('if (!open) {'), 'command bar hooks run before the collapsed early return (#310)')
+// c56: harness isolation - eval steps block-scoped, audit checks scoped to the scenario, one data dir per theme
+ok(shots.includes("'{' + st.eval + ';}'") && shots.includes('window.__e2eT0 = Date.now()') && shots.includes('e.at>=window.__e2eT0') && shots.includes("argv.includes('--isolate-themes')"), 'E2E isolation in place')
+ok(shots.includes('[cov] EVAL FAILED'), 'a throwing eval step fails an E2E run')
+ok(!/aud\('[^']+','(allowed|blocked)'\)(?!===)/.test(shots), 'every audit check compares an exact count')
+ok(shots.includes("name: 'term-cmd-explain'") && readFileSync('src/renderer/src/features.css', 'utf8').includes('floating tip needs its own surface'), 'cmd explain tip has an opaque surface + check')
+ok(/PRIORITY: requests about this app/.test(actionsPrompt()), 'prompt states app-action priority')
 console.log(`test-ai-actions: ${n} passed`)
