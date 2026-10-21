@@ -1,6 +1,7 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
 import { requestSftpGoto } from './lib/sftp-goto'
-import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, type ActionResult } from '@shared/ai-actions'
+import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, buildPlaybookFromAction, transferPathsOk, type ActionResult } from '@shared/ai-actions'
+import { loadPlaybooks as loadPlaybooksAA, savePlaybooks as savePlaybooksAA, upsertPlaybook as upsertPlaybookAA } from '@shared/playbook'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -2604,6 +2605,29 @@ export default function App() {
         if (!cmd) return { ok: false, message: tg('aa.noHistory', { query: v.query ?? '' }) }
         fillCommandBar(activeSessionId, cmd)
         return { ok: true, message: tg('aa.histFilled', { cmd }) }
+      }
+      if (name === 'playbook.create') {
+        const pb = buildPlaybookFromAction(v, `pb-ai-${Date.now()}`, Date.now())
+        if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
+        savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
+        window.dispatchEvent(new Event('aiss-playbooks'))
+        return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
+      }
+      if (name === 'sftp.transfer') {
+        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
+        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
+        if (!transferPathsOk(v)) return { ok: false, message: tg('aa.badPath') }
+        try {
+          const sid = await ensureProfileSession(prof)
+          if (!sid) return { ok: false, message: tg('aa.noSession') }
+          const remote = v.remotePath.trim()
+          const local = v.localPath.trim()
+          if (v.direction.trim() === 'upload') await window.aiss.sftp.upload(sid, local, remote)
+          else await window.aiss.sftp.download(sid, remote, local)
+          return { ok: true, message: tg(v.direction.trim() === 'upload' ? 'aa.uploaded' : 'aa.downloaded', { path: v.direction.trim() === 'upload' ? remote : local }) }
+        } catch (e) {
+          return { ok: false, message: cleanIpcError(e) }
+        }
       }
       if (name === 'sftp.open') {
         const prof = findProfileForAction(profilesRef.current, v.target ?? '')

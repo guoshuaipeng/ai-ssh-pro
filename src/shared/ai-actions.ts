@@ -6,6 +6,7 @@
  */
 import type { AlertMetric, AlertRulesState } from './alert-rules'
 import type { AddForwardRequest, CommandSnippet, SavedSessionProfile } from './ipc'
+import type { Playbook } from './playbook'
 
 export type ActionFieldType = 'text' | 'number' | 'select' | 'secret'
 
@@ -31,6 +32,8 @@ export type ActionDef = {
   fields: ActionField[]
   /** c55: high-risk when this returns true -> the card needs a second confirm. */
   risk?: (values: Record<string, string>) => boolean
+  /** c57: note shown while armed (defaults to the batch note). */
+  riskNoteKey?: string
 }
 
 export type AppActionProposal = { name: string; params: Record<string, string> }
@@ -120,6 +123,40 @@ const HISTORY_FILL: ActionDef = {
   fields: [{ key: 'query', labelKey: 'aa.f.query', type: 'text', required: true, placeholder: 'nginx' }]
 }
 
+const PLAYBOOK_CREATE: ActionDef = {
+  name: 'playbook.create',
+  titleKey: 'aa.pb.title',
+  hint: 'save a multi-step playbook (runbook) in THIS APP; commands = shell commands separated by ";" or new lines, one step each. Saved only, never run. For a single command use snippet.create',
+  fields: [
+    { key: 'name', labelKey: 'aa.f.name', type: 'text', required: true },
+    { key: 'commands', labelKey: 'aa.f.commands', type: 'text', required: true, placeholder: 'uptime; df -h' },
+    { key: 'description', labelKey: 'aa.f.desc', type: 'text' }
+  ]
+}
+
+const SFTP_TRANSFER: ActionDef = {
+  name: 'sftp.transfer',
+  titleKey: 'aa.xfer.title',
+  hint: 'download a remote file to this computer, or upload a local file to the server, over THIS APP\'s SFTP; target = saved connection label/host, paths absolute. Upload needs a second confirmation',
+  fields: [
+    { key: 'target', labelKey: 'aa.f.target', type: 'text', required: true },
+    {
+      key: 'direction',
+      labelKey: 'aa.f.direction',
+      type: 'select',
+      required: true,
+      options: [
+        { value: 'download', labelKey: 'aa.dir.download' },
+        { value: 'upload', labelKey: 'aa.dir.upload' }
+      ]
+    },
+    { key: 'remotePath', labelKey: 'aa.f.remotePath', type: 'text', required: true, placeholder: '/var/log/syslog' },
+    { key: 'localPath', labelKey: 'aa.f.localPath', type: 'text', required: true, placeholder: 'C:\\Users\\me\\Downloads\\syslog' }
+  ],
+  risk: (v) => (v.direction ?? '').trim() === 'upload',
+  riskNoteKey: 'aa.uploadNote'
+}
+
 const SNIPPET_CREATE: ActionDef = {
   name: 'snippet.create',
   titleKey: 'aa.snippet.title',
@@ -142,7 +179,7 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL]
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)
@@ -326,6 +363,37 @@ export function auditDetailForAction(name: string, v: Record<string, string>): s
   const def = getAction(name)
   const parts = (def?.fields ?? []).filter((f) => f.type !== 'secret' && (v[f.key] ?? '').trim()).map((f) => `${f.key}=${v[f.key].trim()}`)
   return `${name} ${parts.join(' ')}`.trim()
+}
+
+/** c57: playbook.create commands -> steps (split on ; / ； / newline; max 30). */
+export function splitPlaybookCommands(raw: string): string[] {
+  return raw
+    .split(/[;；\n]+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, 30)
+}
+
+/** c57: every AI-made step asks before running (lockedConfirm) and stops on error. */
+export function buildPlaybookFromAction(v: Record<string, string>, id: string, now: number): Playbook | null {
+  const name = (v.name ?? '').trim()
+  const cmds = splitPlaybookCommands(v.commands ?? '')
+  if (!name || !cmds.length) return null
+  return {
+    id,
+    name,
+    description: (v.description ?? '').trim(),
+    steps: cmds.map((command, i) => ({ id: `${id}-s${i + 1}`, type: 'command' as const, command, confirm: true, lockedConfirm: true, stopOnError: true, timeoutSec: 60, aiGenerated: true })),
+    updatedAt: now
+  }
+}
+
+/** c57: sftp.transfer path check. remote: absolute or ~; local: absolute (Windows drive / UNC / posix); no control chars, no ".." segment. */
+export function transferPathsOk(v: Record<string, string>): boolean {
+  const r = (v.remotePath ?? '').trim()
+  const l = (v.localPath ?? '').trim()
+  const clean = (x: string) => !/[\u0000-\u001f]/.test(x) && !x.split(/[\\/]/).includes('..')
+  return /^[~/]/.test(r) && /^([A-Za-z]:[\\/]|\\\\|\/)/.test(l) && clean(r) && clean(l) && ['download', 'upload'].includes((v.direction ?? '').trim())
 }
 
 /** c55: split "a, b，c d" into unique targets (max 20). */
