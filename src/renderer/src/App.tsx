@@ -952,10 +952,12 @@ export default function App() {
     window.addEventListener('click', close)
     window.addEventListener('blur', close)
     window.addEventListener('keydown', onKey)
+    window.addEventListener('aiss:close-menus', close)
     return () => {
       window.removeEventListener('click', close)
       window.removeEventListener('blur', close)
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener('aiss:close-menus', close)
     }
   }, [tabMenu])
   const [resourceOpen, setResourceOpen] = useState(false)

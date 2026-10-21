@@ -42,8 +42,12 @@ export function openContextMenu(
   })
 }
 
+/** HK2: other app-owned menus (tab menu) listen for this to close together. */
+export const CLOSE_MENUS_EVENT = 'aiss:close-menus'
+
 export function closeContextMenu(): void {
   openFn?.(null)
+  window.dispatchEvent(new Event(CLOSE_MENUS_EVENT))
 }
 
 function MenuList({
