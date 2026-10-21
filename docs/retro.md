@@ -90,3 +90,10 @@
 - 哪里没做好：以为所有右键菜单都走 ContextMenuHost，只在 Modal 里调用了 closeContextMenu；标签菜单其实是 App 自己的 BuiltMenu 状态。
 - 根因：动手前没有 grep 所有菜单实现（ContextMenu、BuiltMenu、titlebar-popover）。
 - 以后怎么避免：改弹层行为前，先 grep `createPortal|BuiltMenu|openContextMenu|setTabMenu`，列出所有弹层的拥有者；关闭类行为只走一个出口（closeContextMenu 广播 `aiss:close-menus`），新增菜单必须监听这个事件；层级修复必须用 after 截图验证，不能只看单测。
+
+## 2026-10-21 第 45 轮新测试在 npm test 中报「tsx 不是命令」
+- 耗时：计划 0 / 实际约 12 分钟（多跑了一次全量）
+- 卡在哪：单独跑新测试时用的是 npx tsx，能通过；全量测试链里写成了裸 tsx，Windows 上找不到。
+- 哪里没做好：追加测试命令时没照抄前一条的写法。
+- 根因：手写命令前缀，没有复制上一条。
+- 以后怎么避免：往 package.json 追加测试时，原样复制上一条的前缀（`npx tsx --tsconfig tsconfig.node.json`），只改文件名；追加后先用 `npm run test 2>&1 | sls 新测试名` 或直接执行同一行命令验证一次。
