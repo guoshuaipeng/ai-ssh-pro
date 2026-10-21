@@ -394,3 +394,7 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
   - P3 chrome 集全量连跑时，e2e 场景之间会互相影响（exit 2）；E2E 只按 e2e 列表、按主题隔离来跑。
   - P3 评测留出集：「刚刚那几步…存成剧本」会被识别成 playbook.create。
 - 下一批（按频率）：connection.organize。
+
+- ✅ c61：工作台静默行内边距（P2）；「主机离线」改为「该主机当前未连接…」（查实不是 bug）；connection.organize；评测 tags 按集合比较。
+- 待办：留出集「刚刚那几步…存成剧本」仍被识别为 playbook.create（P3）；alert.explain 卡片字段标签「连接」→「主机」（P3）。
+- 下一批（按频率）：见 docs/design/ai-app-actions.md 第 11 项之后。

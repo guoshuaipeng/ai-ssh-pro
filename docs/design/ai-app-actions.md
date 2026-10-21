@@ -47,7 +47,7 @@ ActionField = { key, labelKey, type: text|number|select|secret, required?, optio
 | 7 | ✅(c58) monitor.open 打开资源监控 | 监控 | target | — |
 | 8 | playbook.fromRecent 把最近执行的命令存成剧本 ✅(c59) | 命令 | count(10), title* | — |
 | 9 | alert.explain 查看最近告警并归因 ✅(c60) | 监控 | alertId / 最近一条 | 只读 |
-| 10 | connection.organize 分组、重命名、打标签 | 连接 | target*, folder, label, tags | — |
+| 10 | connection.organize 分组、重命名、打标签 ✅(c61) | 连接 | target*, folder, label, tags | — |
 | 11 | settings.set 修改主题、字号 | 运维 | theme, fontSize(10–24) | — |
 | 12 | split.layout 分屏布局 | 连接 | layout*(2/3/4), targets | — |
 | 13 | connection.protect 标记生产/只读 | 连接 | target*, level* | 降级（解除保护）🔴 |
