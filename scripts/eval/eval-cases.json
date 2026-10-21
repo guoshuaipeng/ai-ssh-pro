@@ -30,5 +30,8 @@
  {"lang":"zh","q":"把我刚才执行的最近 5 条命令存成剧本，叫“排查 nginx”","name":"playbook.fromRecent","p":{"name":"排查 nginx","count":"5"}},
  {"lang":"en","q":"Turn the last 8 commands I ran into a playbook called disk-triage","name":"playbook.fromRecent","p":{"name":"disk-triage","count":"8"}},
  {"lang":"zh","q":"web-01 刚才报警了，帮我看看是什么原因","name":"alert.explain","p":{"target":"web-01"}},
- {"lang":"en","q":"Explain the latest alert for me","name":"alert.explain","p":{}}
+ {"lang":"en","q":"Explain the latest alert for me","name":"alert.explain","p":{}},
+ {"lang":"zh","q":"我今天在这台机器上敲过的那些命令，帮我整理成一个剧本，名称叫日常巡检","name":"playbook.fromRecent","p":{"name":"日常巡检"}},
+ {"lang":"zh","q":"把 web-01 挪到“生产”分组，再打上 nginx 标签","name":"connection.organize","p":{"target":"web-01","folder":"生产","tags":"nginx"}},
+ {"lang":"en","q":"Rename db-old to db-archive and tag it legacy","name":"connection.organize","p":{"target":"db-old","label":"db-archive","tags":"legacy"}}
 ]

@@ -8,14 +8,14 @@ import { cleanIpcError, proposalFromReply } from '../src/shared/ai-actions'
 import { BATCH_RISK_MIN, parseTargets, pickHistoryForAction, resolveTargets, sftpPathOk } from '../src/shared/ai-actions'
 import { auditDetailForAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction } from '../src/shared/ai-actions'
 import { parseAiAssistantReply } from '../src/shared/ipc'
-import { buildPlaybookFromAction, splitPlaybookCommands, transferPathsOk, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction } from '../src/shared/ai-actions'
+import { buildPlaybookFromAction, splitPlaybookCommands, transferPathsOk, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction, organizeProfileFromAction } from '../src/shared/ai-actions'
 import { DEFAULT_ALERT_RULES } from '../src/shared/alert-rules'
 
 let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 
 // registry
-ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open,playbook.fromRecent,alert.explain', 'registry order (c53..c60)')
+ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open,playbook.fromRecent,alert.explain,connection.organize', 'registry order (c53..c61)')
 for (const a of AI_ACTIONS) ok(a.fields.every((f) => f.labelKey.startsWith('aa.')), `${a.name} fields use aa.* i18n`)
 
 // sanitize: secrets from the model are dropped, unknown keys/actions ignored
@@ -211,4 +211,15 @@ ok(pickAlertForAction(al60, 'k-web-02')?.id === 'd' && pickAlertForAction(al60, 
 ok(getAction('alert.explain')!.fields.length === 1 && !getAction('alert.explain')!.fields[0].required && !getAction('alert.explain')!.risk, 'alert.explain: one optional field, read-only')
 ok(readFileSync('src/renderer/src/features.css', 'utf8').includes(".aa-status.is-err::before { content: '!'"), 'error status has a marker (c60 look-and-feel)')
 ok(['e2e-alert-explain', 'e2e-err-alert-notfound'].every((x) => shots.includes(`name: '${x}'`)), 'alert.explain has normal + error UI E2E')
+// c61: connection.organize, mute-line inset, offline wording
+const P61 = { id: 'p1', label: 'web', host: 'h', port: 22, username: 'u', tags: ['old'] }
+const F61 = [{ id: 'f1', name: 'Prod' }]
+const o1 = organizeProfileFromAction({ folder: 'prod', tags: 'web, #old，new' }, P61, [P61], F61, () => 'nf')
+ok(o1?.profile.folderId === 'f1' && o1.folders.length === 1 && o1.profile.tags!.join(',') === 'old,web,new' && o1.profile.label === 'web', 'organize: reuse folder by name (case-insensitive), merge tags, keep label')
+const o2 = organizeProfileFromAction({ folder: 'New', label: ' web-2 ' }, P61, [P61], F61, () => 'nf')
+ok(o2?.folders.length === 2 && o2.profile.folderId === 'nf' && o2.profile.label === 'web-2' && o2.profiles[0].label === 'web-2', 'organize: creates a missing folder, renames')
+ok(organizeProfileFromAction({ target: 'web' }, P61, [P61], F61, () => 'nf') === null, 'organize: nothing to change -> null')
+ok(getAction('connection.organize')!.fields.every((f) => f.type !== 'secret' && !['password', 'privateKeyPath', 'passphrase'].includes(f.key)), 'organize: never touches credentials')
+ok(['e2e-conn-organize', 'e2e-err-org-demo'].every((x) => shots.includes(`name: '${x}'`)), 'connection.organize has normal + error UI E2E')
+ok(readFileSync('src/renderer/src/features.css', 'utf8').includes('.l2-root > .l7-mute { padding: 0 var(--space-3)'), 'workbench mute line is inset (c61 P2)')
 console.log(`test-ai-actions: ${n} passed`)

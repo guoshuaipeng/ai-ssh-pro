@@ -203,5 +203,23 @@
   "p": {
    "target": "db-01"
   }
+ },
+ {
+  "lang": "zh",
+  "q": "给 redis-02 加上 cache 和 prod 两个标签",
+  "name": "connection.organize",
+  "p": {
+   "target": "redis-02",
+   "tags": "cache, prod"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Move staging-api into the Staging folder",
+  "name": "connection.organize",
+  "p": {
+   "target": "staging-api",
+   "folder": "Staging"
+  }
  }
 ]
