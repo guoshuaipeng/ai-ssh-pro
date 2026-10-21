@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { tg } from '../lib/i18n'
+import { closeContextMenu } from './ContextMenu'
 import Button from './ui/Button'
 
 type Props = {
@@ -19,6 +20,10 @@ type Props = {
 
 export default function Modal({ open, title, onClose, children, width = 520, footer, embedded, panelClassName, testId }: Props) {
   const backdropRef = useRef<HTMLDivElement>(null)
+  // HK2: a menu opened before the modal (e.g. tab context menu) must not float above it.
+  useEffect(() => {
+    if (open && !embedded) closeContextMenu()
+  }, [open, embedded])
   useEffect(() => {
     if (!open || embedded) return
     const onKey = (e: KeyboardEvent) => {

@@ -330,9 +330,9 @@ export default function KnownHostsModal({ open, onClose, onUseKey }: Props) {
                 aria-label="port"
                 style={{ width: 64 }}
               />
-              <button type="button" data-testid="kh-lookup-run" disabled={lookupBusy || busy} onClick={() => void runLookup()}>
+              <Button data-testid="kh-lookup-run" disabled={lookupBusy || busy} onClick={() => void runLookup()}>
                 {lookupBusy ? tg('kh.lookupBusy') : tg('kh.lookupRun')}
-              </button>
+              </Button>
             </div>
             {lookupHint ? <p className="kh-muted" style={{ margin: '6px 0 0' }} data-testid="kh-lookup-hint">{lookupHint}</p> : null}
           </div>
@@ -423,7 +423,6 @@ export default function KnownHostsModal({ open, onClose, onUseKey }: Props) {
               icon="host"
               title={tg('kh.emptyTitle')}
               desc={tg('kh.emptyDesc')}
-              primary={{ label: tg('kh.import'), onClick: () => void startImport(), testId: 'kh-empty-import' }}
             />
           ) : (
             <div className="kh-table-wrap">
