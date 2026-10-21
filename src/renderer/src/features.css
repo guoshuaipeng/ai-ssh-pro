@@ -869,11 +869,17 @@
 .session-command-bar .ai-cmd-card,
 .session-command-bar .cmd-explain {
   position: absolute;
-  top: 100%;
-  left: 8px;
-  right: 8px;
+  top: calc(100% + var(--space-1));
+  left: var(--space-2);
+  right: var(--space-2);
   z-index: 40;
   flex-basis: auto;
+  /* c56: floating tip needs its own surface, else it reads through the guard banner below */
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-1) var(--space-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 .ai-mode-mark { color: var(--accent); margin-right: 4px; align-self: center; cursor: help; }
 .ai-cmd-card {
