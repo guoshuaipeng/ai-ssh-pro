@@ -88,12 +88,12 @@ assert.equal(view.items.find((item) => item.type === 'item' && item.id === 'togg
 
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(app, /const \[splitEnabled, setSplitEnabled\] = useState\(false\)/)
-assert.equal(app.split('data-testid="tab-split"').length - 1, 1)
-const splitAt = app.indexOf('data-testid="tab-split"')
-const splitBtn = app.slice(splitAt, splitAt + 700)
-assert.ok(splitBtn.includes("handleTitlebarMenuAction('toggleSplit')"))
-assert.ok(splitBtn.includes("tr('tab.split')"))
-assert.ok(splitBtn.includes("tr('tab.splitExit')"))
+// S41b: the tab-bar split button is now the split-mode popover entry (SplitModeMenu)
+const modeMenu = readFileSync('src/renderer/src/components/SplitModeMenu.tsx', 'utf8')
+assert.equal(modeMenu.split('data-testid="tab-split"').length - 1, 1)
+assert.equal(app.split('<SplitModeMenu ').length - 1, 1)
+assert.match(app, /<SplitModeMenu mode=\{splitModeOf\(splitEnabled, splitOrientation\)\} onPick=\{pickSplitMode\} \/>/)
+assert.ok(modeMenu.includes("className={`tab-split-btn"))
 assert.equal(LAYOUT_DEFAULTS.showMain, true)
 assert.equal(LAYOUT_DEFAULTS.showAi, false)
 
