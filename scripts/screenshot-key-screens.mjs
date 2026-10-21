@@ -332,6 +332,7 @@ app.on('browser-window-created', (_e, win) => {
       win.show(); win.focus()
       // Hide transient toasts without touching React-owned nodes.
       await win.webContents.insertCSS('.toast-stack { visibility: hidden !important; } html.shot-toasts .toast-stack { visibility: visible !important; }')
+      let leaks = 0
       let theme = ''
       for (const s of shots) {
         if (s.theme !== theme) { await fire(win, { op: 'theme', id: s.theme }); theme = s.theme; await sleep(500) }
@@ -362,6 +363,8 @@ app.on('browser-window-created', (_e, win) => {
         const dom = await win.webContents.executeJavaScript('(document.getElementById(\"root\")?.innerHTML.length || 0) + \" \" + location.href.slice(0, 80)', true).catch((e) => 'ERR ' + e)
         console.log('[cov] dom', dom)
         console.log('[cov]', s.file, p)
+        // c52 SA1: repro scenarios are hard checks — a leaked popover fails the run
+        if (s.name.startsWith('leak-')) { const pj = JSON.parse(p); if (pj.dfPop || pj.selPop) { console.error('[cov] LEAK', s.file, 'dfPop=' + pj.dfPop, 'selPop=' + pj.selPop); leaks++ } }
         // Make sure the frame we grab is the one after the steps (capturePage can return a stale frame).
         await Promise.race([win.webContents.executeJavaScript('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))', true), sleep(600)])
         win.webContents.invalidate()
@@ -380,6 +383,7 @@ app.on('browser-window-created', (_e, win) => {
         }
       }
       console.log('[cov] done ->', outDir, 'and', tempDir)
+      if (leaks) { console.error('[cov] ' + leaks + ' popover leak(s)'); app.exit(3); return }
     } catch (e) {
       console.error('[cov] failed', e)
       app.exit(1)
