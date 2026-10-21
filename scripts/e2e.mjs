@@ -745,11 +745,10 @@ await step('split view: second session in pane 2, drag divider, swap, persisted 
   await divider.dblclick()
   assert(Number(await page.evaluate(() => localStorage.getItem('aiss.split.ratio'))) === 0.5, 'reset')
   const splitOff = page.getByTestId('statusbar-split')
+  // D105: the status chip opens the same mode menu
   if (await splitOff.isVisible().catch(() => false)) await splitOff.click()
-  else {
-    await page.getByTestId('tab-split').click()
-    await page.getByTestId('split-mode-off').click()
-  }
+  else await page.getByTestId('tab-split').click()
+  await page.getByTestId('split-mode-off').click()
   await expectHidden(divider, 10000)
 })
 

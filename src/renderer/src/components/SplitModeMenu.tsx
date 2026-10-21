@@ -17,9 +17,11 @@ export function SplitModeIcon({ mode }: { mode: SplitMode }) {
 }
 
 /** S41b: tab-bar split entry. One button, one themed popover: off / side by side / top and bottom. */
-export default function SplitModeMenu({ mode, onPick }: { mode: SplitMode; onPick: (mode: SplitMode) => void }) {
+/** D105: variant 'status' = the status-bar "分屏中" chip; same menu, opens upward from the bottom bar. */
+export default function SplitModeMenu({ mode, onPick, variant = 'tab' }: { mode: SplitMode; onPick: (mode: SplitMode) => void; variant?: 'tab' | 'status' }) {
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right?: number; left?: number } | null>(null)
+  const isStatus = variant === 'status'
   const wrapRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -40,7 +42,7 @@ export default function SplitModeMenu({ mode, onPick }: { mode: SplitMode; onPic
       e.preventDefault()
       e.stopPropagation()
       setOpen(false)
-      wrapRef.current?.querySelector<HTMLElement>('.tab-split-btn')?.focus()
+      wrapRef.current?.querySelector<HTMLElement>('button')?.focus()
       return
     }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
@@ -52,24 +54,26 @@ export default function SplitModeMenu({ mode, onPick }: { mode: SplitMode; onPic
 
   const current = tg(LABEL[mode])
   return (
-    <div className="tab-split-wrap" ref={wrapRef} onKeyDown={onKey}>
+    <div className={isStatus ? 'statusbar-split-wrap' : 'tab-split-wrap'} ref={wrapRef} onKeyDown={onKey}>
       <button
         type="button"
-        className={`tab-split-btn${mode !== 'off' ? ' is-on' : ''}`}
-        data-testid="tab-split"
+        className={isStatus ? 'statusbar-slot statusbar-slot--split' : `tab-split-btn${mode !== 'off' ? ' is-on' : ''}`}
+        data-testid={isStatus ? 'statusbar-split' : 'tab-split'}
         data-split-mode={mode}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={tg('s41.modeMenu')}
-        title={tg('s41.modeTip', { mode: current })}
+        title={isStatus ? tg('sb.splitTip', { mode: current }) : tg('s41.modeTip', { mode: current })}
         onClick={(e) => {
           // portal + fixed position: the tab bar scrolls / clips, so an in-flow popover was cut off
           const r = e.currentTarget.getBoundingClientRect()
-          setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) })
+          setPos(isStatus
+            ? { bottom: window.innerHeight - r.top + 6, left: Math.max(8, r.left) }
+            : { top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) })
           setOpen((v) => !v)
         }}
       >
-        <SplitModeIcon mode={mode} />
+        {isStatus ? <span className="statusbar-label">{tg('sb.splitOn')}</span> : <SplitModeIcon mode={mode} />}
       </button>
       {open && pos ? createPortal(
         <div
@@ -78,7 +82,7 @@ export default function SplitModeMenu({ mode, onPick }: { mode: SplitMode; onPic
           aria-label={tg('s41.modeMenu')}
           ref={listRef}
           data-testid="split-mode-menu"
-          style={{ position: 'fixed', top: pos.top, right: pos.right, left: 'auto' }}
+          style={{ position: 'fixed', top: pos.top ?? 'auto', bottom: pos.bottom ?? 'auto', right: pos.right ?? 'auto', left: pos.left ?? 'auto' }}
           onKeyDown={onKey}
         >
           {MODES.map((m) => (

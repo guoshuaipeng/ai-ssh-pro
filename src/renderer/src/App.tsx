@@ -10508,20 +10508,7 @@ export default function App() {
                 </button>
               ) : null}
               {splitEnabled ? (
-                <button
-                  type="button"
-                  className="statusbar-slot statusbar-slot--split"
-                  data-testid="statusbar-split"
-                  title={tg('sb.splitTip')}
-                  onClick={() => {
-                    const alsoBroadcast = broadcastEnabled
-                    setSplitEnabled(false)
-                    setBroadcastEnabled(false)
-                    showToast(alsoBroadcast ? tg('sb.splitOffAlsoBroadcast') : tg('sb.splitOff'))
-                  }}
-                >
-                  <span className="statusbar-label">{tg('sb.splitOn')}</span>
-                </button>
+                <SplitModeMenu variant="status" mode={splitModeOf(splitEnabled, splitOrientation)} onPick={pickSplitMode} />
               ) : null}
               {activeTab?.pinned ? (
                 <button

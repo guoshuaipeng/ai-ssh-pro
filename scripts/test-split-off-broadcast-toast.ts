@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
-assert.match(app, /data-testid="statusbar-split"/)
+assert.match(readFileSync('src/renderer/src/components/SplitModeMenu.tsx', 'utf8'), /'statusbar-split'/)
 assert.match(app, /sb\.splitOffAlsoBroadcast/)
 assert.match(app, /alsoBroadcast/)
 
