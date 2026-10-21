@@ -8,6 +8,7 @@ import type { SmartPrefs } from '@shared/smart-complete'
 import { listPasteSkipHosts, setPasteSkipHost } from '../lib/paste-pref'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
+import Select from './ui/Select'
 
 type Props = {
   onClose: () => void
@@ -103,17 +104,14 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
         <div className="workspace-panel-inner workspace-panel-inner--settings">
           <div className="field">
             <label>{tg('ui.276')}</label>
-            <select
+            <Select
+              testId="term-theme"
+              ariaLabel={tg('ui.276')}
               value={themeId}
-              onChange={(e) => setThemeId(e.target.value as TerminalThemeId)}
+              onChange={(v) => setThemeId(v as TerminalThemeId)}
               style={{ width: '100%' }}
-            >
-              {TERMINAL_THEME_OPTIONS.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+              options={TERMINAL_THEME_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+            />
           </div>
           <div className="field">
             <label>{tg('ui.277')}</label>

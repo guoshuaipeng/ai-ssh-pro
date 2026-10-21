@@ -414,19 +414,18 @@ export default function SettingsPanel({
               </label>
               <label className="settings-row">
                 <span>{t('w3.settingKeep')}</span>
-                <select
-                  value={snapKeep}
-                  onChange={(e) => {
-                    const n = Number(e.target.value)
+                <Select
+                  testId="w3-snap-keep"
+                  ariaLabel={t('w3.settingKeep')}
+                  value={String(snapKeep)}
+                  onChange={(v) => {
+                    const n = Number(v)
                     setSnapKeep(n)
                     setSnapshotKeep(n)
                     void window.aiss.snapshots.setPrefs({ auto: snapOn, keep: n })
                   }}
-                >
-                  {SNAPSHOT_KEEP_OPTIONS.map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
+                  options={SNAPSHOT_KEEP_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+                />
               </label>
               <p className="l7-muted">{t('w3.settingUsed', { size: snapStats.bytes < 1024 * 1024 ? `${Math.ceil(snapStats.bytes / 1024)} KB` : `${(snapStats.bytes / (1024 * 1024)).toFixed(1)} MB` })}</p>
               <p className="l7-muted">{t('w3.filesN', { n: snapStats.files, size: String(snapStats.count) })}</p>

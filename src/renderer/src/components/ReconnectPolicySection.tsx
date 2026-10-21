@@ -59,17 +59,16 @@ export default function ReconnectPolicySection({ anchor }: { anchor?: string | n
       <h4>{t('l9.section')}</h4>
       <label className="settings-row l9-row">
         <span>{t('l9.mode')}</span>
-        <select
-          data-testid="l9-mode"
+        <Select
+          testId="l9-mode"
+          ariaLabel={t('l9.mode')}
           value={policy.mode}
-          onChange={(e) => commit({ ...policy, mode: e.target.value as ReconnectMode })}
-        >
-          {MODES.map((mode) => (
-            <option key={mode} value={mode}>
-              {t(mode === 'off' ? 'l9.off' : mode === 'standard' ? 'l9.standard' : mode === 'robust' ? 'l9.robust' : 'l9.custom')}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => commit({ ...policy, mode: v as ReconnectMode })}
+          options={MODES.map((mode) => ({
+            value: mode,
+            label: t(mode === 'off' ? 'l9.off' : mode === 'standard' ? 'l9.standard' : mode === 'robust' ? 'l9.robust' : 'l9.custom')
+          }))}
+        />
       </label>
       <p className="l7-muted">{hint}</p>
       {policy.mode === 'robust' ? (
@@ -117,11 +116,11 @@ export default function ReconnectPolicySection({ anchor }: { anchor?: string | n
       ) : null}
       <label className="settings-row l9-row">
         <span>{t('l9.keepalive')}</span>
-        <select
-          data-testid="l9-keepalive"
+        <Select
+          testId="l9-keepalive"
+          ariaLabel={t('l9.keepalive')}
           value={kaMode}
-          onChange={(e) => {
-            const value = e.target.value
+          onChange={(value) => {
             setKaMode(value)
             setKaError(false)
             if (value === 'off') commit({ ...policy, keepAliveSec: null })
@@ -131,15 +130,12 @@ export default function ReconnectPolicySection({ anchor }: { anchor?: string | n
               if (parsed.ok) commit({ ...policy, keepAliveSec: parsed.sec })
             } else commit({ ...policy, keepAliveSec: Number(value) })
           }}
-        >
-          <option value="off">{t('l9.kaOff')}</option>
-          {KEEPALIVE_PRESETS.map((sec) => (
-            <option key={sec} value={String(sec)}>
-              {sec}s
-            </option>
-          ))}
-          <option value="custom">{t('l9.custom')}</option>
-        </select>
+          options={[
+            { value: 'off', label: t('l9.kaOff') },
+            ...KEEPALIVE_PRESETS.map((sec) => ({ value: String(sec), label: `${sec}s` })),
+            { value: 'custom', label: t('l9.custom') }
+          ]}
+        />
       </label>
       {kaMode === 'custom' ? (
         <label className="settings-row l9-row">
