@@ -2322,7 +2322,9 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .inv20-head-actions { margin-left: auto; }
 /* c50 P2: known-hosts no orphan rule/word; merged demo chip in guard banner */
 .kh-lead { text-wrap: pretty; }
-.term-guard-demo { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--color-warn); white-space: nowrap; }
+.term-guard-demo { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; min-width: 0; flex: 0 1 auto; color: var(--color-warn); white-space: nowrap; }
+.term-guard-demo-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.term-guard-demo .primary { flex: none; }
 .term-guard-demo .primary { padding: var(--space-1) var(--space-2); font-size: var(--fs-xs); }
 /* c50 IN1: host inventory narrow layout (container, not viewport) */
 .workspace-panel-body:has(> .inventory-layout), .workspace-panel-inner:has(> .inventory-layout) { container-type: inline-size; container-name: inv; }
