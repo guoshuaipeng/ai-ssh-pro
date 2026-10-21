@@ -2273,7 +2273,7 @@ body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
 .df-pop { position: fixed; z-index: var(--z-menu); box-sizing: border-box; width: 248px; padding: var(--space-2); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-bg-elevated); box-shadow: var(--shadow-menu); }
 .df-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-1); }
 .df-title { font-size: var(--fs-sm); font-weight: 600; color: var(--color-text-primary); }
-.df-nav { min-width: 0; padding: 0; width: 24px; height: 24px; border: 0; background: transparent; color: var(--color-text-secondary); border-radius: var(--radius-sm); font-size: 16px; line-height: 1; }
+.df-nav { min-width: 0; padding: 0; width: 24px; height: 24px; border: 0; background: transparent; color: var(--color-text-secondary); border-radius: var(--radius-sm); font-size: var(--fs-lg); line-height: 1; }
 .df-nav:hover { background: var(--color-row-hover-bg); }
 .df-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .df-wd { text-align: center; font-size: var(--fs-xs); color: var(--color-text-muted); padding: 2px 0; }
