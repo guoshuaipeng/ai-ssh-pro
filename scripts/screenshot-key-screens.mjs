@@ -134,6 +134,8 @@ const chrome = [
   { name: 'ai-action-conn', size: W, steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'aiAction', name: 'connection.add', params: { label: 'web-02', host: '10.0.0.12', username: 'deploy' }, ask: '帮我添加一台 10.0.0.12 的连接，用户 deploy', say: '已为你准备好连接表单，请确认。密码或私钥需你自己填写。' }], wait: 900 },
   { name: 'ai-action-ask', size: [1024, 760], steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'aiAction', name: 'connection.add', params: { host: '10.0.0.13' }, ask: '加一台 10.0.0.13', say: '还缺用户名，请在表单里补全。' }, { click: '[data-testid=ai-action-confirm]' }], wait: 900 },
   { name: 'ai-action-monitor', size: [1024, 760], steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'aiAction', name: 'monitor.configure', params: { metric: 'cpu', threshold: '85', sustainMin: '3' }, ask: 'CPU 超过 85% 持续 3 分钟就告警', say: '将 CPU 告警阈值设为 85%，持续 3 分钟。' }], wait: 900 },
+  // c54 E2E: really click "confirm" and check the connection was saved (expect must be true)
+  { name: 'e2e-ai-conn', size: W, steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'aiAction', name: 'connection.add', params: { label: 'e2e-web-77', host: '10.9.8.77', username: 'deploy' }, ask: '添加 10.9.8.77，用户 deploy', say: '已准备好连接表单。' }, { click: '[data-testid=ai-action-confirm]' }, { click: '[data-testid=ai-action-confirm]' }], wait: 1500, expect: "(async()=>{const s=await window.aiss.sessions.list();const n=(s.profiles||[]).filter(p=>p.host==='10.9.8.77'&&p.username==='deploy').length;return n===1&&!!document.querySelector('[data-testid=ai-action-done]')})()" },
   { name: 'inventory', size: W, steps: [{ op: 'menu', action: 'inventory' }], wait: 1400, close: true },
   { name: 'gate-timeline', size: W, steps: [{ op: 'menu', action: 'gateTimeline' }], wait: 1400 },
   { name: 'alert-rules', size: W, steps: [{ op: 'menu', action: 'alertRules' }], wait: 1400, close: true },
@@ -367,6 +369,7 @@ app.on('browser-window-created', (_e, win) => {
         const dom = await win.webContents.executeJavaScript('(document.getElementById(\"root\")?.innerHTML.length || 0) + \" \" + location.href.slice(0, 80)', true).catch((e) => 'ERR ' + e)
         console.log('[cov] dom', dom)
         console.log('[cov]', s.file, p)
+        if (s.expect) { const okE = await win.webContents.executeJavaScript(s.expect, true).catch((e) => 'ERR ' + e); console.log('[cov] expect', s.file, okE); if (okE !== true) { console.error('[cov] EXPECT FAILED', s.file); leaks++ } }
         // c52 SA1: repro scenarios are hard checks — a leaked popover fails the run
         if (s.name.startsWith('leak-')) { const pj = JSON.parse(p); if (pj.dfPop || pj.selPop) { console.error('[cov] LEAK', s.file, 'dfPop=' + pj.dfPop, 'selPop=' + pj.selPop); leaks++ } }
         // Make sure the frame we grab is the one after the steps (capturePage can return a stale frame).
