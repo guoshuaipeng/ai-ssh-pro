@@ -8154,6 +8154,12 @@ export default function App() {
               className={`tab-bar-scroll${tabFade.left ? ' fade-left' : ''}${tabFade.right ? ' fade-right' : ''}`}
               data-testid="tab-bar-scroll"
               tabIndex={0}
+              title={tg('d102.tip')}
+              onDoubleClick={(e) => {
+                // D102: only the empty strip, never a tab (tab double-click still renames)
+                if (e.target !== e.currentTarget) return
+                handleTitlebarMenuActionRef.current('connection')
+              }}
               onKeyDown={(e) => {
                 if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
                 e.preventDefault()
