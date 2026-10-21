@@ -263,7 +263,8 @@ assert.match(settingsCss, /\.settings-body\s*\{[^}]*flex-direction:\s*column/)
 assert.match(settingsCss, /\.settings-body > section\s*\{[^}]*flex-direction:\s*column/)
 assert.match(settingsCss, /\.settings-nav\s*\{[^}]*flex-direction:\s*column/)
 assert.equal(settingsCss.includes('display: none'), false)
-assert.equal(/flex-direction:\s*row/.test(settingsCss), false)
+// c49 ST3: only the narrow @container nav may wrap as a row
+assert.equal(/flex-direction:\s*row/.test(settingsCss.replace(/@container[\s\S]*?\n\}/, '')), false)
 
 assert.equal(loadingStealsFocus(), false)
 assert.equal(QUIET_LOAD_ATTRS.tabIndex, -1)
