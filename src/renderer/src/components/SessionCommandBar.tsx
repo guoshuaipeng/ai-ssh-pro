@@ -301,6 +301,11 @@ export default function SessionCommandBar({ sessionId, draftKey, hostLabel, host
     if (next) window.setTimeout(() => inputRef.current?.focus(), 0)
   }
 
+  // c55: hooks must run before the collapsed early return (React #310 when the bar opens via fill)
+  const draftNowRef = useRef(draft)
+  draftNowRef.current = draft
+  const homeRef = useRef<{ sid: string; home: string | null } | null>(null)
+
   if (!open) {
     return (
       <button
@@ -317,9 +322,6 @@ export default function SessionCommandBar({ sessionId, draftKey, hostLabel, host
   }
 
   // D85: remote path completion. Reads the SFTP listing only; the line is filled, never sent.
-  const draftNowRef = useRef(draft)
-  draftNowRef.current = draft
-  const homeRef = useRef<{ sid: string; home: string | null } | null>(null)
   const completeRemotePath = async (target: PathTarget) => {
     const before = draftNowRef.current
     try {
