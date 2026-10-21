@@ -15,7 +15,7 @@ import {
 import type { SshSessionManager } from './ssh-manager'
 import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
 import { buildBootstrapPrompt } from './core-a-bootstrap'
-import { actionsPrompt, redactForAi, sanitizeProposal } from '../shared/ai-actions'
+import { actionsPrompt, proposalFromReply, redactForAi } from '../shared/ai-actions'
 import {
   appendStoredArchive,
   currentThreadEpoch,
@@ -632,7 +632,7 @@ export function parseAssistantStep(content: string): { structured: AiAssistantRe
     const parsed = assistantStepSchema.parse(normalized) as unknown as AiAssistantReply
     const completed = typeof parsed.completed === 'boolean' ? parsed.completed : parsed.action === 'end'
     // c54: strict schema drops unknown keys - re-attach a sanitized app-action proposal (secrets stripped)
-    const appAction = sanitizeProposal((raw as Record<string, unknown>).appAction) ?? undefined
+    const appAction = proposalFromReply(raw as Record<string, unknown>) ?? undefined
     return { structured: { ...parsed, completed, ...(appAction ? { appAction } : {}) }, parseError: undefined }
   } catch (e) {
     const loose = parseAiAssistantReply(content)

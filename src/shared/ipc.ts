@@ -1,4 +1,4 @@
-import { sanitizeProposal } from './ai-actions'
+import { proposalFromReply, sanitizeProposal } from './ai-actions'
 /** 主菜单 / 工具栏打开的对话框或会话管理命令 */
 /** Menu actions sent from the main-process application menu (same ids as the shared menu definition). */
 export type AppDialogKind = import('./menus').MenuAction
@@ -796,8 +796,9 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
   if (start >= 0 && end > start) s = s.slice(start, end + 1)
   try {
     const obj = JSON.parse(s) as Record<string, unknown>
-    const description = typeof obj.description === 'string' ? obj.description.trim() : ''
-    if (!description) return null
+    const early = proposalFromReply(obj)
+    const description = typeof obj.description === 'string' ? obj.description.trim() : early ? '' : ''
+    if (!description && !early) return null
     const completed = typeof obj.completed === 'boolean' ? obj.completed : undefined
     const riskLevel = typeof obj.riskLevel === 'string' && obj.riskLevel.trim() ? obj.riskLevel.trim() : 'medium'
     const action =
@@ -850,12 +851,12 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
       command = obj.command.replace(/\r\n/g, '\n').replace(/[\r\n]+/g, ' ').trim()
     }
     const notes = typeof obj.notes === 'string' && obj.notes.trim() ? obj.notes.trim() : undefined
-    const appAction = sanitizeProposal(obj.appAction) ?? undefined
+    const appAction = early ?? undefined
     return {
       description,
       action,
       // 如果模型没返回 completed，按 action 推断
-      completed: typeof completed === 'boolean' ? completed : action === 'end',
+      completed: appAction ? true : typeof completed === 'boolean' ? completed : action === 'end',
       toolName,
       toolInput,
       command,

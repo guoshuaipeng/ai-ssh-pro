@@ -62,7 +62,7 @@ function redactTerminalExcerptFromSystemPrompt(systemPrompt: string): string {
     })
 }
 
-function buildMessages(payload: AiChatPayload): { role: string; content: string }[] {
+export function buildMessages(payload: AiChatPayload): { role: string; content: string }[] {
   const systemParts: string[] = [
     mt('你是运维/开发助手，必须以“分步动作”方式工作：每一轮只决定下一步要做什么，并输出给 UI。UI 再根据用户同意触发工具或执行命令，然后把最新终端输出（terminalExcerpt）回传给你进行下一轮判断。', "You are an ops/dev assistant and must work in \"step-by-step actions\": each round decide only the next step and output it to the UI. The UI triggers tools or runs commands after the user agrees, then sends the latest terminal output (terminalExcerpt) back to you for the next round."),
     mt('你必须只输出一个 JSON 对象：不要使用 Markdown、不要代码围栏、不要输出任何 JSON 以外的文字。', "Output exactly one JSON object: no Markdown, no code fences, no text outside the JSON."),
