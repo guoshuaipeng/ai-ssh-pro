@@ -2131,3 +2131,6 @@ legend {
 .split-mode-item:hover, .split-mode-item:focus-visible { background: var(--color-row-hover-bg); outline: none; }
 .split-mode-item.is-on { color: var(--color-accent); }
 .split-mode-check { display: inline-block; width: 1em; text-align: center; }
+
+/* D101: ordinal for same-name tabs */
+.tab .tab-dup-n { flex: none; margin-left: var(--space-1); font-size: var(--fs-xs); color: var(--color-text-secondary); }

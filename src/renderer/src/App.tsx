@@ -123,6 +123,7 @@ import { loadSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT } from '@shared/sf
 import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind, AISS_TERMINAL_FIND_EVENT } from './lib/terminal-find'
 import { keysFor, matchKeymap } from '@shared/keymap'
+import { dupOrdinals, withOrdinal } from '@shared/tab-dedupe'
 import { applySplitMode, applySplitToggle, splitModeOf, type SplitMode, type SplitOrientation } from '@shared/split-toggle'
 import SplitModeMenu from './components/SplitModeMenu'
 import { matchSnippetHotkey, SNIPPET_HOTKEY_EVENT } from '@shared/snippet-hotkey'
@@ -3340,6 +3341,13 @@ export default function App() {
     () => arrangeTabs(tabs.filter((t) => !redirectCenterSnippets(t.view)).map((t, i) => ({ ...t, id: t.tabId, seq: t.openSeq ?? i + 1, pinned: Boolean(t.pinned) }))),
     [tabs]
   )
+  // D101: same-name tabs read "name · 2" in strip order (split Select and tooltips use the same label)
+  const tabDup = dupOrdinals(orderedTabs.map((t) => ({ id: t.tabId, label: labelFor(t) })))
+  const dupLabelFor = (t: Pick<Tab, 'tabId'> & Parameters<typeof labelFor>[0]) => withOrdinal(labelFor(t), tabDup.get(t.tabId))
+  const dupLabelBySession = (sid: string) => {
+    const tab = orderedTabs.find((x) => x.sessionId === sid && (!x.view || x.view === 'session'))
+    return tab ? dupLabelFor(tab) : ''
+  }
   const maintSubjects = useMemo(
     () =>
       alertHistory
@@ -8163,11 +8171,19 @@ export default function App() {
                 ? `${t.connectOpts.username}@${t.connectOpts.host}:${t.connectOpts.port || 22}`
                 : ''
               const guardTip = showRo ? tg('s4.tip') : guardLevel === 'production' ? tg('l4.bannerProd') : ''
+              // D103: session tabs say who/where and the connection state on hover (was only the pin hint)
+              const sessionTip = isSession && t.kind !== 'local' && t.connectOpts?.host
+                ? tg('d103.tip', {
+                    name: dupLabelFor(t),
+                    addr: `${t.connectOpts.username}@${t.connectOpts.host}:${t.connectOpts.port || 22}`,
+                    state: tg(t.status === 'connected' ? 'd103.connected' : t.status === 'connecting' ? 'd103.connecting' : 'd103.disconnected')
+                  })
+                : ''
               return (
               <button
                 key={t.tabId}
                 type="button"
-                title={[sftpAddr, guardTip, t.status === 'disconnected' && t.failRaw ? tg('d35.tabReason', { reason: friendlyErrorMessage(t.failRaw) }) : '', tg('tab.pinTip')].filter(Boolean).join(' · ') || undefined}
+                title={[sessionTip, sftpAddr, guardTip, t.status === 'disconnected' && t.failRaw ? tg('d35.tabReason', { reason: friendlyErrorMessage(t.failRaw) }) : '', tg('tab.pinTip')].filter(Boolean).join(' · ') || undefined}
                 data-tab-id={t.tabId}
                 className={`tab tab-kind-${t.view || 'session'} ${guardClass} ${t.pinned ? 'is-pinned' : ''} ${t.tabId === activeTabId ? 'active' : ''} ${isSession && t.status === 'disconnected' ? 'tab--disconnected' : ''} ${(isSession || t.view === 'sftp') && t.status === 'connecting' ? 'tab--connecting' : ''} ${t.view && WORKSPACE_TAB_VIEWS.has(t.view) ? 'tab--workspace' : ''}`}
                 onClick={() => setActiveTabId(t.tabId)}
@@ -8241,6 +8257,7 @@ export default function App() {
                   </span>
                 ) : null}
                 <span className="tab-title">{labelFor(t)}</span>
+                {tabDup.get(t.tabId) ? <span className="tab-dup-n" data-testid="tab-dup-n">· {tabDup.get(t.tabId)}</span> : null}
                 {showRo ? <span className="prot-badge prot-badge--readonly" data-testid="s4-tab-badge">{tg('s4.badge')}</span> : null}
                 </>
                 )}
@@ -9935,10 +9952,10 @@ export default function App() {
                       onSecondaryChange={setSplitSecondary}
                       onToggleBroadcast={() => handleTitlebarMenuActionRef.current('toggleBroadcast')}
                       orientation={splitOrientation}
-                      primaryTitle={labelFor(t)}
+                      primaryTitle={dupLabelFor(t)}
                       peers={connectedSshSessions
                         .filter((x) => x.sessionId !== t.sessionId)
-                        .map((x) => ({ sessionId: x.sessionId, title: x.title }))}
+                        .map((x) => ({ sessionId: x.sessionId, title: dupLabelBySession(x.sessionId) || x.title }))}
                     />
                   ) : (
                     <>
