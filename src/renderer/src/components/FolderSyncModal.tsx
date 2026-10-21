@@ -318,10 +318,7 @@ export default function FolderSyncModal({
           </div>
           <label className="sync-field">
             {tg('d2.compare')}
-            <select value={compare} onChange={(e) => setCompare(e.target.value as CompareMode)}>
-              <option value="size-mtime">{tg('d2.compareFast')}</option>
-              <option value="checksum">{tg('d2.compareHash')}</option>
-            </select>
+            <Select testId="sync-compare" value={compare} options={[{ value: 'size-mtime', label: tg('d2.compareFast') }, { value: 'checksum', label: tg('d2.compareHash') }]} onChange={(v) => setCompare(v as CompareMode)} />
           </label>
           <label className="sync-field">
             {tg('d2.exclude')}

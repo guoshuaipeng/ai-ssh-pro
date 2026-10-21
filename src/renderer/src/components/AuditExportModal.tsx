@@ -1,4 +1,5 @@
 import DateField from './ui/DateField'
+import Select from './ui/Select'
 import { useMemo, useState } from 'react'
 import {
   AUDIT_EXPORT_TYPES,
@@ -104,26 +105,11 @@ export default function AuditExportModal({
         <div className="s1b-filters" data-testid="s1b-filters">
           <label>
             <span>{t('s1b.host')}</span>
-            <select aria-label={t('s1b.host')} value={host} onChange={(e) => setHost(e.target.value)}>
-              <option value="">{t('s1b.allHosts')}</option>
-              {hosts.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+            <Select testId="audit-export-host" ariaLabel={t('s1b.host')} value={host} options={[{ value: '', label: t('s1b.allHosts') }, ...hosts.map((name) => ({ value: name, label: name }))]} onChange={setHost} />
           </label>
           <label>
             <span>{t('s1b.action')}</span>
-            <select aria-label={t('s1b.action')} value={normalizeExportType(type) || type} onChange={(e) => setType(e.target.value)}>
-              <option value="">{t('s1b.allActions')}</option>
-              {AUDIT_EXPORT_TYPES.map((id) => (
-                <option key={id} value={id}>
-                  {typeLabel(id)}
-                </option>
-              ))}
-              {type && !normalizeExportType(type) ? <option value={type}>{type}</option> : null}
-            </select>
+            <Select testId="audit-export-type" ariaLabel={t('s1b.action')} value={normalizeExportType(type) || type} options={[{ value: '', label: t('s1b.allActions') }, ...AUDIT_EXPORT_TYPES.map((id) => ({ value: id, label: typeLabel(id) })), ...(type && !normalizeExportType(type) ? [{ value: type, label: type }] : [])]} onChange={setType} />
           </label>
           <span className="s1b-count" data-testid="s1b-count">
             {t('s1b.count', { n: count })}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import Select from './ui/Select'
 import type { ProtectionLevel } from '@shared/protection'
 import { AI_POLICIES, globalAiPolicy, isAiPolicy, resolveAiPolicy, type AiPolicy, type AiPolicySettings } from '@shared/ai-policy'
 import { tg, type MessageKey } from '../lib/i18n'
@@ -56,16 +57,7 @@ export default function HostSafetyCard({
         </div>
         <label className="host-safety-row">
           <span className="host-safety-label">{tg('policy.title')}</span>
-          <select
-            data-testid="host-ai-policy"
-            value={isAiPolicy(aiPolicy) ? aiPolicy : ''}
-            onChange={(e) => onAiPolicy(isAiPolicy(e.target.value) ? e.target.value : undefined)}
-          >
-            <option value="">{tg('policy.followGlobal', { policy: tg(POLICY_KEY[global]) })}</option>
-            {AI_POLICIES.map((id) => (
-              <option key={id} value={id}>{tg(POLICY_KEY[id])}</option>
-            ))}
-          </select>
+          <Select testId="host-ai-policy" value={isAiPolicy(aiPolicy) ? aiPolicy : ''} options={[{ value: '', label: tg('policy.followGlobal', { policy: tg(POLICY_KEY[global]) }) }, ...AI_POLICIES.map((id) => ({ value: id, label: tg(POLICY_KEY[id]) }))]} onChange={(v) => onAiPolicy(isAiPolicy(v) ? v : undefined)} />
         </label>
         <p
           className={`host-safety-effective${resolved.cappedBy ? ' is-capped' : ''}`}

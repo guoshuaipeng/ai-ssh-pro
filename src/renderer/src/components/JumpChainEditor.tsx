@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Select from './ui/Select'
 import type { SavedSessionProfile } from '@shared/ipc'
 import { canAddHop, chainDiagram, formatProxyJump, parseProxyJump, validateChain, type HopProbeRow, type JumpHop } from '@shared/jump-chain'
 import { hopVisual } from '@shared/hop-chip'
@@ -86,15 +87,7 @@ export default function JumpChainEditor({
             <input value={String(hop.port || 22)} onChange={(e) => setHop(i, { port: Number(e.target.value) || 22 })} aria-label={tg('ui.44')} />
           </div>
           <input value={hop.username} placeholder={tg('ui.45')} onChange={(e) => setHop(i, { username: e.target.value })} aria-label={tg('ui.45')} />
-          <select
-            value={hop.auth || 'key'}
-            onChange={(e) => setHop(i, { auth: e.target.value as JumpHop['auth'] })}
-            aria-label={tg('conn.groupAuth')}
-          >
-            <option value="key">{tg('conn.authKey')}</option>
-            <option value="password">{tg('conn.authPassword')}</option>
-            <option value="agent">{tg('m2.authAgent')}</option>
-          </select>
+          <Select testId="jump-hop-auth" ariaLabel={tg('conn.groupAuth')} value={hop.auth || 'key'} options={[{ value: 'key', label: tg('conn.authKey') }, { value: 'password', label: tg('conn.authPassword') }, { value: 'agent', label: tg('m2.authAgent') }]} onChange={(v) => setHop(i, { auth: v as JumpHop['auth'] })} />
           {issues.filter((x) => 'hop' in x && x.hop === i + 1).map((x) => (
             <p key={x.code} className="jump-issue">
               {tg(x.code === 'deleted' ? 'm2.hopDeleted' : x.code === 'cycle' ? 'm2.hopCycle' : 'm2.hopEmpty')}

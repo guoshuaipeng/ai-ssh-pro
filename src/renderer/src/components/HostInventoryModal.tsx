@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Select from './ui/Select'
 import type {
   HostInventoryIndexEntry,
   HostInventoryRecord,
@@ -556,16 +557,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
           onChange={(e) => setSvcDraft((p) => ({ ...p, name: e.target.value }))}
           placeholder={tg('ui.173')}
         />
-        <select
-          value={svcDraft.kind}
-          onChange={(e) => setSvcDraft((p) => ({ ...p, kind: e.target.value as HostServiceKind }))}
-        >
-          {SERVICE_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
+        <Select testId="inv-svc-kind" value={svcDraft.kind} options={SERVICE_KINDS.map((k) => ({ value: k, label: k }))} onChange={(v) => setSvcDraft((p) => ({ ...p, kind: v as HostServiceKind }))} />
         <input
           value={svcDraft.notes}
           onChange={(e) => setSvcDraft((p) => ({ ...p, notes: e.target.value }))}
@@ -880,9 +872,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
                       {editingSvcIdx != null ? (
                         <div className="inv20-svc-editor">
                           <input value={svcDraft.name} onChange={(e) => setSvcDraft((p) => ({ ...p, name: e.target.value }))} placeholder={tg('ui.173')} />
-                          <select value={svcDraft.kind} onChange={(e) => setSvcDraft((p) => ({ ...p, kind: e.target.value as HostServiceKind }))}>
-                            {SERVICE_KINDS.map((k) => (<option key={k} value={k}>{k}</option>))}
-                          </select>
+                          <Select testId="inv-svc-kind-edit" value={svcDraft.kind} options={SERVICE_KINDS.map((k) => ({ value: k, label: k }))} onChange={(v) => setSvcDraft((p) => ({ ...p, kind: v as HostServiceKind }))} />
                           <input value={svcDraft.notes} onChange={(e) => setSvcDraft((p) => ({ ...p, notes: e.target.value }))} placeholder={tg('ui.174')} />
                           <Button variant="primary" onClick={commitService}>{editingSvcIdx != null && editingSvcIdx >= 0 ? tg('ui.175') : tg('ui.176')}</Button>
                           <button type="button" onClick={() => { setEditingSvcIdx(null); setSvcDraft({ name: '', kind: 'unknown', notes: '' }) }}>{tg('dlg.cancel')}</button>

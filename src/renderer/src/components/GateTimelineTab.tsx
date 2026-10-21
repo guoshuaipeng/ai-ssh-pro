@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import Select from './ui/Select'
 import { auditEnabled, gateToCsv, loadGateEvents, type AuditEvent, type GateResult, type GateRule } from '@shared/audit-log'
 import { tg, type MessageKey } from '../lib/i18n'
 import PanelHeader from './ui/PanelHeader'
@@ -112,19 +113,9 @@ export default function GateTimelineTab({
       />
       {!auditEnabled() ? <p className="l7-muted" data-testid="s2b-audit-off">{tg('s2b.auditOffNote')}</p> : null}
       <div className="s2b-filters">
-        <select aria-label={tg('s2b.colResult')} value={result} onChange={(e) => setResult(e.target.value as GateResult | '')}>
-          <option value="">{tg('l2.all')}</option>
-          {(Object.keys(RESULT_KEY) as GateResult[]).map((key) => (
-            <option key={key} value={key}>{tg(RESULT_KEY[key])}</option>
-          ))}
-        </select>
+        <Select testId="gate-filter-result" ariaLabel={tg('s2b.colResult')} value={result} options={[{ value: '', label: tg('l2.all') }, ...(Object.keys(RESULT_KEY) as GateResult[]).map((key) => ({ value: key, label: tg(RESULT_KEY[key]) }))]} onChange={(v) => setResult(v as GateResult | '')} />
         <input value={host} aria-label={tg('l2.host')} placeholder={tg('l2.host')} onChange={(e) => setHost(e.target.value)} />
-        <select aria-label={tg('s2b.colRule')} value={rule} onChange={(e) => setRule(e.target.value as GateRule | '')}>
-          <option value="">{tg('l2.all')}</option>
-          {(Object.keys(RULE_KEY) as GateRule[]).map((key) => (
-            <option key={key} value={key}>{tg(RULE_KEY[key])}</option>
-          ))}
-        </select>
+        <Select testId="gate-filter-rule" ariaLabel={tg('s2b.colRule')} value={rule} options={[{ value: '', label: tg('l2.all') }, ...(Object.keys(RULE_KEY) as GateRule[]).map((key) => ({ value: key, label: tg(RULE_KEY[key]) }))]} onChange={(v) => setRule(v as GateRule | '')} />
         <input value={q} aria-label={tg('m2.search')} placeholder={tg('m2.search')} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="workspace-panel-body">

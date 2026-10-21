@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Select from './ui/Select'
 import {
   DEFAULT_ALERT_NOTIFY,
   DEFAULT_ALERT_RULES,
@@ -188,19 +189,7 @@ export default function AlertRulesModal({
                       {r.id === 'offline' ? '' : '%'}
                     </td>
                     <td>
-                      <select
-                        value={r.sustainMin}
-                        onChange={(e) => {
-                          const sustainMin = Number(e.target.value)
-                          setRules((prev) => prev.map((x, i) => (i === idx ? { ...x, sustainMin } : x)))
-                        }}
-                      >
-                        {[0, 1, 2, 5, 10, 15].map((n) => (
-                          <option key={n} value={n}>
-                            {t('o2.sustain', { n })}
-                          </option>
-                        ))}
-                      </select>
+                      <Select testId="alert-sustain" value={String(r.sustainMin)} options={[0, 1, 2, 5, 10, 15].map((n) => ({ value: String(n), label: t('o2.sustain', { n }) }))} onChange={(v) => { const sustainMin = Number(v); setRules((prev) => prev.map((x, i) => (i === idx ? { ...x, sustainMin } : x))) }} />
                     </td>
                   </tr>
                 )
