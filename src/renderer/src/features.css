@@ -2134,3 +2134,11 @@ legend {
 
 /* D101: ordinal for same-name tabs */
 .tab .tab-dup-n { flex: none; margin-left: var(--space-1); font-size: var(--fs-xs); color: var(--color-text-secondary); }
+
+/* D106: one layer scale. In-terminal: ghost/fab < paste/sel-ask < find bar (the bar the user is typing in wins).
+   Portaled menus sit with the context menus so they never hide behind the tab overflow list or the tour. */
+:root { --z-term-overlay: 6; --z-term-bar: 8; --z-menu: 10000; }
+.terminal-pane-wrap .terminal-find-bar { z-index: var(--z-term-bar); }
+.terminal-pane-wrap .paste-preview, .terminal-pane-wrap .term-sel-ask { z-index: var(--z-term-overlay); }
+body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
+.statusbar-split-wrap { display: inline-flex; }
