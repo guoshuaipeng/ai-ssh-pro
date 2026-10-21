@@ -2384,6 +2384,8 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .aa-status.is-ok::before { content: '✓'; margin-right: var(--space-1); font-weight: 600; }
 .aa-status.is-err { color: var(--color-danger, var(--color-warn)); }
 /* c58: errors wrap instead of being cut off; the buttons move to the next line when needed */
+/* c60: errors get a marker too, so ok / failed reads at a glance without relying on color */
+.aa-status.is-err::before { content: '!'; display: inline-grid; place-items: center; width: 1.25em; height: 1.25em; margin-right: var(--space-1); border-radius: 50%; background: var(--color-danger, var(--color-warn)); color: var(--color-bg-surface); font-weight: 700; }
 .aa-foot:has(.aa-status.is-err) { flex-wrap: wrap; }
 .aa-status.is-err { white-space: normal; overflow: visible; overflow-wrap: anywhere; flex: 1 1 100%; line-height: 1.45; }
 .aa-ask.is-warn { font-weight: 600; }
