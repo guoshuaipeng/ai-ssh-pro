@@ -1,0 +1,22 @@
+[
+ {"lang":"zh","q":"帮我添加一台服务器 10.2.3.4，用户名 ubuntu","name":"connection.add","p":{"host":"10.2.3.4","username":"ubuntu"}},
+ {"lang":"zh","q":"新建连接：db-prod 192.168.1.50 端口 2222 用户 root，密码是 hunter2","name":"connection.add","p":{"host":"192.168.1.50","port":"2222","username":"root"},"secret":"hunter2"},
+ {"lang":"zh","q":"CPU 超过 85% 持续 10 分钟就告警","name":"monitor.configure","p":{"metric":"cpu","threshold":"85","sustainMin":"10"}},
+ {"lang":"zh","q":"把磁盘告警关掉","name":"monitor.configure","p":{"metric":"disk","enabled":"off"}},
+ {"lang":"zh","q":"打开 web-01 的文件管理器，进到 /var/log","name":"sftp.open","p":{"target":"web-01","path":"/var/log"}},
+ {"lang":"zh","q":"存一个片段，标题叫查看端口，命令 ss -lntp","name":"snippet.create","p":{"title":"查看端口","command":"ss -lntp"}},
+ {"lang":"zh","q":"把本地 8080 转发到远端 127.0.0.1 的 80 端口","name":"forward.create","p":{"localPort":"8080","remotePort":"80"}},
+ {"lang":"zh","q":"同时连上 web-01、web-02 和 db-01","name":"connection.open","p":{"targets":["web-01","web-02","db-01"]}},
+ {"lang":"zh","q":"把我之前重启 nginx 的那条命令找出来","name":"history.fill","p":{"query":"nginx"}},
+ {"lang":"zh","q":"连接 api-gw-01","name":"connection.open","p":{"targets":["api-gw-01"]}},
+ {"lang":"en","q":"Add a server 10.5.6.7 with user deploy","name":"connection.add","p":{"host":"10.5.6.7","username":"deploy"}},
+ {"lang":"en","q":"Add host bastion at 172.16.0.9, user admin, my private key is at ~/.ssh/id_rsa","name":"connection.add","p":{"host":"172.16.0.9","username":"admin"},"secret":"id_rsa"},
+ {"lang":"en","q":"Alert me when memory goes above 90% for 5 minutes","name":"monitor.configure","p":{"metric":"mem","threshold":"90","sustainMin":"5"}},
+ {"lang":"en","q":"Open SFTP for db-01 at /etc/nginx","name":"sftp.open","p":{"target":"db-01","path":"/etc/nginx"}},
+ {"lang":"en","q":"Save a snippet called disk usage with the command df -h","name":"snippet.create","p":{"command":"df -h"}},
+ {"lang":"en","q":"Forward local port 5432 to remote port 5432","name":"forward.create","p":{"localPort":"5432","remotePort":"5432"}},
+ {"lang":"en","q":"Connect to web-01 and web-02","name":"connection.open","p":{"targets":["web-01","web-02"]}},
+ {"lang":"en","q":"Find the docker compose command I ran before and put it in the command bar","name":"history.fill","p":{"query":"docker"}},
+ {"lang":"en","q":"Open the file browser on api-gw-02","name":"sftp.open","p":{"target":"api-gw-02"}},
+ {"lang":"en","q":"Notify me if a host goes offline","name":"monitor.configure","p":{"metric":"offline"}}
+]

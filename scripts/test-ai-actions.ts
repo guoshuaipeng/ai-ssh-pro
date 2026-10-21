@@ -4,6 +4,8 @@ import {
   AI_ACTIONS, actionsPrompt, applyMonitorAction, buildProfileFromAction, cardReducer, getAction,
   initialValues, missingFields, redactForAi, sanitizeProposal, type CardState
 } from '../src/shared/ai-actions'
+import { cleanIpcError, proposalFromReply } from '../src/shared/ai-actions'
+import { BATCH_RISK_MIN, parseTargets, pickHistoryForAction, resolveTargets, sftpPathOk } from '../src/shared/ai-actions'
 import { auditDetailForAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction } from '../src/shared/ai-actions'
 import { parseAiAssistantReply } from '../src/shared/ipc'
 import { DEFAULT_ALERT_RULES } from '../src/shared/alert-rules'
@@ -12,7 +14,7 @@ let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 
 // registry
-ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create', 'registry order (c53+c54)')
+ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill', 'registry order (c53+c54)')
 for (const a of AI_ACTIONS) ok(a.fields.every((f) => f.labelKey.startsWith('aa.')), `${a.name} fields use aa.* i18n`)
 
 // sanitize: secrets from the model are dropped, unknown keys/actions ignored
@@ -104,5 +106,45 @@ ok(app.includes("type: 'ai.action'") && app.includes('auditDetailForAction('), '
 const shots = readFileSync('scripts/screenshot-key-screens.mjs', 'utf8')
 ok(shots.includes("name: 'e2e-ai-conn'") && shots.includes('EXPECT FAILED'), 'E2E confirm-click scenario is a hard check')
 const agent = readFileSync('src/main/ai-interactive-agent.ts', 'utf8')
-ok(agent.includes('actionsPrompt()') && agent.includes('sanitizeProposal((raw as Record<string, unknown>).appAction)') && agent.includes('redactForAi(t.content)'), 'interactive agent: prompt + sanitized appAction + redacted context')
+ok(agent.includes('actionsPrompt()') && agent.includes('proposalFromReply(raw as Record<string, unknown>)') && agent.includes('redactForAi(t.content)'), 'interactive agent: prompt + sanitized appAction + redacted context')
+// c55: batch open + second confirm, history fill, sftp path
+ok(parseTargets('a, b，c  a;d').join() === 'a,b,c,d', 'targets split on , ， ; space and dedupe')
+const rt = resolveTargets(profs, 'web-01, 10.0.0.2, ghost')
+ok(rt.found.length === 2 && rt.missing.join() === 'ghost', 'resolveTargets reports unknown targets')
+const od = getAction('connection.open')!
+ok(BATCH_RISK_MIN === 3 && !od.risk!({ targets: 'a,b' }) && od.risk!({ targets: 'a,b,c' }), 'batch of 3+ is high risk')
+let cs: CardState = { phase: 'editing', values: { targets: 'a,b,c' }, showMissing: false }
+cs = cardReducer(od, cs, { type: 'confirm' })
+ok(cs.phase === 'editing' && cs.armed === true, 'first confirm on high-risk only arms')
+ok(cardReducer(od, cs, { type: 'disarm' }).armed === false, 'disarm resets')
+ok(cardReducer(od, cs, { type: 'edit', key: 'targets', value: 'a,b,c,d' }).armed === false, 'editing disarms (must re-confirm twice)')
+ok(cardReducer(od, cs, { type: 'confirm' }).phase === 'running', 'second confirm runs')
+let low: CardState = { phase: 'editing', values: { targets: 'a' }, showMissing: false }
+ok(cardReducer(od, low, { type: 'confirm' }).phase === 'running', 'single open runs on first confirm')
+const hist = [
+  { command: 'systemctl restart nginx', hostKey: 'h2', count: 9, lastUsed: 300 },
+  { command: 'sudo systemctl restart nginx', hostKey: 'h1', count: 1, lastUsed: 100 },
+  { command: 'nginx -t', hostKey: 'h1', count: 5, lastUsed: 200 }
+]
+ok(pickHistoryForAction(hist, 'restart nginx', 'h1') === 'sudo systemctl restart nginx', 'history: all words + same host first')
+ok(pickHistoryForAction(hist, 'nginx', 'hX') === 'systemctl restart nginx', 'history: most recent otherwise')
+ok(pickHistoryForAction(hist, 'apache', 'h1') === undefined && pickHistoryForAction(hist, ' ', 'h1') === undefined, 'history: no match -> undefined')
+ok(sftpPathOk('') && sftpPathOk('/var/log') && sftpPathOk('~/app') && !sftpPathOk('var/log') && !sftpPathOk('/a\nb'), 'sftp path validation')
+const card55 = readFileSync('src/renderer/src/components/AiActionCard.tsx', 'utf8')
+ok(card55.includes('ai-action-armed') && card55.includes("type: 'disarm'"), 'card shows armed state and auto-disarms')
+ok(app.includes('runAppActionRef.current') && app.includes('requestSftpGoto(') && app.includes('fillCommandBar(activeSessionId, cmd)'), 'App wires c55 executors')
+ok(shots.includes("name: 'ai-action-open-armed'") && shots.includes('[1024, 760]'), 'armed scenario + 1024 variants')
+// c55: shapes seen in the real-model eval + IPC error cleanup + E2E coverage
+ok(proposalFromReply({ action: 'sftp.open', params: { target: 'web-01', path: '/var/log' } })?.name === 'sftp.open', 'accepts {action:<name>, params}')
+ok(proposalFromReply({ action: 'rm.everything', params: {} }) === null && proposalFromReply({ action: 'end' }) === null, 'unknown action name is ignored')
+ok(!('password' in (proposalFromReply({ action: 'connection.add', params: { host: 'h', username: 'u', password: 'x' } })?.params ?? {})), 'fallback shape still strips secrets')
+const pr = parseAiAssistantReply('{"action":"history.fill","completed":false,"params":{"query":"nginx"}}')
+ok(pr?.appAction?.name === 'history.fill' && pr.completed === true, 'parser: action-name shape -> card, no description needed')
+ok(parseAiAssistantReply('{"action":"command","command":"ls"}') === null, 'parser: still needs description for normal steps')
+ok(cleanIpcError(new Error("Error invoking remote method 'workspace:forwards:add': Error: 会话未连接")) === '会话未连接', 'IPC error prefix stripped')
+const e2eNames = ['e2e-ai-conn', 'e2e-monitor', 'e2e-snippet-dbl', 'e2e-open-batch', 'e2e-sftp', 'e2e-hist', 'e2e-forward', 'e2e-err-nosession-fwd', 'e2e-err-nosession-hist', 'e2e-err-missing', 'e2e-err-notfound', 'e2e-err-cancel-click', 'e2e-err-armed-cancel']
+ok(e2eNames.every((x) => shots.includes(`name: '${x}'`)) && shots.includes("argv.includes('--probe-fail')"), 'E2E: every action + error paths + probe-fail switch')
+ok(AI_ACTIONS.every((a) => shots.includes(`aiAction', name: '${a.name}'`)), 'E2E: every registered action has a scenario')
+const bar = readFileSync('src/renderer/src/components/SessionCommandBar.tsx', 'utf8')
+ok(bar.indexOf('const homeRef = useRef') < bar.indexOf('if (!open) {'), 'command bar hooks run before the collapsed early return (#310)')
 console.log(`test-ai-actions: ${n} passed`)
