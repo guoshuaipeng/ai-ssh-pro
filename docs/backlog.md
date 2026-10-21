@@ -376,3 +376,6 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 
 - ✅ c57：端口转发成功路径 E2E（本地测试 sshd）；playbook.create；sftp.transfer（上传需二次确认）；批量打开显示目标数。
 - 下一批（按频率）：batch.prefill 🔴、monitor.open、playbook.fromRecent。卡片错误文字换行显示（c57 遗留）。
+
+- ✅ c58：卡片错误换行；测试 sshd 支持 SFTP，补上传和下载成功路径的 E2E；batch.prefill 🔴；monitor.open；卡片输入框悬停显示完整内容。
+- 下一批（按频率）：playbook.fromRecent、alert.explain、connection.organize。

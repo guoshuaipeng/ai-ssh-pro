@@ -43,8 +43,8 @@ ActionField = { key, labelKey, type: text|number|select|secret, required?, optio
 | 3 | sftp.open 定位到目录 | SFTP | 在已完成的 target 上加 path | — |
 | 4 | snippet.create ✅ / playbook.create ✅(c57) 新建片段或剧本 | 命令 | title*, command(s)* | — |
 | 5 | sftp.transfer ✅(c57) 上传/下载指定文件 | SFTP | target*, direction*, remotePath*, localPath* | 覆盖已有文件 🔴 |
-| 6 | batch.prefill 批量执行（只填好，由用户发送） | 命令 | targets*, command* | 🔴 |
-| 7 | monitor.open 打开资源监控 | 监控 | target | — |
+| 6 | ✅(c58) batch.prefill 批量执行（只填好，由用户发送） | 命令 | targets*, command* | 🔴 |
+| 7 | ✅(c58) monitor.open 打开资源监控 | 监控 | target | — |
 | 8 | playbook.fromRecent 把最近执行的命令存成剧本 | 命令 | count(10), title* | — |
 | 9 | alert.explain 查看最近告警并归因 | 监控 | alertId / 最近一条 | 只读 |
 | 10 | connection.organize 分组、重命名、打标签 | 连接 | target*, folder, label, tags | — |
