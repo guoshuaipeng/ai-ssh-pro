@@ -22,5 +22,9 @@
  {"lang":"zh","q":"帮我建一个剧本叫“磁盘巡检”，依次执行 df -h 和 du -sh /var/log","name":"playbook.create","p":{"name":"磁盘巡检"}},
  {"lang":"en","q":"Create a playbook named nginx-check that runs nginx -t then systemctl status nginx","name":"playbook.create","p":{"name":"nginx-check"}},
  {"lang":"zh","q":"把 demo-web-01 上的 /var/log/nginx/error.log 下载到 D:\\logs\\error.log","name":"sftp.transfer","p":{"target":"demo-web-01","direction":"download","remotePath":"/var/log/nginx/error.log"}},
- {"lang":"en","q":"Upload C:\\build\\app.tar.gz to /opt/releases/app.tar.gz on demo-web-01","name":"sftp.transfer","p":{"target":"demo-web-01","direction":"upload","remotePath":"/opt/releases/app.tar.gz"}}
+ {"lang":"en","q":"Upload C:\\build\\app.tar.gz to /opt/releases/app.tar.gz on demo-web-01","name":"sftp.transfer","p":{"target":"demo-web-01","direction":"upload","remotePath":"/opt/releases/app.tar.gz"}},
+ {"lang":"zh","q":"在 demo-web-01 和 demo-mysql 上批量跑一下 uptime，先别执行，我看一眼","name":"batch.prefill","p":{"command":"uptime"}},
+ {"lang":"en","q":"Prepare a batch run of \"df -h\" on demo-web-01, demo-mysql but do not run it yet","name":"batch.prefill","p":{"command":"df -h"}},
+ {"lang":"zh","q":"打开 demo-mysql 的资源监控","name":"monitor.open","p":{"target":"demo-mysql"}},
+ {"lang":"en","q":"Show me the CPU and memory monitor for demo-web-01","name":"monitor.open","p":{"target":"demo-web-01"}}
 ]

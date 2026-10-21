@@ -15,7 +15,7 @@ let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 
 // registry
-ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer', 'registry order (c53..c57)')
+ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open', 'registry order (c53..c58)')
 for (const a of AI_ACTIONS) ok(a.fields.every((f) => f.labelKey.startsWith('aa.')), `${a.name} fields use aa.* i18n`)
 
 // sanitize: secrets from the model are dropped, unknown keys/actions ignored
@@ -172,4 +172,20 @@ ok(card57.includes("def.riskNoteKey ?? 'aa.armedNote'") && card57.includes('ai-a
 ok(['e2e-playbook', 'e2e-err-pb-missing', 'e2e-xfer-dl', 'e2e-xfer-ul-armed', 'e2e-err-xfer-badpath', 'e2e-forward-ok'].every((x) => shots.includes(`name: '${x}'`)) && shots.includes('expectFile'), 'c57 E2E scenarios')
 const sshd = readFileSync('scripts/e2e-sshd.mjs', 'utf8')
 ok(sshd.includes("listen(0, '127.0.0.1'") && sshd.includes("info.destIP !== '127.0.0.1'") && !/10\.\d+\.\d+\.\d+|\.internal|\.com\b/.test(sshd), 'test sshd is loopback-only')
+// c58: batch.prefill + monitor.open, SFTP in the test sshd, wrapped card errors
+const bp = getAction('batch.prefill')!
+ok(bp.risk?.({}) === true && bp.riskNoteKey === 'aa.batchNote' && bp.fields.map((f) => f.key).join() === 'targets,command', 'batch.prefill always asks twice')
+ok(getAction('monitor.open')!.fields.map((f) => f.key + (f.required ? '*' : '')).join() === 'target*' && !getAction('monitor.open')!.risk, 'monitor.open: one target, not high risk')
+ok([bp, getAction('monitor.open')!].every((a) => a.fields.every((f) => f.type !== 'secret')), 'c58 actions carry no secret fields')
+ok(/batch\.prefill/.test(actionsPrompt()) && /monitor\.open/.test(actionsPrompt()) && /NOT run/.test(bp.hint), 'prompt lists c58 actions; batch hint says not run')
+ok(auditDetailForAction('batch.prefill', { targets: 'a, b', command: 'uptime' }) === 'batch.prefill targets=a, b command=uptime', 'batch audit detail')
+const app58 = readFileSync('src/renderer/src/App.tsx', 'utf8')
+ok(app58.includes("name === 'batch.prefill'") && app58.includes('batchCommand: cmd') && app58.includes('initialCommand={t.batchCommand}') && !/batch\.prefill[\s\S]{0,900}batchExec\(/.test(app58), 'batch.prefill only fills the panel, never calls batchExec')
+ok(readFileSync('src/renderer/src/components/BatchExecuteModal.tsx', 'utf8').includes("useState(initialCommand ?? '')"), 'batch panel takes the prefilled command')
+const css58 = readFileSync('src/renderer/src/features.css', 'utf8')
+ok(/\.aa-status\.is-err \{[^}]*white-space: normal/.test(css58) && css58.includes('.aa-foot:has(.aa-status.is-err) { flex-wrap: wrap; }'), 'card errors wrap instead of truncating')
+ok(readFileSync('src/renderer/src/components/AiActionCard.tsx', 'utf8').includes("title={f.type === 'secret' ? undefined"), 'card inputs show the full value on hover, never for secrets')
+ok(['e2e-batch-prefill', 'e2e-err-batch-notfound', 'e2e-monitor-open', 'e2e-err-monitor-notfound', 'e2e-xfer-ok-dl', 'e2e-xfer-ok-ul'].every((x) => shots.includes(`name: '${x}'`)) && shots.includes("whiteSpace!=='nowrap'"), 'c58 E2E scenarios + wrap check')
+const sshd58 = readFileSync('scripts/e2e-sshd.mjs', 'utf8')
+ok(sshd58.includes('attachSftp(') && sshd58.includes("mkdtempSync(path.join(os.tmpdir(), 'aiss-e2e-sftp-'))") && sshd58.includes("filter(Boolean)"), 'test sshd SFTP is jailed to a temp dir')
 console.log(`test-ai-actions: ${n} passed`)

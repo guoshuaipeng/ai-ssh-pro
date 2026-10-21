@@ -143,5 +143,35 @@
    "direction": "upload",
    "remotePath": "/etc/nginx/nginx.conf"
   }
+ },
+ {
+  "lang": "zh",
+  "q": "帮我把 free -m 填到批量执行里，主机选 demo-web-01、demo-mysql",
+  "name": "batch.prefill",
+  "p": {
+   "command": "free -m"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Queue \"systemctl status nginx\" for demo-web-01 and demo-mysql in the batch panel",
+  "name": "batch.prefill",
+  "p": {}
+ },
+ {
+  "lang": "zh",
+  "q": "看看 demo-web-01 现在的负载曲线",
+  "name": "monitor.open",
+  "p": {
+   "target": "demo-web-01"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Open resource monitoring on demo-mysql",
+  "name": "monitor.open",
+  "p": {
+   "target": "demo-mysql"
+  }
  }
 ]
