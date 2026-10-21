@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import Select from './ui/Select'
 import { DEFAULT_POSTMORTEM, renderPostmortem, type PostmortemOptions, type TimelineAlert, type TimelineEvent } from '@shared/timeline'
 import { tg } from '../lib/i18n'
 import { showToast } from '../lib/toast'
@@ -53,10 +54,7 @@ export default function PostmortemTab({ alert, events, version }: Props) {
           <label className="l4-check"><input type="checkbox" checked={opts.notes} onChange={(e) => set({ notes: e.target.checked })} />{tg('w4.opt.notes')}</label>
           <label className="l4-check">
             {tg('w4.opt.lang')}
-            <select value={opts.lang} onChange={(e) => set({ lang: e.target.value === 'en' ? 'en' : 'zh' })}>
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-            </select>
+            <Select testId="w4-lang" value={opts.lang} options={[{ value: 'zh', label: '中文' }, { value: 'en', label: 'English' }]} onChange={(v) => set({ lang: v === 'en' ? 'en' : 'zh' })} />
           </label>
           <p className="l7-muted">{tg('w4.aliasLocal')}</p>
         </div>

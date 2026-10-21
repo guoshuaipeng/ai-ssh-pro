@@ -26,7 +26,7 @@ type Props = {
   style?: CSSProperties
 }
 
-/** C2: themed replacement for native <select>. Button + listbox popover, keyboard and type-ahead. */
+/** C2: themed replacement for the native select element. Button + listbox popover, keyboard and type-ahead. */
 export default function Select({ value, options, onChange, disabled, disabledReason, placeholder, ariaLabel, testId, className, style }: Props) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)

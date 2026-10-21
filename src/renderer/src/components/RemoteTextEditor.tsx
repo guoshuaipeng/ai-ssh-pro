@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Select from './ui/Select'
 import type { SftpReadTextResult } from '@shared/ipc'
 import { clearRemoteFileDirty, setRemoteFileDirty } from '../lib/remote-file-dirty'
 import { tg, useI18n } from '../lib/i18n'
@@ -347,19 +348,7 @@ export default function RemoteTextEditor({
       <div className="remote-file-statusbar">
         <span>{dirty ? tg('ui.266') : tg('ui.267')}</span>
         <label>
-          <select
-            value={lang}
-            aria-label={tg('d4.lang')}
-            onChange={(e) => setLang(e.target.value as LangId)}
-          >
-            {(['text', 'shell', 'yaml', 'json', 'ini', 'dockerfile', 'python', 'js', 'sql', 'xml', 'markdown', 'nginx'] as LangId[]).map(
-              (l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              )
-            )}
-          </select>
+          <Select testId="rte-lang" ariaLabel={tg('d4.lang')} value={lang} options={(['text', 'shell', 'yaml', 'json', 'ini', 'dockerfile', 'python', 'js', 'sql', 'xml', 'markdown', 'nginx'] as LangId[]).map((l) => ({ value: l, label: l }))} onChange={(v) => setLang(v as LangId)} />
         </label>
         <span>UTF-8</span>
         <span>

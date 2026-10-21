@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import Select from './ui/Select'
 import type { FiredAlert } from '../../../shared/alert-rules'
 import { primaryAlert } from '../../../shared/alert-locate'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
@@ -188,13 +189,7 @@ export default function MultiHostDashboard({ sessions, onClose, onOpenMonitor, o
             {scopeSlot}
             <label className="o1-sort">
               {t('o1.sort')}{' '}
-              <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label={t('o1.sort')}>
-                <option value="name">{t('o1.sortName')}</option>
-                <option value="alert">{t('o2.sortAlert')}</option>
-                <option value="cpu">CPU</option>
-                <option value="mem">{t('rm.mem')}</option>
-                <option value="disk">{t('o1.disk')}</option>
-              </select>
+              <Select testId="o1-sort" ariaLabel={t('o1.sort')} value={sort} options={[{ value: 'name', label: t('o1.sortName') }, { value: 'alert', label: t('o2.sortAlert') }, { value: 'cpu', label: 'CPU' }, { value: 'mem', label: t('rm.mem') }, { value: 'disk', label: t('o1.disk') }]} onChange={(v) => setSort(v as typeof sort)} />
             </label>
             {onOpenAlertRules ? (
               <button type="button" onClick={onOpenAlertRules}>{t('o2.rulesTitle')}</button>

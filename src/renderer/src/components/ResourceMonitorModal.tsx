@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Select from './ui/Select'
 import type { ResourceSnapshot } from '../../../shared/resource-monitor'
 import { formatBytes, formatUptime } from '../../../shared/resource-monitor'
 import { pushSample, sparklinePoints } from '../../../shared/server-tools'
@@ -149,13 +150,7 @@ export default function ResourceMonitorModal({ open, sessions, activeSessionId, 
             {!embedded ? (
             <label>
               {t('rm.session')}{' '}
-              <select value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
-                {sessions.map((s) => (
-                  <option key={s.sessionId} value={s.sessionId}>
-                    {s.title}
-                  </option>
-                ))}
-              </select>
+              <Select testId="rm-session" value={sessionId} options={sessions.map((s) => ({ value: s.sessionId, label: s.title }))} onChange={setSessionId} />
             </label>
             ) : (
               <span className="rm-host-label">{sessions.find((s) => s.sessionId === sessionId)?.title || ''}</span>

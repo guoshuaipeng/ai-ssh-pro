@@ -1,4 +1,5 @@
 import { PROBE_HARD_MAX, PROBE_MOUNT_MAX, normalizeMountPath, type ProbePrefs, type ProbeScopeMode } from '@shared/health-probe'
+import Select from './ui/Select'
 import { promptDialog } from '../lib/dialogs'
 import { useI18n } from '../lib/i18n'
 
@@ -25,15 +26,7 @@ export default function HealthProbeFields({
       </label>
       <label className="settings-row">
         <span>{t('l7b.scope')}</span>
-        <select
-          value={prefs.scope}
-          aria-label={t('l7b.scope')}
-          onChange={(e) => onChange({ scope: e.target.value as ProbeScopeMode })}
-        >
-          <option value="group">{t('l7b.scopeGroup')}</option>
-          <option value="recent">{t('l7b.scopeRecent')}</option>
-          <option value="all">{t('l7b.scopeAll')}</option>
-        </select>
+        <Select testId="probe-scope" ariaLabel={t('l7b.scope')} value={prefs.scope} options={[{ value: 'group', label: t('l7b.scopeGroup') }, { value: 'recent', label: t('l7b.scopeRecent') }, { value: 'all', label: t('l7b.scopeAll') }]} onChange={(v) => onChange({ scope: v as ProbeScopeMode })} />
       </label>
       <label className="settings-row">
         <span>{t('l7b.maxConcurrent')}</span>

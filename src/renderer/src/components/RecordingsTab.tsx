@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import Select from './ui/Select'
 import { decodeCast, playbackSchedule, type CastEvent } from '@shared/asciicast'
 import { CLIP_GIF_MAX_SEC, clampGifMax, clipFrames, clipGifAllowed, clipMarkdown, clipSpanSec } from '@shared/cast-clip'
 import { gifFromTextFrames } from '@shared/cast-gif'
@@ -202,11 +203,7 @@ export function RecordingPlayer({ file, onClose }: { file: string; onClose: () =
             setPos(Number(e.target.value))
           }}
         />
-        <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label={tg('m2.speed')}>
-          <option value={1}>1×</option>
-          <option value={2}>2×</option>
-          <option value={4}>4×</option>
-        </select>
+        <Select testId="cast-speed" ariaLabel={tg('m2.speed')} value={String(speed)} options={[1, 2, 4].map((n) => ({ value: String(n), label: n + '×' }))} onChange={(v) => setSpeed(Number(v))} />
         <label>
           <input type="checkbox" checked={skipIdle} onChange={(e) => setSkipIdle(e.target.checked)} />
           {tg('m2.skipIdle')}
