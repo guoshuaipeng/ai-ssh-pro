@@ -7,6 +7,7 @@ import EmptyState from './EmptyState'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
 import { openContextMenu } from './ContextMenu'
+import DateField from './ui/DateField'
 import { auditRangeSince, type AuditRange } from '@shared/audit-range'
 
 export default function AuditLogPanel({
@@ -143,9 +144,9 @@ export default function AuditLogPanel({
         />
         {range === 'custom' ? (
           <span className="au2-dates" data-testid="audit-dates">
-            <input type="date" value={since} onChange={(e) => setSince(e.target.value)} aria-label={t('m2.since')} />
+            <DateField testId="audit-since" value={since} max={until || undefined} onChange={setSince} ariaLabel={t('m2.since')} placeholder={t('df.start')} />
             <span className="l7-meta">{t('au2.to')}</span>
-            <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} aria-label={t('m2.until')} />
+            <DateField testId="audit-until" value={until} min={since || undefined} onChange={setUntil} ariaLabel={t('m2.until')} placeholder={t('df.end')} />
           </span>
         ) : null}
         <span className="l7-meta au2-count" data-testid="audit-count">{t('au2.count', { n: rows.length })}</span>
