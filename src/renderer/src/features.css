@@ -2375,3 +2375,4 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .aa-note, .aa-status { margin-right: auto; font-size: var(--fs-xs); color: var(--color-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aa-status.is-ok { color: var(--color-success, var(--accent)); }
 .aa-status.is-err { color: var(--color-danger, var(--color-warn)); }
+.aa-ask.is-warn { font-weight: 600; }

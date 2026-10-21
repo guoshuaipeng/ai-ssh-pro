@@ -1,5 +1,6 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
-import { applyMonitorAction, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, type ActionResult } from '@shared/ai-actions'
+import { requestSftpGoto } from './lib/sftp-goto'
+import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, type ActionResult } from '@shared/ai-actions'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -2577,7 +2578,7 @@ export default function App() {
   // c53 AA1: executors for AI-proposed app actions. Only called after the user confirms the card.
   const onAppAction = useCallback(
     async (name: string, v: Record<string, string>): Promise<ActionResult> => {
-      const r = await runAppAction(name, v)
+      const r = await runAppActionRef.current(name, v)
       // c54: every confirmed AI action lands in the audit log (secrets never included)
       appendAudit({ type: 'ai.action', host: v.host || v.target || '', source: 'AI', outcome: r.ok ? 'allowed' : 'blocked', detail: auditDetailForAction(name, v) + (r.ok ? '' : ' · ' + (r.message ?? '')) })
       return r
@@ -2585,19 +2586,38 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [folders, persistSessionState, alertRules, showToast, activeSessionId]
   )
-  const runAppAction = async (name: string, v: Record<string, string>): Promise<ActionResult> => {
+  // c55: always run the latest executor (onAppAction is memoized; this avoids stale state)
+  const runAppActionRef = useRef<(name: string, v: Record<string, string>) => Promise<ActionResult>>(async () => ({ ok: false }))
+  runAppActionRef.current = async (name: string, v: Record<string, string>): Promise<ActionResult> => {
     {
+      if (name === 'connection.open') {
+        const r = resolveTargets(profilesRef.current, v.targets ?? '')
+        if (r.missing.length) return { ok: false, message: tg('aa.noTarget', { target: r.missing.join(tg('aa.sep')) }) }
+        for (const prof of r.found) void connectProfile(prof)
+        const msg = tg('aa.connOpened', { n: r.found.length })
+        showToast(msg)
+        return { ok: true, message: msg }
+      }
+      if (name === 'history.fill') {
+        if (!activeSessionId) return { ok: false, message: tg('aa.noSession') }
+        const cmd = pickHistoryForAction(loadSmartHistory(), v.query ?? '', activeTab ? sessionHostKey(activeTab) : '')
+        if (!cmd) return { ok: false, message: tg('aa.noHistory', { query: v.query ?? '' }) }
+        fillCommandBar(activeSessionId, cmd)
+        return { ok: true, message: tg('aa.histFilled', { cmd }) }
+      }
       if (name === 'sftp.open') {
         const prof = findProfileForAction(profilesRef.current, v.target ?? '')
         if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        openSftpFromHost(prof)
+        if (!sftpPathOk(v.path ?? '')) return { ok: false, message: tg('aa.badPath') }
+        openSftpFromHost(prof, (v.path ?? '').trim() || undefined)
         return { ok: true, message: tg('aa.sftpOpened', { name: prof.label }) }
       }
       if (name === 'snippet.create') {
         const cur = await window.aiss.snippets.list()
         const r = buildSnippetFromAction(v, cur, uuid)
         await window.aiss.snippets.save(r.list)
-        openRightPanelRef.current('snippets')
+        // c55: stay on the AI panel so the card shows its result (E2E caught the card vanishing)
+        window.dispatchEvent(new CustomEvent('aiss-snippets-changed'))
         const msg = tg('aa.snippetSaved', { name: r.snippet.title })
         showToast(msg)
         return { ok: true, message: msg }
@@ -2605,7 +2625,11 @@ export default function App() {
       if (name === 'forward.create') {
         if (!activeSessionId) return { ok: false, message: tg('aa.noSession') }
         const req = forwardRequestFromAction(v, activeSessionId)
-        await window.aiss.workspace.forwards.add(req)
+        try {
+          await window.aiss.workspace.forwards.add(req)
+        } catch (err) {
+          return { ok: false, message: cleanIpcError(err) }
+        }
         const msg = tg('aa.forwardAdded', { local: req.localPort, remote: `${req.remoteHost}:${req.remotePort}` })
         showToast(msg)
         return { ok: true, message: msg }
@@ -6863,13 +6887,14 @@ export default function App() {
     },
     [connectProfile]
   )
-  const openSftpFromHost = useCallback((p: SavedSessionProfile) => {
+  const openSftpFromHost = useCallback((p: SavedSessionProfile, gotoPath?: string) => {
     setSessionMenu(null)
     showToast(tg('toolbar.sftpTitle'))
     const live = tabsRef.current.find(
       (x) => x.profileId === p.id && x.status === 'connected' && x.sessionId && (!x.view || x.view === 'session') && x.kind !== 'local'
     )
     if (live?.sessionId) {
+      if (gotoPath) requestSftpGoto(live.sessionId, gotoPath)
       openSftpTransfer(live.sessionId, { alignCwd: false })
       return
     }
@@ -6879,6 +6904,7 @@ export default function App() {
       return
     }
     void ensureProfileSession(p).then((sid) => {
+      if (sid && gotoPath) requestSftpGoto(sid, gotoPath)
       setTabs((prev) =>
         prev.map((t) =>
           t.tabId === tabId

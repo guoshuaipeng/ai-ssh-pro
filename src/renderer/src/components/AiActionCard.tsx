@@ -38,6 +38,12 @@ export default function AiActionCard({ proposal, onRun }: Props) {
       dispatch({ type: 'confirm' })
       return
     }
+    if (def.risk?.(s.values) && !s.armed) {
+      // c55: high-risk -> first click arms, auto-disarm after 4s
+      dispatch({ type: 'confirm' })
+      window.setTimeout(() => dispatch({ type: 'disarm' }), 4000)
+      return
+    }
     busy.current = true
     dispatch({ type: 'confirm' })
     try {
@@ -98,6 +104,9 @@ export default function AiActionCard({ proposal, onRun }: Props) {
           )
         })}
       </div>
+      {s.armed && open ? (
+        <p className="aa-ask is-warn" role="alert" data-testid="ai-action-armed">{tg('aa.armedNote')}</p>
+      ) : null}
       <div className="aa-foot">
         {s.phase === 'done' ? (
           <span className="aa-status is-ok" data-testid="ai-action-done">{s.message || tg('aa.done')}</span>
@@ -105,12 +114,16 @@ export default function AiActionCard({ proposal, onRun }: Props) {
           <span className="aa-status" data-testid="ai-action-cancelled">{tg('aa.cancelled')}</span>
         ) : (
           <>
-            {s.phase === 'error' ? <span className="aa-status is-err">{s.message || tg('aa.failed')}</span> : <span className="aa-note">{tg('aa.note')}</span>}
-            <button type="button" data-testid="ai-action-cancel" disabled={!open} onClick={() => dispatch({ type: 'cancel' })}>
+            {s.phase === 'error' ? (
+              <span className="aa-status is-err">{s.message || tg('aa.failed')}</span>
+            ) : (
+              <span className="aa-note">{tg('aa.note')}</span>
+            )}
+            <Button variant="ghost" data-testid="ai-action-cancel" disabled={!open} onClick={() => dispatch({ type: 'cancel' })}>
               {tg('aa.cancel')}
-            </button>
-            <Button variant="primary" data-testid="ai-action-confirm" disabled={s.phase === 'running'} onClick={() => void runConfirmed()}>
-              {s.phase === 'running' ? tg('aa.running') : tg('aa.confirm')}
+            </Button>
+            <Button variant={s.armed ? 'danger' : 'primary'} data-testid="ai-action-confirm" disabled={s.phase === 'running'} onClick={() => void runConfirmed()}>
+              {s.phase === 'running' ? tg('aa.running') : s.armed ? tg('aa.confirmAgain') : tg('aa.confirm')}
             </Button>
           </>
         )}

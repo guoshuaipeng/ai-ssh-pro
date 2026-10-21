@@ -29,6 +29,8 @@ export type ActionDef = {
   /** One line for the model: when to propose this action. */
   hint: string
   fields: ActionField[]
+  /** c55: high-risk when this returns true -> the card needs a second confirm. */
+  risk?: (values: Record<string, string>) => boolean
 }
 
 export type AppActionProposal = { name: string; params: Record<string, string> }
@@ -93,8 +95,29 @@ const MONITOR_CONFIGURE: ActionDef = {
 const SFTP_OPEN: ActionDef = {
   name: 'sftp.open',
   titleKey: 'aa.sftp.title',
-  hint: 'open the SFTP file browser for a saved connection (target = its name or host)',
-  fields: [{ key: 'target', labelKey: 'aa.f.target', type: 'text', required: true, placeholder: 'web-01' }]
+  hint: 'open the SFTP file browser for a saved connection (target = its name or host), optionally at a directory (path starts with / or ~)',
+  fields: [
+    { key: 'target', labelKey: 'aa.f.target', type: 'text', required: true, placeholder: 'web-01' },
+    { key: 'path', labelKey: 'aa.f.path', type: 'text', placeholder: '/var/log' }
+  ]
+}
+
+/** c55: three or more connections at once counts as a batch -> second confirm. */
+export const BATCH_RISK_MIN = 3
+
+const CONNECTION_OPEN: ActionDef = {
+  name: 'connection.open',
+  titleKey: 'aa.open.title',
+  hint: 'connect to one or more saved connections (targets = names or hosts separated by commas)',
+  fields: [{ key: 'targets', labelKey: 'aa.f.targets', type: 'text', required: true, placeholder: 'web-01, web-02' }],
+  risk: (v) => parseTargets(v.targets ?? '').length >= BATCH_RISK_MIN
+}
+
+const HISTORY_FILL: ActionDef = {
+  name: 'history.fill',
+  titleKey: 'aa.hist.title',
+  hint: 'find a previously run command in local history and put it in the command bar (never sent automatically); query = keywords',
+  fields: [{ key: 'query', labelKey: 'aa.f.query', type: 'text', required: true, placeholder: 'nginx' }]
 }
 
 const SNIPPET_CREATE: ActionDef = {
@@ -119,7 +142,7 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE]
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)
@@ -183,7 +206,7 @@ export function actionsPrompt(): string {
     return `- ${a.name}: ${a.hint}; params { ${ps.join(', ')} }`
   })
   return [
-    'App actions: when the user asks to operate this app itself (not the remote server), reply with action=end, completed=true and an "appAction" object { "name": string, "params": object }.',
+    'App actions: when the user asks to operate this app itself (not the remote server), reply with action=end, completed=true and an "appAction" object { "name": string, "params": object }. Never put the action name into the action field. Example: {"description":"...","action":"end","completed":true,"riskLevel":"low","appAction":{"name":"sftp.open","params":{"target":"web-01","path":"/var/log"}}}',
     'The UI shows a prefilled form; nothing runs until the user confirms. Leave unknown params out (the form asks the user).',
     'Never include passwords, private keys, passphrases or tokens in params.',
     ...lines
@@ -203,22 +226,27 @@ export function redactForAi(text: string): string {
 
 // ---- card state machine (shared so it is unit-tested) ----
 export type CardPhase = 'editing' | 'running' | 'done' | 'cancelled' | 'error'
-export type CardState = { phase: CardPhase; values: Record<string, string>; showMissing: boolean; message?: string }
+export type CardState = { phase: CardPhase; values: Record<string, string>; showMissing: boolean; message?: string; armed?: boolean }
 export type CardEvent =
   | { type: 'edit'; key: string; value: string }
   | { type: 'confirm' }
   | { type: 'cancel' }
   | { type: 'finish'; ok: boolean; message?: string }
+  | { type: 'disarm' }
 
 export function cardReducer(def: ActionDef, s: CardState, e: CardEvent): CardState {
   const open = s.phase === 'editing' || s.phase === 'error'
   switch (e.type) {
     case 'edit':
-      return open ? { ...s, phase: 'editing', values: { ...s.values, [e.key]: e.value } } : s
+      return open ? { ...s, phase: 'editing', values: { ...s.values, [e.key]: e.value }, armed: false } : s
     case 'confirm':
       if (!open) return s
-      if (missingFields(def, s.values).length) return { ...s, phase: 'editing', showMissing: true }
-      return { ...s, phase: 'running', message: undefined }
+      if (missingFields(def, s.values).length) return { ...s, phase: 'editing', showMissing: true, armed: false }
+      // c55: high-risk -> first confirm only arms; the second one runs
+      if (def.risk?.(s.values) && !s.armed) return { ...s, armed: true }
+      return { ...s, phase: 'running', message: undefined, armed: false }
+    case 'disarm':
+      return s.armed ? { ...s, armed: false } : s
     case 'cancel':
       return open ? { ...s, phase: 'cancelled' } : s
     case 'finish':
@@ -297,4 +325,58 @@ export function auditDetailForAction(name: string, v: Record<string, string>): s
   const def = getAction(name)
   const parts = (def?.fields ?? []).filter((f) => f.type !== 'secret' && (v[f.key] ?? '').trim()).map((f) => `${f.key}=${v[f.key].trim()}`)
   return `${name} ${parts.join(' ')}`.trim()
+}
+
+/** c55: split "a, b，c d" into unique targets (max 20). */
+export function parseTargets(raw: string): string[] {
+  const out: string[] = []
+  for (const t of raw.split(/[,，;；\s]+/)) {
+    const x = t.trim()
+    if (x && !out.some((o) => o.toLowerCase() === x.toLowerCase())) out.push(x)
+  }
+  return out.slice(0, 20)
+}
+
+export function resolveTargets(profiles: readonly SavedSessionProfile[], raw: string): { found: SavedSessionProfile[]; missing: string[] } {
+  const found: SavedSessionProfile[] = []
+  const missing: string[] = []
+  for (const t of parseTargets(raw)) {
+    const p = findProfileForAction(profiles, t)
+    if (!p) missing.push(t)
+    else if (!found.includes(p)) found.push(p)
+  }
+  return { found, missing }
+}
+
+/** c55: SFTP start dir must be absolute or home-relative, no control chars. Empty = default. */
+export function sftpPathOk(path: string): boolean {
+  const t = path.trim()
+  return !t || (/^[~/]/.test(t) && !/[\u0000-\u001f]/.test(t))
+}
+
+/** c55: best history match. All keywords must appear; same host first, then most recent, then most used. */
+export function pickHistoryForAction(
+  entries: readonly { command: string; hostKey: string; count: number; lastUsed: number }[],
+  query: string,
+  hostKey: string
+): string | undefined {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return undefined
+  const hits = entries.filter((e) => words.every((w) => e.command.toLowerCase().includes(w)))
+  hits.sort((a, b) => Number(b.hostKey === hostKey) - Number(a.hostKey === hostKey) || b.lastUsed - a.lastUsed || b.count - a.count)
+  return hits[0]?.command
+}
+
+/** c55: "Error invoking remote method 'x': Error: msg" -> "msg" for the card. */
+export function cleanIpcError(err: unknown): string {
+  const raw = String((err as Error)?.message ?? err)
+  return raw.replace(/^Error invoking remote method '[^']+':\s*/, '').replace(/^Error:\s*/, '')
+}
+
+/** c55 (real-model eval): models sometimes reply {"action":"sftp.open","params":{...}}. Accept that shape too. */
+export function proposalFromReply(obj: Record<string, unknown>): AppActionProposal | null {
+  const direct = sanitizeProposal(obj.appAction)
+  if (direct) return direct
+  if (typeof obj.action === 'string' && getAction(obj.action)) return sanitizeProposal({ name: obj.action, params: obj.params ?? {} })
+  return null
 }
