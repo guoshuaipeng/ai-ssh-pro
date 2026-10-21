@@ -21,7 +21,9 @@ assert.match(styles, /\.workspace-panel-toolbar\s*\{[^}]*padding:\s*var\(--space
 assert.match(styles, /\.workspace-panel-title\s*\{[^}]*font-size:\s*var\(--fs-sm\)/)
 assert.match(styles, /\.sidebar-header\s*\{[^}]*border-bottom:\s*1px solid var\(--color-border-muted\)/)
 assert.match(styles, /\.sidebar-header h3\s*\{[^}]*font-size:\s*var\(--fs-sm\)/)
-assert.match(styles, /\.split-toolbar\s*\{[^}]*border-bottom:\s*1px solid var\(--color-border-muted\)/)
+// S41: the split toolbar row is gone; its controls live in the pane strips (features.css)
+assert.ok(!/\.split-toolbar\s*\{/.test(styles))
+assert.match(readFileSync('src/renderer/src/features.css', 'utf8'), /\.split-pane-ctl \{[^}]*gap: var\(--space-1\)/)
 assert.ok(styles.includes('input:focus-visible'))
 assert.ok(styles.includes('textarea:focus-visible'))
 

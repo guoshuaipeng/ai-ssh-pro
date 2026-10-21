@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import type { TerminalPrefs } from '@shared/ipc'
 import { reduceSplitFocus, splitPaneClass, splitSideCurrent, type SplitSide } from '@shared/split-focus'
 import TerminalPane from './TerminalPane'
+import Icon from './Icon'
+import Select from './ui/Select'
 
 type Peer = { sessionId: string; title: string }
 
@@ -25,6 +27,10 @@ type Props = {
   onInputBlocked?: () => void
   onGateInput?: (sessionId: string, data: string) => void
   onOpenSftp?: (sessionId: string) => void
+  /** S41: broadcast pill on the strip (App decides: opens the target picker or turns it off). */
+  onToggleBroadcast?: () => void
+  /** S41: × on the strip; App runs the same toggleSplit path as the tab-bar button (live ref). */
+  onCloseSplit?: () => void
 }
 
 const LS_RATIO = 'aiss.split.ratio'
@@ -43,6 +49,8 @@ type SlotProps = {
   focused: SplitSide
   title: string
   pane: PaneModel
+  /** S41: 'primary' = the tab's own session; 'secondary' = mirror or another session */
+  role: 'primary' | 'secondary'
   flex: string
   active: boolean
   prefs?: TerminalPrefs
@@ -53,6 +61,10 @@ type SlotProps = {
   onGateInput?: (sessionId: string, data: string) => void
   gate: boolean
   onFocusSide: (side: SplitSide) => void
+  /** Strip content after the role badge (title or session Select). */
+  label: ReactNode
+  /** Strip controls on the right (only the first slot carries the shared ones). */
+  controls?: ReactNode
 }
 
 /** IX-6: the pane owns the pointer, so a click on the tab strip or the content focuses this side. */
@@ -61,6 +73,7 @@ function SplitPaneSlot({
   focused,
   title,
   pane,
+  role,
   flex,
   active,
   prefs,
@@ -70,13 +83,16 @@ function SplitPaneSlot({
   onOpenSftp,
   onGateInput,
   gate,
-  onFocusSide
+  onFocusSide,
+  label,
+  controls
 }: SlotProps) {
   const current = splitSideCurrent(side, focused)
   return (
     <div
       className={splitPaneClass(side, focused)}
       data-split-side={side}
+      data-split-role={role}
       data-testid={`split-pane-${side}`}
       data-session-id={pane.id}
       aria-current={current}
@@ -84,15 +100,21 @@ function SplitPaneSlot({
       onMouseDownCapture={(e) => {
         onFocusSide(side)
         const target = e.target
-        if (target instanceof Element && target.closest('.split-pane-tab')) {
+        // S41: strip controls keep their own focus; only the bare strip hands focus to the terminal
+        if (target instanceof Element && target.closest('.split-pane-tab') && !target.closest('button, .split-pane-ctl')) {
           const area = e.currentTarget.querySelector('.xterm-helper-textarea')
           if (area instanceof HTMLElement) area.focus()
         }
       }}
       onFocusCapture={() => onFocusSide(side)}
     >
-      <div className="split-pane-tab" data-testid={`split-tab-${side}`} aria-current={current}>
-        <span className="split-pane-tab-title">{title}</span>
+      <div className="split-pane-tab" data-testid={`split-tab-${side}`} aria-current={current} title={title}>
+        <span className={`split-role split-role--${role}`} data-testid={`split-role-${side}`}>
+          {tg(role === 'primary' ? 's41.primary' : 's41.secondary')}
+        </span>
+        {label}
+        {current ? <span className="split-focus-dot" aria-hidden title={tg('s41.focused')} /> : null}
+        {controls ? <div className="split-pane-ctl">{controls}</div> : null}
       </div>
       <div className="split-pane-body">
         <TerminalPane
@@ -112,6 +134,15 @@ function SplitPaneSlot({
   )
 }
 
+/** S41: square icon button; a disabled one still explains itself (title on a wrapper span). */
+function StripBtn({ label, tip, disabled, onClick, testId, children }: { label: string; tip: string; disabled?: boolean; onClick: () => void; testId: string; children: ReactNode }) {
+  const btn = (
+    <button type="button" className="split-icon-btn" aria-label={label} title={tip} disabled={disabled} onClick={onClick} data-testid={testId}>
+      {children}
+    </button>
+  )
+  return disabled ? <span className="split-icon-wrap" title={tip}>{btn}</span> : btn
+}
 /**
  * Split view.
  * - Second pane mirrors the same session (display-only unless broadcast), or shows another
@@ -132,7 +163,9 @@ export default function SplitTerminalView({
   inputBlocked,
   onInputBlocked,
   onGateInput,
-  onOpenSftp
+  onOpenSftp,
+  onToggleBroadcast,
+  onCloseSplit
 }: Props) {
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>(() => {
     const v = localStorage.getItem(LS_ORIENT)
@@ -192,37 +225,73 @@ export default function SplitTerminalView({
     return peers.find((p) => p.sessionId === pane.id)?.title || pane.id
   }
 
+  const secondIsA = swapped && Boolean(secondary)
+  const secondOptions = [
+    { value: '', label: tg('split.mirror'), hint: tg('s41.mirrorHint') },
+    ...peers.map((p) => ({ value: p.sessionId, label: p.title }))
+  ]
+  const sessionSelect = (
+    <Select
+      value={secondary}
+      options={secondOptions}
+      onChange={(v) => {
+        setSecondary(v)
+        if (!v) setSwapped(false)
+      }}
+      ariaLabel={tg('split.second')}
+      testId="split-second"
+      className="split-pane-select split-pane-ctl"
+    />
+  )
+  const primaryLabel = <span className="split-pane-tab-title">{titleOf(first)}</span>
+  const swapTip = secondary ? tg('s41.swap') : tg('s41.swapDisabled')
+  const sharedControls = (
+    <>
+      <button
+        type="button"
+        className={`split-bc-pill${broadcastEnabled ? ' is-on' : ''}`}
+        role="switch"
+        aria-checked={broadcastEnabled}
+        data-testid="split-broadcast"
+        title={tg(broadcastEnabled ? 's41.bcTipOn' : 's41.bcTipOff')}
+        onClick={() => onToggleBroadcast?.()}
+        disabled={!onToggleBroadcast}
+      >
+        <span className="split-bc-dot" aria-hidden />
+        {tg(broadcastEnabled ? 's41.bcOn' : 's41.bcOff')}
+      </button>
+      <StripBtn
+        testId="split-orient"
+        label={tg('split.toggleTip')}
+        tip={tg(horizontal ? 's41.orientH' : 's41.orientV')}
+        onClick={() => setOrientation((o) => (o === 'horizontal' ? 'vertical' : 'horizontal'))}
+      >
+        {horizontal ? (
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" /><path d="M8 2.5v11" stroke="currentColor" strokeWidth="1.35" /></svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" /><path d="M1.5 8h13" stroke="currentColor" strokeWidth="1.35" /></svg>
+        )}
+      </StripBtn>
+      <StripBtn testId="split-swap" label={tg('s41.swap')} tip={swapTip} disabled={!secondary} onClick={() => setSwapped((v) => !v)}>
+        <Icon name="arrow-left-right" size={14} />
+      </StripBtn>
+      <StripBtn testId="split-equal" label={tg('s41.equal')} tip={tg('s41.equal')} disabled={ratio === 0.5} onClick={() => setRatio(0.5)}>
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden><path d="M3 5.5h10M3 10.5h10" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" /></svg>
+      </StripBtn>
+      {onCloseSplit ? (
+        <StripBtn testId="split-close" label={tg('s41.close')} tip={tg('s41.close')} onClick={onCloseSplit}>
+          <Icon name="x" size={14} />
+        </StripBtn>
+      ) : null}
+    </>
+  )
+
   return (
-    <div className="split-view" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0 }}>
-      <div className="split-toolbar">
-        <span>{tg('split.title')}</span>
-        <button
-          type="button"
-          className="ai-fill-cmd-btn"
-          onClick={() => setOrientation((o) => (o === 'horizontal' ? 'vertical' : 'horizontal'))}
-          title={tg('split.toggleTip')}
-        >
-          {horizontal ? tg('split.horizontal') : tg('split.vertical')}
-        </button>
-        <label className="split-second">
-          {tg('split.second')}{' '}
-          <select aria-label={tg('split.second')} value={secondary} onChange={(e) => setSecondary(e.target.value)}>
-            <option value="">{tg('split.mirror')}</option>
-            {peers.map((p) => (
-              <option key={p.sessionId} value={p.sessionId}>
-                {p.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" className="ai-fill-cmd-btn" disabled={!secondary} onClick={() => setSwapped((s) => !s)}>
-          {tg('split.swap')}
-        </button>
-        <button type="button" className="ai-fill-cmd-btn" onClick={() => setRatio(0.5)}>
-          {tg('split.reset')}
-        </button>
-        <span style={{ marginLeft: 'auto' }}>{broadcastEnabled ? tg('split.bcOn') : tg('split.bcOff')}</span>
-      </div>
+    <div
+      className={`split-view${broadcastEnabled ? ' is-broadcast' : ''}`}
+      data-testid="split-view"
+      style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0 }}
+    >
       <div
         ref={boxRef}
         className={`split-body split-${orientation}`}
@@ -233,6 +302,9 @@ export default function SplitTerminalView({
           focused={focused}
           title={titleOf(a)}
           pane={a}
+          role={secondIsA ? 'secondary' : 'primary'}
+          label={secondIsA ? sessionSelect : primaryLabel}
+          controls={sharedControls}
           flex={`0 0 ${ratio * 100}%`}
           active={active}
           prefs={prefs}
@@ -258,6 +330,8 @@ export default function SplitTerminalView({
           focused={focused}
           title={titleOf(b)}
           pane={b}
+          role={secondIsA ? 'primary' : 'secondary'}
+          label={secondIsA ? primaryLabel : sessionSelect}
           flex="1 1 0"
           active={active}
           prefs={prefs}

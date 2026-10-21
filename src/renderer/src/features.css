@@ -2082,3 +2082,40 @@ legend {
 /* P40: command FAB sits in the scrollbar gutter and fades at rest so it covers less of the last column */
 .session-command-fab { right: 12px; bottom: 12px; width: 30px; height: 30px; opacity: .6; transition: opacity var(--duration-fast) var(--easing-standard); }
 .session-command-fab:hover, .session-command-fab:focus-visible { opacity: 1; }
+
+/* S41: split controls live in the pane strips (no separate toolbar row) */
+.split-pane-tab { gap: var(--space-2); }
+.split-role {
+  flex: none; padding: 0 var(--space-1); border-radius: var(--radius-sm);
+  font-size: var(--fs-xs); line-height: 1.6; color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+}
+.split-role--primary { color: var(--color-accent); border-color: var(--color-accent); }
+.split-focus-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); }
+.split-pane-ctl { margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-1); flex: none; }
+.split-pane-tab > .split-pane-select { flex: 0 1 220px; min-width: 120px; margin-left: 0; }
+.split-pane-tab > .split-pane-select + .split-focus-dot { margin-right: auto; }
+.split-pane-tab > .split-pane-select ~ .split-pane-ctl { margin-left: 0; }
+.split-icon-wrap { display: inline-flex; }
+.split-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--color-text-secondary); cursor: pointer;
+}
+.split-icon-btn:hover:not(:disabled) { background: var(--color-row-hover-bg); color: var(--color-text-primary); }
+.split-icon-btn:focus-visible { outline: 1px solid var(--color-accent); }
+.split-icon-btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+.split-bc-pill {
+  display: inline-flex; align-items: center; gap: var(--space-1); height: 22px; padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-default); border-radius: 999px; background: transparent;
+  color: var(--color-text-secondary); font-size: var(--fs-xs); cursor: pointer; white-space: nowrap;
+}
+.split-bc-pill:hover { border-color: var(--color-text-secondary); }
+.split-bc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-border-default); }
+.split-bc-pill.is-on { border-color: var(--color-warn); color: var(--color-warn); }
+.split-bc-pill.is-on .split-bc-dot { background: var(--color-warn); }
+/* focused pane: accent frame on the body too (the strip keeps its IX-6 top accent) */
+.split-pane.is-focused .split-pane-body { box-shadow: inset 0 0 0 1px var(--color-accent); }
+/* broadcast: both panes framed in the warning colour so typing into two hosts is obvious */
+.split-view.is-broadcast .split-pane-body { box-shadow: inset 0 0 0 1px var(--color-warn); }
+.split-view.is-broadcast .split-pane.is-focused .split-pane-body { box-shadow: inset 0 0 0 2px var(--color-warn); }

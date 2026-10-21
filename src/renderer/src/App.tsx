@@ -9917,6 +9917,8 @@ export default function App() {
                       onGateInput={handleTermInput}
                       onOpenSftp={(sid) => openSftpTransfer(sid, { alignCwd: true })}
                       onSecondaryChange={setSplitSecondary}
+                      onToggleBroadcast={() => handleTitlebarMenuActionRef.current('toggleBroadcast')}
+                      onCloseSplit={() => handleTitlebarMenuActionRef.current('toggleSplit')}
                       primaryTitle={labelFor(t)}
                       peers={connectedSshSessions
                         .filter((x) => x.sessionId !== t.sessionId)
