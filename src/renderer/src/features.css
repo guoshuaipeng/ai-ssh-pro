@@ -2320,3 +2320,11 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .s2b-filters .ui-select, .s2b-filters [data-testid^="gate-filter"] { flex: none; }
 .inv20-head { flex-wrap: wrap; row-gap: var(--space-2); }
 .inv20-head-actions { margin-left: auto; }
+/* c50 IN1: host inventory narrow layout (container, not viewport) */
+.workspace-panel-body:has(> .inventory-layout), .workspace-panel-inner:has(> .inventory-layout) { container-type: inline-size; container-name: inv; }
+@container inv (max-width: 680px) {
+  .inventory-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .inventory-list-pane { border-right: none; border-bottom: 1px solid var(--border); max-height: 30%; overflow: auto; }
+  .inventory-search-row { flex-wrap: nowrap; }
+  .inventory-grid-2 { grid-template-columns: 1fr; }
+}
