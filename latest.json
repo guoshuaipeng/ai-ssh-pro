@@ -1,26 +1,26 @@
 {
   "schemaVersion": 1,
-  "version": "0.6.63",
-  "date": "2026-10-20",
-  "releaseNotesUrl": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/tag/v0.6.63",
+  "version": "0.7.0",
+  "date": "2026-10-21",
+  "releaseNotesUrl": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/tag/v0.7.0",
   "downloads": {
     "win32-x64": {
-      "file": "AI-SSH-Pro-0.6.63-win-x64.exe",
-      "size": 176609919,
-      "sha256": "6cfbea441067b7921ef9a3fade0ae73e4fd90ed3fcdf0de82c94f0827d630595",
-      "url": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.6.63/AI-SSH-Pro-0.6.63-win-x64.exe"
+      "file": "AI-SSH-Pro-0.7.0-win-x64.exe",
+      "size": 86300806,
+      "sha256": "730f30b47d062f3e922fca66a57c7a03fafd95c6ce327548b48bd01bfcb868a4",
+      "url": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.7.0/AI-SSH-Pro-0.7.0-win-x64.exe"
     },
     "darwin-arm64": {
-      "file": "AI-SSH-Pro-0.6.63-mac-arm64.dmg",
-      "size": 194270163,
-      "sha256": "d54492333e4a2f608ad444e2fb648c851ea2cb7c7b26930084d394381830ea8d",
-      "url": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.6.63/AI-SSH-Pro-0.6.63-mac-arm64.dmg"
+      "file": "AI-SSH-Pro-0.7.0-mac-arm64.dmg",
+      "size": 109697856,
+      "sha256": "24ffbd52ae66324e3f441b43ea8f7a3503054da1c37e1a6203a46c10bda118f5",
+      "url": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.7.0/AI-SSH-Pro-0.7.0-mac-arm64.dmg"
     },
     "linux-x64": {
-      "file": "AI-SSH-Pro-0.6.63-linux-x86_64.AppImage",
-      "size": 204351532,
-      "sha256": "1373e32a3e887b24c7c4d681325a5b0ad1bf7214034050fa4ca3e39411ccd900",
-      "url": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.6.63/AI-SSH-Pro-0.6.63-linux-x86_64.AppImage"
+      "file": "AI-SSH-Pro-0.7.0-linux-x86_64.AppImage",
+      "size": 109249523,
+      "sha256": "8e30a25065d134d7e7fef4eb9bd7b3c52d77340869bc5bcf58ee794a750443be",
+      "url": "https://github.com/guoshuaipeng/ai-ssh-pro/releases/download/v0.7.0/AI-SSH-Pro-0.7.0-linux-x86_64.AppImage"
     }
   }
 }
