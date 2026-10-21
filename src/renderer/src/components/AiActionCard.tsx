@@ -8,6 +8,7 @@ import {
   getAction,
   initialValues,
   missingFields,
+  parseTargets,
   visibleFields,
   type ActionResult,
   type AppActionProposal,
@@ -104,8 +105,11 @@ export default function AiActionCard({ proposal, onRun }: Props) {
           )
         })}
       </div>
+      {def.name === 'connection.open' && open ? (
+        <p className="aa-note" data-testid="ai-action-count">{tg('aa.targetsCount', { n: parseTargets(s.values.targets ?? '').length })}</p>
+      ) : null}
       {s.armed && open ? (
-        <p className="aa-ask is-warn" role="alert" data-testid="ai-action-armed">{tg('aa.armedNote')}</p>
+        <p className="aa-ask is-warn" role="alert" data-testid="ai-action-armed">{tg((def.riskNoteKey ?? 'aa.armedNote') as MessageKey)}</p>
       ) : null}
       <div className="aa-foot">
         {s.phase === 'done' ? (
