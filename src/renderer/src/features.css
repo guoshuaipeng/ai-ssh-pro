@@ -2346,3 +2346,7 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .inventory-search-row input, .inventory-search-row button, .inv20-svc-filter, .inv20-svc-filter ~ button, .inv20-head-actions > button { height: 32px; box-sizing: border-box; }
 .workspace-panel--inventory .workspace-panel-title { white-space: nowrap; flex: none; }
 .workspace-panel--inventory .workspace-panel-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* c52 IN3: read-only basic info aligns labels in one column, never wraps */
+.inv20-readonly { grid-template-columns: max-content minmax(0, 1fr); column-gap: var(--space-3); row-gap: var(--space-2); }
+.inv20-readonly > div { display: contents; }
+.inv20-readonly dt { white-space: nowrap; }
