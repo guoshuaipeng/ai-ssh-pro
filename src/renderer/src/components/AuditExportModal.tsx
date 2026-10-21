@@ -1,3 +1,4 @@
+import DateField from './ui/DateField'
 import { useMemo, useState } from 'react'
 import {
   AUDIT_EXPORT_TYPES,
@@ -96,8 +97,8 @@ export default function AuditExportModal({
         </div>
         {range === 'custom' ? (
           <div className="s1b-dates">
-            <input type="date" value={since} aria-label={t('s1b.since')} onChange={(e) => setSince(e.target.value)} />
-            <input type="date" value={until} aria-label={t('s1b.until')} onChange={(e) => setUntil(e.target.value)} />
+            <DateField testId="s1b-since" value={since} max={until || undefined} onChange={setSince} ariaLabel={t('s1b.since')} placeholder={t('df.start')} />
+            <DateField testId="s1b-until" value={until} min={since || undefined} onChange={setUntil} ariaLabel={t('s1b.until')} placeholder={t('df.end')} />
           </div>
         ) : null}
         <div className="s1b-filters" data-testid="s1b-filters">

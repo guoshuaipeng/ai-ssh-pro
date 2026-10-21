@@ -142,3 +142,14 @@ console.log(`check-ux ok: ${files.length} files without native dialogs, ${Object
   assert.ok(count <= baseline, `native <select> count rose to ${count} (baseline ${baseline}); use components/ui/Select`)
   assert.ok(count >= baseline, `native <select> count fell to ${count}; lower scripts/native-select-baseline.json to ${count}`)
 }
+
+// 5. DF1: native date inputs are banned in the renderer; use components/ui/DateField.
+{
+  const hits: string[] = []
+  for (const f of files) {
+    if (!f.includes(join('src', 'renderer')) || f.endsWith('DateField.tsx')) continue
+    const text = readFileSync(f, 'utf8')
+    for (const m of text.matchAll(/type=["'](date|datetime-local|month|week)["']/g)) hits.push(`${relative(root, f)}:${text.slice(0, m.index ?? 0).split('\n').length}`)
+  }
+  assert.deepEqual(hits, [], `native date input; use components/ui/DateField:\n${hits.join('\n')}`)
+}
