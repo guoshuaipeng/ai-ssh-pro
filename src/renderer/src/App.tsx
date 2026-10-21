@@ -7152,6 +7152,15 @@ export default function App() {
         })
         return
       }
+      if (detail.op === 'reset') {
+        // c51: screenshot isolation — close popovers, modals and the right panel before each scenario
+        closeContextMenu()
+        setKnownHostsOpen(false)
+        setPaletteOpen(false)
+        setShortcutsOpen(false)
+        updateLayout((p) => (p.showAi ? withPaneToggle(p, 'ai', false) : p))
+        return
+      }
       if (detail.op === 'closeModals') {
         setKnownHostsOpen(false)
         setPaletteOpen(false)

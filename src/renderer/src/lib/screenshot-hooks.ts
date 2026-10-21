@@ -20,6 +20,7 @@ export type ScreenshotOp =
   | { op: "theme"; id: "light" | "github-dark" | "sand" | "slate" }
   | { op: "dismissProduct" }
   | { op: "closeModals" }
+  | { op: "reset" }
   /** Visual QA: run a titlebar menu action (opsHome, settings, commandPalette, demoHost…). */
   | { op: "menu"; action: string }
   /** Visual QA: open the AI chat panel; seeds a short demo conversation unless `empty`. */

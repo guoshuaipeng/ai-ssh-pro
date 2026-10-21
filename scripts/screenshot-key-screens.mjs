@@ -343,6 +343,11 @@ app.on('browser-window-created', (_e, win) => {
           const [cw, ch] = win.getContentSize()
           if (cw === s.size[0] && ch === s.size[1]) break
         }
+        // c51: isolate scenarios — reset popovers/modals/right panel, then Escape
+        await fire(win, { op: 'reset' })
+        win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+        win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+        await sleep(300)
         await win.webContents.executeJavaScript('document.documentElement.classList.toggle("shot-toasts", ' + (s.toasts ? 'true' : 'false') + '); true', true)
         await sleep(400)
         for (const st of s.steps) {
