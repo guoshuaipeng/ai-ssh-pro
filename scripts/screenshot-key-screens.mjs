@@ -126,6 +126,10 @@ const chrome = [
   { name: 'n1024-ops', size: [1024, 760], steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'menu', action: 'demoHost' }], wait: 2400 },
   { name: 'n1024-inventory', size: [1024, 760], steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'menu', action: 'inventory' }], wait: 1400 },
   { name: 'n1024-gate', size: [1024, 760], steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'menu', action: 'gateTimeline' }], wait: 1400 },
+  // c51: repro — popovers must close when the tab switches (probe dfPop/selPop must be false)
+  { name: 'leak-date', size: W, steps: [{ op: 'menu', action: 'auditLog' }, { eval: "new Promise(r=>setTimeout(()=>{if(!document.querySelector('[data-testid=audit-dates]')){document.querySelector('[data-testid=audit-range]')?.click();setTimeout(()=>{const o=[...document.querySelectorAll('[role=option]')].pop();o?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));o?.click();r(true)},300)}else r(true)},800))" }, { eval: "new Promise(r=>setTimeout(()=>{const b=document.querySelector('[data-testid=audit-since] .df-btn');if(b&&b.getAttribute('aria-expanded')!=='true')b.click();r(!!document.querySelector('.df-pop'))},900))" }, { op: 'menu', action: 'opsHome' }], wait: 900 },
+  { name: 'leak-select', size: W, steps: [{ op: 'menu', action: 'auditLog' }, { eval: "new Promise(r=>setTimeout(()=>{document.querySelector('[data-testid=audit-type]')?.click();r(!!document.querySelector('.ui-select-list'))},900))" }, { op: 'menu', action: 'opsHome' }], wait: 900 },
+  { name: 'n1024-inventory-empty', size: [1024, 760], steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'menu', action: 'inventory' }], wait: 1400 }, // run with --empty for the no-profile state
   { name: 'inventory', size: W, steps: [{ op: 'menu', action: 'inventory' }], wait: 1400, close: true },
   { name: 'gate-timeline', size: W, steps: [{ op: 'menu', action: 'gateTimeline' }], wait: 1400 },
   { name: 'alert-rules', size: W, steps: [{ op: 'menu', action: 'alertRules' }], wait: 1400, close: true },
@@ -297,6 +301,8 @@ async function probe(win) {
         aiDock: !!document.querySelector('[data-testid=ai-pending-confirm]'),
         aiEmpty: !!document.querySelector('[data-testid=ai-empty-state]'),
         sftpTab: !!document.querySelector('.tab-kind-sftp') || !!document.querySelector('[data-testid=sftp-root]') || !!document.querySelector('.sftp-layout'),
+        dfPop: !!document.querySelector('.df-pop'),
+        selPop: !!document.querySelector('.ui-select-list'),
         sftpDual: !!document.querySelector('[data-testid=sftp-dual]'),
         sftpMock: document.querySelector('[data-testid=sftp-dual]')?.getAttribute('data-screenshot-mock') === '1',
         sftpLocalRows: document.querySelectorAll('[data-testid=sftp-pane-local] tbody tr').length,
