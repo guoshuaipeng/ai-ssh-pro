@@ -1,5 +1,5 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
-import { applyMonitorAction, buildProfileFromAction, type ActionResult } from '@shared/ai-actions'
+import { applyMonitorAction, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, type ActionResult } from '@shared/ai-actions'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -2577,6 +2577,39 @@ export default function App() {
   // c53 AA1: executors for AI-proposed app actions. Only called after the user confirms the card.
   const onAppAction = useCallback(
     async (name: string, v: Record<string, string>): Promise<ActionResult> => {
+      const r = await runAppAction(name, v)
+      // c54: every confirmed AI action lands in the audit log (secrets never included)
+      appendAudit({ type: 'ai.action', host: v.host || v.target || '', source: 'AI', outcome: r.ok ? 'allowed' : 'blocked', detail: auditDetailForAction(name, v) + (r.ok ? '' : ' · ' + (r.message ?? '')) })
+      return r
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [folders, persistSessionState, alertRules, showToast, activeSessionId]
+  )
+  const runAppAction = async (name: string, v: Record<string, string>): Promise<ActionResult> => {
+    {
+      if (name === 'sftp.open') {
+        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
+        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
+        openSftpFromHost(prof)
+        return { ok: true, message: tg('aa.sftpOpened', { name: prof.label }) }
+      }
+      if (name === 'snippet.create') {
+        const cur = await window.aiss.snippets.list()
+        const r = buildSnippetFromAction(v, cur, uuid)
+        await window.aiss.snippets.save(r.list)
+        openRightPanelRef.current('snippets')
+        const msg = tg('aa.snippetSaved', { name: r.snippet.title })
+        showToast(msg)
+        return { ok: true, message: msg }
+      }
+      if (name === 'forward.create') {
+        if (!activeSessionId) return { ok: false, message: tg('aa.noSession') }
+        const req = forwardRequestFromAction(v, activeSessionId)
+        await window.aiss.workspace.forwards.add(req)
+        const msg = tg('aa.forwardAdded', { local: req.localPort, remote: `${req.remoteHost}:${req.remotePort}` })
+        showToast(msg)
+        return { ok: true, message: msg }
+      }
       if (name === 'connection.add') {
         const r = buildProfileFromAction(v, profilesRef.current, uuid)
         await persistSessionState({ folders, profiles: r.profiles })
@@ -2593,9 +2626,8 @@ export default function App() {
         return { ok: true, message: msg }
       }
       return { ok: false, message: tg('aa.noExecutor') }
-    },
-    [folders, persistSessionState, alertRules, showToast]
-  )
+    }
+  }
   const saveProfile = useCallback(() => {
     if (!host.trim() || !username.trim()) {
       setError(tg('app.needHostUser'))

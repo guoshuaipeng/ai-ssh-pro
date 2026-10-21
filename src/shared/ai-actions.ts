@@ -5,7 +5,7 @@
  * and never sent to it.
  */
 import type { AlertMetric, AlertRulesState } from './alert-rules'
-import type { SavedSessionProfile } from './ipc'
+import type { AddForwardRequest, CommandSnippet, SavedSessionProfile } from './ipc'
 
 export type ActionFieldType = 'text' | 'number' | 'select' | 'secret'
 
@@ -90,7 +90,36 @@ const MONITOR_CONFIGURE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE]
+const SFTP_OPEN: ActionDef = {
+  name: 'sftp.open',
+  titleKey: 'aa.sftp.title',
+  hint: 'open the SFTP file browser for a saved connection (target = its name or host)',
+  fields: [{ key: 'target', labelKey: 'aa.f.target', type: 'text', required: true, placeholder: 'web-01' }]
+}
+
+const SNIPPET_CREATE: ActionDef = {
+  name: 'snippet.create',
+  titleKey: 'aa.snippet.title',
+  hint: 'save a reusable command snippet (title, command, optional category)',
+  fields: [
+    { key: 'title', labelKey: 'aa.f.title', type: 'text', required: true },
+    { key: 'command', labelKey: 'aa.f.command', type: 'text', required: true, placeholder: 'df -h' },
+    { key: 'category', labelKey: 'aa.f.category', type: 'text' }
+  ]
+}
+
+const FORWARD_CREATE: ActionDef = {
+  name: 'forward.create',
+  titleKey: 'aa.forward.title',
+  hint: 'add a local port forward on the active SSH session (localPort -> remoteHost:remotePort)',
+  fields: [
+    { key: 'localPort', labelKey: 'aa.f.localPort', type: 'number', required: true, min: 1, max: 65535 },
+    { key: 'remoteHost', labelKey: 'aa.f.remoteHost', type: 'text', def: '127.0.0.1' },
+    { key: 'remotePort', labelKey: 'aa.f.remotePort', type: 'number', required: true, min: 1, max: 65535 }
+  ]
+}
+
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)
@@ -237,4 +266,35 @@ export function applyMonitorAction(state: AlertRulesState, v: Record<string, str
       )
     : [...state.rules, { id, enabled, sustainMin, threshold: id === 'offline' ? 0 : Number(v.threshold), customized: true }]
   return { ...state, rules }
+}
+
+/** c54: resolve a saved connection by name, user@host or host (case-insensitive, exact first). */
+export function findProfileForAction(profiles: readonly SavedSessionProfile[], target: string): SavedSessionProfile | undefined {
+  const t = target.trim().toLowerCase()
+  if (!t) return undefined
+  return (
+    profiles.find((p) => p.label.toLowerCase() === t) ??
+    profiles.find((p) => `${p.username}@${p.host}`.toLowerCase() === t) ??
+    profiles.find((p) => p.host.toLowerCase() === t) ??
+    profiles.find((p) => p.label.toLowerCase().includes(t))
+  )
+}
+
+export function buildSnippetFromAction(v: Record<string, string>, list: readonly CommandSnippet[], newId: () => string): { list: CommandSnippet[]; snippet: CommandSnippet } {
+  const title = (v.title ?? '').trim()
+  const body = (v.command ?? '').trim()
+  const category = (v.category ?? '').trim() || undefined
+  const snippet: CommandSnippet = { id: newId(), title, body, ...(category ? { category } : {}) }
+  return { list: [...list, snippet], snippet }
+}
+
+export function forwardRequestFromAction(v: Record<string, string>, sessionId: string): AddForwardRequest {
+  return { sessionId, direction: 'L', localPort: Number(v.localPort), remoteHost: (v.remoteHost ?? '').trim() || '127.0.0.1', remotePort: Number(v.remotePort) }
+}
+
+/** Audit line for an executed action: action name + non-secret values only. */
+export function auditDetailForAction(name: string, v: Record<string, string>): string {
+  const def = getAction(name)
+  const parts = (def?.fields ?? []).filter((f) => f.type !== 'secret' && (v[f.key] ?? '').trim()).map((f) => `${f.key}=${v[f.key].trim()}`)
+  return `${name} ${parts.join(' ')}`.trim()
 }

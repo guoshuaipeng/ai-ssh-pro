@@ -20,6 +20,7 @@ export type AuditType =
   | 'forward.dynamic'
   | 'agentForward.change'
   | 'session.agentForward'
+  | 'ai.action'
 
 export type GateResult = 'allowed' | 'confirmed' | 'denied' | 'blocked' | 'cancelled' | 'unlock' | 'restore'
 
