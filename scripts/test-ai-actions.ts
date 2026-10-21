@@ -8,14 +8,14 @@ import { cleanIpcError, proposalFromReply } from '../src/shared/ai-actions'
 import { BATCH_RISK_MIN, parseTargets, pickHistoryForAction, resolveTargets, sftpPathOk } from '../src/shared/ai-actions'
 import { auditDetailForAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction } from '../src/shared/ai-actions'
 import { parseAiAssistantReply } from '../src/shared/ipc'
-import { buildPlaybookFromAction, splitPlaybookCommands, transferPathsOk, buildPlaybookFromCommands, recentCommandsForPlaybook } from '../src/shared/ai-actions'
+import { buildPlaybookFromAction, splitPlaybookCommands, transferPathsOk, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction } from '../src/shared/ai-actions'
 import { DEFAULT_ALERT_RULES } from '../src/shared/alert-rules'
 
 let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 
 // registry
-ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open,playbook.fromRecent', 'registry order (c53..c59)')
+ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open,playbook.fromRecent,alert.explain', 'registry order (c53..c60)')
 for (const a of AI_ACTIONS) ok(a.fields.every((f) => f.labelKey.startsWith('aa.')), `${a.name} fields use aa.* i18n`)
 
 // sanitize: secrets from the model are dropped, unknown keys/actions ignored
@@ -202,4 +202,13 @@ const srv = readFileSync('scripts/e2e-sftp-server.mjs', 'utf8')
 ok(srv.includes('export function serveSftp(sftp, sftpRoot)') && readFileSync('scripts/e2e.mjs', 'utf8').includes("from './e2e-sftp-server.mjs'") && readFileSync('scripts/e2e-sshd.mjs', 'utf8').includes("from './e2e-sftp-server.mjs'") && !readFileSync('scripts/e2e-sshd.mjs', 'utf8').includes('attachSftp'), 'one shared SFTP test server')
 ok(shots.includes("/只读|read-only/i.test(msg())") && shots.split('localPath: ${JSON.stringify(E2E_UPSRC)}').length - 1 >= 2, 'upload failure asserts the read-only error and owns its source file')
 ok(readFileSync('src/renderer/src/features.css', 'utf8').includes(".aa-status.is-ok::before { content: '✓'"), 'done status has a check mark')
+// c60: alert.explain
+const A60 = (id: string, t: string, at: number, status: string) => ({ id, hostKey: 'k-' + t, hostTitle: t, at, status })
+const al60 = [A60('a', 'web-01', 1, 'recovered'), A60('b', 'web-01', 2, 'active'), A60('c', 'db-01', 3, 'recovered'), A60('d', 'web-02', 4, 'recovered')]
+ok(pickAlertForAction(al60, '')?.id === 'b', 'alert: empty target -> newest ACTIVE alert first')
+ok(pickAlertForAction(al60, 'DB')?.id === 'c', 'alert: host filter, case-insensitive, falls back to any status')
+ok(pickAlertForAction(al60, 'k-web-02')?.id === 'd' && pickAlertForAction(al60, 'nope') === undefined && pickAlertForAction([], '') === undefined, 'alert: hostKey match; unknown host / no alerts -> nothing')
+ok(getAction('alert.explain')!.fields.length === 1 && !getAction('alert.explain')!.fields[0].required && !getAction('alert.explain')!.risk, 'alert.explain: one optional field, read-only')
+ok(readFileSync('src/renderer/src/features.css', 'utf8').includes(".aa-status.is-err::before { content: '!'"), 'error status has a marker (c60 look-and-feel)')
+ok(['e2e-alert-explain', 'e2e-err-alert-notfound'].every((x) => shots.includes(`name: '${x}'`)), 'alert.explain has normal + error UI E2E')
 console.log(`test-ai-actions: ${n} passed`)

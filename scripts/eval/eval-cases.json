@@ -28,5 +28,7 @@
  {"lang":"zh","q":"打开 demo-mysql 的资源监控","name":"monitor.open","p":{"target":"demo-mysql"}},
  {"lang":"en","q":"Show me the CPU and memory monitor for demo-web-01","name":"monitor.open","p":{"target":"demo-web-01"}},
  {"lang":"zh","q":"把我刚才执行的最近 5 条命令存成剧本，叫“排查 nginx”","name":"playbook.fromRecent","p":{"name":"排查 nginx","count":"5"}},
- {"lang":"en","q":"Turn the last 8 commands I ran into a playbook called disk-triage","name":"playbook.fromRecent","p":{"name":"disk-triage","count":"8"}}
+ {"lang":"en","q":"Turn the last 8 commands I ran into a playbook called disk-triage","name":"playbook.fromRecent","p":{"name":"disk-triage","count":"8"}},
+ {"lang":"zh","q":"web-01 刚才报警了，帮我看看是什么原因","name":"alert.explain","p":{"target":"web-01"}},
+ {"lang":"en","q":"Explain the latest alert for me","name":"alert.explain","p":{}}
 ]

@@ -189,5 +189,19 @@
   "p": {
    "name": "redis-fix"
   }
+ },
+ {
+  "lang": "zh",
+  "q": "最近那条告警是怎么回事？",
+  "name": "alert.explain",
+  "p": {}
+ },
+ {
+  "lang": "en",
+  "q": "Why did db-01 fire an alert?",
+  "name": "alert.explain",
+  "p": {
+   "target": "db-01"
+  }
  }
 ]
