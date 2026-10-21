@@ -109,7 +109,8 @@ const base = [
   // SN2: snippets rail, compact rows (built-ins)
   { name: 'snippets-compact', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'snippets' }, { click: '[data-testid="w9-snip-seg"] button:nth-child(2)' }], wait: 1400 },
   { name: 'tabs', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'playbooks' }, { op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'auditLog' }], wait: 2400 },
-  { name: 'audit', size: W, steps: [{ op: 'menu', action: 'auditLog' }], wait: 1400 }
+  { name: 'audit', size: W, steps: [{ op: 'menu', action: 'auditLog' }], wait: 1400 },
+  { name: 'audit-custom', size: W, steps: [{ op: 'menu', action: 'auditLog' }, { eval: "new Promise(r=>setTimeout(()=>{if(!document.querySelector('[data-testid=audit-dates]')){document.querySelector('[data-testid=audit-range]')?.click();setTimeout(()=>{const o=[...document.querySelectorAll('[role=option]')].pop();o?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));o?.click();r(true)},300)}else r(true)},800))" }], wait: 900 }
 ]
 // AISS_SHOT_SET=chrome: overlays + AI chat + protection-edge tabs (radius/shadow/chat QA).
 const chrome = [
