@@ -2303,3 +2303,8 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .ai-conv-general { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-muted); color: var(--color-text-muted); font-size: var(--fs-xs); }
 .app-toolbar-update-badge .app-toolbar-update-text { display: none; }
 .app-toolbar-update-badge { padding: 0 var(--space-1); min-width: 0; }
+
+/* V48 composer model chip keeps its name; titlebar layout toggles get their own group edge */
+.ai-model-wrap, .ai-model-chip { flex: 0 0 auto; }
+.ai-model-chip { max-width: 180px; }
+.app-titlebar-layout-pin { border-left: 1px solid var(--color-border-muted); padding-left: var(--space-1); margin-left: var(--space-1); }

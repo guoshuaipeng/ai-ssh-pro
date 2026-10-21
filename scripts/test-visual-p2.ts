@@ -8,4 +8,7 @@ assert.match(css, /\.ai-conv-general \{[^}]*padding: var\(--space-2\) var\(--spa
 assert.match(css, /\.app-toolbar-update-badge \.app-toolbar-update-text \{ display: none; \}/)
 const tb = readFileSync('src/renderer/src/components/AppToolbar.tsx', 'utf8')
 assert.match(tb, /data-testid="update-badge" title=\{t\('upd.badge'/)
+// V48: model chip never shrinks; layout pin is its own group
+assert.match(css, /\.ai-model-wrap, \.ai-model-chip \{ flex: 0 0 auto; \}/)
+assert.match(css, /\.app-titlebar-layout-pin \{ border-left: 1px solid var\(--color-border-muted\)/)
 console.log('test-visual-p2 ok')
