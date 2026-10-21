@@ -2380,6 +2380,8 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .aa-foot > button { flex: none; height: 32px; }
 .aa-note, .aa-status { margin-right: auto; font-size: var(--fs-xs); color: var(--color-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aa-status.is-ok { color: var(--color-success, var(--accent)); }
+/* c59: a check mark makes "done" scannable at a glance */
+.aa-status.is-ok::before { content: '✓'; margin-right: var(--space-1); font-weight: 600; }
 .aa-status.is-err { color: var(--color-danger, var(--color-warn)); }
 /* c58: errors wrap instead of being cut off; the buttons move to the next line when needed */
 .aa-foot:has(.aa-status.is-err) { flex-wrap: wrap; }
