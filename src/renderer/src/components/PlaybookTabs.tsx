@@ -45,7 +45,7 @@ import { appendAudit, appendGate } from '@shared/audit-log'
 import { ShareExportModal } from './PlaybookShare'
 import { appendTimeline } from '@shared/timeline'
 import { tg } from '../lib/i18n'
-import { askConfirm, askText } from '../lib/dialogs'
+import { askConfirm, askText, toastUndo } from '../lib/dialogs'
 import { showToast } from '../lib/toast'
 import Icon from './Icon'
 import EmptyState from './EmptyState'
@@ -483,7 +483,14 @@ export function PlaybookEditor({
                       <button type="button" className="pb2-icon" data-testid="pb2-dup" title={tg('pb2.dup')} aria-label={tg('pb2.dup')} onClick={() => setPb({ ...pb, steps: [...pb.steps.slice(0, i + 1), { ...step, id: blankStep().id }, ...pb.steps.slice(i + 1)] })}>
                         <Icon name="clipboard-list" size={14} />
                       </button>
-                      <button type="button" className="pb2-icon is-danger" data-testid="pb2-del" title={tg('app.delete')} aria-label={tg('app.delete')} onClick={() => { setPb({ ...pb, steps: pb.steps.filter((s) => s.id !== step.id) }); showToast(tg('pb2.deleted', { n: i + 1 })) }}>
+                      <button type="button" className="pb2-icon is-danger" data-testid="pb2-del" title={tg('app.delete')} aria-label={tg('app.delete')} onClick={() => {
+                        // PB3: delete with undo (restores the step at its old position)
+                        setPb((cur) => (cur ? { ...cur, steps: cur.steps.filter((s) => s.id !== step.id) } : cur))
+                        toastUndo({
+                          message: tg('pb2.deleted', { n: i + 1 }),
+                          undo: () => setPb((cur) => (cur && !cur.steps.some((s) => s.id === step.id) ? { ...cur, steps: [...cur.steps.slice(0, i), step, ...cur.steps.slice(i)] } : cur))
+                        })
+                      }}>
                         <Icon name="x" size={14} />
                       </button>
                     </>
@@ -536,16 +543,14 @@ export function PlaybookEditor({
           <h3>{tg('w6.section')}</h3>
           <label>
             {tg('w6.period')}
-            <select
-              data-testid="w6-cadence"
-              aria-label={tg('w6.period')}
+            {/* PB3: themed Select (no native drop-down) */}
+            <Select
+              testId="w6-cadence"
+              ariaLabel={tg('w6.period')}
               value={reminder.cadence}
-              onChange={(e) => saveReminder(e.target.value as ReminderCadence)}
-            >
-              {REMINDER_CADENCES.map((c) => (
-                <option key={c} value={c}>{tg(c === 'off' ? 'w6.off' : c === 'weekly' ? 'w6.weekly' : c === 'biweekly' ? 'w6.biweekly' : 'w6.monthly')}</option>
-              ))}
-            </select>
+              onChange={(v) => saveReminder(v as ReminderCadence)}
+              options={REMINDER_CADENCES.map((c) => ({ value: c, label: tg(c === 'off' ? 'w6.off' : c === 'weekly' ? 'w6.weekly' : c === 'biweekly' ? 'w6.biweekly' : 'w6.monthly') }))}
+            />
           </label>
           {reminder.cadence !== 'off' && reminder.nextDueAt ? (
             <span data-testid="w6-next">{tg('w6.next')} {new Date(reminder.nextDueAt).toLocaleString()}</span>

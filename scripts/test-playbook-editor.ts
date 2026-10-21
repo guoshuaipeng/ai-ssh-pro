@@ -13,9 +13,9 @@ assert.match(ed, /data-testid="w9-playbook-locked"/)
 assert.equal(ed.includes("tg('w9.sampleNoAuto')"), false, 'no duplicated sample note')
 assert.match(ed, /className="pb2-label">\{tg\('m2\.name'\)\}/)
 assert.match(ed, /className="pb2-label">\{tg\('m2\.desc'\)\}/)
-// step type uses the themed Select; only the reminder cadence keeps a native select
+// step type and reminder cadence use the themed Select (PB3)
 const selects = ed.match(/<select\b/g) || []
-assert.equal(selects.length, 1)
+assert.equal(selects.length, 0)
 assert.match(ed, /data-testid="pb2-handle"[\s\S]{0,400}onDragStart/)
 assert.match(ed, /e\.key !== 'ArrowUp' && e\.key !== 'ArrowDown'/)
 for (const id of ['pb2-dup', 'pb2-del', 'pb2-add', 'pb2-step']) assert.ok(ed.includes(`data-testid="${id}"`), id)
