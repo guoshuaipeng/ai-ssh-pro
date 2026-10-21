@@ -194,9 +194,9 @@ export default function AppToolbar({
           </button>
         ) : null}
         {updateVersion ? (
-          <button type="button" className="app-toolbar-update-badge" data-testid="update-badge" onClick={onOpenUpdate}>
+          <button type="button" className="app-toolbar-update-badge" data-testid="update-badge" title={t('upd.badge', { version: updateVersion })} aria-label={t('upd.badge', { version: updateVersion })} onClick={onOpenUpdate}>
             <span className="app-toolbar-update-dot" aria-hidden />
-            {t('upd.badge', { version: updateVersion })}
+            <span className="app-toolbar-update-text">{t('upd.badge', { version: updateVersion })}</span>
           </button>
         ) : null}
         {menusAsHamburger ? (

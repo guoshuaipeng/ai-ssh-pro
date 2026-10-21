@@ -2296,3 +2296,10 @@ fieldset.settings-row { min-inline-size: 0; gap: var(--space-3); }
 fieldset.settings-row > legend { float: left; padding: 0; margin: 0; font-size: inherit; font-weight: inherit; }
 .settings-body > section > .settings-row > span:first-child, fieldset.settings-row > legend { min-width: 88px; color: var(--color-text-secondary); }
 fieldset.settings-row > label { display: inline-flex; align-items: center; gap: var(--space-1); }
+
+/* V47 P2 polish: SFTP global row fills width; AI status line padded; update badge is a dot */
+.sftp-toolbar .sftp-toolbar-actions { flex: 1 1 auto; min-width: 0; }
+.sftp-toolbar .sftp-compare-open, .sftp-toolbar .sftp-advanced > summary { height: 26px; display: inline-flex; align-items: center; }
+.ai-conv-general { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-muted); color: var(--color-text-muted); font-size: var(--fs-xs); }
+.app-toolbar-update-badge .app-toolbar-update-text { display: none; }
+.app-toolbar-update-badge { padding: 0 var(--space-1); min-width: 0; }
