@@ -6,6 +6,8 @@ import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
+import { openContextMenu } from './ContextMenu'
+import { auditRangeSince, type AuditRange } from '@shared/audit-range'
 
 export default function AuditLogPanel({
   events,
@@ -32,6 +34,13 @@ export default function AuditLogPanel({
   const [type, setType] = useState<AuditType | ''>('')
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
+  const [range, setRange] = useState<AuditRange>('all')
+  const pickRange = (r: AuditRange) => {
+    setRange(r)
+    if (r === 'custom') return
+    setSince(auditRangeSince(r, new Date()))
+    setUntil('')
+  }
   useEffect(() => {
     setAuditExportContext({
       host: host || '',
@@ -69,24 +78,39 @@ export default function AuditLogPanel({
         }
         actions={
           <>
-            <Button variant="primary"
+            <Button
               data-testid="s1b-open"
               onClick={() => onExport({ host: host || '', type, range: since || until ? 'custom' : '7d', since, until })}
             >
               {t('s1b.open')}
             </Button>
-            <button type="button" onClick={onClose}>
+            <Button
+              variant="icon"
+              icon="menu"
+              data-testid="audit-more"
+              aria-haspopup="menu"
+              aria-label={t('au2.more')}
+              title={t('au2.more')}
+              onClick={(ev) => {
+                const r = ev.currentTarget.getBoundingClientRect()
+                openContextMenu(ev, [
+                  { id: 'toggle', label: `${enabled ? '✓ ' : ''}${t('l4.audit')}`, onSelect: () => onToggle(!enabled) },
+                  ...(onClear ? ['sep' as const, { id: 'clear', label: t('audit.clear'), danger: true, onSelect: onClear }] : [])
+                ], { anchor: { x: Math.max(8, r.right - 200), y: r.bottom + 2 } })
+              }}
+            />
+            <Button variant="ghost" onClick={onClose}>
               {t('common.close')}
-            </button>
+            </Button>
           </>
         }
       />
       {!enabled ? (
         <div className="l7-mute" data-testid="audit-off">
           <span>{t('l4.auditOff')}</span>
-          <button type="button" onClick={() => onToggle(true)}>
+          <Button variant="primary" onClick={() => onToggle(true)}>
             {t('l4.auditEnable')}
-          </button>
+          </Button>
         </div>
       ) : null}
       <div className="l2-filters">
@@ -103,16 +127,33 @@ export default function AuditLogPanel({
             { value: 'forward.remote', label: 'forward.remote' }
           ]}
         />
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('m2.search')} aria-label={t('m2.search')} />
-        <input type="date" value={since} onChange={(e) => setSince(e.target.value)} aria-label={t('m2.since')} />
-        <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} aria-label={t('m2.until')} />
-        {onClear ? (
-          <button type="button" data-testid="audit-clear" onClick={onClear}>{t('audit.clear')}</button>
+        <input className="au2-search" value={text} onChange={(e) => setText(e.target.value)} placeholder={t('m2.search')} aria-label={t('m2.search')} />
+        <Select
+          testId="audit-range"
+          ariaLabel={t('au2.range')}
+          value={range}
+          onChange={(v) => pickRange(v as AuditRange)}
+          options={[
+            { value: 'all', label: t('au2.rangeAll') },
+            { value: '1d', label: t('au2.range1d') },
+            { value: '7d', label: t('au2.range7d') },
+            { value: '30d', label: t('au2.range30d') },
+            { value: 'custom', label: t('au2.rangeCustom') }
+          ]}
+        />
+        {range === 'custom' ? (
+          <span className="au2-dates" data-testid="audit-dates">
+            <input type="date" value={since} onChange={(e) => setSince(e.target.value)} aria-label={t('m2.since')} />
+            <span className="l7-meta">{t('au2.to')}</span>
+            <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} aria-label={t('m2.until')} />
+          </span>
         ) : null}
-        <label className="l4-check">
-          <input id="audit-enable" type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
-          {t('l4.audit')}
-        </label>
+        <span className="l7-meta au2-count" data-testid="audit-count">{t('au2.count', { n: rows.length })}</span>
+        {/* entry points kept for automation and assistive tech; visually they live in "更多" */}
+        {onClear ? (
+          <button type="button" className="sr-only" tabIndex={-1} data-testid="audit-clear" onClick={onClear}>{t('audit.clear')}</button>
+        ) : null}
+        <input id="audit-enable" className="sr-only" tabIndex={-1} type="checkbox" checked={enabled} aria-label={t('l4.audit')} onChange={(e) => onToggle(e.target.checked)} />
       </div>
       {focusMissing ? (
         <div className="l7-mute" data-testid="audit-focus-missing">
@@ -128,7 +169,7 @@ export default function AuditLogPanel({
             desc={t('pf4.auditDesc')}
             primary={{
               label: t('pf4.auditCta'),
-              onClick: () => document.getElementById('audit-enable')?.focus()
+              onClick: () => (enabled ? document.querySelector<HTMLButtonElement>('[data-testid="audit-more"]')?.click() : onToggle(true))
             }}
           />
         ) : (
