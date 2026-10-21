@@ -120,6 +120,7 @@ const chrome = [
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },
   { name: 'menu', size: W, steps: [{ click: '.titlebar-menu-trigger' }], wait: 700, close: true },
   { name: 'ai-safety-pop', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { op: 'aiComposerPop', which: 'safety' }], wait: 1400 },
+  { name: 'split-view', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { eval: "new Promise(r=>setTimeout(()=>r(true),1200))" }, { op: 'menu', action: 'duplicateSession' }, { eval: "new Promise(r=>setTimeout(()=>{if(!document.querySelector('[data-testid=split-view]'))document.querySelector('[data-testid=tab-split]')?.click();r(true)},1200))" }, { eval: "new Promise(r=>setTimeout(()=>{document.querySelector('[data-testid=split-pane-right] .xterm-helper-textarea')?.focus();r(true)},600))" }], wait: 1000 },
   { name: 'ai-more-menu', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { click: '[data-testid="ai-more"]' }], wait: 900 },
   { name: 'ai-model-menu', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { op: 'aiComposerPop', which: 'model' }], wait: 1400 },
   // 2.3: execution replay rows (collapsed + both expanded), then the audit jump
