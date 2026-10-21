@@ -108,3 +108,10 @@
   2. 模块顶层不读 env，也不创建存储，一律放到首次使用时；
   3. 查看截图时每次复制成新文件名（加轮次和序号），不复用同一路径；
   4. 全量测试默认并行，新测试必须能并行运行，确实不能的加进 SERIAL 并写明原因。
+
+## 2026-10-21 第 46 轮 DateField 的 CSS 写了 16px，触发 polish-29 的 token 规则
+- 耗时：计划 0 / 实际约 3 分钟
+- 卡在哪：相关测试只跑了 date-field 和 token-fallbacks，polish-29 对 features.css 新增段落里的 padding、gap、font-size 也有 px 检查。
+- 哪里没做好：新 CSS 里的 font-size 直接写了像素值。
+- 根因：只记住了「不要写 hex 兜底」这一条，没想起间距和字号也必须用 token。
+- 以后怎么避免：往 features.css 追加样式时，padding、gap、font-size 一律用 `--space-*` 和 `--fs-*`；改 CSS 后，相关测试里固定加上 test-polish-29 和 check-token-fallbacks。全量测试只要 40 秒，改完 CSS 直接跑全量。
