@@ -7,7 +7,9 @@ const start = app.indexOf("action === 'toggleSplit'")
 assert.ok(start >= 0)
 const chunk = app.slice(start, start + 750)
 assert.match(chunk, /sb\.splitNeedTwo/)
-assert.match(chunk, /live\.length < 2/)
+// the < 2 rule lives in shared/split-toggle (live ref decision); App passes live.length
+assert.match(chunk, /applySplitToggle\(splitEnabledRef, live\.length\)/)
+assert.match(readFileSync('src/shared/split-toggle.ts', 'utf8'), /liveSessions < 2/)
 assert.match(chunk, /showToast\(tg\('sb\.splitOn'\)\)/)
 
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
