@@ -15,6 +15,7 @@ import {
 import type { SshSessionManager } from './ssh-manager'
 import { forwardDebugPayloadToWindow } from './debug-window-broadcast'
 import { buildBootstrapPrompt } from './core-a-bootstrap'
+import { actionsPrompt, redactForAi, sanitizeProposal } from '../shared/ai-actions'
 import {
   appendStoredArchive,
   currentThreadEpoch,
@@ -630,7 +631,9 @@ export function parseAssistantStep(content: string): { structured: AiAssistantRe
     const normalized = normalizeAssistantStepRaw(raw as Record<string, unknown>)
     const parsed = assistantStepSchema.parse(normalized) as unknown as AiAssistantReply
     const completed = typeof parsed.completed === 'boolean' ? parsed.completed : parsed.action === 'end'
-    return { structured: { ...parsed, completed }, parseError: undefined }
+    // c54: strict schema drops unknown keys - re-attach a sanitized app-action proposal (secrets stripped)
+    const appAction = sanitizeProposal((raw as Record<string, unknown>).appAction) ?? undefined
+    return { structured: { ...parsed, completed, ...(appAction ? { appAction } : {}) }, parseError: undefined }
   } catch (e) {
     const loose = parseAiAssistantReply(content)
     if (loose) {
@@ -1027,8 +1030,8 @@ export async function runOpenClawCoreAgentChat(
 
       const messages: Array<{ role: string; content: string }> = [
         { role: 'system', content: 'json' },
-        { role: 'system', content: sysPrompt },
-        ...conversation
+        { role: 'system', content: sysPrompt + '\n\n' + actionsPrompt() },
+        ...conversation.map((t) => ({ ...t, content: redactForAi(t.content) }))
       ]
       const recentChars = conversation.reduce((sum, turn) => sum + turn.content.length, 0)
       const budget = contextBudget({
