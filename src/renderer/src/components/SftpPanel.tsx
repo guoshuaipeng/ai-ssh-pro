@@ -2098,13 +2098,15 @@ export default function SftpPanel({
             ) : null}
             <button
               type="button"
-              className="sftp-session-cwd"
+              className="sftp-session-cwd sftp-icon-btn"
               data-testid="sftp-session-cwd"
               disabled={!sessionId}
-              title={tg('d7.sessionCwdTip')}
+              title={`${tg('d7.sessionCwd')}：${tg('d7.sessionCwdTip')}`}
+              aria-label={tg('d7.sessionCwd')}
               onClick={() => void goSessionCwd()}
             >
-              <span className="sftp-label sftp-label-keep">{tg('d7.sessionCwd')}</span>
+              {/* SH2: icon next to the follow toggle; the two belong together */}
+              <Icon name="crosshair" size={14} />
             </button>
             <button
               type="button"
@@ -2128,6 +2130,10 @@ export default function SftpPanel({
             </label>
             <button
               type="button"
+              className="sftp-icon-btn sftp-density"
+              data-testid="sftp-density"
+              aria-label={densityPref === 'comfort' ? tg('ux46.comfort') : tg('ux46.compact')}
+              aria-pressed={densityPref !== 'comfort'}
               title={compact ? tg('ux46.comfort') : tg('ux46.compact')}
               onClick={() => {
                 const next: SftpDensityPref = densityPref === 'comfort' ? 'auto' : 'comfort'
@@ -2136,7 +2142,7 @@ export default function SftpPanel({
                 window.dispatchEvent(new CustomEvent(SFTP_DENSITY_EVENT))
               }}
             >
-              <span className="sftp-label sftp-label-keep">{densityPref === 'comfort' ? tg('ux46.comfort') : tg('ux46.compact')}</span>
+              <Icon name="table" size={14} />
             </button>
             <span className="sftp-queue-summary">
               {summary.active > 0 ? tg('d1.summary', { n: summary.active, speed: formatSpeed(summary.speed) }) : tg('d1.queue')}
