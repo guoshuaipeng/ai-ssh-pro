@@ -56,7 +56,7 @@ ActionField = { key, labelKey, type: text|number|select|secret, required?, optio
 | 16 | audit.export 导出审计日志 | 运维 | range, format | — |
 | 17 | monitor.schedule 定时巡检 | 监控 | targets*, playbook*, cron* | 🔴 |
 | 18 | connection.delete / snippet.delete 删除 | 连接/命令 | target* | 🔴 |
-已完成：connection.add、monitor.configure（c53）；sftp.open、snippet.create、forward.create（c54）。
+已完成：connection.add、monitor.configure（c53）；sftp.open、snippet.create、forward.create（c54）；connection.open（含批量、二次确认）、history.fill、sftp.open 定位目录（c55）。端到端场景见 screenshot-key-screens 中的 e2e-*，真实模型评测见 scripts/eval。
 第 55 轮建议：#1 connection.open、#2 history.fill、#3 sftp.open 定位目录，同时实现二次确认机制（ActionDef 加 `risk: 'high'`）。
 
 每次执行都会写一条审计 `ai.action`（source=AI），detail 只含非敏感字段。交互代理（ai-interactive-agent）同样会追加动作提示、净化 appAction，并对上下文脱敏。
