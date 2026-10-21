@@ -2381,6 +2381,9 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .aa-note, .aa-status { margin-right: auto; font-size: var(--fs-xs); color: var(--color-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aa-status.is-ok { color: var(--color-success, var(--accent)); }
 .aa-status.is-err { color: var(--color-danger, var(--color-warn)); }
+/* c58: errors wrap instead of being cut off; the buttons move to the next line when needed */
+.aa-foot:has(.aa-status.is-err) { flex-wrap: wrap; }
+.aa-status.is-err { white-space: normal; overflow: visible; overflow-wrap: anywhere; flex: 1 1 100%; line-height: 1.45; }
 .aa-ask.is-warn { font-weight: 600; }
 /* c57: resolved-target count under the batch-open fields */
 .aa-note { margin: 0; font-size: var(--fs-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
