@@ -159,3 +159,9 @@
 - 卡在哪：执行器回调写在 persistSessionState 声明之前（TDZ）；ipc.ts 没有 import 行，正则插入失败；函数名 confirm 触发了 check-ux 的原生对话框检查。
 - 根因：往大文件插入代码时按位置锚定，没有先确认依赖的声明顺序。
 - 以后怎么避免：回调插到它所依赖的 useCallback 之后；补丁脚本对每个锚点都断言命中；避免使用 confirm/alert/prompt 作为标识符。
+## 2026-10-21 第 54 轮：AI 动作第二批 + 审计 + E2E
+- 耗时：约 21 分钟。
+- 卡在哪：before 截图漏了 `--set chrome`，ai-action 场景没拍到；PowerShell 里自定义函数 R / Rp 与内置别名（Invoke-History、Remove-ItemProperty）冲突，补丁两次没生效。
+- 根因：harness 的 --only 匹配不到时只报退出码 2，我只看了过滤后的输出；PowerShell 函数名没有加前缀。
+- 以后怎么避免：截图命令统一检查退出码，并核对文件清单；PowerShell 辅助函数用 Verb-Noun 加轮次后缀，例如 Do-Rep54。
+- 观感项本轮缺失，下一轮补上。
