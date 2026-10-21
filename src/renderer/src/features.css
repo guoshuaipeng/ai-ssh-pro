@@ -1602,11 +1602,11 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .settings-body { display: flex; flex-direction: column; }
 .settings-body > section { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); max-width: 640px; }
 @container (max-width: 900px) {
-  .settings-shell { flex-direction: column; }
-  .settings-shell { overflow: auto; }
-  .settings-nav { width: auto; flex-direction: row; flex-wrap: wrap; overflow: visible; max-height: none; border-right: none; border-bottom: 1px solid var(--border); }
-  .settings-nav .settings-search { flex-basis: 100%; }
-  .settings-body { overflow: visible; flex: none; }
+  /* c49 ST3b: narrow = slim vertical rail; nav never stacks or wraps; body is the only scroll */
+  .settings-nav { width: 128px; flex-direction: column; flex-wrap: nowrap; overflow: visible; max-height: none; }
+  .settings-nav button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .settings-body { padding-left: var(--space-3); padding-right: var(--space-3); }
+  .settings-embed div.field { grid-template-columns: 120px minmax(0, 1fr); }
 }
 .cmdp-head { font-size: 11px; font-weight: var(--fw-semibold); letter-spacing: 0.04em; color: var(--color-text-muted); padding: 8px 10px 2px; position: sticky; top: 0; background: var(--color-bg-elevated); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdp-head--nav { color: var(--color-text-secondary); }
@@ -2315,3 +2315,8 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .settings-embed .workspace-panel-body--settings, .settings-embed .workspace-panel-inner--settings { overflow: visible; max-height: none; height: auto; padding: 0; }
 .settings-embed div.field { display: grid; grid-template-columns: 160px minmax(0, 1fr); align-items: center; column-gap: var(--space-3); min-height: 36px; margin: 0; padding: var(--space-1) 0; border-bottom: 1px solid var(--color-border-muted); }
 .settings-embed label.field { min-height: 36px; margin: 0; padding: var(--space-1) 0; border-bottom: 1px solid var(--color-border-muted); }
+/* c49 UX: narrow-width acceptance fixes (1024 + right panel) */
+.s2b-filters input { flex: 1 1 96px; }
+.s2b-filters .ui-select, .s2b-filters [data-testid^="gate-filter"] { flex: none; }
+.inv20-head { flex-wrap: wrap; row-gap: var(--space-2); }
+.inv20-head-actions { margin-left: auto; }
