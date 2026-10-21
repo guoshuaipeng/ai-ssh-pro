@@ -1,4 +1,6 @@
 import { hasUsableKey } from '@shared/ai-presets'
+import AiActionCard from './AiActionCard'
+import type { ActionResult } from '@shared/ai-actions'
 import { recallStep, userPrompts } from '@shared/ai-recall'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
@@ -56,6 +58,8 @@ export type AiPendingInfo = {
 }
 
 type Props = {
+  /** c53 AA1: runs a confirmed app action proposed by the AI. */
+  onAppAction?: (name: string, values: Record<string, string>) => Promise<ActionResult> | ActionResult
   activeSessionId: string | null
   /** Stable key for persisted chat history (e.g. saved profile id); falls back to session id */
   historyKey?: string | null
@@ -488,6 +492,7 @@ function historyToLines(messages: AiChatMessage[]): Line[] {
 }
 
 export default function AIPanel({
+  onAppAction,
   activeSessionId,
   historyKey = null,
   hostInventoryId = null,
@@ -578,6 +583,15 @@ export default function AIPanel({
         ;(window as unknown as { __aissShotPop?: string }).__aissShotPop = which
         setModelOpen(which === 'model')
         setSafetyOpen(which === 'safety')
+        return
+      }
+      if (detail && detail.op === 'aiAction') {
+        // c53 screenshot: a demo reply carrying an app action card
+        screenshotForceKeyRef.current = true
+        setHasApiKey(true)
+        const name = String((detail as { name?: string }).name || 'connection.add')
+        const params = ((detail as { params?: Record<string, string> }).params) || {}
+        setLines((prev) => [...prev, { role: 'user', content: String((detail as { ask?: string }).ask || name) }, { role: 'assistant', content: '', fresh: true, structured: { action: 'end', completed: true, description: String((detail as { say?: string }).say || name), riskLevel: 'low', appAction: { name, params } } }])
         return
       }
       if (!detail || detail.op !== 'aiConfirm') return
@@ -2146,6 +2160,7 @@ export default function AIPanel({
                 <div className="ai-card-body">
                   <OpsReply text={s.description} confirm={false} skipCommand={s.command} />
                 </div>
+                {s.appAction ? <AiActionCard key={`${i}-${s.appAction.name}`} proposal={s.appAction} onRun={onAppAction} /> : null}
                 {s.notes ? (
                   <div className="ai-reply-notes">
                     <OpsReply text={s.notes} confirm={false} skipCommand={s.command} />

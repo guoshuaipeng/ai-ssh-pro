@@ -1,4 +1,5 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
+import { applyMonitorAction, buildProfileFromAction, type ActionResult } from '@shared/ai-actions'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -2573,6 +2574,28 @@ export default function App() {
     updateLayout((p) => (p.showMain ? p : withPaneToggle(p, 'main', true)))
   }, [updateLayout])
 
+  // c53 AA1: executors for AI-proposed app actions. Only called after the user confirms the card.
+  const onAppAction = useCallback(
+    async (name: string, v: Record<string, string>): Promise<ActionResult> => {
+      if (name === 'connection.add') {
+        const r = buildProfileFromAction(v, profilesRef.current, uuid)
+        await persistSessionState({ folders, profiles: r.profiles })
+        const msg = tg(r.updated ? 'aa.connUpdated' : 'aa.connSaved', { name: r.profile.label })
+        showToast(msg)
+        return { ok: true, message: msg }
+      }
+      if (name === 'monitor.configure') {
+        const next = applyMonitorAction(alertRules, v)
+        saveAlertRules(next)
+        setAlertRules(next)
+        const msg = tg('aa.monitorSaved', { metric: v.metric })
+        showToast(msg)
+        return { ok: true, message: msg }
+      }
+      return { ok: false, message: tg('aa.noExecutor') }
+    },
+    [folders, persistSessionState, alertRules, showToast]
+  )
   const saveProfile = useCallback(() => {
     if (!host.trim() || !username.trim()) {
       setError(tg('app.needHostUser'))
@@ -10177,6 +10200,7 @@ export default function App() {
             ) : null}
             {rightPane === 'ai' ? (
             <AIPanel
+              onAppAction={onAppAction}
               onOpenSettings={() => openUnifiedSettings('ai')}
               activeSessionId={activeSessionId}
               historyKey={activeConv ? activeConv.key : GENERAL_CONVERSATION_KEY}

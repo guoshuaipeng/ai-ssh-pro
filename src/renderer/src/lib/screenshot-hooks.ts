@@ -21,6 +21,7 @@ export type ScreenshotOp =
   | { op: "dismissProduct" }
   | { op: "closeModals" }
   | { op: "reset" }
+  | { op: "aiAction"; name?: string; params?: Record<string, string>; ask?: string; say?: string }
   /** Visual QA: run a titlebar menu action (opsHome, settings, commandPalette, demoHost…). */
   | { op: "menu"; action: string }
   /** Visual QA: open the AI chat panel; seeds a short demo conversation unless `empty`. */

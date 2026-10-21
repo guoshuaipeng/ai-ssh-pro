@@ -1,5 +1,6 @@
 import { aiAuthHeaders, hasUsableKey } from '../shared/ai-presets'
 import { mt } from './main-i18n'
+import { actionsPrompt, redactForAi } from '../shared/ai-actions'
 import { aiHttpErrorMessages } from '../shared/ai-http-error'
 import type { WebContents } from 'electron'
 import { parseAiAssistantReply, type AiChatPayload, type AiSettings, type AiStreamEvent } from '../shared/ipc'
@@ -84,16 +85,18 @@ function buildMessages(payload: AiChatPayload): { role: string; content: string 
     mt('- tool_call 以及纯读取命令（只读证据）优先用 low', "- tool_call and read-only commands (evidence only) should prefer low"),
     mt('- 可能修改服务/重启/重载的命令用 medium/high，并在 notes 明确写“需确认/可能影响业务/回滚建议”。', "- commands that may modify, restart or reload services use medium/high, and notes must say \"needs confirmation / may affect service / rollback advice\".")
   ]
+  // c53 AA1: app actions the model may PROPOSE (UI confirms; secrets never requested)
+  systemParts.push(actionsPrompt())
   if (payload.targetSessionId) {
     systemParts.push(mt(`当前关联的 SSH 会话 ID：${payload.targetSessionId}（仅作上下文，不要当作秘密）。`, `Linked SSH session ID: ${payload.targetSessionId} (context only, not a secret).`))
   }
   if (payload.terminalExcerpt?.trim()) {
-    systemParts.push(mt('用户提供的终端片段（可能含敏感信息）：\n```\n', "Terminal excerpt provided by the user (may contain sensitive data):\n```") + payload.terminalExcerpt.trim() + '\n```')
+    systemParts.push(mt('用户提供的终端片段（可能含敏感信息）：\n```\n', "Terminal excerpt provided by the user (may contain sensitive data):\n```") + redactForAi(payload.terminalExcerpt.trim()) + '\n```')
   }
   const system = systemParts.join('\n')
   const out: { role: string; content: string }[] = [{ role: 'system', content: system }]
   for (const m of payload.messages) {
-    out.push({ role: m.role, content: m.content })
+    out.push({ role: m.role, content: redactForAi(m.content) })
   }
   return out
 }

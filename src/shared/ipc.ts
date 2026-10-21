@@ -1,3 +1,4 @@
+import { sanitizeProposal } from './ai-actions'
 /** 主菜单 / 工具栏打开的对话框或会话管理命令 */
 /** Menu actions sent from the main-process application menu (same ids as the shared menu definition). */
 export type AppDialogKind = import('./menus').MenuAction
@@ -675,6 +676,8 @@ export type AiAssistantReply = {
   command?: string
   riskLevel: string
   notes?: string
+  /** c53 AA1: proposed app action (sanitized: known names/fields only, never secrets). */
+  appAction?: import('./ai-actions').AppActionProposal
 }
 
 /** 调试面板单条记录：模型一轮请求，或随后的工具/命令执行结果 */
@@ -847,6 +850,7 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
       command = obj.command.replace(/\r\n/g, '\n').replace(/[\r\n]+/g, ' ').trim()
     }
     const notes = typeof obj.notes === 'string' && obj.notes.trim() ? obj.notes.trim() : undefined
+    const appAction = sanitizeProposal(obj.appAction) ?? undefined
     return {
       description,
       action,
@@ -856,7 +860,8 @@ export function parseAiAssistantReply(raw: string): AiAssistantReply | null {
       toolInput,
       command,
       riskLevel,
-      notes
+      notes,
+      ...(appAction ? { appAction } : {})
     }
   } catch {
     return null
