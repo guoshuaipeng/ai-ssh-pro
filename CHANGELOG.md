@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v0.7.0
+
+Released 2026-10-21 (CST).
+
+**用 AI 操作软件本身。** 在 AI 面板里用一句话描述你要做的事，AI 会给出一张预填好的操作卡片；你核对后点「确认执行」才会生效。密码、私钥等敏感字段不会由 AI 填写，也不会发给 AI；批量、上传覆盖等高风险操作需要二次确认；每次执行都记入审计日志。
+**Operate the app with AI.** Describe what you want in the AI panel and get a prefilled action card; nothing runs until you press Confirm. Secrets are never filled by or sent to the AI, high-risk actions (batch, upload overwrite) need a second confirmation, and every run is audited.
+
+- **11 个 AI 动作 / 11 AI actions**：添加连接、打开连接（含批量）、配置告警阈值、打开 SFTP 并定位到目录、文件上传 / 下载、新建片段、新建剧本、新建端口转发、从历史中找回命令填入命令栏、预填批量执行（不会自动执行）、打开资源监控。 Add / open connections (batch), alert thresholds, SFTP at a path, file upload / download, snippets, playbooks, port forwards, fill a command from history, prefill a batch run (never auto-run), open the resource monitor.
+- **更稳的 AI 解析与提示词 / Sturdier parsing and prompt**：能兼容模型输出的多种 JSON 格式，提示词里也明确了软件操作优先。用 qwen-plus 实测，主集 28/28、留出集 22/22，密钥泄露 0。 Tolerant reply parser and app-action priority rule; real-model eval 28/28 main, 22/22 held-out, zero secret leaks.
+- **界面质感 / Look and feel**：原生下拉全部换成主题下拉；设置页和主机档案在窄窗口下也能正常显示；SFTP 工具栏、审计日志筛选、终端提示条、命令解释提示框都做了整理；AI 卡片的错误文字可以完整换行，长内容悬停可看全文。 Native selects replaced by themed ones; narrow-width settings and host inventory; tidier SFTP toolbar, audit filters, terminal banner and command-explain tip; AI card errors wrap and long values show on hover.
+- **质量 / Quality**：每个 AI 动作都有界面级端到端测试（深色和浅色分别隔离运行，审计按精确条数核对）；测试里带一个只监听本机的 sshd，端口转发和 SFTP 上传 / 下载的成功路径都走真实连接验证；单元测试改为并行，全量 420 项。 UI end-to-end tests for every action (theme-isolated, exact audit counts) plus a loopback test sshd that proves port-forward and SFTP upload / download for real; parallel unit runner, 420 suites.
+
 ## v0.6.63
 
 Released 2026-10-20 (CST).

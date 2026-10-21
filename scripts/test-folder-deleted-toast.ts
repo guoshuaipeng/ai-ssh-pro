@@ -11,6 +11,6 @@ assert.ok(i18n.includes("app.folderDeleted': '已删除分组「{name}」'"))
 assert.ok(i18n.includes("app.folderDeleted': 'Deleted group"))
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.6.63')
+assert.equal(pkg.version, '0.7.0')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-folder-deleted-toast/)
 console.log('test-folder-deleted-toast ok')

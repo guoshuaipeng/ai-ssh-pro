@@ -12,6 +12,16 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.7.0': [
+    {
+      icon: '✦',
+      text: {
+        zh: '用一句话让 AI 操作软件：添加 / 打开连接、配置告警、打开 SFTP、上传下载文件、新建片段 / 剧本 / 端口转发、预填批量执行、打开资源监控等。AI 只给出预填卡片，确认后才执行；敏感字段不经过 AI，高风险操作需二次确认，全部记入审计',
+        en: 'Ask the AI to operate the app: add / open connections, set alerts, open SFTP, upload / download files, create snippets, playbooks and port forwards, prefill batch runs, open the monitor. The AI only prefills a card that runs after you confirm; secrets never pass through the AI, risky actions ask twice, everything is audited'
+      },
+      where: { zh: 'AI 面板', en: 'AI panel' }
+    }
+  ],
   '0.6.63': [
     {
       icon: '▷',
