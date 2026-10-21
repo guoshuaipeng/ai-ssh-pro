@@ -2259,7 +2259,7 @@ body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
 
 /* HK2 host keys modal: rows never shrink into each other */
 .kh-panel > * { flex-shrink: 0; }
-.kh-lookup { padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border-default); }
+.kh-lookup { padding-bottom: var(--space-2); }
 
 /* OH2 ops home: quick actions and recent playbooks as two aligned rows */
 .oh-quick--recent { margin-top: var(--space-2); }
@@ -2320,6 +2320,10 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .s2b-filters .ui-select, .s2b-filters [data-testid^="gate-filter"] { flex: none; }
 .inv20-head { flex-wrap: wrap; row-gap: var(--space-2); }
 .inv20-head-actions { margin-left: auto; }
+/* c50 P2: known-hosts no orphan rule/word; merged demo chip in guard banner */
+.kh-lead { text-wrap: pretty; }
+.term-guard-demo { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; color: var(--color-warn); white-space: nowrap; }
+.term-guard-demo .primary { padding: var(--space-1) var(--space-2); font-size: var(--fs-xs); }
 /* c50 IN1: host inventory narrow layout (container, not viewport) */
 .workspace-panel-body:has(> .inventory-layout), .workspace-panel-inner:has(> .inventory-layout) { container-type: inline-size; container-name: inv; }
 @container inv (max-width: 680px) {

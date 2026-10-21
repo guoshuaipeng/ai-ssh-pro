@@ -64,7 +64,7 @@ const tabCtx: TabMenuCtx = {
   closeRightDisabled: true
 }
 const closeOthersItem = buildTabMenu(tabCtx).find((node) => node.type === 'item' && node.id === 'closeOthers')
-assert.equal(closeOthersItem && closeOthersItem.type === 'item' ? closeOthersItem.hintKey : '', 'tab.closeOthersKeep')
+assert.equal(closeOthersItem && closeOthersItem.type === 'item' ? closeOthersItem.titleKey : '', 'tab.closeOthersKeep')
 
 assert.deepEqual(tabStripChrome(true), { arrows: true, menu: true })
 assert.deepEqual(tabStripChrome(false), { arrows: false, menu: false })
@@ -92,7 +92,7 @@ assert.match(app, /closest\('\.xterm'\)/)
 const closeBranch = app.slice(app.indexOf("if (action === 'closeTab')"), app.indexOf('// UX-45'))
 assert.match(closeBranch, /isDialogOpen\(\)/)
 assert.match(closeBranch, /closeTabRef\.current/)
-assert.match(menus, /hintKey: 'tab\.closeOthersKeep'/)
+assert.match(menus, /titleKey: 'tab\.closeOthersKeep'/)
 assert.match(built, /tab-menu-hint/)
 assert.match(features, /\.tab-context-menu button \.tab-menu-hint\s*\{[^}]*color:\s*var\(--color-text-muted\)/)
 

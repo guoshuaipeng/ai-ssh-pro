@@ -214,7 +214,7 @@ export function buildTabMenu(ctx: TabMenuCtx): BuiltNode[] {
       type: 'item',
       id: 'closeOthers',
       labelKey: 'tab.closeOthers',
-      hintKey: 'tab.closeOthersKeep',
+      titleKey: 'tab.closeOthersKeep',
       disabled: ctx.closeOthersDisabled,
       danger: true,
       testId: 'tab-close-others'

@@ -8787,7 +8787,8 @@ export default function App() {
             )
           })()}
 
-          {activeIsDemo ? (
+          {/* c50 P2: demo + guard banners merge into one row */}
+          {activeIsDemo && !(activeTab?.sessionId && activeTab.profileId && (() => { const g = guardForSession(activeTab.sessionId); if (g.level === 'normal') return false; const pid = g.profile?.id; return !(pid && guardCollapsed[pid] && !g.elevated) })()) ? (
             <div className="demo-banner" data-testid="demo-banner" role="status">
               <span>{tr('g1.banner')}</span>
               <button type="button" className="primary" onClick={() => openConnectionEditor()}>
@@ -8878,6 +8879,7 @@ export default function App() {
                     >
                       <span className="s4-banner-long">{baseTip}</span>
                       <span className="s4-banner-short">{paused ? `${mm}:${ss}` : g.level === 'readonly' ? tg('s4.bannerShort') : tg('l4.bannerProd')}</span>
+                      {activeIsDemo ? (<span className="term-guard-demo" data-testid="demo-banner" role="status">{tr('g1.banner')}<button type="button" className="primary" onClick={() => openConnectionEditor()}>{tr('g1.addMine')}</button></span>) : null}
                       {autoHint ? (
                         <button
                           type="button"
