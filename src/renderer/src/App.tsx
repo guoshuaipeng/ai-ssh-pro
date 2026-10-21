@@ -8892,7 +8892,7 @@ export default function App() {
                     >
                       <span className="s4-banner-long">{baseTip}</span>
                       <span className="s4-banner-short">{paused ? `${mm}:${ss}` : g.level === 'readonly' ? tg('s4.bannerShort') : tg('l4.bannerProd')}</span>
-                      {activeIsDemo ? (<span className="term-guard-demo" data-testid="demo-banner" role="status" title={tr('g1.banner')}><span className="term-guard-demo-text">{tr('g1.banner')}</span><button type="button" className="primary" onClick={() => openConnectionEditor()}>{tr('g1.addMine')}</button></span>) : null}
+                      {activeIsDemo ? (<span className="term-guard-demo" data-testid="demo-banner" role="status" title={tr('g1.banner')}><span className="term-guard-demo-text">{tr('g1.banner')}</span><span className="term-guard-demo-short" aria-hidden="true"><span className="banner-ai-dot" />{tr('g1.bannerShort')}</span><button type="button" className="primary" onClick={() => openConnectionEditor()}>{tr('g1.addMine')}</button></span>) : null}
                       {autoHint ? (
                         <button
                           type="button"
