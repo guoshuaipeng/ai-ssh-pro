@@ -173,5 +173,21 @@
   "p": {
    "target": "demo-mysql"
   }
+ },
+ {
+  "lang": "zh",
+  "q": "刚刚那几步操作帮我保存成剧本，名字叫重启流程",
+  "name": "playbook.fromRecent",
+  "p": {
+   "name": "重启流程"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Save my recent commands as a runbook named redis-fix",
+  "name": "playbook.fromRecent",
+  "p": {
+   "name": "redis-fix"
+  }
  }
 ]

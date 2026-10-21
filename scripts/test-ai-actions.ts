@@ -8,14 +8,14 @@ import { cleanIpcError, proposalFromReply } from '../src/shared/ai-actions'
 import { BATCH_RISK_MIN, parseTargets, pickHistoryForAction, resolveTargets, sftpPathOk } from '../src/shared/ai-actions'
 import { auditDetailForAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction } from '../src/shared/ai-actions'
 import { parseAiAssistantReply } from '../src/shared/ipc'
-import { buildPlaybookFromAction, splitPlaybookCommands, transferPathsOk } from '../src/shared/ai-actions'
+import { buildPlaybookFromAction, splitPlaybookCommands, transferPathsOk, buildPlaybookFromCommands, recentCommandsForPlaybook } from '../src/shared/ai-actions'
 import { DEFAULT_ALERT_RULES } from '../src/shared/alert-rules'
 
 let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 
 // registry
-ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open', 'registry order (c53..c58)')
+ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open,playbook.fromRecent', 'registry order (c53..c59)')
 for (const a of AI_ACTIONS) ok(a.fields.every((f) => f.labelKey.startsWith('aa.')), `${a.name} fields use aa.* i18n`)
 
 // sanitize: secrets from the model are dropped, unknown keys/actions ignored
@@ -187,5 +187,19 @@ ok(/\.aa-status\.is-err \{[^}]*white-space: normal/.test(css58) && css58.include
 ok(readFileSync('src/renderer/src/components/AiActionCard.tsx', 'utf8').includes("title={f.type === 'secret' ? undefined"), 'card inputs show the full value on hover, never for secrets')
 ok(['e2e-batch-prefill', 'e2e-err-batch-notfound', 'e2e-monitor-open', 'e2e-err-monitor-notfound', 'e2e-xfer-ok-dl', 'e2e-xfer-ok-ul'].every((x) => shots.includes(`name: '${x}'`)) && shots.includes("whiteSpace!=='nowrap'"), 'c58 E2E scenarios + wrap check')
 const sshd58 = readFileSync('scripts/e2e-sshd.mjs', 'utf8')
-ok(sshd58.includes('attachSftp(') && sshd58.includes("mkdtempSync(path.join(os.tmpdir(), 'aiss-e2e-sftp-'))") && sshd58.includes("filter(Boolean)"), 'test sshd SFTP is jailed to a temp dir')
+ok(sshd58.includes('serveSftp(accept(), sftpRoot)') && sshd58.includes("mkdtempSync(path.join(os.tmpdir(), 'aiss-e2e-sftp-'))") && readFileSync('scripts/e2e-sftp-server.mjs', 'utf8').includes("posix.normalize('/' + String(rp || ''))"), 'test sshd SFTP is jailed to a temp dir (shared server)')
+// c59: playbook.fromRecent, shared SFTP test server, upload error type, done check mark
+const R = (c: string, h: string, t: number) => ({ command: c, hostKey: h, count: 1, lastUsed: t })
+const hist59 = [R('uptime', 'a', 1), R('df -h', 'a', 2), R('uptime', 'a', 3), R('free -m', 'a', 4), R('ls', 'b', 5)]
+ok(JSON.stringify(recentCommandsForPlaybook(hist59, 'a', '2')) === '["uptime","free -m"]', 'recent: newest N, distinct, oldest-first, current host')
+ok(JSON.stringify(recentCommandsForPlaybook(hist59, 'zz', '1')) === '["ls"]', 'recent: falls back to all hosts')
+ok(recentCommandsForPlaybook(hist59, '', undefined).length === 4 && recentCommandsForPlaybook(Array.from({ length: 50 }, (_, i) => R('c' + i, 'a', i)), 'a', '99').length === 30, 'recent: default 10, max 30')
+ok(recentCommandsForPlaybook([], 'a', '5').length === 0, 'recent: empty history -> nothing')
+const pbr = buildPlaybookFromCommands('x', 'd', ['a; b', 'c'], 'i', 1)
+ok(pbr?.steps.length === 2 && pbr.steps[0].command === 'a; b' && pbr.steps.every((s) => s.confirm && s.lockedConfirm), 'recent commands keep ; inside one step, every step asks first')
+ok(getAction('playbook.fromRecent')!.fields.every((f) => f.type !== 'secret') && !getAction('playbook.fromRecent')!.risk, 'fromRecent: no secrets, saves only')
+const srv = readFileSync('scripts/e2e-sftp-server.mjs', 'utf8')
+ok(srv.includes('export function serveSftp(sftp, sftpRoot)') && readFileSync('scripts/e2e.mjs', 'utf8').includes("from './e2e-sftp-server.mjs'") && readFileSync('scripts/e2e-sshd.mjs', 'utf8').includes("from './e2e-sftp-server.mjs'") && !readFileSync('scripts/e2e-sshd.mjs', 'utf8').includes('attachSftp'), 'one shared SFTP test server')
+ok(shots.includes("/只读|read-only/i.test(msg())") && shots.split('localPath: ${JSON.stringify(E2E_UPSRC)}').length - 1 >= 2, 'upload failure asserts the read-only error and owns its source file')
+ok(readFileSync('src/renderer/src/features.css', 'utf8').includes(".aa-status.is-ok::before { content: '✓'"), 'done status has a check mark')
 console.log(`test-ai-actions: ${n} passed`)

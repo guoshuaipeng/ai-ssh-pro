@@ -26,5 +26,7 @@
  {"lang":"zh","q":"在 demo-web-01 和 demo-mysql 上批量跑一下 uptime，先别执行，我看一眼","name":"batch.prefill","p":{"command":"uptime"}},
  {"lang":"en","q":"Prepare a batch run of \"df -h\" on demo-web-01, demo-mysql but do not run it yet","name":"batch.prefill","p":{"command":"df -h"}},
  {"lang":"zh","q":"打开 demo-mysql 的资源监控","name":"monitor.open","p":{"target":"demo-mysql"}},
- {"lang":"en","q":"Show me the CPU and memory monitor for demo-web-01","name":"monitor.open","p":{"target":"demo-web-01"}}
+ {"lang":"en","q":"Show me the CPU and memory monitor for demo-web-01","name":"monitor.open","p":{"target":"demo-web-01"}},
+ {"lang":"zh","q":"把我刚才执行的最近 5 条命令存成剧本，叫“排查 nginx”","name":"playbook.fromRecent","p":{"name":"排查 nginx","count":"5"}},
+ {"lang":"en","q":"Turn the last 8 commands I ran into a playbook called disk-triage","name":"playbook.fromRecent","p":{"name":"disk-triage","count":"8"}}
 ]
