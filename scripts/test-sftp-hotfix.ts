@@ -83,7 +83,7 @@ assert.equal(selectedDriveId(mounts, '/mnt/usb/photos', 'posix'), '/mnt/usb')
 
 assert.ok(panel.includes('data-testid="sftp-drive-switch"'), 'drive control is in the local pane')
 assert.ok(panel.includes("tg('d6.fail'"), 'unavailable or failed drive toasts')
-assert.ok(panel.includes('disabled={!d.ready}'), 'not-ready drives are disabled')
+assert.ok(panel.includes('disabled: !d.ready'), 'not-ready drives are disabled')
 assert.ok(css.includes('.sftp-drive') && css.includes('flex-wrap: nowrap') && css.includes('max-width: 72px'), 'drive control keeps a fixed width')
 
 // HF-3 / D7

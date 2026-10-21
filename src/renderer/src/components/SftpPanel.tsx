@@ -54,6 +54,7 @@ import { SFTP_GOTO_EVENT, takeSftpGoto } from '../lib/sftp-goto'
 import { AI_FILE_MAX_BYTES, buildFileContext, canAttachFile } from '@shared/ai-file-context'
 import { requestAskWithContext } from '../lib/ai-prefill'
 import Icon, { Twist } from './Icon'
+import Select from './ui/Select'
 import FolderSyncModal from './FolderSyncModal'
 import { newFileProblem } from '@shared/sftp-new-file'
 import SftpTreeSearch from './SftpTreeSearch'
@@ -262,6 +263,10 @@ export default function SftpPanel({
     typeof window === 'undefined' ? 900 : window.innerHeight
   ).advancedCollapsed)
   const [crumbOpen, setCrumbOpen] = useState(false)
+  // SH1: which pane's address bar is in typing mode; filter row shown on demand
+  const [pathEdit, setPathEdit] = useState<PaneId | null>(null)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const localPathRef = useRef<HTMLInputElement>(null)
   const [pane, setPane] = useState<PaneId>('remote')
   const [activePane, setActivePane] = useState<PaneId>('remote')
   const [showHidden, setShowHidden] = useState(false)
@@ -1447,25 +1452,22 @@ export default function SftpPanel({
     const driveControl = isLocal ? (
       <label className={`sftp-drive${centerLayout.driveProminent ? ' is-prominent' : ''}`}>
         <span className="sr-only">{tg('d6.drive')}</span>
-        <select
-          data-testid="sftp-drive-switch"
-          aria-label={tg('d6.switch')}
-          title={tg('d6.switch')}
+        {/* SH1: themed Select instead of the native drop-down (data-testid="sftp-drive-switch") */}
+        <Select
+          testId="sftp-drive-switch"
+          ariaLabel={tg('d6.switch')}
           value={driveScan && drives.length === 0 ? '' : driveValue}
-          onChange={(e) => switchDrive(e.target.value)}
-        >
-          {driveScan && drives.length === 0 ? <option value="">{tg('d6.scanning')}</option> : null}
-          {drives.map((d) => (
-            <option
-              key={d.id}
-              value={d.id}
-              disabled={!d.ready}
-              title={d.ready ? tg('d6.root', { letter: d.id.replace(/:$/, '') }) : tg('d6.unavailable')}
-            >
-              {d.ready ? d.label : `${d.label} · ${tg('d6.unavailable')}`}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => switchDrive(v)}
+          options={[
+            ...(driveScan && drives.length === 0 ? [{ value: '', label: tg('d6.scanning') }] : []),
+            ...drives.map((d) => ({
+              value: d.id,
+              label: d.ready ? d.label : `${d.label} · ${tg('d6.unavailable')}`,
+              disabled: !d.ready,
+              title: d.ready ? tg('d6.root', { letter: d.id.replace(/:$/, '') }) : tg('d6.unavailable')
+            }))
+          ]}
+        />
       </label>
     ) : null
     return (
@@ -1474,124 +1476,134 @@ export default function SftpPanel({
         data-testid={`sftp-pane-${side}`}
         tabIndex={0}
         onFocus={() => setActivePane(side)}
-        onKeyDown={onPaneKey(side, entries, selected)}
+        onKeyDown={(e) => {
+          // SH1: Ctrl+L / Alt+D types a path into this pane's address bar
+          if ((e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'l') || (e.altKey && e.key.toLowerCase() === 'd')) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (compact) setCrumbOpen(true)
+            const el = isLocal ? localPathRef.current : remotePathRef.current
+            queueMicrotask(() => { el?.focus(); el?.select() })
+            return
+          }
+          onPaneKey(side, entries, selected)(e)
+        }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={isLocal ? onDropLocal : onDropRemote}
       >
-        <div className="sftp-pane-head">
-          <div className="sftp-pane-title">
-            <span className="sftp-pane-name">{isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}</span>
-            {isLocal && !showPath ? driveControl : null}
-            {isLocal || hostKey ? (
-              <button
-                type="button"
-                className="sftp-cd-terminal"
-                data-testid={isLocal ? 'sftp-recent-dirs-local' : 'sftp-recent-dirs'}
-                title={tg(isLocal ? 'd47.tip' : 'd45.tip')}
-                onClick={(ev) => {
-                  // D45: recent folders on this host
-                  const dirs = recentDirs(isLocal ? LOCAL_RECENT_KEY : hostKey).filter((d) => d !== cwd)
-                  if (!dirs.length) {
-                    showToast(tg('d45.empty'))
+        {/* SH1: one row per pane, same order on both sides: name · drive · address bar · tools */}
+        <div className="sftp-pane-head sftp-head" data-testid={`sftp-head-${side}`}>
+          <span className="sftp-pane-name" title={isLocal ? tg('d1.local') : `${tg('d1.remote')}${hostLabel ? ` · ${hostLabel}` : ''}`}>
+            {isLocal ? tg('d1.local') : hostLabel || tg('d1.remote')}
+          </span>
+          {driveControl}
+          {showPath ? (
+            <div
+              className={`sftp-addr${pathEdit === side ? ' is-editing' : ''}`}
+              data-testid={`sftp-addr-${side}`}
+              title={pathEdit === side ? undefined : tg('sh1.addrTip')}
+              onMouseDown={(e) => {
+                // a click on the bar (not on a crumb) switches to typing, like Explorer
+                if ((e.target as HTMLElement).closest('.sftp-crumb, .sftp-addr-input')) return
+                e.preventDefault()
+                const el = isLocal ? localPathRef.current : remotePathRef.current
+                el?.focus()
+                el?.select()
+              }}
+            >
+              <nav className="sftp-crumbs" aria-label={isLocal ? tg('d1.localPath') : tg('sftp.remotePath')} data-testid={isLocal ? 'sftp-local-crumbs' : 'sftp-remote-crumbs'}>
+                {pathCrumbs(cwd, isLocal).map((c, i, arr) => (
+                  <span key={c.path + i} className="sftp-crumb-wrap">
+                    {i > 0 && arr[i - 1]!.label !== '/' ? <span className="sftp-crumb-sep" aria-hidden>/</span> : null}
+                    <button
+                      type="button"
+                      className={`sftp-crumb${i === arr.length - 1 ? ' is-current' : ''}`}
+                      disabled={i === arr.length - 1 || disconnected || (!isLocal && !sessionId)}
+                      title={c.path}
+                      onClick={() => {
+                        if (isLocal) void openLocalStrict(c.path, c.path)
+                        else void refreshRemote(c.path)
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  </span>
+                ))}
+              </nav>
+              <input
+                ref={isLocal ? localPathRef : remotePathRef}
+                className="sftp-addr-input"
+                data-testid={isLocal ? 'sftp-local-path-input' : 'sftp-remote-path-input'}
+                value={input}
+                aria-label={isLocal ? tg('d1.localPath') : tg('sftp.remotePath')}
+                spellCheck={false}
+                onFocus={() => setPathEdit(side)}
+                onBlur={() => setPathEdit((p) => (p === side ? null : p))}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation()
+                    setInput(cwd)
+                    e.currentTarget.blur()
                     return
                   }
-                  openContextMenu(ev, dirs.map((d, i) => ({ id: `recent-${i}`, label: d, onSelect: () => void (isLocal ? refreshLocal(d) : refreshRemote(d)) })))
+                  if (e.key === 'Enter') {
+                    e.stopPropagation()
+                    const next = normalizeGotoPath(input, isLocal ? 'local' : 'remote')
+                    setInput(next)
+                    if (isLocal) void openLocalStrict(next, next)
+                    else void refreshRemote(next)
+                    e.currentTarget.blur()
+                  }
                 }}
-              >
-                {tg('d45.btn')}
-              </button>
-            ) : null}
-            {!isLocal && onCdInTerminal && cwd ? (
-              <button type="button" className="sftp-cd-terminal" data-testid="sftp-cd-terminal" title={tg('d28.tip')} onClick={() => onCdInTerminal(cwd)}>
-                {tg('d28.btn')}
-              </button>
-            ) : null}
-            {compact ? (
-              <button type="button" className="sftp-crumb-toggle" onClick={() => setCrumbOpen((v) => !v)}>
-                {tg('ux46.crumb')}
-              </button>
-            ) : null}
-          </div>
-          {showPath ? (
-          <div className="sftp-pathbar">
-            {driveControl}
-            <button type="button" onClick={() => (isLocal ? void refreshLocal(parentLocal(cwd)) : void refreshRemote(parentPosix(cwd)))} disabled={!cwd || cwd === '/' || (isLocal && /^[A-Za-z]:\\?$/.test(cwd))}>
-              {tg('sftp.up')}
-            </button>
-            <nav className="sftp-crumbs" aria-label={isLocal ? tg('d1.localPath') : tg('sftp.remotePath')} data-testid={isLocal ? 'sftp-local-crumbs' : 'sftp-remote-crumbs'}>
-              {pathCrumbs(cwd, isLocal).map((c, i, arr) => (
-                <span key={c.path + i} className="sftp-crumb-wrap">
-                  {i > 0 && arr[i - 1]!.label !== '/' ? <span className="sftp-crumb-sep" aria-hidden>/</span> : null}
-                  <button
-                    type="button"
-                    className={`sftp-crumb${i === arr.length - 1 ? ' is-current' : ''}`}
-                    disabled={i === arr.length - 1 || disconnected || (!isLocal && !sessionId)}
-                    title={c.path}
-                    onClick={() => {
-                      if (isLocal) void openLocalStrict(c.path, c.path)
-                      else void refreshRemote(c.path)
-                    }}
-                  >
-                    {c.label}
-                  </button>
-                </span>
-              ))}
+              />
+              {/* kept for automation and screen readers; Enter in the bar does the same */}
               <button
                 type="button"
-                className="sftp-copy-path"
-                data-testid={isLocal ? 'sftp-copy-local-path' : 'sftp-copy-remote-path'}
-                title={tg('sftp.copyPath')}
-                aria-label={tg('sftp.copyPath')}
+                className="sr-only"
+                tabIndex={-1}
+                data-testid={isLocal ? 'sftp-local-go-path' : 'sftp-remote-go-path'}
+                title={tg('sftp.goPath')}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  void navigator.clipboard.writeText(cwd).then(() => showToast(tg('sftp.copiedPath', { path: cwd })))
-                }}
-              >
-                {tg('sftp.copyPath')}
-              </button>
-            </nav>
-            <input
-              ref={isLocal ? undefined : remotePathRef}
-              data-testid={isLocal ? 'sftp-local-path-input' : 'sftp-remote-path-input'}
-              value={input}
-              aria-label={isLocal ? tg('d1.localPath') : tg('sftp.remotePath')}
-              spellCheck={false}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.stopPropagation()
                   const next = normalizeGotoPath(input, isLocal ? 'local' : 'remote')
                   setInput(next)
                   if (isLocal) void openLocalStrict(next, next)
                   else void refreshRemote(next)
-                }
-              }}
-            />
-            <button
-              type="button"
-              data-testid={isLocal ? 'sftp-local-go-path' : 'sftp-remote-go-path'}
-              title={tg('sftp.goPath')}
-              onClick={() => {
-                const next = normalizeGotoPath(input, isLocal ? 'local' : 'remote')
-                setInput(next)
-                if (isLocal) void openLocalStrict(next, next)
-                else void refreshRemote(next)
-              }}
-            >
-              {tg('sftp.goPath')}
+                }}
+              >
+                {tg('sftp.goPath')}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="sftp-crumb-toggle" onClick={() => setCrumbOpen((v) => !v)}>
+              {tg('ux46.crumb')}
             </button>
-            <button type="button" onClick={() => (isLocal ? void refreshLocal(cwd) : void refreshRemote(cwd))}>
-              {tg('sftp.refresh')}
+          )}
+          <div className="sftp-head-tools" role="toolbar" aria-label={tg('sh1.tools')}>
+            {compact && showPath ? (
+              <button type="button" className="sftp-icon-btn sftp-crumb-toggle" title={tg('ux46.crumb')} aria-label={tg('ux46.crumb')} onClick={() => setCrumbOpen((v) => !v)}>
+                <Icon name="chevron-up" size={14} />
+              </button>
+            ) : null}
+            <button type="button" className="sftp-icon-btn" data-testid={`sftp-up-${side}`} title={tg('sftp.up')} aria-label={tg('sftp.up')} onClick={() => (isLocal ? void refreshLocal(parentLocal(cwd)) : void refreshRemote(parentPosix(cwd)))} disabled={!cwd || cwd === '/' || (isLocal && /^[A-Za-z]:\\?$/.test(cwd))}>
+              <Icon name="arrow-up" size={14} />
+            </button>
+            <button type="button" className="sftp-icon-btn" data-testid={`sftp-refresh-${side}`} title={tg('sftp.refresh')} aria-label={tg('sftp.refresh')} onClick={() => (isLocal ? void refreshLocal(cwd) : void refreshRemote(cwd))}>
+              <Icon name="refresh-cw" size={14} />
             </button>
             {isLocal ? (
-              <button type="button" onClick={() => void mkdir(side)}>
-                {tg('sftp.mkdir')}
+              <button type="button" className="sftp-icon-btn" data-testid="sftp-local-new" title={tg('sftp.mkdir')} aria-label={tg('sftp.mkdir')} onClick={() => void mkdir(side)}>
+                <Icon name="plus" size={14} />
               </button>
             ) : (
-              // D76: one "New ▾" menu for folder / file keeps the remote toolbar on one row
+              // D76: one "New" menu for folder / file
               <button
                 type="button"
+                className="sftp-icon-btn"
                 data-testid="sftp-remote-new"
                 aria-haspopup="menu"
+                aria-label={tg('d76.new')}
                 title={readOnly ? roTitle : remoteWritesBlocked ? tg('l4.readonlyBlocked') : tg('d76.newTip')}
                 disabled={readOnly || remoteWritesBlocked || !sessionId}
                 onClick={(ev) => {
@@ -1602,14 +1614,92 @@ export default function SftpPanel({
                   ], { anchor: { x: r.left, y: r.bottom + 2 } })
                 }}
               >
-                {tg('d76.new')}
+                <Icon name="plus" size={14} />
               </button>
             )}
-            {!isLocal ? (
-              <button type="button" className="sftp-icon-btn" data-testid="sftp-remote-tree-search" title={tg('d75.tip')} aria-label={tg('d75.button')} disabled={!sessionId} onClick={() => setTreeOpen(true)}>
-                <Icon name="search" size={14} />
+            {isLocal || hostKey ? (
+              <button
+                type="button"
+                className="sftp-icon-btn"
+                data-testid={isLocal ? 'sftp-recent-dirs-local' : 'sftp-recent-dirs'}
+                title={tg(isLocal ? 'd47.tip' : 'd45.tip')}
+                aria-label={tg('d45.btn')}
+                onClick={(ev) => {
+                  // D45: recent folders on this host
+                  const dirs = recentDirs(isLocal ? LOCAL_RECENT_KEY : hostKey).filter((d) => d !== cwd)
+                  if (!dirs.length) {
+                    showToast(tg('d45.empty'))
+                    return
+                  }
+                  openContextMenu(ev, dirs.map((d, i) => ({ id: `recent-${i}`, label: d, onSelect: () => void (isLocal ? refreshLocal(d) : refreshRemote(d)) })))
+                }}
+              >
+                <Icon name="history" size={14} />
               </button>
             ) : null}
+            <button
+              type="button"
+              className={`sftp-icon-btn${filterOpen || nameFilter.trim() ? ' is-on' : ''}`}
+              data-testid={`sftp-filter-toggle-${side}`}
+              aria-pressed={filterOpen || Boolean(nameFilter.trim())}
+              title={tg(isLocal ? 'sh1.filterTip' : 'sh1.filterTipRemote')}
+              aria-label={tg('sftp.nameFilter')}
+              onClick={() => {
+                if (filterOpen && !nameFilter.trim()) setFilterOpen(false)
+                else {
+                  setFilterOpen(true)
+                  queueMicrotask(() => document.querySelector<HTMLInputElement>(`[data-testid="${isLocal ? 'sftp-local-name-filter' : 'sftp-remote-name-filter'}"]`)?.focus())
+                }
+              }}
+            >
+              <Icon name="search" size={14} />
+            </button>
+            <button
+              type="button"
+              className={`sftp-icon-btn${sortMode === 'mtime' ? ' is-on' : ''}`}
+              data-testid="sftp-sort-mode"
+              title={tg(sortMode === 'mtime' ? 'sftp.sortByMtimeTip' : 'sftp.sortByNameTip')}
+              aria-label={tg(sortMode === 'mtime' ? 'sftp.sortMtime' : sortMode === 'size' ? 'd81.sortSize' : 'sftp.sortName')}
+              onClick={() => {
+                setSortMode((m) => (m === 'name' ? 'mtime' : 'name'))
+                setSortFlip(false)
+              }}
+            >
+              <Icon name={sortMode === 'mtime' ? 'history' : 'arrow-down'} size={14} />
+            </button>
+            <button
+              type="button"
+              className="sftp-icon-btn"
+              data-testid={`sftp-more-${side}`}
+              aria-haspopup="menu"
+              title={tg('sh1.more')}
+              aria-label={tg('sh1.more')}
+              onClick={(ev) => {
+                const r = ev.currentTarget.getBoundingClientRect()
+                openContextMenu(ev, [
+                  { id: 'copyPath', label: tg('sftp.copyPath'), onSelect: () => void navigator.clipboard.writeText(cwd).then(() => showToast(tg('sftp.copiedPath', { path: cwd }))) },
+                  { id: 'editPath', label: tg('sh1.editPath'), onSelect: () => { const el = isLocal ? localPathRef.current : remotePathRef.current; el?.focus(); el?.select() } },
+                  ...(!isLocal && onCdInTerminal && cwd ? [{ id: 'cdTerm', label: tg('d28.btn'), onSelect: () => onCdInTerminal(cwd) }] : []),
+                  ...(!isLocal && sessionId ? [{ id: 'treeSearch', label: tg('d75.button'), onSelect: () => setTreeOpen(true) }] : []),
+                  { id: 'hidden', label: `${showHidden ? '✓ ' : ''}${tg('d1.hidden')}`, onSelect: () => setShowHidden((v) => !v) }
+                ], { anchor: { x: Math.max(8, r.right - 200), y: r.bottom + 2 } })
+              }}
+            >
+              <Icon name="menu" size={14} />
+            </button>
+            {/* entry points kept for automation and assistive tech; visually they live in "更多" */}
+            <button type="button" className="sr-only" tabIndex={-1} data-testid={isLocal ? 'sftp-copy-local-path' : 'sftp-copy-remote-path'} aria-label={tg('sftp.copyPath')} onClick={() => void navigator.clipboard.writeText(cwd).then(() => showToast(tg('sftp.copiedPath', { path: cwd })))}>{tg('sftp.copyPath')}</button>
+            <button type="button" className="sr-only" tabIndex={-1} data-testid={isLocal ? 'sftp-local-hidden' : 'sftp-remote-hidden'} aria-pressed={showHidden} aria-label={tg('d1.hidden')} onClick={() => setShowHidden((v) => !v)}>{tg('d1.hidden')}</button>
+            {!isLocal && onCdInTerminal && cwd ? (
+              <button type="button" className="sr-only" tabIndex={-1} data-testid="sftp-cd-terminal" title={tg('d28.tip')} onClick={() => onCdInTerminal(cwd)}>{tg('d28.btn')}</button>
+            ) : null}
+            {!isLocal ? (
+              <button type="button" className="sr-only" tabIndex={-1} data-testid="sftp-remote-tree-search" title={tg('d75.tip')} aria-label={tg('d75.button')} disabled={!sessionId} onClick={() => setTreeOpen(true)}>{tg('d75.button')}</button>
+            ) : null}
+          </div>
+        </div>
+        {filterOpen || nameFilter.trim() ? (
+          <div className="sftp-filter-row" data-testid={`sftp-filter-row-${side}`}>
             <input
               type="search"
               className="sftp-name-filter"
@@ -1618,36 +1708,33 @@ export default function SftpPanel({
               placeholder={tg('sftp.nameFilter')}
               aria-label={tg('sftp.nameFilter')}
               onChange={(e) => setNameFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation()
+                  setNameFilter('')
+                  setFilterOpen(false)
+                }
+              }}
             />
+            {!isLocal ? (
+              <button type="button" className="sftp-filter-deep" disabled={!sessionId} title={tg('d75.tip')} onClick={() => setTreeOpen(true)}>
+                {tg('sh1.deepSearch')}
+              </button>
+            ) : null}
             {nameFilter.trim() ? (
               <button
                 type="button"
+                className="sftp-icon-btn"
                 data-testid="sftp-clear-name-filter"
                 title={tg('sftp.clearNameFilter')}
                 aria-label={tg('sftp.clearNameFilter')}
                 onClick={() => setNameFilter('')}
               >
-                ×
+                <Icon name="x" size={12} />
               </button>
             ) : null}
-            <button
-              type="button"
-              data-testid="sftp-sort-mode"
-              className={sortMode === 'mtime' ? 'is-on' : ''}
-              title={tg(sortMode === 'mtime' ? 'sftp.sortByMtimeTip' : 'sftp.sortByNameTip')}
-              onClick={() => {
-                setSortMode((m) => (m === 'name' ? 'mtime' : 'name'))
-                setSortFlip(false)
-              }}
-            >
-              <span className="sftp-label">{tg(sortMode === 'mtime' ? 'sftp.sortMtime' : sortMode === 'size' ? 'd81.sortSize' : 'sftp.sortName')}</span>
-            </button>
-            <button type="button" className={showHidden ? 'is-on sftp-icon-btn' : 'sftp-icon-btn'} data-testid={isLocal ? 'sftp-local-hidden' : 'sftp-remote-hidden'} aria-pressed={showHidden} aria-label={tg('d1.hidden')} onClick={() => setShowHidden((v) => !v)} title={tg('d1.hidden')}>
-              <span className="sftp-label sftp-label-keep">{tg('d76.hiddenShort')}</span>
-            </button>
           </div>
-          ) : null}
-        </div>
+        ) : null}
         {!isLocal && remoteOpening ? (
           <div className="sftp-opening" data-testid="sftp-opening">{tg('d7.opening')}</div>
         ) : null}
