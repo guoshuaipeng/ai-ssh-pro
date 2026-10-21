@@ -2101,7 +2101,7 @@ export default function SftpPanel({
               className="sftp-session-cwd sftp-icon-btn"
               data-testid="sftp-session-cwd"
               disabled={!sessionId}
-              title={`${tg('d7.sessionCwd')}：${tg('d7.sessionCwdTip')}`}
+              title={`${tg('d7.sessionCwd')} · ${tg('d7.sessionCwdTip')}`}
               aria-label={tg('d7.sessionCwd')}
               onClick={() => void goSessionCwd()}
             >
