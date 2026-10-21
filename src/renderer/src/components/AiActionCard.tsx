@@ -97,6 +97,7 @@ export default function AiActionCard({ proposal, onRun }: Props) {
                   disabled={!open}
                   aria-invalid={bad || undefined}
                   placeholder={f.type === 'secret' ? tg('aa.secretHint') : f.placeholder}
+                  title={f.type === 'secret' ? undefined : s.values[f.key] || undefined}
                   value={s.values[f.key] ?? ''}
                   onChange={(e) => dispatch({ type: 'edit', key: f.key, value: e.target.value })}
                 />
@@ -105,7 +106,7 @@ export default function AiActionCard({ proposal, onRun }: Props) {
           )
         })}
       </div>
-      {def.name === 'connection.open' && open ? (
+      {(def.name === 'connection.open' || def.name === 'batch.prefill') && open ? (
         <p className="aa-note" data-testid="ai-action-count">{tg('aa.targetsCount', { n: parseTargets(s.values.targets ?? '').length })}</p>
       ) : null}
       {s.armed && open ? (
