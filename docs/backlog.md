@@ -368,8 +368,8 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 1. connection.open 打开连接（含批量）　2. history.fill 从历史搜索并填入　3. sftp.open 定位目录　4. 新建片段/剧本　5. 上传/下载指定文件 🔴　6. 批量执行（只填好命令，用户确认后发送）🔴　7. 打开资源监控　8. 最近命令存成剧本　9. 最近告警归因　10. 分组/重命名/标签　11. 修改设置（主题、字号）　12. 分屏布局　13. 标记生产/只读 🔴　14. 跳板机配置　15. 两台机器文件对比　16. 导出审计日志　17. 定时巡检 🔴　18. 删除 🔴
 
 ## c55 新增（端到端测试 / 评测发现）
-- P0 浅色这一轮已有演示会话时，`snippet.create` 点确认没有反应（可稳定复现：`--only e2e-hist,e2e-snippet-dbl --themes dark,light`）。卡片停在 editing，输入值正常，按钮也可以点。
-- P1 端到端的审计断言改成比较执行前后的条数。现在像 `aud('forward.create','blocked')` 这样的检查，在第二轮主题里可能被第一轮留下的记录误判为通过。
-- P1 真实模型评测 16/20：4 句被模型当成了 tool_call 或 command，分别是「把磁盘告警关掉」「存一个片段…」「Find the docker compose…」「Notify me if a host goes offline」。需要调整提示词，让「操作本软件」的优先级高于终端命令。
-- P2 演示终端顶部的提示条与「执行结果」文字重叠（1400 宽，浅色）。
+- ✅ c56 已修（根因是测试框架里 eval 的全局 const 重复声明）：浅色这一轮已有演示会话时，`snippet.create` 点确认没有反应（可稳定复现：`--only e2e-hist,e2e-snippet-dbl --themes dark,light`）。卡片停在 editing，输入值正常，按钮也可以点。
+- ✅ c56 已改为按场景起始时间精确计数，并用 --isolate-themes 隔离每个主题的数据：端到端的审计断言改成比较执行前后的条数。现在像 `aud('forward.create','blocked')` 这样的检查，在第二轮主题里可能被第一轮留下的记录误判为通过。
+- ✅ c56 主集 20/20、留出集 14/14：真实模型评测 16/20：4 句被模型当成了 tool_call 或 command，分别是「把磁盘告警关掉」「存一个片段…」「Find the docker compose…」「Notify me if a host goes offline」。需要调整提示词，让「操作本软件」的优先级高于终端命令。
+- ✅ c56 已修（命令解释浮层加上不透明背景）：演示终端顶部的提示条与「执行结果」文字重叠（1400 宽，浅色）。
 - P2 forward.create 的正常路径需要真实 sshd 才能端到端验证，演示会话不支持端口转发。
