@@ -43,7 +43,7 @@ import { blockNavIndex, blockNavKey } from '@shared/block-nav'
 import { blockMatcher, effectiveScope, loadFindScope, saveFindScope, type FindScope } from '@shared/find-scope'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { BLOCKS_HITS_EVENT, BLOCKS_QUERY_EVENT, BLOCKS_STEP_EVENT, type BlocksHitsDetail } from '../lib/find-bridge'
-import { SHELL_INT_TIMEOUT_MS, atIdlePrompt, canInject, isNewTyped, parseOsc133, parseOsc133E, shellIntegrationScript } from '@shared/shell-integration'
+import { SHELL_INT_TIMEOUT_MS, SI_GATE_EVENT, createEchoGate, atIdlePrompt, canInject, isNewTyped, parseOsc133, parseOsc133E, shellIntegrationScript } from '@shared/shell-integration'
 import { wheelZoomStep } from '@shared/wheel-zoom'
 import { SHELL_CMD_EVENT, SHELL_EXIT_EVENT, SHELL_INT_EVENT, integrationState, noteInjected, noteMarker, shellIntOn, wasInjected } from '../lib/shell-integration'
 
@@ -509,11 +509,14 @@ export default function TerminalPane({
     // D2: remember cwd (OSC 7 or the bash prompt) so reconnect can return to it
     // D14: Shell Integration markers (OSC 133). D;<code> finishes the running block.
     let lastTypedNum: number | undefined
+    // D107: the first E after injection repeats an old history entry, it is not a typed command
+    let skipFirstE = false
     const osc133Disp = term.parser.registerOscHandler(133, (data) => {
       const typed = parseOsc133E(data)
       if (typed) {
         noteMarker(sessionId)
-        const fresh = isNewTyped(lastTypedNum, typed.num)
+        const fresh = isNewTyped(lastTypedNum, typed.num) && !skipFirstE
+        skipFirstE = false
         lastTypedNum = typed.num
         if (fresh) window.dispatchEvent(new CustomEvent(SHELL_CMD_EVENT, { detail: { sessionId, command: typed.command } }))
         return true
@@ -528,6 +531,7 @@ export default function TerminalPane({
       if (isDemoSessionId(sessionId)) return
       if (!canInject({ enabled: shellIntOn(), inputBlocked: Boolean(inputBlockedRef.current), mirrorOnly: Boolean(mirrorOnlyRef.current), alternate: term.buffer.active.type === 'alternate', already: wasInjected(sessionId), idle: (() => { const b = term.buffer.active; const line = b.getLine(b.baseY + b.cursorY)?.translateToString(true) ?? ''; return atIdlePrompt(line.slice(0, Math.min(b.cursorX, line.length))) })() })) return
       noteInjected(sessionId)
+      window.dispatchEvent(new CustomEvent(SI_GATE_EVENT, { detail: { sessionId } }))
       void window.aiss.ssh.write(sessionId, `${shellIntegrationScript()}\r`)
       window.setTimeout(() => {
         if (integrationState(sessionId) === 'unsupported') showToast(tg('d14.unsupported'))
@@ -609,9 +613,30 @@ export default function TerminalPane({
       }, 250)
     }
 
+    // D107: every pane on this session (incl. a mirror) hides the echo of the injected line
+    const gate = createEchoGate()
+    const gateDecoder = new TextDecoder()
+    let gateTimer = 0
+    const onGate = (e: Event) => {
+      if ((e as CustomEvent<{ sessionId?: string }>).detail?.sessionId !== sessionId) return
+      skipFirstE = true
+      gate.start(Date.now())
+      window.clearTimeout(gateTimer)
+      gateTimer = window.setTimeout(() => {
+        const tail = gate.flush()
+        if (tail) term.write(tail)
+      }, SHELL_INT_TIMEOUT_MS)
+    }
+    window.addEventListener(SI_GATE_EVENT, onGate)
     const unsubData = window.aiss.ssh.onData((p) => {
       if (p.sessionId !== sessionId) return
-      const u8 = toUint8(p.chunk)
+      let u8 = toUint8(p.chunk)
+      if (gate.active()) {
+        const shown = gate.feed(gateDecoder.decode(u8, { stream: true }), Date.now())
+        if (!gate.active()) window.clearTimeout(gateTimer)
+        if (!shown) return
+        u8 = new TextEncoder().encode(shown)
+      }
       checkForError(u8)
       if (zmReady && zm) {
         try {
@@ -874,6 +899,8 @@ export default function TerminalPane({
       firstParsed.dispose()
       window.clearTimeout(siTimer)
       window.removeEventListener(SHELL_INT_EVENT, tryInject)
+      window.removeEventListener(SI_GATE_EVENT, onGate)
+      window.clearTimeout(gateTimer)
       window.removeEventListener(COMMAND_SUBMITTED_EVENT, onSubmittedMark)
       for (const m of blockMarks) m.dispose()
       window.removeEventListener(HISTORY_CHANGED_EVENT, onHist)

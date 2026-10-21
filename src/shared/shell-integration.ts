@@ -7,6 +7,8 @@
  */
 export const SHELL_INT_KEY = 'aiss.shellIntegration'
 export const SHELL_INT_TIMEOUT_MS = 5000
+/** D107: renderer event: the injected line was just written to this session */
+export const SI_GATE_EVENT = 'aiss-si-gate'
 
 export function shellIntegrationEnabled(get: (k: string) => string | null): boolean {
   return get(SHELL_INT_KEY) === '1'
@@ -23,8 +25,55 @@ export function shellIntegrationScript(): string {
     '; autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook precmd __aiss_si; ' +
     'elif [ -n "${BASH_VERSION:-}" ]; then ' +
     HOOK('HOSTNAME') +
-    '; case ";${PROMPT_COMMAND:-};" in *";__aiss_si;"*) ;; *) PROMPT_COMMAND="__aiss_si${PROMPT_COMMAND:+;$PROMPT_COMMAND}";; esac; fi'
+    '; case ";${PROMPT_COMMAND:-};" in *";__aiss_si;"*) ;; *) PROMPT_COMMAND="__aiss_si${PROMPT_COMMAND:+;$PROMPT_COMMAND}";; esac; ' +
+    // D107: drop this line from bash history even without HISTCONTROL=ignorespace
+    'case "$(HISTTIMEFORMAT= builtin history 1 2>/dev/null)" in *__aiss_si*) builtin history -d "$(HISTTIMEFORMAT= builtin history 1 | sed \'s/^ *\\([0-9]*\\).*/\\1/\')" 2>/dev/null;; esac; fi; ' +
+    // D107: end marker; the renderer hides everything (the tty echo of this line) up to here
+    "printf '\\033]6973;aiss-si\\007'"
   )
+}
+
+/** D107: OSC printed when the injected line has run. The echoed source has the escaped text, never the real ESC. */
+export const SI_DONE = '\x1b]6973;aiss-si\x07'
+
+/**
+ * D107: the tty echoes the injected line before the shell runs it. While a gate is on, output is held back;
+ * at SI_DONE it is dropped and the old prompt line is cleared, so the shell's next prompt takes its place.
+ * If SI_DONE never comes (fish, sh, network gear), flush() shows only the last line (the new prompt).
+ */
+export function createEchoGate(timeoutMs = SHELL_INT_TIMEOUT_MS) {
+  let on = false
+  let buf = ''
+  let at = 0
+  const flush = (): string => {
+    if (!on) return ''
+    on = false
+    const tail = buf.slice(buf.lastIndexOf('\n') + 1)
+    buf = ''
+    return tail
+  }
+  return {
+    start(now: number) {
+      on = true
+      buf = ''
+      at = now
+    },
+    active: () => on,
+    flush,
+    feed(chunk: string, now: number): string {
+      if (!on) return chunk
+      buf += chunk
+      const i = buf.indexOf(SI_DONE)
+      if (i >= 0) {
+        on = false
+        const rest = buf.slice(i + SI_DONE.length)
+        buf = ''
+        return '\r\x1b[2K' + rest
+      }
+      if (now - at >= timeoutMs || buf.length > 65536) return flush()
+      return ''
+    }
+  }
 }
 
 export type Osc133 = { kind: 'A' | 'B' | 'C' | 'D'; code: number | null }
