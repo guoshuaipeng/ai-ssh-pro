@@ -433,9 +433,9 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     <div className={`workspace-panel workspace-panel--settings${rail ? ' snippets-rail' : ''}`} data-testid="snippets-panel" data-variant={variant}>
       <PanelHeader
         title={
-          <>
-            {t('snip.titleN', { n: items.length })}
-          </>
+          <span data-testid="snip-count" title={t('sn4.split', { mine: items.length, builtin: BUILTIN_SNIPPETS.length })}>
+            {t('snip.titleN', { n: rows.length })}
+          </span>
         }
         actions={
           <>
