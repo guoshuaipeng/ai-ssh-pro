@@ -6,7 +6,7 @@ const css = readFileSync('src/renderer/src/features.css', 'utf8')
 // IN1 inventory narrow
 ok(/\.workspace-panel-body:has\(> \.inventory-layout\)[^{]*\{ container-type: inline-size; container-name: inv;/.test(css), 'inventory container')
 const inv = css.slice(css.indexOf('@container inv'))
-ok(/\.inventory-layout \{ grid-template-columns: 1fr;/.test(inv), 'inventory stacks when narrow')
+ok(/\.inventory-layout \{ display: flex; flex-direction: column; \}/.test(inv), 'inventory stacks when narrow')
 // NS4 zero native selects
 const base = JSON.parse(readFileSync('scripts/native-select-baseline.json', 'utf8'))
 ok(base.count === 0, 'native select baseline is 0')

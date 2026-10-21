@@ -2329,8 +2329,20 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 /* c50 IN1: host inventory narrow layout (container, not viewport) */
 .workspace-panel-body:has(> .inventory-layout), .workspace-panel-inner:has(> .inventory-layout) { container-type: inline-size; container-name: inv; }
 @container inv (max-width: 680px) {
-  .inventory-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .inventory-list-pane { border-right: none; border-bottom: 1px solid var(--border); max-height: 30%; overflow: auto; }
+  .inventory-layout { display: flex; flex-direction: column; }
+  .inventory-layout > * { flex: none; min-height: auto; }
+  .inventory-layout { overflow: auto; align-content: start; }
+  .inventory-list-pane { border-right: none; border-bottom: 1px solid var(--border); max-height: none; overflow: visible; padding-bottom: var(--space-2); }
+  .inventory-layout .inventory-detail-pane, .inventory-layout .inventory-detail-pane--browse { overflow: visible; min-height: auto; }
+  .inventory-layout .inventory-grid-2 { row-gap: 0; }
   .inventory-search-row { flex-wrap: nowrap; }
   .inventory-grid-2 { grid-template-columns: 1fr; }
 }
+/* c51 IN2: host inventory = one scroll area for meta + notes; one control height */
+.inventory-detail-pane--browse { overflow: auto; }
+.inventory-browse-meta { max-height: none; overflow: visible; }
+.inventory-detail-pane--browse .inventory-notes-pane { flex: none; min-height: 240px; }
+.inventory-browse-meta input, .inventory-browse-meta select { min-width: 0; }
+.inventory-search-row input, .inventory-search-row button, .inv20-svc-filter, .inv20-svc-filter ~ button, .inv20-head-actions > button { height: 32px; box-sizing: border-box; }
+.workspace-panel--inventory .workspace-panel-title { white-space: nowrap; flex: none; }
+.workspace-panel--inventory .workspace-panel-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
