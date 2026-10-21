@@ -342,7 +342,7 @@ export function filterSnippets<T extends SnippetLike>(items: T[], query: string)
   const tokens = searchTokens(query)
   if (!tokens.length) return items
   return items.filter((s) => {
-    const hay = `${s.title}\n${s.body}`.toLowerCase()
+    const hay = `${s.title}\n${s.body}\n${(s as { category?: string }).category ?? ''}`.toLowerCase()
     return tokens.every((t) => hay.includes(t))
   })
 }

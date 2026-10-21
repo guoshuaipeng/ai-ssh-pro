@@ -470,6 +470,8 @@ export type CommandSnippet = {
   body: string
   /** Optional chord e.g. Ctrl+Alt+2 — injects into the active terminal */
   hotkey?: string
+  /** SN3: optional user category, e.g. 数据库 */
+  category?: string
 }
 
 export type TerminalThemeId = 'github-dark' | 'solarized-dark' | 'monokai' | 'github-light' | 'solarized-light'

@@ -33,6 +33,7 @@ import Modal from './Modal'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
 import Icon from './Icon'
+import { snippetCategories } from '@shared/snippet-category'
 
 type Props = {
   activeSessionId: string | null
@@ -78,6 +79,9 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
   const [pending, setPending] = useState<{ snippet: CommandSnippet; execute: boolean; vars: string[] } | null>(null)
   const [varValues, setVarValues] = useState<Record<string, string>>({})
   const [hotkey, setHotkey] = useState('')
+  // SN3: user snippets have an optional category; chips filter mine (category) and built-ins (tag)
+  const [category, setCategory] = useState('')
+  const [catFilter, setCatFilter] = useState('')
   const [hotkeyConflict, setHotkeyConflict] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -99,7 +103,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     setEditingId(null)
     setTitle('')
     setBody('')
-    setHotkey('')
+    setHotkey(''); setCategory('')
     setHotkeyConflict(null)
   }, [load])
 
@@ -109,7 +113,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
       setFormOpen(true)
       setEditingId(null)
       setTitle('')
-      setHotkey('')
+      setHotkey(''); setCategory('')
       setHotkeyConflict(null)
       if (launch.seed) setBody(launch.seed)
     }
@@ -144,7 +148,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     setEditingId(null)
     setTitle('')
     setBody('')
-    setHotkey('')
+    setHotkey(''); setCategory('')
     setHotkeyConflict(null)
     setFormOpen(false)
   }
@@ -170,6 +174,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     setTitle(s.title)
     setBody(s.body)
     setHotkey(s.hotkey || '')
+    setCategory(s.category || '')
     setHotkeyConflict(null)
   }
 
@@ -188,7 +193,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
   const applyHotkeyDraft = (raw: string) => {
     const trimmed = raw.trim()
     if (!trimmed) {
-      setHotkey('')
+      setHotkey(''); setCategory('')
       setHotkeyConflict(null)
       return
     }
@@ -241,11 +246,13 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
       ? items.map((s) => {
           if (s.id !== editingId) return s
           const row: CommandSnippet = { ...s, title: tt, body: b }
+          if (category.trim()) row.category = category.trim().slice(0, 24)
+          else delete row.category
           if (hk) row.hotkey = hk
           else delete row.hotkey
           return row
         })
-      : [...items, { id: newId(), title: tt, body: b, ...(hk ? { hotkey: hk } : {}) }]
+      : [...items, { id: newId(), title: tt, body: b, ...(hk ? { hotkey: hk } : {}), ...(category.trim() ? { category: category.trim().slice(0, 24) } : {}) }]
     try {
       await persist(next)
       resetForm()
@@ -309,10 +316,11 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
     setError(null)
   }
 
-  const visible = filterSnippets(items, query)
+  const visible = filterSnippets(items, query).filter((s) => !catFilter || s.category === catFilter)
   const localizedBuiltins = BUILTIN_SNIPPETS.map((row) => localizeBuiltin(row, locale))
+  const allCats = snippetCategories(items, localizedBuiltins.map((b) => b.tag ?? ''))
   // SN2: search matches title, command, description and category
-  const builtinVisible = localizedBuiltins.filter((row) => filterSnippets([{ title: row.title, body: `${row.summary}\n${row.tag ?? ''}\n${row.body}` }], query).length > 0)
+  const builtinVisible = localizedBuiltins.filter((row) => (!catFilter || row.tag === catFilter) && filterSnippets([{ title: row.title, body: `${row.summary}\n${row.tag ?? ''}\n${row.body}` }], query).length > 0)
   const showBuiltin = seg !== 'mine'
   const showMine = seg !== 'builtin'
   const rows: Array<{ s: (typeof visible)[number] | (typeof builtinVisible)[number]; builtin: boolean }> = [
@@ -360,6 +368,13 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
         <label htmlFor="snippet-body">{t('snip.fieldBody')}</label>
         <textarea id="snippet-body" value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="df -h" />
         <span title={t('snip.varHint')}>ⓘ</span>
+      </div>
+      <div className="field" data-testid="snip-category-field">
+        <label htmlFor="snippet-category">{t('sn3.field')}</label>
+        <input id="snippet-category" data-testid="snip-category" list="snippet-category-list" value={category} maxLength={24} onChange={(e) => setCategory(e.target.value)} placeholder={t('sn3.ph')} />
+        <datalist id="snippet-category-list">
+          {allCats.map((c) => <option key={c} value={c} />)}
+        </datalist>
       </div>
       <div className="field" data-testid="snip-hotkey-field">
         <label htmlFor="snippet-hotkey">{t('snip.fieldHotkey')}</label>
@@ -456,6 +471,15 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
               </button>
             ))}
           </div>
+          {allCats.length ? (
+            <div className="sn3-cats" data-testid="sn3-cats" role="group" aria-label={t('sn3.field')}>
+              {['', ...allCats].map((c) => (
+                <button key={c || '*'} type="button" className="sn3-chip" aria-pressed={catFilter === c} onClick={() => setCatFilter(c)}>
+                  {c || t('sn3.all')}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {!editingId && formOpen ? form : null}
           {preview ? (
             <div className="w9-preview" data-testid="w9-snip-preview" data-builtin="true">
@@ -571,6 +595,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
                     <span className="sn2-title">{s.title}</span>
                     {builtin ? <span className="w9-badge sn2-badge">{t('w9.builtin')}</span> : null}
                     {'tag' in s && s.tag ? <span className="sn2-tag">{s.tag}</span> : null}
+                    {!builtin && s.category ? <span className="sn2-tag" data-testid="snip-row-category">{s.category}</span> : null}
                     {!builtin && s.hotkey ? <kbd className="cmdp-kbd" data-testid="snip-hotkey-badge">{s.hotkey}</kbd> : null}
                   </span>
                   <code className="sn2-cmd">{s.body}</code>

@@ -482,6 +482,7 @@ function normalizeSnippets(raw: unknown): CommandSnippet[] {
       const hk = normalizeSnippetHotkey(o.hotkey)
       if (hk) row.hotkey = hk
     }
+    if (typeof o.category === 'string' && o.category.trim()) row.category = o.category.trim().slice(0, 24)
     out.push(row)
   }
   return out

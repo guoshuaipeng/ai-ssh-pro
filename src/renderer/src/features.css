@@ -2227,3 +2227,24 @@ body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
 .sn2-icon:hover:not(:disabled) { color: var(--color-text-primary); background: var(--color-bg-elevated); }
 .sn2-icon:disabled { opacity: 0.4; }
 .sn2-icon.is-danger:hover:not(:disabled) { color: var(--color-danger, var(--color-text-primary)); }
+
+/* SH2: SFTP global row — [跟随终端 + 定位] · [对比 / 同步] … [传输摘要] [密度] [高级]; tighter local drive */
+.sftp-toolbar .sftp-toolbar-actions { gap: var(--space-2); align-items: center; }
+.sftp-toolbar .sftp-follow { order: 1; display: inline-flex; align-items: center; gap: var(--space-1); }
+.sftp-toolbar .sftp-session-cwd { order: 2; }
+.sftp-toolbar .sftp-compare-open { order: 3; margin-left: var(--space-2); }
+.sftp-toolbar .sftp-queue-summary { order: 4; margin-left: auto; color: var(--color-text-muted); font-size: var(--fs-xs); }
+.sftp-toolbar .sftp-density { order: 5; }
+.sftp-toolbar .sftp-advanced { order: 6; }
+.sftp-toolbar .sftp-icon-btn { width: 26px; height: 26px; min-width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: var(--radius-md); background: transparent; color: var(--color-text-muted); }
+.sftp-toolbar .sftp-icon-btn:hover:not(:disabled) { background: var(--color-row-hover-bg); color: var(--color-text-primary); }
+.sftp-toolbar .sftp-icon-btn[aria-pressed="true"] { color: var(--color-accent); }
+.sftp-head .sftp-drive, .sftp-head .sftp-drive.is-prominent { flex: none; width: auto; min-width: 0; max-width: none; }
+.sftp-head .sftp-drive .ui-select-trigger, .sftp-head .sftp-drive button { min-width: 0; }
+
+/* SN3: category chips above the snippet list */
+.sn3-cats { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.sn3-chip { height: 22px; padding: 0 var(--space-2); border-radius: var(--radius-pill); border: 1px solid var(--color-border-default); background: transparent; color: var(--color-text-muted); font-size: var(--fs-xs); }
+.sn3-chip[aria-pressed="true"] { border-color: var(--color-accent); color: var(--color-accent); }
+/* audit fix: the all-tabs count badge was clipped by the tab bar edge */
+.tab-overflow-badge { top: 0; right: -2px; }
