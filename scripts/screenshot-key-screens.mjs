@@ -108,7 +108,8 @@ const base = [
   { name: 'playbook-edit', size: W, steps: [{ op: 'menu', action: 'playbooks' }, { click: '[data-testid="w9-pb-preview"]' }], wait: 1400 },
   // SN2: snippets rail, compact rows (built-ins)
   { name: 'snippets-compact', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'snippets' }, { click: '[data-testid="w9-snip-seg"] button:nth-child(2)' }], wait: 1400 },
-  { name: 'tabs', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'playbooks' }, { op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'auditLog' }], wait: 2400 }
+  { name: 'tabs', size: W, steps: [{ op: 'menu', action: 'opsHome' }, { op: 'menu', action: 'playbooks' }, { op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'auditLog' }], wait: 2400 },
+  { name: 'audit', size: W, steps: [{ op: 'menu', action: 'auditLog' }], wait: 1400 }
 ]
 // AISS_SHOT_SET=chrome: overlays + AI chat + protection-edge tabs (radius/shadow/chat QA).
 const chrome = [
