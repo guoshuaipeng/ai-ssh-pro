@@ -379,3 +379,6 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 
 - ✅ c58：卡片错误换行；测试 sshd 支持 SFTP，补上传和下载成功路径的 E2E；batch.prefill 🔴；monitor.open；卡片输入框悬停显示完整内容。
 - 下一批（按频率）：playbook.fromRecent、alert.explain、connection.organize。
+
+- ✅ c59：合并 SFTP 测试服务端；上传失败断言只读错误，可单独运行；playbook.fromRecent；成功状态前加 ✓；转发测试端口避开临时端口段；npm run e2e 每轮必跑。
+- 下一批（按频率）：alert.explain、connection.organize。
