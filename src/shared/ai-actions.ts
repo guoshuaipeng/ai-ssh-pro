@@ -157,6 +157,25 @@ const SFTP_TRANSFER: ActionDef = {
   riskNoteKey: 'aa.uploadNote'
 }
 
+const BATCH_PREFILL: ActionDef = {
+  name: 'batch.prefill',
+  titleKey: 'aa.batch.title',
+  hint: 'open THIS APP\'s batch-execute panel with the hosts ticked and the command filled in; it is NOT run, the user reviews and presses Run. targets = saved connection names/hosts separated by commas',
+  fields: [
+    { key: 'targets', labelKey: 'aa.f.targets', type: 'text', required: true, placeholder: 'web-01, web-02' },
+    { key: 'command', labelKey: 'aa.f.command', type: 'text', required: true, placeholder: 'uptime' }
+  ],
+  risk: () => true,
+  riskNoteKey: 'aa.batchNote'
+}
+
+const MONITOR_OPEN: ActionDef = {
+  name: 'monitor.open',
+  titleKey: 'aa.mon.title',
+  hint: 'open THIS APP\'s resource monitor (CPU / memory / disk) for one saved connection; for alert thresholds use monitor.configure',
+  fields: [{ key: 'target', labelKey: 'aa.f.target', type: 'text', required: true }]
+}
+
 const SNIPPET_CREATE: ActionDef = {
   name: 'snippet.create',
   titleKey: 'aa.snippet.title',
@@ -179,7 +198,7 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER]
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)

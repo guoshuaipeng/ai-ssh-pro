@@ -39,6 +39,8 @@ type Props = {
   folders?: { id: string; name: string }[]
   /** D65: jump to the host's terminal and fill the command (not run) */
   onOpenHost?: (sessionId: string, command: string) => void
+  /** c58: AI batch.prefill fills the command; the user still presses Run */
+  initialCommand?: string
 }
 
 const ERROR_KEYS: Record<string, MessageKey> = {
@@ -50,10 +52,10 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   'no-sessions': 'batch.errNoSessions'
 }
 
-export default function BatchExecuteModal({ open, sessions, preselect, onClose, embedded, folders = [], onOpenHost }: Props) {
+export default function BatchExecuteModal({ open, sessions, preselect, onClose, embedded, folders = [], onOpenHost, initialCommand }: Props) {
   const { t } = useI18n()
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [command, setCommand] = useState('')
+  const [command, setCommand] = useState(initialCommand ?? '')
   const [running, setRunning] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [result, setResult] = useState<BatchExecResult | null>(null)

@@ -436,6 +436,8 @@ type Tab = {
   dockerResourceName?: string
   /** batch tab: sessions to tick */
   batchPreselect?: string[]
+  /** c58: command prefilled by the AI batch.prefill action (never auto-run) */
+  batchCommand?: string
   /** toolbox tab to focus (O4 locate) */
   toolboxTab?: ServerToolsTab
   /** L2 deep link */
@@ -2605,6 +2607,29 @@ export default function App() {
         if (!cmd) return { ok: false, message: tg('aa.noHistory', { query: v.query ?? '' }) }
         fillCommandBar(activeSessionId, cmd)
         return { ok: true, message: tg('aa.histFilled', { cmd }) }
+      }
+      if (name === 'batch.prefill') {
+        const r = resolveTargets(profilesRef.current, v.targets ?? '')
+        if (r.missing.length) return { ok: false, message: tg('aa.noTarget', { target: r.missing.join(tg('aa.sep')) }) }
+        const cmd = (v.command ?? '').trim()
+        if (!cmd) return { ok: false, message: tg('aa.pbEmpty') }
+        const sids: string[] = []
+        for (const prof of r.found) {
+          const sid = await ensureProfileSession(prof)
+          if (sid) sids.push(sid)
+        }
+        if (!sids.length) return { ok: false, message: tg('aa.noSession') }
+        openToolTabRef.current('batch', null, sids)
+        setTabs((prev) => prev.map((t) => (t.view === 'batch' ? { ...t, batchPreselect: sids, batchCommand: cmd } : t)))
+        return { ok: true, message: tg('aa.batchFilled', { n: sids.length }) }
+      }
+      if (name === 'monitor.open') {
+        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
+        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
+        const sid = await ensureProfileSession(prof)
+        if (!sid) return { ok: false, message: tg('aa.noSession') }
+        openMonitorForSession(sid)
+        return { ok: true, message: tg('aa.monOpened', { name: prof.label }) }
       }
       if (name === 'playbook.create') {
         const pb = buildPlaybookFromAction(v, `pb-ai-${Date.now()}`, Date.now())
@@ -9343,11 +9368,12 @@ export default function App() {
                   />
                 ) : t.view === 'batch' ? (
                   <BatchExecuteModal
-                    key={`batch:${(t.batchPreselect ?? []).join(',')}`}
+                    key={`batch:${(t.batchPreselect ?? []).join(',')}:${t.batchCommand ?? ''}`}
                     open
                     embedded
                     sessions={connectedSshSessions}
                     preselect={t.batchPreselect}
+                    initialCommand={t.batchCommand}
                     folders={folders}
                     onOpenHost={(sid, command) => {
                       // D65: fill only; the user reviews and presses Enter
