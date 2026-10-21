@@ -276,7 +276,7 @@ import { appendTimeline, ensureFired, eventsFor, viewTimeline } from '@shared/ti
 import { SHARED_MENUS, menuLabel, type MenuAction } from '@shared/menus'
 import { useI18n, tg, type MessageKey } from './lib/i18n'
 import { askConfirm, askText, DialogHost , isDialogOpen, promptDialog, toast, toastUndo} from './lib/dialogs'
-import { ContextMenuHost, openContextMenu, textFieldContextItems } from './components/ContextMenu'
+import { ContextMenuHost, closeContextMenu, openContextMenu, textFieldContextItems } from './components/ContextMenu'
 import { notifyRecentChanged } from './lib/workspace-events'
 import type { RecentConnection } from '@shared/workspace-features'
 import { normalizeTags } from '@shared/workspace-features'
@@ -748,6 +748,10 @@ export default function App() {
       return { ...base, rightPane: pane }
     })
   }, [updateLayout])
+  // c51 PL1: switching tabs closes every portal popover (DateField, Select, menus) so none leaks onto the next tab
+  useEffect(() => {
+    closeContextMenu()
+  }, [activeTabId])
   const openRightPanelRef = useRef(openRightPanel)
   openRightPanelRef.current = openRightPanel
 

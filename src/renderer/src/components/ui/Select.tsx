@@ -76,10 +76,13 @@ export default function Select({ value, options, onChange, disabled, disabledRea
       close(false)
     }
     const onMove = () => place()
+    const onCloseAll = () => close(false)
+    window.addEventListener('aiss:close-menus', onCloseAll)
     window.addEventListener('mousedown', onDown, true)
     window.addEventListener('resize', onMove)
     window.addEventListener('scroll', onMove, true)
     return () => {
+      window.removeEventListener('aiss:close-menus', onCloseAll)
       window.removeEventListener('mousedown', onDown, true)
       window.removeEventListener('resize', onMove)
       window.removeEventListener('scroll', onMove, true)
