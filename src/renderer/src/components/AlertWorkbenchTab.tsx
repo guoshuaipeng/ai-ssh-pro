@@ -9,6 +9,7 @@ import { isEmptyTimeline } from '@shared/postmortem-ai'
 import { markLoop } from '@shared/alert-loop'
 import LoopNav from './LoopNav'
 import { useI18n } from '../lib/i18n'
+import Select from './ui/Select'
 import { showToast } from '../lib/toast'
 import { fixesFor } from '../lib/ai-fix-memory'
 import AiAssistCard, { type AiExplainRequest } from './AiAssistCard'
@@ -316,13 +317,7 @@ export default function AlertWorkbenchTab({
                 </label>
                 <label>
                   {t('l2.bellOpens')}
-                  <select
-                    value={prefs.mode}
-                    onChange={(e) => onPrefs({ ...prefs, mode: e.target.value as BellPrefs['mode'] })}
-                  >
-                    <option value="workbench">{t('l2.title')}</option>
-                    <option value="drawer">{t('l2.historyDrawer')}</option>
-                  </select>
+                  <Select testId="l2-bell-mode" ariaLabel={t('l2.title')} value={prefs.mode} onChange={(v) => onPrefs({ ...prefs, mode: v as BellPrefs['mode'] })} options={[{ value: 'workbench', label: t('l2.title') }, { value: 'drawer', label: t('l2.historyDrawer') }]} />
                 </label>
                 <label>
                   <input
@@ -349,22 +344,8 @@ export default function AlertWorkbenchTab({
             {t(key === 'active' ? 'l2.active' : key === 'ignored' ? 'l2.dismissed' : key === 'recovered' ? 'l2.recovered' : 'l2.all')}
           </button>
         ))}
-        <select aria-label={t('l2.host')} value={host} onChange={(e) => setHost(e.target.value)}>
-          <option value="">{t('l2.anyHost')}</option>
-          {hosts.map((h) => (
-            <option key={h} value={h}>
-              {h}
-            </option>
-          ))}
-        </select>
-        <select aria-label={t('l2.rule')} value={rule} onChange={(e) => setRule(e.target.value)}>
-          <option value="">{t('l2.anyRule')}</option>
-          {rules.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
+        <Select testId="l2-host" ariaLabel={t('l2.host')} value={host} onChange={setHost} options={[{ value: '', label: t('l2.anyHost') }, ...hosts.map((h) => ({ value: h, label: h }))]} />
+        <Select testId="l2-rule" ariaLabel={t('l2.rule')} value={rule} onChange={setRule} options={[{ value: '', label: t('l2.anyRule') }, ...rules.map((r) => ({ value: r, label: r }))]} />
         <input className="l2-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('l2.search')} aria-label={t('l2.search')} />
         <button type="button" data-testid="l2d-filter" className={maintOnly ? 'is-on' : ''} onClick={() => setMaintOnly((v) => !v)}>
           {t('l2d.filter')}

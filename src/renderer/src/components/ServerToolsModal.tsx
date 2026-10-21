@@ -12,6 +12,7 @@ import {
 } from '../../../shared/server-tools'
 import { formatBytes } from '../../../shared/resource-monitor'
 import { useI18n } from '../lib/i18n'
+import Select from './ui/Select'
 import Icon from './Icon'
 import { CHROME_ICON_SIZE, CHROME_ICON_STROKE, EMPTY_ICON_SIZE_COMPACT, EMPTY_ICON_STROKE } from './emptyIcons'
 import { friendlyErrorMessage } from '../lib/friendly-error'
@@ -96,13 +97,7 @@ export default function ServerToolsModal({ open, sessions, activeSessionId, init
               {!embedded ? (
               <label>
                 {t('rm.session')}{' '}
-                <select value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
-                  {sessions.map((s) => (
-                    <option key={s.sessionId} value={s.sessionId}>
-                      {s.title}
-                    </option>
-                  ))}
-                </select>
+                <Select testId="st-session" ariaLabel={t('rm.session')} value={sessionId} onChange={setSessionId} options={sessions.map((s) => ({ value: s.sessionId, label: s.title }))} />
               </label>
               ) : (
                 <span className="st-host-label">{sessions.find((s) => s.sessionId === sessionId)?.title || ''}</span>
@@ -245,11 +240,7 @@ function ProcessesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisabl
         />
         <label>
           {t('st.sortBy')}{' '}
-          <select value={sort} onChange={(e) => setSort(e.target.value as ProcSort)} aria-label={t('st.sortBy')}>
-            <option value="cpu">CPU</option>
-            <option value="mem">{t('rm.mem')}</option>
-            <option value="pid">PID</option>
-          </select>
+          <Select testId="st-sort" ariaLabel={t('st.sortBy')} value={sort} onChange={(v) => setSort(v as ProcSort)} options={[{ value: 'cpu', label: 'CPU' }, { value: 'mem', label: t('rm.mem') }, { value: 'pid', label: 'PID' }]} />
         </label>
         <button type="button" onClick={() => void load()} disabled={busy}>
           {t('rm.refresh')}
@@ -351,12 +342,7 @@ function ServicesTab({ sessionId, sudo, busy, guard, setNotice, t, writesDisable
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <select value={filter} onChange={(e) => setFilter(e.target.value as ServiceFilter)} aria-label={t('st.svcFilter')}>
-          <option value="all">{t('st.svcAll')}</option>
-          <option value="running">{t('st.svcRunning')}</option>
-          <option value="failed">{t('st.svcFailed')}</option>
-          <option value="inactive">{t('st.svcInactive')}</option>
-        </select>
+        <Select testId="st-svc-filter" ariaLabel={t('st.svcFilter')} value={filter} onChange={(v) => setFilter(v as ServiceFilter)} options={[{ value: 'all', label: t('st.svcAll') }, { value: 'running', label: t('st.svcRunning') }, { value: 'failed', label: t('st.svcFailed') }, { value: 'inactive', label: t('st.svcInactive') }]} />
         <button type="button" onClick={() => void load()} disabled={busy}>
           {t('rm.refresh')}
         </button>
@@ -459,11 +445,7 @@ function PortsTab({ sessionId, busy, guard, setNotice, t }: TabProps) {
   return (
     <div className="st-body">
       <div className="st-row">
-        <select value={proto} onChange={(e) => setProto(e.target.value as 'all' | 'tcp' | 'udp')} aria-label={t('st.proto')}>
-          <option value="tcp">TCP</option>
-          <option value="udp">UDP</option>
-          <option value="all">{t('st.svcAll')}</option>
-        </select>
+        <Select testId="st-proto" ariaLabel={t('st.proto')} value={proto} onChange={(v) => setProto(v as 'all' | 'tcp' | 'udp')} options={[{ value: 'tcp', label: 'TCP' }, { value: 'udp', label: 'UDP' }, { value: 'all', label: t('st.svcAll') }]} />
         <button type="button" onClick={() => void load()} disabled={busy}>
           {t('rm.refresh')}
         </button>
@@ -541,11 +523,7 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
   return (
     <div className="st-body">
       <div className="st-row">
-        <select value={source} onChange={(e) => setSource(e.target.value as 'journal' | 'unit' | 'file')} aria-label={t('st.logSource')}>
-          <option value="file">{t('st.logFile')}</option>
-          <option value="journal">{t('st.logJournal')}</option>
-          <option value="unit">{t('st.logUnit')}</option>
-        </select>
+        <Select testId="st-log-source" ariaLabel={t('st.logSource')} value={source} onChange={(v) => setSource(v as 'journal' | 'unit' | 'file')} options={[{ value: 'file', label: t('st.logFile') }, { value: 'journal', label: t('st.logJournal') }, { value: 'unit', label: t('st.logUnit') }]} />
         {source === 'file' ? (
           <>
             <input className="st-path" list="st-log-presets" value={path} onChange={(e) => setPath(e.target.value)} aria-label={t('st.logPath')} />
@@ -561,13 +539,7 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
         ) : null}
         <label>
           {t('st.lines')}{' '}
-          <select value={lines} onChange={(e) => setLines(Number(e.target.value))} aria-label={t('st.lines')}>
-            {[100, 200, 500, 1000, 2000].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+          <Select testId="st-lines" ariaLabel={t('st.lines')} value={String(lines)} onChange={(v) => setLines(Number(v))} options={[100, 200, 500, 1000, 2000].map((n) => ({ value: String(n), label: String(n) }))} />
         </label>
         <Button variant="primary" onClick={() => void load()} disabled={busy}>
           {t('st.loadLog')}
@@ -578,11 +550,7 @@ function LogsTab({ sessionId, sudo, busy, guard, t }: TabProps) {
       </div>
       <div className="st-row">
         <input className="st-search" placeholder={t('st.logFilter')} aria-label={t('st.logFilter')} value={query} onChange={(e) => setQuery(e.target.value)} />
-        <select value={level} onChange={(e) => setLevel(e.target.value as 'all' | 'warn' | 'error')} aria-label={t('st.level')}>
-          <option value="all">{t('st.levelAll')}</option>
-          <option value="warn">{t('st.levelWarn')}</option>
-          <option value="error">{t('st.levelError')}</option>
-        </select>
+        <Select testId="st-level" ariaLabel={t('st.level')} value={level} onChange={(v) => setLevel(v as 'all' | 'warn' | 'error')} options={[{ value: 'all', label: t('st.levelAll') }, { value: 'warn', label: t('st.levelWarn') }, { value: 'error', label: t('st.levelError') }]} />
         {data ? (
           <span className="st-count">
             {t('st.count', { shown: shown.length, total: data.text ? data.text.split(/\r?\n/).filter(Boolean).length : 0 })} ·{' '}
