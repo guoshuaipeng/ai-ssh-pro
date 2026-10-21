@@ -2257,3 +2257,8 @@ body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
 /* HK2 host keys modal: rows never shrink into each other */
 .kh-panel > * { flex-shrink: 0; }
 .kh-lookup { padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border-default); }
+
+/* OH2 ops home: quick actions and recent playbooks as two aligned rows */
+.oh-quick--recent { margin-top: var(--space-2); }
+.oh-quick .oh-quick-label { min-width: 64px; }
+.scope-picker { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }

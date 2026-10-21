@@ -628,10 +628,11 @@ export default function OpsHomeTab({
         <Button variant="secondary" data-testid="l7-sync-folder" onClick={() => onSyncFolder?.()}>
           {t('l7.shortcut.syncFolder')}
         </Button>
-        <span className="oh-quick-sep" aria-hidden />
+      </div>
+      <div className="oh-quick oh-quick--recent" data-testid="oh-quick-recent">
         <span className="oh-quick-label">{t('l7.recentPlaybooks')}</span>
         {samples.map((p) => (
-          <Button variant="ghost" key={p.id} onClick={() => (onOpenRecent ? onOpenRecent(p.id) : onPlaybook())}>
+          <Button variant="secondary" key={p.id} onClick={() => (onOpenRecent ? onOpenRecent(p.id) : onPlaybook())}>
             {p.name}
           </Button>
         ))}
@@ -977,7 +978,7 @@ export default function OpsHomeTab({
                         <Button variant="secondary" className="oh-mini" onClick={() => (onOpenHostSftp ? onOpenHostSftp(h) : onOpenSftp?.())}>
                           SFTP
                         </Button>
-                        <Button variant="ghost" className="oh-mini" onClick={() => onOpenMonitor(h)}>
+                        <Button variant="secondary" className="oh-mini" onClick={() => onOpenMonitor(h)}>
                           {t('l7e.monitor')}
                         </Button>
                       </div>
