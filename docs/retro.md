@@ -83,3 +83,10 @@
 - 哪里没做好：在 JSX 模板字符串里直接写了中文标点「：」。
 - 根因：拼接 tooltip 时图省事，没走 i18n。
 - 以后怎么避免：JSX 中不写任何中文字符（包括全角标点），拼接用 i18n 键或 ASCII 分隔符「 · 」；改 UI 后，相关测试里固定加上 test-round9。
+
+## 2026-10-21 第 45 轮：审计日志、主机密钥弹窗、运维首页
+- 耗时：计划 30–40 分钟 / 实际约 40 分钟
+- 卡在哪：第一次修弹层层级后，after 截图里标签右键菜单还盖在弹窗上。
+- 哪里没做好：以为所有右键菜单都走 ContextMenuHost，只在 Modal 里调用了 closeContextMenu；标签菜单其实是 App 自己的 BuiltMenu 状态。
+- 根因：动手前没有 grep 所有菜单实现（ContextMenu、BuiltMenu、titlebar-popover）。
+- 以后怎么避免：改弹层行为前，先 grep `createPortal|BuiltMenu|openContextMenu|setTabMenu`，列出所有弹层的拥有者；关闭类行为只走一个出口（closeContextMenu 广播 `aiss:close-menus`），新增菜单必须监听这个事件；层级修复必须用 after 截图验证，不能只看单测。
