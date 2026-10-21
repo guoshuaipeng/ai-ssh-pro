@@ -134,6 +134,16 @@ const PLAYBOOK_CREATE: ActionDef = {
   ]
 }
 
+const PLAYBOOK_FROM_RECENT: ActionDef = {
+  name: 'playbook.fromRecent',
+  titleKey: 'aa.pbr.title',
+  hint: 'save the commands the user recently ran in THIS APP (current host first) as a playbook; count = how many recent commands (default 10, max 30). Saved only, never run. Use playbook.create when the user lists the commands',
+  fields: [
+    { key: 'name', labelKey: 'aa.f.name', type: 'text', required: true },
+    { key: 'count', labelKey: 'aa.f.count', type: 'number', placeholder: '10' }
+  ]
+}
+
 const SFTP_TRANSFER: ActionDef = {
   name: 'sftp.transfer',
   titleKey: 'aa.xfer.title',
@@ -198,7 +208,7 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN]
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)
@@ -393,15 +403,39 @@ export function splitPlaybookCommands(raw: string): string[] {
     .slice(0, 30)
 }
 
+/** c59: newest N distinct commands (current host first, else all hosts), returned oldest-first. */
+export function recentCommandsForPlaybook(
+  entries: readonly { command: string; hostKey: string; lastUsed: number }[],
+  hostKey: string,
+  count: string | undefined
+): string[] {
+  const n = Math.min(30, Math.max(1, Number.parseInt(count ?? '', 10) || 10))
+  const scoped = hostKey ? entries.filter((e) => e.hostKey === hostKey) : []
+  const pool = scoped.length ? scoped : entries
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const e of [...pool].sort((a, b) => b.lastUsed - a.lastUsed)) {
+    const c = e.command.trim()
+    if (!c || seen.has(c)) continue
+    seen.add(c)
+    out.push(c)
+    if (out.length >= n) break
+  }
+  return out.reverse()
+}
+
 /** c57: every AI-made step asks before running (lockedConfirm) and stops on error. */
 export function buildPlaybookFromAction(v: Record<string, string>, id: string, now: number): Playbook | null {
-  const name = (v.name ?? '').trim()
-  const cmds = splitPlaybookCommands(v.commands ?? '')
+  return buildPlaybookFromCommands(v.name ?? '', v.description ?? '', splitPlaybookCommands(v.commands ?? ''), id, now)
+}
+
+export function buildPlaybookFromCommands(rawName: string, desc: string, cmds: string[], id: string, now: number): Playbook | null {
+  const name = rawName.trim()
   if (!name || !cmds.length) return null
   return {
     id,
     name,
-    description: (v.description ?? '').trim(),
+    description: desc.trim(),
     steps: cmds.map((command, i) => ({ id: `${id}-s${i + 1}`, type: 'command' as const, command, confirm: true, lockedConfirm: true, stopOnError: true, timeoutSec: 60, aiGenerated: true })),
     updatedAt: now
   }
