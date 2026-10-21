@@ -373,3 +373,6 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 - ✅ c56 主集 20/20、留出集 14/14：真实模型评测 16/20：4 句被模型当成了 tool_call 或 command，分别是「把磁盘告警关掉」「存一个片段…」「Find the docker compose…」「Notify me if a host goes offline」。需要调整提示词，让「操作本软件」的优先级高于终端命令。
 - ✅ c56 已修（命令解释浮层加上不透明背景）：演示终端顶部的提示条与「执行结果」文字重叠（1400 宽，浅色）。
 - P2 forward.create 的正常路径需要真实 sshd 才能端到端验证，演示会话不支持端口转发。
+
+- ✅ c57：端口转发成功路径 E2E（本地测试 sshd）；playbook.create；sftp.transfer（上传需二次确认）；批量打开显示目标数。
+- 下一批（按频率）：batch.prefill 🔴、monitor.open、playbook.fromRecent。卡片错误文字换行显示（c57 遗留）。
