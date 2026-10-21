@@ -28,12 +28,17 @@ function memoryStoreOptions(): ConstructorParameters<typeof Store<CoreMemorySche
   }
   if (process.versions.electron) return options
   // Node tests have no Electron userData path. Production Electron keeps the default location.
-  const cwd = process.env.AISS_CORE_MEMORY_CWD?.trim() || join(tmpdir(), 'ai-ssh-pro-core-memory')
+  const cwd = process.env.AISS_CORE_MEMORY_CWD?.trim() || join(tmpdir(), `ai-ssh-pro-core-memory-${process.pid}`)
   mkdirSync(cwd, { recursive: true })
   return { ...options, projectName: 'ai-ssh-pro', cwd } as ConstructorParameters<typeof Store<CoreMemorySchema>>[0]
 }
 
-const memoryStore = new Store<CoreMemorySchema>(memoryStoreOptions())
+// Created on first use: ESM hoists a test's static import above its env setup, and an eager
+// store would then land in a shared tmp dir that parallel test processes clobber.
+let memoryStoreInst: Store<CoreMemorySchema> | null = null
+function memoryStore(): Store<CoreMemorySchema> {
+  return (memoryStoreInst ??= new Store<CoreMemorySchema>(memoryStoreOptions()))
+}
 
 const MAX_SESSIONS = 80
 
@@ -165,7 +170,7 @@ function coerceRecord(value: unknown): PersistedCoreSession {
 }
 
 function readAll(): Record<string, PersistedCoreSession> {
-  const raw = memoryStore.get('sessions')
+  const raw = memoryStore().get('sessions')
   if (!raw || typeof raw !== 'object') return {}
   return { ...raw }
 }
@@ -176,7 +181,7 @@ function writeAll(sessions: Record<string, PersistedCoreSession>): void {
     const sorted = keys.sort((a, b) => (sessions[a]?.updatedAt ?? 0) - (sessions[b]?.updatedAt ?? 0))
     for (const key of sorted.slice(0, keys.length - MAX_SESSIONS)) delete sessions[key]
   }
-  memoryStore.set('sessions', sessions)
+  memoryStore().set('sessions', sessions)
 }
 
 function mutate(sessionKey: string, fn: (row: PersistedCoreSession) => PersistedCoreSession): void {
