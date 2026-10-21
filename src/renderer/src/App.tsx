@@ -123,6 +123,7 @@ import { loadSftpDensity, saveSftpDensity, SFTP_DENSITY_EVENT } from '@shared/sf
 import type { ServerToolsTab } from './components/ServerToolsModal'
 import { requestTerminalFind, AISS_TERMINAL_FIND_EVENT } from './lib/terminal-find'
 import { keysFor, matchKeymap } from '@shared/keymap'
+import { applySplitToggle } from '@shared/split-toggle'
 import { matchSnippetHotkey, SNIPPET_HOTKEY_EVENT } from '@shared/snippet-hotkey'
 import { dispatchInjectTerminal } from './lib/terminal-inject'
 import { closeControlTipKey } from '@shared/close-tab'
@@ -574,6 +575,12 @@ export default function App() {
   const [terminalPrefs, setTerminalPrefs] = useState<TerminalPrefs>(TERMINAL_PREFS_DEFAULTS)
   const [splitEnabled, setSplitEnabled] = useState(false)
   const [broadcastEnabled, setBroadcastEnabled] = useState(false)
+  // Split / broadcast toggles read these live boxes: handleTitlebarMenuAction is memoised without
+  // splitEnabled / broadcastEnabled in its deps, so reading the state there saw stale values.
+  const splitEnabledRef = useRef(false)
+  const broadcastEnabledRef = useRef(false)
+  splitEnabledRef.current = splitEnabled
+  broadcastEnabledRef.current = broadcastEnabled
   const [broadcastTargets, setBroadcastTargets] = useState<string[]>([])
   const [broadcastPickerOpen, setBroadcastPickerOpen] = useState(false)
   const [alertRules, setAlertRules] = useState<AlertRulesState>(() => loadAlertRules())
@@ -5860,26 +5867,26 @@ export default function App() {
         return
       }
       if (action === 'toggleSplit') {
-        if (splitEnabled) {
-          const alsoBroadcast = broadcastEnabled
-          setSplitEnabled(false)
+        const live = tabsRef.current.filter(
+          (x) => x.sessionId && x.status === 'connected' && (!x.view || x.view === 'session') && x.kind !== 'local'
+        )
+        const alsoBroadcast = broadcastEnabledRef.current
+        const r = applySplitToggle(splitEnabledRef, live.length)
+        if (r.toast === 'needTwo') {
+          showToast(tg('sb.splitNeedTwo'))
+          return
+        }
+        setSplitEnabled(r.next)
+        if (r.toast === 'off') {
+          broadcastEnabledRef.current = false
           setBroadcastEnabled(false)
           showToast(alsoBroadcast ? tg('sb.splitOffAlsoBroadcast') : tg('sb.splitOff'))
-        } else {
-          const live = tabsRef.current.filter(
-            (x) => x.sessionId && x.status === 'connected' && (!x.view || x.view === 'session') && x.kind !== 'local'
-          )
-          if (live.length < 2) {
-            showToast(tg('sb.splitNeedTwo'))
-            return
-          }
-          setSplitEnabled(true)
-          showToast(tg('sb.splitOn'))
-        }
+        } else showToast(tg('sb.splitOn'))
         return
       }
       if (action === 'toggleBroadcast') {
-        if (broadcastEnabled) {
+        if (broadcastEnabledRef.current) {
+          broadcastEnabledRef.current = false
           setBroadcastEnabled(false) // keep broadcastTargets for next picker open
           showToast(tg('sb.broadcastOff'))
         } else {
