@@ -2210,3 +2210,20 @@ body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
 .pb2 .pb2-card textarea.pb2-cmd { width: 100%; max-width: none; box-sizing: border-box; }
 .pb2 .pb2-card .pb2-timeout input { width: 64px; min-width: 0; flex: none; }
 .pb2 .pb2-field input { max-width: none; box-sizing: border-box; }
+
+/* SN2: compact one-line snippet rows; actions appear on hover / keyboard focus */
+.sn2-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; outline: none; }
+.sn2-list:focus-visible { box-shadow: 0 0 0 1px var(--color-accent) inset; border-radius: var(--radius-md); }
+.sn2-row { position: relative; display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); align-items: center; gap: var(--space-2); height: 30px; padding: 0 var(--space-2); border-radius: var(--radius-md); cursor: default; min-width: 0; }
+.sn2-row:hover, .sn2-row.is-hot { background: var(--color-row-hover-bg); }
+.sn2-head { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; max-width: 100%; }
+.sn2-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--color-text-primary); }
+.sn2-badge { flex: none; }
+.sn2-tag { flex: none; font-size: var(--fs-xs); color: var(--color-text-muted); }
+.sn2-cmd { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--color-text-muted); background: none; padding: 0; }
+.sn2-actions { position: absolute; right: var(--space-1); top: 50%; transform: translateY(-50%); display: none; gap: var(--space-1); padding-left: var(--space-2); background: var(--color-row-hover-bg); }
+.sn2-row:hover .sn2-actions, .sn2-row.is-hot .sn2-actions, .sn2-row:focus-within .sn2-actions { display: inline-flex; }
+.sn2-icon { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--color-text-muted); border-radius: var(--radius-md); }
+.sn2-icon:hover:not(:disabled) { color: var(--color-text-primary); background: var(--color-bg-elevated); }
+.sn2-icon:disabled { opacity: 0.4; }
+.sn2-icon.is-danger:hover:not(:disabled) { color: var(--color-danger, var(--color-text-primary)); }

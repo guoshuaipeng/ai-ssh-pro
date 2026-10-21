@@ -32,6 +32,7 @@ import EmptyState from './EmptyState'
 import Modal from './Modal'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
+import Icon from './Icon'
 
 type Props = {
   activeSessionId: string | null
@@ -69,6 +70,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
+  const [hot, setHot] = useState(0)
   const [formOpen, setFormOpen] = useState(false)
   const [seg, setSeg] = useState<LibrarySeg>('all')
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -309,9 +311,16 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
 
   const visible = filterSnippets(items, query)
   const localizedBuiltins = BUILTIN_SNIPPETS.map((row) => localizeBuiltin(row, locale))
-  const builtinVisible = localizedBuiltins.filter((row) => filterSnippets([{ title: row.title, body: `${row.summary}\n${row.body}` }], query).length > 0)
+  // SN2: search matches title, command, description and category
+  const builtinVisible = localizedBuiltins.filter((row) => filterSnippets([{ title: row.title, body: `${row.summary}\n${row.tag ?? ''}\n${row.body}` }], query).length > 0)
   const showBuiltin = seg !== 'mine'
   const showMine = seg !== 'builtin'
+  const rows: Array<{ s: (typeof visible)[number] | (typeof builtinVisible)[number]; builtin: boolean }> = [
+    ...(showMine ? visible.map((s) => ({ s, builtin: false })) : []),
+    ...(showBuiltin ? builtinVisible.map((s) => ({ s, builtin: true })) : [])
+  ]
+  const hotIndex = Math.min(hot, Math.max(0, rows.length - 1))
+  if (hotIndex !== hot) queueMicrotask(() => setHot(hotIndex))
   const preview = previewId ? localizedBuiltins.find((row) => row.id === previewId) : undefined
 
   const onExport = () => {
@@ -521,94 +530,80 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
               }]}
             />
           ) : null}
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {showBuiltin ? builtinVisible.map((s) => (
-              <li
-                key={s.id}
-                data-testid="w9-builtin-snippet"
-                data-builtin="true"
-                onDoubleClick={() => setPreviewId(s.id)}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  padding: 10,
-                  background: 'var(--bg)',
-                  minWidth: 0
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
-                  <span className="w9-badge">{t('w9.builtin')}</span>
-                </div>
-                <div className="l7-meta" style={{ marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.summary}</div>
-                <div className="w9-row-actions">
-                  <button type="button" data-testid="w9-snip-open" onClick={() => setPreviewId(s.id)}>{t('w9.preview')}</button>
-                  <button type="button" disabled={saving} onClick={() => void onSaveAsBuiltin(s.id)}>{t('w9.saveAs')}</button>
-                  <button
-                    type="button"
-                    disabled={!activeSessionId}
-                    title={activeSessionId ? t('snip.injectTip') : t('snip.noTerminal')}
-                    onClick={() => onInject(s, false)}
-                  >
-                    {t('snip.inject')}
-                  </button>
-                </div>
-              </li>
-            )) : null}
-            {showMine ? visible.map((s) => (
-              editingId === s.id ? <li key={s.id}>{form}</li> :
-              <li
-                key={s.id}
-                onDoubleClick={() => onInject(s, false)}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  padding: 10,
-                  background: 'var(--bg)'
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
-                  {s.hotkey ? <kbd className="cmdp-kbd" data-testid="snip-hotkey-badge">{s.hotkey}</kbd> : null}
-                </div>
-                <pre
-                  style={{
-                    margin: '0 0 8px',
-                    fontSize: 11,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    color: 'var(--muted)',
-                    maxHeight: 72,
-                    overflow: 'auto'
-                  }}
+          {/* SN2: one-line rows; ↑ / ↓ moves, Enter injects, double-click injects; actions show on hover / focus */}
+          <ul
+            className="sn2-list"
+            data-testid="sn2-list"
+            role="listbox"
+            aria-label={t('snip.titleN', { n: items.length })}
+            tabIndex={0}
+            aria-activedescendant={rows[hot] ? `sn2-${rows[hot]!.s.id}` : undefined}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault()
+                setHot((i) => Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1))))
+              } else if (e.key === 'Enter') {
+                const r = rows[hot]
+                if (!r) return
+                e.preventDefault()
+                onInject(r.s, false)
+              }
+            }}
+          >
+            {rows.map(({ s, builtin }, i) =>
+              !builtin && editingId === s.id ? (
+                <li key={s.id}>{form}</li>
+              ) : (
+                <li
+                  key={s.id}
+                  id={`sn2-${s.id}`}
+                  role="option"
+                  aria-selected={i === hot}
+                  className={`sn2-row${i === hot ? ' is-hot' : ''}`}
+                  data-testid={builtin ? 'w9-builtin-snippet' : 'snip-row'}
+                  data-builtin={builtin ? 'true' : undefined}
+                  title={`${s.body}${'summary' in s && s.summary ? `\n${s.summary}` : ''}`}
+                  onMouseDown={() => setHot(i)}
+                  onDoubleClick={() => onInject(s, false)}
                 >
-                  {s.body}
-                </pre>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <Button variant="primary"
-                    disabled={!activeSessionId}
-                    title={activeSessionId ? t('snip.injectTip') : t('snip.noTerminal')}
-                    onClick={() => onInject(s, false)}
-                  >
-                    {t('snip.inject')}
-                  </Button>
-                  <button
-                    type="button"
-                    disabled={!activeSessionId}
-                    title={activeSessionId ? t('snip.injectRunTip') : t('snip.noTerminal')}
-                    onClick={() => onInject(s, true)}
-                  >
-                    {t('snip.injectRun')}
-                  </button>
-                  <button type="button" onClick={() => onEdit(s)}>
-                    {t('snip.editBtn')}
-                  </button>
-                  <button type="button" disabled={saving} onClick={() => void onDelete(s.id)}>
-                    {t('snip.delete')}
-                  </button>
-                </div>
-              </li>
-            )) : null}
+                  <span className="sn2-head">
+                    <span className="sn2-title">{s.title}</span>
+                    {builtin ? <span className="w9-badge sn2-badge">{t('w9.builtin')}</span> : null}
+                    {'tag' in s && s.tag ? <span className="sn2-tag">{s.tag}</span> : null}
+                    {!builtin && s.hotkey ? <kbd className="cmdp-kbd" data-testid="snip-hotkey-badge">{s.hotkey}</kbd> : null}
+                  </span>
+                  <code className="sn2-cmd">{s.body}</code>
+                  <span className="sn2-actions">
+                    <button type="button" className="sn2-icon" data-testid="sn2-inject" disabled={!activeSessionId} title={activeSessionId ? t('snip.injectTip') : t('snip.noTerminal')} aria-label={t('snip.inject')} onClick={() => onInject(s, false)}>
+                      <Icon name="arrow-left" size={14} />
+                    </button>
+                    {builtin ? (
+                      <>
+                        <button type="button" className="sn2-icon" data-testid="w9-snip-open" title={t('w9.preview')} aria-label={t('w9.preview')} onClick={() => setPreviewId(s.id)}>
+                          <Icon name="file-text" size={14} />
+                        </button>
+                        <button type="button" className="sn2-icon" disabled={saving} title={t('w9.saveAs')} aria-label={t('w9.saveAs')} onClick={() => void onSaveAsBuiltin(s.id)}>
+                          <Icon name="clipboard-list" size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" className="sn2-icon" disabled={!activeSessionId} title={activeSessionId ? t('snip.injectRunTip') : t('snip.noTerminal')} aria-label={t('snip.injectRun')} onClick={() => onInject(s, true)}>
+                          <Icon name="play" size={14} />
+                        </button>
+                        <button type="button" className="sn2-icon" title={t('snip.editBtn')} aria-label={t('snip.editBtn')} onClick={() => onEdit(s)}>
+                          <Icon name="file-pen" size={14} />
+                        </button>
+                        <button type="button" className="sn2-icon is-danger" disabled={saving} title={t('snip.delete')} aria-label={t('snip.delete')} onClick={() => void onDelete(s.id)}>
+                          <Icon name="x" size={14} />
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </li>
+              )
+            )}
           </ul>
         </div>
       </div>
