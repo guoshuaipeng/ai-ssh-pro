@@ -57,7 +57,7 @@ assert.ok(app.includes('scrollLeft += delta') && app.includes('capture: true, pa
 assert.ok(app.includes('TAB_STRIP_NUDGE'))
 
 const overflowBtn = app.slice(app.indexOf('data-testid="tab-overflow"'), app.indexOf('data-testid="tab-overflow-menu"'))
-assert.ok(overflowBtn.includes('tabOverflowMark(tabHiddenCount)'))
+assert.ok(overflowBtn.includes('tab-overflow-badge')) // D108: icon + count badge
 assert.equal(overflowBtn.includes('⋯'), false)
 assert.ok(overflowBtn.includes('data-hidden={tabHiddenCount}'))
 assert.ok(overflowBtn.includes("tr('tab.overflow'"))

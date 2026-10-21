@@ -85,7 +85,7 @@ assert.equal(TAB_STRIP_NUDGE, 160)
 assert.ok(app.includes('scrollLeft += delta') && app.includes('capture: true, passive: false'))
 assert.ok(app.includes("e.key !== 'Escape'") && app.includes("addEventListener('mousedown', onPointer)"))
 const overflowBtn = app.slice(app.indexOf('data-testid="tab-overflow"'), app.indexOf('data-testid="tab-overflow-menu"'))
-assert.ok(overflowBtn.includes('tabOverflowMark(tabHiddenCount)'))
+assert.ok(overflowBtn.includes('tab-overflow-badge')) // D108: icon + count badge
 assert.equal(overflowBtn.includes('⋯'), false)
 const overflowMenu = app.slice(app.indexOf('data-testid="tab-overflow-menu"'), app.indexOf('data-testid="broadcast-bar"'))
 assert.ok(overflowMenu.includes('labelFor(t)') && overflowMenu.includes('aria-current'))

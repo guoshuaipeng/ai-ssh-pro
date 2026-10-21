@@ -181,7 +181,7 @@ import TerminalBlocks, { turnBlocks } from './components/TerminalBlocks'
 import SyncPreviewTab, { type SyncPreviewPlan } from './components/SyncPreviewTab'
 import { blocksEnabled } from '@shared/terminal-blocks'
 import { chainFromProfile, chainTooltip, hopToJump, parseHopFailure, parseProxyJump } from '@shared/jump-chain'
-import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabOverflowMark, tabStripChrome, tabStripNudgePx, tabStripRevealDelta, tabStripWheelDelta } from '@shared/tab-overflow'
+import { TAB_STRIP_NUDGE, disconnectedSessions, filterTabList, showTabSearch, tabStripChrome, tabStripNudgePx, tabStripRevealDelta, tabStripWheelDelta } from '@shared/tab-overflow'
 import { loadProbePrefs, probeExtrasOf, sanitizeProbeReason, saveProbePrefs, type ProbePrefs } from '@shared/health-probe'
 import { bellShouldFlash, endingSoon, expireDue, formatRemaining, loadMaintenance, shouldNotify, activeWindows, endMaintenance } from '@shared/maintenance'
 import { planPostmortem } from '@shared/postmortem-ai'
@@ -671,6 +671,7 @@ export default function App() {
   const tabOverflowMenuRef = useRef<HTMLDivElement>(null)
   const tabSearchRef = useRef<HTMLInputElement>(null)
   const tabOverflowFromRef = useRef<'chevron' | 'palette'>('chevron')
+  const tabStripWasOverflowingRef = useRef(false)
   const [tabQuery, setTabQuery] = useState('')
   const [tabListIndex, setTabListIndex] = useState(0)
   const [closingDisconnected, setClosingDisconnected] = useState(false)
@@ -2008,7 +2009,11 @@ export default function App() {
     }
   }, [tabOverflowOpen])
   useEffect(() => {
-    if (!tabStripOverflowing && tabOverflowOpen && tabOverflowFromRef.current !== 'palette') setTabOverflowOpen(false)
+    // D108: close only when the strip STOPS overflowing; the button is always shown, so the old check
+    // ("not overflowing → close") shut the list in the same render it opened (flash)
+    const was = tabStripWasOverflowingRef.current
+    tabStripWasOverflowingRef.current = tabStripOverflowing
+    if (was && !tabStripOverflowing && tabOverflowOpen && tabOverflowFromRef.current !== 'palette') setTabOverflowOpen(false)
   }, [tabStripOverflowing, tabOverflowOpen])
   useEffect(() => {
     if (!tabOverflowOpen) return
@@ -8378,13 +8383,13 @@ export default function App() {
               <button
                 ref={tabOverflowBtnRef}
                 type="button"
-                className="tab-overflow-btn"
+                className={`tab-split-btn tab-overflow-btn${tabOverflowOpen ? ' is-on' : ''}`}
                 data-testid="tab-overflow"
                 data-hidden={tabHiddenCount}
                 aria-expanded={tabOverflowOpen}
                 aria-haspopup="menu"
                 aria-label={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
-                title={tr('tab.overflow', { n: tabs.length, hidden: tabHiddenCount })}
+                title={tr('tab.allTabsN', { n: tabs.length })}
                 onClick={() => {
                   if (tabOverflowOpen) {
                     setTabOverflowOpen(false)
@@ -8393,8 +8398,12 @@ export default function App() {
                   openAllTabsMenu()
                 }}
               >
-                <span className="tab-overflow-label-text">{tr('tab.allTabs')}</span>
-                <span className="tab-overflow-mark" aria-hidden>{tabOverflowMark(tabHiddenCount)}</span>
+                {/* D108: icon button like the split-mode button; badge = tab count, dot when some are scrolled out */}
+                <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+                  <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.35" />
+                  <path d="M4 6h8M4 8.5h8M4 11h5" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
+                <span className={`tab-overflow-badge${tabHiddenCount > 0 ? ' has-hidden' : ''}`} aria-hidden>{tabs.length > 99 ? '99+' : tabs.length}</span>
               </button>
             ) : null}
             {tabOverflowOpen && tabOverflowPos

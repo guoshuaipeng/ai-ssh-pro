@@ -109,7 +109,7 @@ assert.equal(scrollBlock.includes('alert-bell'), false)
 assert.equal(scrollBlock.includes('broadcast-badge'), false)
 
 const overflowBtn = app.slice(app.indexOf('data-testid="tab-overflow"'), app.indexOf('data-testid="tab-overflow-menu"'))
-assert.ok(overflowBtn.includes('tabOverflowMark(tabHiddenCount)'))
+assert.ok(overflowBtn.includes('tab-overflow-badge')) // D108: icon + count badge
 assert.ok(overflowBtn.includes("tr('tab.overflow'"))
 assert.equal(overflowBtn.includes('⋯'), false)
 assert.equal(overflowBtn.includes('更多'), false)
