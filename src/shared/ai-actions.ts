@@ -144,6 +144,13 @@ const PLAYBOOK_FROM_RECENT: ActionDef = {
   ]
 }
 
+const ALERT_EXPLAIN: ActionDef = {
+  name: 'alert.explain',
+  titleKey: 'aa.alx.title',
+  hint: 'open THIS APP\'s alert workbench on the newest alert, active ones first, and start the AI explanation; target = host name to narrow it, empty = newest alert. Read-only, never changes the server',
+  fields: [{ key: 'target', labelKey: 'aa.f.target', type: 'text', placeholder: 'web-01' }]
+}
+
 const SFTP_TRANSFER: ActionDef = {
   name: 'sftp.transfer',
   titleKey: 'aa.xfer.title',
@@ -208,7 +215,7 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT]
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT, ALERT_EXPLAIN]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)
@@ -401,6 +408,14 @@ export function splitPlaybookCommands(raw: string): string[] {
     .map((x) => x.trim())
     .filter(Boolean)
     .slice(0, 30)
+}
+
+/** c60: newest alert for a host filter (active first, then any status); empty filter = all hosts. */
+export function pickAlertForAction<T extends { hostKey: string; hostTitle: string; at: number; status: string }>(list: readonly T[], target: string | undefined): T | undefined {
+  const q = (target ?? '').trim().toLowerCase()
+  const pool = q ? list.filter((a) => a.hostTitle.toLowerCase().includes(q) || a.hostKey.toLowerCase() === q) : [...list]
+  const newest = (xs: T[]) => [...xs].sort((a, b) => b.at - a.at)[0]
+  return newest(pool.filter((a) => a.status === 'active')) ?? newest(pool)
 }
 
 /** c59: newest N distinct commands (current host first, else all hosts), returned oldest-first. */

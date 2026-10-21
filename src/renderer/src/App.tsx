@@ -1,6 +1,6 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
 import { requestSftpGoto } from './lib/sftp-goto'
-import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, buildPlaybookFromAction, buildPlaybookFromCommands, recentCommandsForPlaybook, transferPathsOk, type ActionResult } from '@shared/ai-actions'
+import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, buildPlaybookFromAction, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction, transferPathsOk, type ActionResult } from '@shared/ai-actions'
 import { loadPlaybooks as loadPlaybooksAA, savePlaybooks as savePlaybooksAA, upsertPlaybook as upsertPlaybookAA } from '@shared/playbook'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -2607,6 +2607,14 @@ export default function App() {
         if (!cmd) return { ok: false, message: tg('aa.noHistory', { query: v.query ?? '' }) }
         fillCommandBar(activeSessionId, cmd)
         return { ok: true, message: tg('aa.histFilled', { cmd }) }
+      }
+      if (name === 'alert.explain') {
+        const hist = loadAlertHistory()
+        const alert = pickAlertForAction(hist, v.target)
+        if (!alert) return { ok: false, message: tg(v.target?.trim() ? 'aa.noAlertFor' : 'aa.noAlert', { target: v.target?.trim() ?? '' }) }
+        setAlertHistory(hist)
+        window.setTimeout(() => openWorkbenchRef.current({ alertId: alert.id, explain: true }), 0)
+        return { ok: true, message: tg('aa.alxOpened', { host: alert.hostTitle }) }
       }
       if (name === 'playbook.fromRecent') {
         const cmds = recentCommandsForPlaybook(loadSmartHistory(), activeTab ? sessionHostKey(activeTab) : '', v.count)
