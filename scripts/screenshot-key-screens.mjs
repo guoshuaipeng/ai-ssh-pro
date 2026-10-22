@@ -132,6 +132,7 @@ import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from
 import { join } from 'node:path'
 app.setPath('appData', ${JSON.stringify(appData)})
 app.setPath('userData', ${JSON.stringify(userData)})
+if (app.getPath("userData") !== ${JSON.stringify(userData)}) { console.error("[isolation-guard] userData not isolated"); app.exit(97) }
 const outDir = ${JSON.stringify(outDir)}
 const tempDir = ${JSON.stringify(tempDir)}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))

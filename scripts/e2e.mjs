@@ -111,6 +111,7 @@ writeFileSync(
 import { join } from 'node:path'
 app.setPath('appData', ${JSON.stringify(appData)})
 app.setPath('userData', ${JSON.stringify(userData)})
+if (app.getPath("userData") !== ${JSON.stringify(userData)}) { console.error("[isolation-guard] userData not isolated"); app.exit(97) }
 app.whenReady().then(() => {
   session.defaultSession.on('will-download', (_e, item) => item.setSavePath(join(${JSON.stringify(downloads)}, item.getFilename())))
 })
@@ -1330,6 +1331,7 @@ writeFileSync(
   `import { app } from 'electron'
 app.setPath('appData', ${JSON.stringify(appData2)})
 app.setPath('userData', ${JSON.stringify(userData2)})
+if (app.getPath("userData") !== ${JSON.stringify(userData2)}) { console.error("[isolation-guard] userData not isolated"); app.exit(97) }
 await import(${JSON.stringify(pathToFileURL(mainJs).href)})
 `
 )
