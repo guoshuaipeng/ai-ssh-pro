@@ -35,7 +35,7 @@ if (argv.includes('--ai-table')) {
   console.log('[cov] ai-table rows ' + rows.length + ', scenarios ' + only.length)
 }
 const themes = csv(opt('--themes') || 'dark,light')
-const shotSet = opt('--set') || process.env.AISS_SHOT_SET || (argv.includes('--ai-table') ? 'chrome' : '')
+const shotSet = (opt('--set') || process.env.AISS_SHOT_SET || '') || (argv.includes('--ai-table') ? 'chrome' : '')
 const emptySeed = argv.includes('--empty')
 const outDir = resolve(positional[0] || join(process.env.TEMP || tmpdir(), 'aiss-key-screens'))
 if (!argv.includes('--no-build')) {
