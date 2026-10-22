@@ -159,4 +159,18 @@ for (const def of AI_ACTIONS) {
   }
 }
 }
-main().then(() => console.log(`test-ai-action-standard: ${n} passed (${AI_ACTIONS.length} actions)`)).catch((e) => { console.error(e); process.exit(1) })
+// c62: the UI E2E config table must cover every action, with the same required count / risk as the ActionDef
+async function tableCheck() {
+  const { AI_E2E_TABLE } = (await import('./e2e-ai-table.mjs')) as { AI_E2E_TABLE: { action: string; required: number; sample: Record<string, string>; risky?: Record<string, string>; normal: string[]; error: string[]; noErrorPath?: string }[] }
+  ok(AI_E2E_TABLE.length === AI_ACTIONS.length, `e2e table has one row per action (${AI_E2E_TABLE.length}/${AI_ACTIONS.length})`)
+  for (const def of AI_ACTIONS) {
+    const row = AI_E2E_TABLE.find((r) => r.action === def.name)
+    ok(row, `${def.name}: has an e2e table row`)
+    ok(row!.required === missingFields(def, initialValues(def, {})).length, `${def.name}: e2e required count matches ActionDef`)
+    ok(missingFields(def, { ...initialValues(def, {}), ...row!.sample }).length === 0, `${def.name}: e2e sample is complete`)
+    ok(!!row!.risky === !!def.risk, `${def.name}: e2e risky row iff ActionDef has a risk rule`)
+    if (row!.risky) ok(isRiskyAction(def, { ...initialValues(def, {}), ...row!.risky }), `${def.name}: e2e risky sample really is risky`)
+    ok(row!.normal.length > 0 && (row!.error.length > 0 || !!row!.noErrorPath), `${def.name}: e2e row has normal + error (or a documented reason)`)
+  }
+}
+main().then(tableCheck).then(() => console.log(`test-ai-action-standard: ${n} passed (${AI_ACTIONS.length} actions)`)).catch((e) => { console.error(e); process.exit(1) })
