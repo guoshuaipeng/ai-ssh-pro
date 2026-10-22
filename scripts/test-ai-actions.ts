@@ -4,7 +4,7 @@ import {
   AI_ACTIONS, actionsPrompt, applyMonitorAction, buildProfileFromAction, cardReducer, getAction,
   initialValues, missingFields, redactForAi, sanitizeProposal, type CardState
 } from '../src/shared/ai-actions'
-import { cleanIpcError, proposalFromReply } from '../src/shared/ai-actions'
+import { cleanIpcError, proposalFromReply, isRiskyAction } from '../src/shared/ai-actions'
 import { BATCH_RISK_MIN, parseTargets, pickHistoryForAction, resolveTargets, sftpPathOk } from '../src/shared/ai-actions'
 import { auditDetailForAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction } from '../src/shared/ai-actions'
 import { parseAiAssistantReply } from '../src/shared/ipc'
@@ -103,7 +103,7 @@ ok(missingFields(getAction('forward.create')!, { localPort: '8080' }).some((f) =
 const ad = auditDetailForAction('connection.add', { host: 'h', username: 'u', password: 'S3cret' })
 ok(ad.includes('host=h') && !ad.includes('S3cret'), 'audit detail never includes secrets')
 ok(['sftp.open', 'snippet.create', 'forward.create'].every((x) => !!getAction(x)), 'c54 actions registered')
-ok(app.includes("type: 'ai.action'") && app.includes('auditDetailForAction('), 'App audits every confirmed action')
+ok(app.includes("type: 'ai.action'") && app.includes('auditForAction('), 'App audits every confirmed action')
 const shots = readFileSync('scripts/screenshot-key-screens.mjs', 'utf8')
 ok(shots.includes("name: 'e2e-ai-conn'") && shots.includes('EXPECT FAILED'), 'E2E confirm-click scenario is a hard check')
 const agent = readFileSync('src/main/ai-interactive-agent.ts', 'utf8')
@@ -113,7 +113,7 @@ ok(parseTargets('a, b，c  a;d').join() === 'a,b,c,d', 'targets split on , ， ;
 const rt = resolveTargets(profs, 'web-01, 10.0.0.2, ghost')
 ok(rt.found.length === 2 && rt.missing.join() === 'ghost', 'resolveTargets reports unknown targets')
 const od = getAction('connection.open')!
-ok(BATCH_RISK_MIN === 3 && !od.risk!({ targets: 'a,b' }) && od.risk!({ targets: 'a,b,c' }), 'batch of 3+ is high risk')
+ok(BATCH_RISK_MIN === 3 && !isRiskyAction(od, { targets: 'a,b' }) && isRiskyAction(od, { targets: 'a,b,c' }), 'batch of 3+ is high risk')
 let cs: CardState = { phase: 'editing', values: { targets: 'a,b,c' }, showMissing: false }
 cs = cardReducer(od, cs, { type: 'confirm' })
 ok(cs.phase === 'editing' && cs.armed === true, 'first confirm on high-risk only arms')
@@ -133,7 +133,7 @@ ok(pickHistoryForAction(hist, 'apache', 'h1') === undefined && pickHistoryForAct
 ok(sftpPathOk('') && sftpPathOk('/var/log') && sftpPathOk('~/app') && !sftpPathOk('var/log') && !sftpPathOk('/a\nb'), 'sftp path validation')
 const card55 = readFileSync('src/renderer/src/components/AiActionCard.tsx', 'utf8')
 ok(card55.includes('ai-action-armed') && card55.includes("type: 'disarm'"), 'card shows armed state and auto-disarms')
-ok(app.includes('runAppActionRef.current') && app.includes('requestSftpGoto(') && app.includes('fillCommandBar(activeSessionId, cmd)'), 'App wires c55 executors')
+ok(app.includes('runAppActionRef.current') && app.includes('requestSftpGoto(') && app.includes('fillCommandBar(sessionId, cmd)'), 'App wires c55 executors')
 ok(shots.includes("name: 'ai-action-open-armed'") && shots.includes('[1024, 760]'), 'armed scenario + 1024 variants')
 // c55: shapes seen in the real-model eval + IPC error cleanup + E2E coverage
 ok(proposalFromReply({ action: 'sftp.open', params: { target: 'web-01', path: '/var/log' } })?.name === 'sftp.open', 'accepts {action:<name>, params}')
@@ -162,7 +162,7 @@ ok(pb?.name === 'disk' && pb.steps.length === 2 && pb.steps.every((s) => s.confi
 ok(buildPlaybookFromAction({ name: 'x', commands: ' ; ' }, 'i', 1) === null && buildPlaybookFromAction({ name: '', commands: 'ls' }, 'i', 1) === null, 'empty playbook rejected')
 ok(splitPlaybookCommands(Array(40).fill('ls').join(';')).length === 30, 'playbook capped at 30 steps')
 const xf = getAction('sftp.transfer')!
-ok(xf.risk?.({ direction: 'upload' }) === true && xf.risk?.({ direction: 'download' }) === false && xf.riskNoteKey === 'aa.uploadNote', 'upload is high risk with its own note; download is not')
+ok(isRiskyAction(xf, { direction: 'upload' }) === true && isRiskyAction(xf, { direction: 'download' }) === false && xf.riskNoteKey === 'aa.uploadNote', 'upload is high risk with its own note; download is not')
 ok(transferPathsOk({ direction: 'download', remotePath: '/var/log/syslog', localPath: 'C:\\Users\\me\\syslog' }) && transferPathsOk({ direction: 'upload', remotePath: '~/a.txt', localPath: '/tmp/a.txt' }), 'valid transfer paths')
 ok(!transferPathsOk({ direction: 'download', remotePath: 'etc/x', localPath: '/tmp/x' }) && !transferPathsOk({ direction: 'download', remotePath: '/etc/../x', localPath: '/tmp/x' }) && !transferPathsOk({ direction: 'download', remotePath: '/x', localPath: 'rel.txt' }) && !transferPathsOk({ direction: 'move', remotePath: '/x', localPath: '/x' }), 'bad transfer paths / direction rejected')
 ok(xf.fields.every((f) => f.type !== 'secret') && getAction('playbook.create')!.fields.every((f) => f.type !== 'secret'), 'c57 actions carry no secret fields')
@@ -174,13 +174,13 @@ const sshd = readFileSync('scripts/e2e-sshd.mjs', 'utf8')
 ok(sshd.includes("listen(0, '127.0.0.1'") && sshd.includes("info.destIP !== '127.0.0.1'") && !/10\.\d+\.\d+\.\d+|\.internal|\.com\b/.test(sshd), 'test sshd is loopback-only')
 // c58: batch.prefill + monitor.open, SFTP in the test sshd, wrapped card errors
 const bp = getAction('batch.prefill')!
-ok(bp.risk?.({}) === true && bp.riskNoteKey === 'aa.batchNote' && bp.fields.map((f) => f.key).join() === 'targets,command', 'batch.prefill always asks twice')
+ok(isRiskyAction(bp, {}) === true && bp.riskNoteKey === 'aa.batchNote' && bp.fields.map((f) => f.key).join() === 'targets,command', 'batch.prefill always asks twice')
 ok(getAction('monitor.open')!.fields.map((f) => f.key + (f.required ? '*' : '')).join() === 'target*' && !getAction('monitor.open')!.risk, 'monitor.open: one target, not high risk')
 ok([bp, getAction('monitor.open')!].every((a) => a.fields.every((f) => f.type !== 'secret')), 'c58 actions carry no secret fields')
 ok(/batch\.prefill/.test(actionsPrompt()) && /monitor\.open/.test(actionsPrompt()) && /NOT run/.test(bp.hint), 'prompt lists c58 actions; batch hint says not run')
 ok(auditDetailForAction('batch.prefill', { targets: 'a, b', command: 'uptime' }) === 'batch.prefill targets=a, b command=uptime', 'batch audit detail')
 const app58 = readFileSync('src/renderer/src/App.tsx', 'utf8')
-ok(app58.includes("name === 'batch.prefill'") && app58.includes('batchCommand: cmd') && app58.includes('initialCommand={t.batchCommand}') && !/batch\.prefill[\s\S]{0,900}batchExec\(/.test(app58), 'batch.prefill only fills the panel, never calls batchExec')
+ok(app58.includes("bus.register('batch.prefill'") && app58.includes('batchCommand: cmd') && app58.includes('initialCommand={t.batchCommand}') && !/batch\.prefill[\s\S]{0,900}batchExec\(/.test(app58), 'batch.prefill only fills the panel, never calls batchExec')
 ok(readFileSync('src/renderer/src/components/BatchExecuteModal.tsx', 'utf8').includes("useState(initialCommand ?? '')"), 'batch panel takes the prefilled command')
 const css58 = readFileSync('src/renderer/src/features.css', 'utf8')
 ok(/\.aa-status\.is-err \{[^}]*white-space: normal/.test(css58) && css58.includes('.aa-foot:has(.aa-status.is-err) { flex-wrap: wrap; }'), 'card errors wrap instead of truncating')

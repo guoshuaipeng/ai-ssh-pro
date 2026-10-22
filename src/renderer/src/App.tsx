@@ -1,6 +1,7 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
 import { requestSftpGoto } from './lib/sftp-goto'
-import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, buildPlaybookFromAction, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction, organizeProfileFromAction, transferPathsOk, type ActionResult } from '@shared/ai-actions'
+import { applyMonitorAction, cleanIpcError, auditForAction, buildProfileFromAction, buildSnippetFromAction, forwardRequestFromAction, pickHistoryForAction, buildPlaybookFromAction, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction, organizeProfileFromAction, runAction, type ActionResult } from '@shared/ai-actions'
+import { createCommandBus } from '@shared/command-bus'
 import { loadPlaybooks as loadPlaybooksAA, savePlaybooks as savePlaybooksAA, upsertPlaybook as upsertPlaybookAA } from '@shared/playbook'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -2583,150 +2584,140 @@ export default function App() {
     async (name: string, v: Record<string, string>): Promise<ActionResult> => {
       const r = await runAppActionRef.current(name, v)
       // c54: every confirmed AI action lands in the audit log (secrets never included)
-      appendAudit({ type: 'ai.action', host: v.host || v.target || '', source: 'AI', outcome: r.ok ? 'allowed' : 'blocked', detail: auditDetailForAction(name, v) + (r.ok ? '' : ' · ' + (r.message ?? '')) })
+      const a = auditForAction(name, v, r)
+      appendAudit({ type: 'ai.action', host: a.host, source: 'AI', outcome: r.ok ? 'allowed' : 'blocked', detail: a.detail })
       return r
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [folders, persistSessionState, alertRules, showToast, activeSessionId]
   )
+  // c62: app-internal command bus. Each feature registers one handler; ActionDef.command picks it.
+  // Re-registered every render so handlers always see the latest state (same as the old ref pattern).
+  const commandBusRef = useRef(createCommandBus())
+  {
+    const bus = commandBusRef.current
+    bus.register('connections.connect', ({ profiles }) => {
+      for (const prof of profiles) void connectProfile(prof)
+      const msg = tg('aa.connOpened', { n: profiles.length })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('commandBar.fillFromHistory', ({ args, sessionId }) => {
+      const cmd = pickHistoryForAction(loadSmartHistory(), args.query ?? '', activeTab ? sessionHostKey(activeTab) : '')
+      if (!cmd || !sessionId) return { ok: false, message: tg('aa.noHistory', { query: args.query ?? '' }) }
+      fillCommandBar(sessionId, cmd)
+      return { ok: true, message: tg('aa.histFilled', { cmd }) }
+    })
+    bus.register('connections.organize', async ({ args, profiles }) => {
+      const prof = profiles[0]!
+      const r = organizeProfileFromAction(args, prof, profilesRef.current, folders, uuid)
+      if (!r) return { ok: false, message: tg('aa.orgNothing') }
+      await persistSessionState({ folders: r.folders, profiles: r.profiles })
+      return { ok: true, message: tg('aa.orgDone', { name: r.profile.label }) }
+    })
+    bus.register('alerts.explainLatest', ({ args }) => {
+      const hist = loadAlertHistory()
+      const alert = pickAlertForAction(hist, args.target)
+      if (!alert) return { ok: false, message: tg(args.target?.trim() ? 'aa.noAlertFor' : 'aa.noAlert', { target: args.target?.trim() ?? '' }) }
+      setAlertHistory(hist)
+      window.setTimeout(() => openWorkbenchRef.current({ alertId: alert.id, explain: true }), 0)
+      return { ok: true, message: tg('aa.alxOpened', { host: alert.hostTitle }) }
+    })
+    bus.register('playbooks.saveFromRecent', ({ args }) => {
+      const cmds = recentCommandsForPlaybook(loadSmartHistory(), activeTab ? sessionHostKey(activeTab) : '', args.count)
+      if (!cmds.length) return { ok: false, message: tg('aa.noRecent') }
+      const pb = buildPlaybookFromCommands(args.name ?? '', tg('aa.pbrDesc', { n: cmds.length }), cmds, `pb-ai-${Date.now()}`, Date.now())
+      if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
+      savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
+      window.dispatchEvent(new Event('aiss-playbooks'))
+      return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
+    })
+    bus.register('batch.prefill', async ({ args, profiles }) => {
+      const cmd = (args.command ?? '').trim()
+      const sids: string[] = []
+      for (const prof of profiles) {
+        const sid = await ensureProfileSession(prof)
+        if (sid) sids.push(sid)
+      }
+      if (!sids.length) return { ok: false, message: tg('aa.noSession') }
+      openToolTabRef.current('batch', null, sids)
+      setTabs((prev) => prev.map((t) => (t.view === 'batch' ? { ...t, batchPreselect: sids, batchCommand: cmd } : t)))
+      return { ok: true, message: tg('aa.batchFilled', { n: sids.length }) }
+    })
+    bus.register('monitor.openFor', async ({ profiles }) => {
+      const prof = profiles[0]!
+      const sid = await ensureProfileSession(prof)
+      if (!sid) return { ok: false, message: tg('aa.noSession') }
+      openMonitorForSession(sid)
+      return { ok: true, message: tg('aa.monOpened', { name: prof.label }) }
+    })
+    bus.register('playbooks.save', ({ args }) => {
+      const pb = buildPlaybookFromAction(args, `pb-ai-${Date.now()}`, Date.now())
+      if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
+      savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
+      window.dispatchEvent(new Event('aiss-playbooks'))
+      return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
+    })
+    bus.register('sftp.transfer', async ({ args, profiles }) => {
+      try {
+        const sid = await ensureProfileSession(profiles[0]!)
+        if (!sid) return { ok: false, message: tg('aa.noSession') }
+        const remote = args.remotePath.trim()
+        const local = args.localPath.trim()
+        const up = args.direction.trim() === 'upload'
+        if (up) await window.aiss.sftp.upload(sid, local, remote)
+        else await window.aiss.sftp.download(sid, remote, local)
+        return { ok: true, message: tg(up ? 'aa.uploaded' : 'aa.downloaded', { path: up ? remote : local }) }
+      } catch (e) {
+        return { ok: false, message: cleanIpcError(e) }
+      }
+    })
+    bus.register('sftp.openAt', ({ args, profiles }) => {
+      const prof = profiles[0]!
+      openSftpFromHost(prof, (args.path ?? '').trim() || undefined)
+      return { ok: true, message: tg('aa.sftpOpened', { name: prof.label }) }
+    })
+    bus.register('snippets.add', async ({ args }) => {
+      const cur = await window.aiss.snippets.list()
+      const r = buildSnippetFromAction(args, cur, uuid)
+      await window.aiss.snippets.save(r.list)
+      // c55: stay on the AI panel so the card shows its result (E2E caught the card vanishing)
+      window.dispatchEvent(new CustomEvent('aiss-snippets-changed'))
+      const msg = tg('aa.snippetSaved', { name: r.snippet.title })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('forwards.add', async ({ args, sessionId }) => {
+      const req = forwardRequestFromAction(args, sessionId ?? '')
+      try {
+        await window.aiss.workspace.forwards.add(req)
+      } catch (err) {
+        return { ok: false, message: cleanIpcError(err) }
+      }
+      const msg = tg('aa.forwardAdded', { local: req.localPort, remote: `${req.remoteHost}:${req.remotePort}` })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('connections.save', async ({ args }) => {
+      const r = buildProfileFromAction(args, profilesRef.current, uuid)
+      await persistSessionState({ folders, profiles: r.profiles })
+      const msg = tg(r.updated ? 'aa.connUpdated' : 'aa.connSaved', { name: r.profile.label })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('alerts.setRule', ({ args }) => {
+      const next = applyMonitorAction(alertRules, args)
+      saveAlertRules(next)
+      setAlertRules(next)
+      const msg = tg('aa.monitorSaved', { metric: args.metric })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+  }
   // c55: always run the latest executor (onAppAction is memoized; this avoids stale state)
   const runAppActionRef = useRef<(name: string, v: Record<string, string>) => Promise<ActionResult>>(async () => ({ ok: false }))
-  runAppActionRef.current = async (name: string, v: Record<string, string>): Promise<ActionResult> => {
-    {
-      if (name === 'connection.open') {
-        const r = resolveTargets(profilesRef.current, v.targets ?? '')
-        if (r.missing.length) return { ok: false, message: tg('aa.noTarget', { target: r.missing.join(tg('aa.sep')) }) }
-        for (const prof of r.found) void connectProfile(prof)
-        const msg = tg('aa.connOpened', { n: r.found.length })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'history.fill') {
-        if (!activeSessionId) return { ok: false, message: tg('aa.noSession') }
-        const cmd = pickHistoryForAction(loadSmartHistory(), v.query ?? '', activeTab ? sessionHostKey(activeTab) : '')
-        if (!cmd) return { ok: false, message: tg('aa.noHistory', { query: v.query ?? '' }) }
-        fillCommandBar(activeSessionId, cmd)
-        return { ok: true, message: tg('aa.histFilled', { cmd }) }
-      }
-      if (name === 'connection.organize') {
-        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
-        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        if (prof.demo) return { ok: false, message: tg('aa.orgDemo') }
-        const r = organizeProfileFromAction(v, prof, profilesRef.current, folders, uuid)
-        if (!r) return { ok: false, message: tg('aa.orgNothing') }
-        await persistSessionState({ folders: r.folders, profiles: r.profiles })
-        return { ok: true, message: tg('aa.orgDone', { name: r.profile.label }) }
-      }
-      if (name === 'alert.explain') {
-        const hist = loadAlertHistory()
-        const alert = pickAlertForAction(hist, v.target)
-        if (!alert) return { ok: false, message: tg(v.target?.trim() ? 'aa.noAlertFor' : 'aa.noAlert', { target: v.target?.trim() ?? '' }) }
-        setAlertHistory(hist)
-        window.setTimeout(() => openWorkbenchRef.current({ alertId: alert.id, explain: true }), 0)
-        return { ok: true, message: tg('aa.alxOpened', { host: alert.hostTitle }) }
-      }
-      if (name === 'playbook.fromRecent') {
-        const cmds = recentCommandsForPlaybook(loadSmartHistory(), activeTab ? sessionHostKey(activeTab) : '', v.count)
-        if (!cmds.length) return { ok: false, message: tg('aa.noRecent') }
-        const pb = buildPlaybookFromCommands(v.name ?? '', tg('aa.pbrDesc', { n: cmds.length }), cmds, `pb-ai-${Date.now()}`, Date.now())
-        if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
-        savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
-        window.dispatchEvent(new Event('aiss-playbooks'))
-        return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
-      }
-      if (name === 'batch.prefill') {
-        const r = resolveTargets(profilesRef.current, v.targets ?? '')
-        if (r.missing.length) return { ok: false, message: tg('aa.noTarget', { target: r.missing.join(tg('aa.sep')) }) }
-        const cmd = (v.command ?? '').trim()
-        if (!cmd) return { ok: false, message: tg('aa.pbEmpty') }
-        const sids: string[] = []
-        for (const prof of r.found) {
-          const sid = await ensureProfileSession(prof)
-          if (sid) sids.push(sid)
-        }
-        if (!sids.length) return { ok: false, message: tg('aa.noSession') }
-        openToolTabRef.current('batch', null, sids)
-        setTabs((prev) => prev.map((t) => (t.view === 'batch' ? { ...t, batchPreselect: sids, batchCommand: cmd } : t)))
-        return { ok: true, message: tg('aa.batchFilled', { n: sids.length }) }
-      }
-      if (name === 'monitor.open') {
-        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
-        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        const sid = await ensureProfileSession(prof)
-        if (!sid) return { ok: false, message: tg('aa.noSession') }
-        openMonitorForSession(sid)
-        return { ok: true, message: tg('aa.monOpened', { name: prof.label }) }
-      }
-      if (name === 'playbook.create') {
-        const pb = buildPlaybookFromAction(v, `pb-ai-${Date.now()}`, Date.now())
-        if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
-        savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
-        window.dispatchEvent(new Event('aiss-playbooks'))
-        return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
-      }
-      if (name === 'sftp.transfer') {
-        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
-        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        if (!transferPathsOk(v)) return { ok: false, message: tg('aa.badPath') }
-        try {
-          const sid = await ensureProfileSession(prof)
-          if (!sid) return { ok: false, message: tg('aa.noSession') }
-          const remote = v.remotePath.trim()
-          const local = v.localPath.trim()
-          if (v.direction.trim() === 'upload') await window.aiss.sftp.upload(sid, local, remote)
-          else await window.aiss.sftp.download(sid, remote, local)
-          return { ok: true, message: tg(v.direction.trim() === 'upload' ? 'aa.uploaded' : 'aa.downloaded', { path: v.direction.trim() === 'upload' ? remote : local }) }
-        } catch (e) {
-          return { ok: false, message: cleanIpcError(e) }
-        }
-      }
-      if (name === 'sftp.open') {
-        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
-        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        if (!sftpPathOk(v.path ?? '')) return { ok: false, message: tg('aa.badPath') }
-        openSftpFromHost(prof, (v.path ?? '').trim() || undefined)
-        return { ok: true, message: tg('aa.sftpOpened', { name: prof.label }) }
-      }
-      if (name === 'snippet.create') {
-        const cur = await window.aiss.snippets.list()
-        const r = buildSnippetFromAction(v, cur, uuid)
-        await window.aiss.snippets.save(r.list)
-        // c55: stay on the AI panel so the card shows its result (E2E caught the card vanishing)
-        window.dispatchEvent(new CustomEvent('aiss-snippets-changed'))
-        const msg = tg('aa.snippetSaved', { name: r.snippet.title })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'forward.create') {
-        if (!activeSessionId) return { ok: false, message: tg('aa.noSession') }
-        const req = forwardRequestFromAction(v, activeSessionId)
-        try {
-          await window.aiss.workspace.forwards.add(req)
-        } catch (err) {
-          return { ok: false, message: cleanIpcError(err) }
-        }
-        const msg = tg('aa.forwardAdded', { local: req.localPort, remote: `${req.remoteHost}:${req.remotePort}` })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'connection.add') {
-        const r = buildProfileFromAction(v, profilesRef.current, uuid)
-        await persistSessionState({ folders, profiles: r.profiles })
-        const msg = tg(r.updated ? 'aa.connUpdated' : 'aa.connSaved', { name: r.profile.label })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'monitor.configure') {
-        const next = applyMonitorAction(alertRules, v)
-        saveAlertRules(next)
-        setAlertRules(next)
-        const msg = tg('aa.monitorSaved', { metric: v.metric })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      return { ok: false, message: tg('aa.noExecutor') }
-    }
-  }
+  runAppActionRef.current = (name: string, v: Record<string, string>): Promise<ActionResult> =>
+    runAction(name, v, { bus: commandBusRef.current, profiles: profilesRef.current, activeSessionId, t: (k, vars) => tg(k as MessageKey, vars) })
   const saveProfile = useCallback(() => {
     if (!host.trim() || !username.trim()) {
       setError(tg('app.needHostUser'))
