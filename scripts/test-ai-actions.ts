@@ -233,4 +233,5 @@ ok(readFileSync('src/renderer/src/features.css', 'utf8').includes('.l2-root > .l
   ok(sanitizeProposal({ name: 'settings.set', params: { theme: 'neon' } })!.params.theme === undefined, 'settings.set unknown theme dropped by sanitize')
   ok(['e2e-settings-set', 'e2e-err-settings-bad'].every((x) => shots.includes(`name: '${x}'`)), 'settings.set has normal + error UI E2E')
 }
+ok(getAction('alert.explain')!.fields[0].labelKey === 'aa.f.host', 'alert.explain field is labelled Host (c60 audit P3)')
 console.log(`test-ai-actions: ${n} passed`)

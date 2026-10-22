@@ -184,7 +184,7 @@ const ALERT_EXPLAIN: ActionDef = {
   command: 'alerts.explainLatest',
   args: { target: 'target' },
   hint: 'open THIS APP\'s alert workbench on the newest alert, active ones first, and start the AI explanation; target = host name to narrow it, empty = newest alert. Read-only, never changes the server',
-  fields: [{ key: 'target', labelKey: 'aa.f.target', type: 'text', placeholder: 'web-01' }]
+  fields: [{ key: 'target', labelKey: 'aa.f.host', type: 'text', placeholder: 'web-01' }]
 }
 
 const CONNECTION_ORGANIZE: ActionDef = {
