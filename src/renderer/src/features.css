@@ -1321,6 +1321,8 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .sftp-dual.is-compact .sftp-toolbar-actions { gap: 4px; }
 .sftp-pane-title { display: flex; align-items: center; gap: 8px; }
 .sftp-crumb-toggle { font-size: 11px; padding: 0 6px; height: 22px; }
+/* c63: compact path label: long paths keep the tail (the folder you are in) visible */
+.sftp-cwd-compact { flex: 1 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
 .o1-card.is-alert .o1-card-actions { opacity: 1; flex-wrap: nowrap; }
 .a4-privacy { margin: 6px 0 0; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.45; }
 .ai-assist-card .a4-privacy { margin: 0 0 8px; }
