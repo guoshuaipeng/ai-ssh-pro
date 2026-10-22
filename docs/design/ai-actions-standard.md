@@ -15,7 +15,7 @@ AI 动作不再逐个手写执行分支：每个动作是 `src/shared/ai-actions
 2. **命令处理函数一个**：在 `App.tsx` 的 `commandBusRef` 块里 `bus.register('<command>', async ({ args, profiles, sessionId }) => ...)`，只写业务本身，返回 `{ ok, message? }`。不要写校验、确认、审计，这些由 `runAction` 和卡片统一处理。
 3. **i18n**：标题、提示、字段名、校验信息、风险提示，中英各一份。
 4. **生成测试**：`scripts/test-ai-action-standard.ts` 的 `SAMPLES` 加一行完整样例。脱敏、缺参、取消、只执行一次、二次确认、审计条数、失败路径、无会话、找不到目标、每个 check 都会自动生成。
-5. **界面 E2E 配置表**：`scripts/e2e-ai-table.mjs` 的 `AI_E2E_TABLE` 加一行（`action`、`required`、`sample`、风险动作的 `risky`、`normal[]`、`error[]`），并在框架里写对应的正常和异常场景（真点确认、读回真实结果）。缺参、取消、二次确认场景由配置表生成；如果卡片标红的字段数和 missingFields 不一样（例如 select 默认显示第一个选项），写 `uiInvalid` 和 `uiInvalidWhy`。
+5. **界面 E2E 配置表**：`scripts/e2e-ai-table.mjs` 的 `AI_E2E_TABLE` 加一行（`action`、`required`、`sample`、风险动作的 `risky`、`normal[]`、`error[]`），并在框架里写对应的正常和异常场景（真点确认、读回真实结果）。缺参、取消、二次确认场景由配置表生成。必填下拉不写默认值，卡片显示「请选择」并标红；有合理默认值的字段必须在配置里写 `def`。
 6. **评测用例**：`scripts/eval/eval-cases.json` 中英各约 2 句；留出集 `eval-cases-heldout.json` 加 1 句泛化。
 
 ## 自动把关（缺一项就失败）

@@ -6,14 +6,14 @@
 //     storage / UI / audit.
 export const AI_E2E_TABLE = [
   { action: 'connection.add', required: 2, sample: { host: '10.9.8.90', username: 'ops' }, normal: ['e2e-ai-conn'], error: ['e2e-err-missing'] },
-  { action: 'monitor.configure', required: 2, uiInvalid: 1, uiInvalidWhy: 'the metric select is rendered with its first option', sample: { metric: 'cpu', threshold: '88' }, normal: ['e2e-monitor'], error: [], noErrorPath: 'a local rule update has no failure branch; missing/cancel are generated' },
+  { action: 'monitor.configure', required: 2, sample: { metric: 'cpu', threshold: '88' }, normal: ['e2e-monitor'], error: [], noErrorPath: 'a local rule update has no failure branch; missing/cancel are generated' },
   { action: 'sftp.open', required: 1, sample: { target: 'demo', path: '/var/log' }, normal: ['e2e-sftp'], error: ['e2e-err-notfound'] },
   { action: 'snippet.create', required: 2, sample: { title: 'std', command: 'ls' }, normal: ['e2e-snippet-dbl'], error: ['e2e-err-cancel-click'], noErrorPath: 'saving a snippet has no failure branch; cancel-then-click is the error-style path' },
   { action: 'forward.create', required: 2, sample: { localPort: '18080', remotePort: '80' }, normal: ['e2e-forward-ok'], error: ['e2e-err-nosession-fwd', 'e2e-forward'] },
   { action: 'connection.open', required: 1, sample: { targets: 'demo' }, risky: { targets: 'demo-web-01, e2e-web-77, demo-mysql' }, normal: ['e2e-open-batch'], error: ['e2e-err-armed-cancel'] },
   { action: 'history.fill', required: 1, sample: { query: 'nginx' }, normal: ['e2e-hist', 'term-cmd-explain', 'term-cmd-explain-n'], error: ['e2e-err-nosession-hist'] },
   { action: 'playbook.create', required: 2, sample: { name: 'std-pb', commands: 'uptime' }, normal: ['e2e-playbook'], error: ['e2e-err-pb-missing'] },
-  { action: 'sftp.transfer', required: 4, uiInvalid: 3, uiInvalidWhy: 'the direction select is rendered with its first option, so the card marks 3 fields', sample: { target: 'demo', direction: 'download', remotePath: '/etc/hosts', localPath: 'C:\\aiss-std\\hosts' }, risky: { target: 'demo', direction: 'upload', remotePath: '/tmp/x', localPath: 'C:\\aiss-std\\x' }, normal: ['e2e-xfer-dl', 'e2e-xfer-ok-dl', 'e2e-xfer-ok-ul'], error: ['e2e-xfer-ul-armed', 'e2e-err-xfer-badpath'] },
+  { action: 'sftp.transfer', required: 4, sample: { target: 'demo', direction: 'download', remotePath: '/etc/hosts', localPath: 'C:\\aiss-std\\hosts' }, risky: { target: 'demo', direction: 'upload', remotePath: '/tmp/x', localPath: 'C:\\aiss-std\\x' }, normal: ['e2e-xfer-dl', 'e2e-xfer-ok-dl', 'e2e-xfer-ok-ul'], error: ['e2e-xfer-ul-armed', 'e2e-err-xfer-badpath'] },
   { action: 'batch.prefill', required: 2, sample: { targets: 'demo', command: 'uptime' }, risky: { targets: 'demo', command: 'uptime' }, normal: ['e2e-batch-prefill'], error: ['e2e-err-batch-notfound'] },
   { action: 'monitor.open', required: 1, sample: { target: 'demo' }, normal: ['e2e-monitor-open'], error: ['e2e-err-monitor-notfound'] },
   { action: 'playbook.fromRecent', required: 1, sample: { name: 'std-recent' }, normal: ['e2e-pb-recent'], error: ['e2e-err-pb-recent-empty'] },
@@ -37,7 +37,7 @@ export function stdAiScenarios(probe = false) {
   for (const row of AI_E2E_TABLE) {
     const s = slug(row.action)
     if (row.required > 0) {
-      out.push({ name: `e2e-std-${s}-missing`, e2e: true, wait: 300, steps: [...open, { op: 'aiAction', name: row.action, params: { ...LEAK }, ask: 'e2e', say: 'e2e' }, click('ai-action-confirm')], expect: expectFor(row.action, `ph==='editing'&&inv===${(row.uiInvalid ?? row.required) + (probe ? 1 : 0)}&&aud===0`) })
+      out.push({ name: `e2e-std-${s}-missing`, e2e: true, wait: 300, steps: [...open, { op: 'aiAction', name: row.action, params: { ...LEAK }, ask: 'e2e', say: 'e2e' }, click('ai-action-confirm')], expect: expectFor(row.action, `ph==='editing'&&inv===${row.required + (probe ? 1 : 0)}&&aud===0`) })
     }
     out.push({ name: `e2e-std-${s}-cancel`, e2e: true, wait: 300, steps: [...open, { op: 'aiAction', name: row.action, params: { ...row.sample, ...LEAK }, ask: 'e2e', say: 'e2e' }, click('ai-action-cancel'), click('ai-action-confirm'), click('ai-action-confirm')], expect: expectFor(row.action, `ph===${probe ? "'done'" : "'cancelled'"}&&aud===0`) })
     if (row.risky) {

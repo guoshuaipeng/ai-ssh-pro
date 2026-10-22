@@ -159,6 +159,16 @@ for (const def of AI_ACTIONS) {
   }
 }
 }
+// c63: required selects start empty (card shows the choose placeholder and marks it red); optional selects carry an explicit def
+for (const def of AI_ACTIONS) for (const f of def.fields.filter((x) => x.type === 'select')) {
+  ok(f.required ? f.def === undefined : f.def !== undefined && !!f.options?.some((o) => o.value === f.def), `${def.name}.${f.key}: select is required-without-default or has an explicit valid def`)
+}
+{
+  const card = readFileSync('src/renderer/src/components/AiActionCard.tsx', 'utf8')
+  ok(card.includes("placeholder={tg('aa.choose')}") && card.includes('invalid={bad}'), 'card: select shows the choose placeholder and the missing state')
+  ok(readFileSync('src/renderer/src/components/ui/Select.tsx', 'utf8').includes('aria-invalid={invalid || undefined}'), 'Select exposes aria-invalid')
+  ok(readFileSync('src/renderer/src/features.css', 'utf8').includes('.aa-row.is-missing .ui-select {'), 'missing select gets the warn border')
+}
 // c62: the UI E2E config table must cover every action, with the same required count / risk as the ActionDef
 async function tableCheck() {
   const { AI_E2E_TABLE } = (await import('./e2e-ai-table.mjs')) as { AI_E2E_TABLE: { action: string; required: number; sample: Record<string, string>; risky?: Record<string, string>; normal: string[]; error: string[]; noErrorPath?: string }[] }
