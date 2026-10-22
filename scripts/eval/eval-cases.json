@@ -33,5 +33,7 @@
  {"lang":"en","q":"Explain the latest alert for me","name":"alert.explain","p":{}},
  {"lang":"zh","q":"我今天在这台机器上敲过的那些命令，帮我整理成一个剧本，名称叫日常巡检","name":"playbook.fromRecent","p":{"name":"日常巡检"}},
  {"lang":"zh","q":"把 web-01 挪到“生产”分组，再打上 nginx 标签","name":"connection.organize","p":{"target":"web-01","folder":"生产","tags":"nginx"}},
- {"lang":"en","q":"Rename db-old to db-archive and tag it legacy","name":"connection.organize","p":{"target":"db-old","label":"db-archive","tags":"legacy"}}
+ {"lang":"en","q":"Rename db-old to db-archive and tag it legacy","name":"connection.organize","p":{"target":"db-old","label":"db-archive","tags":"legacy"}},
+ {"lang":"zh","q":"换成浅色主题，终端字号调到 16","name":"settings.set","p":{"theme":"light","fontSize":"16"}},
+ {"lang":"en","q":"Make the terminal text bigger, size 18","name":"settings.set","p":{"fontSize":"18"}}
 ]

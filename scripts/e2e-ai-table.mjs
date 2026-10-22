@@ -18,7 +18,8 @@ export const AI_E2E_TABLE = [
   { action: 'monitor.open', required: 1, sample: { target: 'demo' }, normal: ['e2e-monitor-open'], error: ['e2e-err-monitor-notfound'] },
   { action: 'playbook.fromRecent', required: 1, sample: { name: 'std-recent' }, normal: ['e2e-pb-recent'], error: ['e2e-err-pb-recent-empty'] },
   { action: 'alert.explain', required: 0, sample: { target: 'web-01' }, normal: ['e2e-alert-explain'], error: ['e2e-err-alert-notfound'] },
-  { action: 'connection.organize', required: 1, sample: { target: 'demo', label: 'x' }, normal: ['e2e-conn-organize'], error: ['e2e-err-org-demo'] }
+  { action: 'connection.organize', required: 1, sample: { target: 'demo', label: 'x' }, normal: ['e2e-conn-organize'], error: ['e2e-err-org-demo'] },
+  { action: 'settings.set', required: 0, sample: { theme: 'sand', fontSize: '16' }, normal: ['e2e-settings-set'], error: ['e2e-err-settings-bad'] }
 ]
 
 const LEAK = { password: 'P@ss-leak-1', passphrase: 'P@ss-leak-1', token: 'tk-leak-1', privateKeyPath: 'C:/leak/id_rsa' }

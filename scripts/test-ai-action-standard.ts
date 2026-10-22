@@ -13,6 +13,7 @@ const ok = (c: unknown, m: string) => { if (!c) throw new Error('AssertionError:
 
 /** One valid value set per action (the card would accept it and every pre-check passes). */
 const SAMPLES: Record<string, Record<string, string>> = {
+  'settings.set': { theme: 'sand', fontSize: '16' },
   'connection.add': { host: '10.0.0.9', username: 'ops', port: '22', auth: 'key' },
   'monitor.configure': { metric: 'cpu', threshold: '85', sustainMin: '5', enabled: 'on' },
   'sftp.open': { target: 'web-01', path: '/var/log' },

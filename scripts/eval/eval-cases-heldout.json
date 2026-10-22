@@ -221,5 +221,21 @@
    "target": "staging-api",
    "folder": "Staging"
   }
+ },
+ {
+  "lang": "zh",
+  "q": "帮我切到沙色主题",
+  "name": "settings.set",
+  "p": {
+   "theme": "sand"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Switch the app to the slate theme",
+  "name": "settings.set",
+  "p": {
+   "theme": "slate"
+  }
  }
 ]

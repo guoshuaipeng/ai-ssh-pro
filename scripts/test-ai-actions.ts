@@ -15,7 +15,7 @@ let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 
 // registry
-ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open,playbook.fromRecent,alert.explain,connection.organize', 'registry order (c53..c61)')
+ok(AI_ACTIONS.map((a) => a.name).join() === 'connection.add,monitor.configure,sftp.open,snippet.create,forward.create,connection.open,history.fill,playbook.create,sftp.transfer,batch.prefill,monitor.open,playbook.fromRecent,alert.explain,connection.organize,settings.set', 'registry order (c53..c63)')
 for (const a of AI_ACTIONS) ok(a.fields.every((f) => f.labelKey.startsWith('aa.')), `${a.name} fields use aa.* i18n`)
 
 // sanitize: secrets from the model are dropped, unknown keys/actions ignored
@@ -222,4 +222,15 @@ ok(organizeProfileFromAction({ target: 'web' }, P61, [P61], F61, () => 'nf') ===
 ok(getAction('connection.organize')!.fields.every((f) => f.type !== 'secret' && !['password', 'privateKeyPath', 'passphrase'].includes(f.key)), 'organize: never touches credentials')
 ok(['e2e-conn-organize', 'e2e-err-org-demo'].every((x) => shots.includes(`name: '${x}'`)), 'connection.organize has normal + error UI E2E')
 ok(readFileSync('src/renderer/src/features.css', 'utf8').includes('.l2-root > .l7-mute { padding: 0 var(--space-3)'), 'workbench mute line is inset (c61 P2)')
+// c63 settings.set (config-only action): theme options mirror the app's UI themes; font range 10-24
+{
+  const uiThemesSrc = readFileSync('src/renderer/src/lib/ui-themes.ts', 'utf8')
+  const ids = [...uiThemesSrc.matchAll(/^\s+id: '([a-z-]+)'/gm)].map((m) => m[1])
+  const opts = getAction('settings.set')!.fields[0].options!.map((o) => o.value).filter((v) => v !== 'keep')
+  ok(ids.length > 0 && opts.join() === ids.join(), 'settings.set theme options == UI_THEME_OPTIONS')
+  const fsF = getAction('settings.set')!.fields[1]
+  ok(fsF.min === 10 && fsF.max === 24 && missingFields(getAction('settings.set')!, { theme: 'keep', fontSize: '99' }).length === 1, 'settings.set font out of range is caught by the card')
+  ok(sanitizeProposal({ name: 'settings.set', params: { theme: 'neon' } })!.params.theme === undefined, 'settings.set unknown theme dropped by sanitize')
+  ok(['e2e-settings-set', 'e2e-err-settings-bad'].every((x) => shots.includes(`name: '${x}'`)), 'settings.set has normal + error UI E2E')
+}
 console.log(`test-ai-actions: ${n} passed`)

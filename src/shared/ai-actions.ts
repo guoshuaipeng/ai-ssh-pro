@@ -282,7 +282,19 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT, ALERT_EXPLAIN, CONNECTION_ORGANIZE]
+const SETTINGS_SET: ActionDef = {
+  name: 'settings.set',
+  titleKey: 'aa.set.title',
+  command: 'settings.apply',
+  args: { theme: 'theme', fontSize: 'fontSize' },
+  hint: 'change THIS APP\'s look: theme (github-dark, slate, ocean, forest = dark; light, sand = light) and/or terminal fontSize (10-24). Leave a field out to keep it',
+  fields: [
+    { key: 'theme', labelKey: 'aa.f.theme', type: 'select', def: 'keep', options: [{ value: 'keep', labelKey: 'aa.th.keep' }, { value: 'github-dark', labelKey: 'aa.th.github-dark' }, { value: 'slate', labelKey: 'aa.th.slate' }, { value: 'ocean', labelKey: 'aa.th.ocean' }, { value: 'forest', labelKey: 'aa.th.forest' }, { value: 'light', labelKey: 'aa.th.light' }, { value: 'sand', labelKey: 'aa.th.sand' }] },
+    { key: 'fontSize', labelKey: 'aa.f.fontSize', type: 'number', min: 10, max: 24, placeholder: '14' }
+  ]
+}
+
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT, ALERT_EXPLAIN, CONNECTION_ORGANIZE, SETTINGS_SET]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)

@@ -2713,6 +2713,15 @@ export default function App() {
       showToast(msg)
       return { ok: true, message: msg }
     })
+    // c63 settings.set: theme and/or terminal font size; options and range come from the ActionDef
+    bus.register('settings.apply', async ({ args }) => {
+      const theme = args.theme && args.theme !== 'keep' ? args.theme : ''
+      const fontSize = args.fontSize ? Number(args.fontSize) : 0
+      if (!theme && !fontSize) return { ok: false, message: tg('aa.setNothing') }
+      if (theme) applyUiTheme(theme as UiThemeId)
+      if (fontSize) setTerminalPrefs(await window.aiss.terminal.setPrefs({ fontSize }))
+      return { ok: true, message: tg('aa.setDone') }
+    })
   }
   // c55: always run the latest executor (onAppAction is memoized; this avoids stale state)
   const runAppActionRef = useRef<(name: string, v: Record<string, string>) => Promise<ActionResult>>(async () => ({ ok: false }))
