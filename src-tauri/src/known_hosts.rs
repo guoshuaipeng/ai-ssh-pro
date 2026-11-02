@@ -32,7 +32,7 @@ impl KnownHostsStore {
     pub fn load() -> Self {
         let dir = crate::store::data_dir();
         let path = dir.join("known-hosts.json");
-        let entries = match fs::read_to_string(&path) {
+        let mut entries = match fs::read_to_string(&path) {
             Ok(s) => serde_json::from_str::<Value>(&s)
                 .ok()
                 .and_then(|v| v.get("entries").cloned())
@@ -40,6 +40,35 @@ impl KnownHostsStore {
                 .unwrap_or_default(),
             Err(_) => HashMap::new(),
         };
+        // First launch: Electron wrote ai-ssh-pro-known-hosts.json in the same folder.
+        if entries.is_empty() {
+            let epath = dir.join("ai-ssh-pro-known-hosts.json");
+            if let Ok(s) = fs::read_to_string(&epath) {
+                if let Ok(v) = serde_json::from_str::<Value>(&s) {
+                    if let Some(ev) = v.get("entries").cloned() {
+                        if let Ok(map) =
+                            serde_json::from_value::<HashMap<String, KnownHostEntry>>(ev)
+                        {
+                            for (k, val) in map {
+                                entries.insert(k.to_lowercase(), val);
+                            }
+                            let _ = fs::create_dir_all(
+                                path.parent().unwrap_or(std::path::Path::new(".")),
+                            );
+                            let out = json!({ "entries": entries });
+                            if let Ok(txt) = serde_json::to_string_pretty(&out) {
+                                let _ = fs::write(&path, txt);
+                            }
+                            eprintln!(
+                                "[ai-ssh-pro] auto-imported {} known hosts from {}",
+                                entries.len(),
+                                epath.display()
+                            );
+                        }
+                    }
+                }
+            }
+        }
         Self {
             path,
             entries: Mutex::new(entries),

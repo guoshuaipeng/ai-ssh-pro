@@ -62,6 +62,7 @@ npm run build:tauri
 - **端口转发**：本地（L）、**远程（R / tcpip-forward）**、**SOCKS5 动态（D）**
 - **AI 流式**：OpenAI 兼容 SSE（`ai_chat` / `ai:stream` / abort / testProvider）；**OpenClaw Core-A 最小路径**（`useOpenClaw`）
 - **Electron store 导入**：发现 `%AppData%/ai-ssh-pro/ai-ssh-pro.json`，合并会话/分组/片段/AI 偏好 + known_hosts
+- **首次启动自动迁移（Round-11）**：Windows 下 `%AppData%\AI-SSH-Pro` 与 `%AppData%\ai-ssh-pro` **同一目录**（大小写不敏感）。Electron 写 `ai-ssh-pro.json`，Tauri 读 `store.json`；若 `store.json` 不存在或 `savedSessions.profiles` 为空，启动时自动从 `ai-ssh-pro.json` 导入；`known-hosts.json` 空时同样从 `ai-ssh-pro-known-hosts.json` 导入。亦可手动调用 `electron_store_import` / 桥 `importElectronStore`
 - SSH：密码/私钥、PTY、读写、resize、exec、快照、断开
 - 会话列表存盘；系统字体（不打 `@fontsource`）
 - **自动更新**：版本检查可用（站点/GitHub）；**安装仍 deferred**（需签名密钥 + 发布端点）
