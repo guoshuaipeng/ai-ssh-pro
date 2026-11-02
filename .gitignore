@@ -40,3 +40,13 @@ _*.mjs
 .regression-*
 scripts/_e2e_*.mjs
 scripts/_pin*.py
+# Tauri
+/src-tauri/target/
+/dist-tauri/
+
+# Tauri mobile icon trees (optional)
+src-tauri/icons/android/
+src-tauri/icons/ios/
+
+src-tauri/gen/
+

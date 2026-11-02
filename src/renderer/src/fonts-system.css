@@ -1,0 +1,11 @@
+/* Tauri build: system fonts only — avoid bundling @fontsource (~77MB). */
+:root {
+  --font-sans: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", "JetBrains Mono", ui-monospace, monospace;
+}
+html, body, #root {
+  font-family: var(--font-sans);
+}
+.xterm, .xterm * {
+  font-family: var(--font-mono) !important;
+}
