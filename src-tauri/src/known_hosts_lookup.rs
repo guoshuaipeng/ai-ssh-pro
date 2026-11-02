@@ -296,3 +296,63 @@ pub fn lookup_host(host: String, port: Option<u16>, file_path: Option<String>) -
     let _ = SystemTime::now();
     result
 }
+
+
+/// Bulk hashed-line resolve: run `ssh-keygen -F` for each named host (no reverse-hash of `|1|…`).
+/// Returns aggregated matches suitable for import preview / apply.
+pub fn lookup_hosts_bulk(hosts: Vec<Value>, file_path: Option<String>) -> Value {
+    let mut all_matches: Vec<Value> = Vec::new();
+    let mut errors: Vec<Value> = Vec::new();
+    let mut queried = 0u32;
+    for item in hosts {
+        let host = item
+            .get("host")
+            .or_else(|| item.get("name"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let Some(host) = host else { continue };
+        let port = item
+            .get("port")
+            .and_then(|v| v.as_u64())
+            .map(|p| p as u16);
+        queried += 1;
+        let one = lookup_host(host.clone(), port, file_path.clone());
+        if let Some(arr) = one.get("matches").and_then(|m| m.as_array()) {
+            for m in arr {
+                all_matches.push(m.clone());
+            }
+        }
+        if let Some(err) = one.get("error").filter(|e| !e.is_null()) {
+            if one.get("matches").and_then(|m| m.as_array()).map(|a| a.is_empty()).unwrap_or(true) {
+                errors.push(json!({
+                    "host": host,
+                    "port": port.unwrap_or(22),
+                    "error": err.clone(),
+                    "missingTool": one.get("missingTool").cloned().unwrap_or(Value::Bool(false)),
+                }));
+            }
+        }
+    }
+    // Dedup by host+port+hostKeyBase64
+    let mut seen = std::collections::HashSet::new();
+    let mut deduped = Vec::new();
+    for m in all_matches {
+        let key = format!(
+            "{}|{}|{}",
+            m.get("host").and_then(|v| v.as_str()).unwrap_or(""),
+            m.get("port").and_then(|v| v.as_u64()).unwrap_or(22),
+            m.get("hostKeyBase64").and_then(|v| v.as_str()).unwrap_or(""),
+        );
+        if seen.insert(key) {
+            deduped.push(m);
+        }
+    }
+    json!({
+        "ok": true,
+        "queried": queried,
+        "matches": deduped,
+        "errors": errors,
+        "note": "Hashed known_hosts lines cannot be reverse-hashed; provide hostnames to resolve via ssh-keygen -F.",
+    })
+}

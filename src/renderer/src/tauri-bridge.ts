@@ -1,7 +1,7 @@
 /**
  * Tauri bridge: exposes window.aiss with the same shape as Electron preload.
  * Real: SSH connect/write/resize/exec, sessions store, app helpers.
- * Round-5: Swarm/watch/openShell, SFTP resume, OpenClaw Core-A, sync/updater skeletons, hashed known_hosts lookup.
+ * Round-6: agent forward + probeJump UX, inventory/core-memory, hashed bulk lookup, sync wizard local config.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -100,9 +100,19 @@ export async function installTauriBridge(): Promise<void> {
             cb(e.payload)
           })
         ),
-      probeJump: async () => [],
-      onHop: (_cb: AnyFn) => () => {},
-      onStage: (_cb: AnyFn) => () => {}
+      probeJump: (opts: unknown) => invoke('ssh_probe_jump', { opts }),
+      onHop: (cb: AnyFn) =>
+        unsubListen(
+          listen('ssh:hop', (e) => {
+            cb(e.payload)
+          })
+        ),
+      onStage: (cb: AnyFn) =>
+        unsubListen(
+          listen('ssh:stage', (e) => {
+            cb(e.payload)
+          })
+        )
     },
     sftp: {
       list: (sessionId: string, remotePath: string) =>
@@ -180,7 +190,9 @@ export async function installTauriBridge(): Promise<void> {
       listLocalKeys: async () => ({ dir: '', keys: [] }),
       openSshDir: async () => false,
       lookupHost: (host: string, port?: number) =>
-        invoke('known_hosts_lookup_host', { host, port: port ?? null, filePath: null })
+        invoke('known_hosts_lookup_host', { host, port: port ?? null, filePath: null }),
+      lookupHostsBulk: (hosts: Array<{ host: string; port?: number }>, filePath?: string | null) =>
+        invoke('known_hosts_lookup_hosts_bulk', { hosts, filePath: filePath ?? null })
     },
     docker: {
       listTree: (sessionId: string) => invoke('docker_list_tree', { sessionId }),
@@ -243,12 +255,33 @@ export async function installTauriBridge(): Promise<void> {
       save: (list: unknown) => invoke('store_set', { path: ['snippets'], value: list })
     },
     inventory: {
-      list: async () => [],
-      get: async () => null,
-      search: async () => [],
-      upsert: () => notImpl('inventory.upsert'),
-      remove: async () => false,
-      setServices: async () => null
+      list: () => invoke('inventory_list'),
+      get: (id: string) => invoke('inventory_get', { id }),
+      search: (query: string) => invoke('inventory_search', { query }),
+      upsert: (input: unknown) => invoke('inventory_upsert', { input }),
+      remove: (id: string) => invoke<boolean>('inventory_remove', { id }),
+      setServices: (hostId: string, services: unknown) =>
+        invoke('inventory_set_services', { hostId, services }),
+      appendNote: (hostId: string, note: string) =>
+        invoke('inventory_append_note', { hostId, note }),
+      upsertService: (hostId: string, service: unknown) =>
+        invoke('inventory_upsert_service', { hostId, service }),
+      formatContext: (opts?: { hostId?: string; host?: string; port?: number }) =>
+        invoke<string>('inventory_format_context', {
+          hostId: opts?.hostId ?? null,
+          host: opts?.host ?? null,
+          port: opts?.port ?? null
+        })
+    },
+    coreMemory: {
+      get: (sessionKey: string) => invoke('core_memory_get', { sessionKey }),
+      context: (sessionKey: string) => invoke<string>('core_memory_context', { sessionKey }),
+      setGoal: (sessionKey: string, goal: string) =>
+        invoke<boolean>('core_memory_set_goal', { sessionKey, goal }),
+      archiveGoal: (sessionKey: string, goal?: string) =>
+        invoke<boolean>('core_memory_archive_goal', { sessionKey, goal: goal ?? null }),
+      clearWorking: (sessionKey: string) =>
+        invoke<boolean>('core_memory_clear_working', { sessionKey })
     },
     terminal: {
       getPrefs: async () => {

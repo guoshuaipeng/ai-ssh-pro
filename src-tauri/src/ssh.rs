@@ -53,6 +53,12 @@ pub struct SshConnectOptions {
     pub jump_host: Option<JumpHop>,
     /// Up to five ProxyJump hops (replaces jumpHost when set)
     pub jump_chain: Option<Vec<JumpHop>>,
+    /// Forward local SSH agent to the *target* only (never jump hops).
+    pub agent_forward: Option<bool>,
+    /// Override agent socket / named pipe (default: SSH_AUTH_SOCK or Windows OpenSSH pipe).
+    pub agent_socket: Option<String>,
+    /// Used by probeJump (milliseconds).
+    pub timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +103,8 @@ pub struct ClientHandler {
     pub known: Arc<KnownHostsStore>,
     pub waiters: Arc<HostKeyWaiters>,
     pub remote_routes: Arc<RemoteForwardRouter>,
+    /// When Some, accept auth-agent@openssh.com and proxy to this local agent path.
+    pub agent_socket: Option<String>,
 }
 
 impl client::Handler for ClientHandler {
@@ -172,6 +180,44 @@ impl client::Handler for ClientHandler {
         }
         Ok(())
     }
+
+    async fn server_channel_open_agent_forward(
+        &mut self,
+        channel: russh::Channel<Msg>,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        let Some(sock) = self.agent_socket.clone() else {
+            return Ok(());
+        };
+        tokio::spawn(async move {
+            if let Err(e) = proxy_agent_channel(channel, sock).await {
+                eprintln!("[ssh] agent forward proxy error: {e:#}");
+            }
+        });
+        Ok(())
+    }
+}
+
+async fn proxy_agent_channel(channel: russh::Channel<Msg>, sock: String) -> anyhow::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    let mut stream = channel.into_stream();
+    #[cfg(windows)]
+    {
+        let mut pipe = tokio::net::windows::named_pipe::ClientOptions::new()
+            .open(std::ffi::OsStr::new(&sock))
+            .map_err(|e| anyhow::anyhow!("open agent pipe {sock}: {e}"))?;
+        let _ = tokio::io::copy_bidirectional(&mut pipe, &mut stream).await;
+        let _ = pipe.shutdown().await;
+    }
+    #[cfg(not(windows))]
+    {
+        let mut uds = tokio::net::UnixStream::connect(&sock)
+            .await
+            .map_err(|e| anyhow::anyhow!("connect agent uds {sock}: {e}"))?;
+        let _ = tokio::io::copy_bidirectional(&mut uds, &mut stream).await;
+        let _ = uds.shutdown().await;
+    }
+    Ok(())
 }
 
 pub struct LiveSession {
@@ -241,6 +287,67 @@ impl SshManager {
         Vec::new()
     }
 
+
+    pub fn default_agent_socket(override_sock: Option<&str>) -> Option<String> {
+        if let Some(s) = override_sock.map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            return Some(s.to_string());
+        }
+        if let Ok(s) = std::env::var("SSH_AUTH_SOCK") {
+            let s = s.trim().to_string();
+            if !s.is_empty() {
+                return Some(s);
+            }
+        }
+        #[cfg(windows)]
+        {
+            return Some(r"\\.\pipe\openssh-ssh-agent".into());
+        }
+        #[cfg(not(windows))]
+        {
+            None
+        }
+    }
+
+    /// Authenticate via local SSH agent (Windows named pipe / Unix SSH_AUTH_SOCK).
+    pub async fn authenticate_with_agent<H: client::Handler + Send + 'static>(
+        handle: &mut Handle<H>,
+        username: &str,
+        agent_socket: Option<&str>,
+    ) -> Result<bool>
+    where
+        H::Error: From<russh::Error> + Send,
+    {
+        use russh::keys::agent::client::AgentClient;
+        let sock = Self::default_agent_socket(agent_socket)
+            .ok_or_else(|| anyhow!("未找到本机 SSH Agent（SSH_AUTH_SOCK / OpenSSH Authentication Agent）"))?;
+        #[cfg(windows)]
+        let mut agent = AgentClient::connect_named_pipe(&sock)
+            .await
+            .map_err(|e| anyhow!("连接 SSH Agent 失败 ({sock}): {e}"))?;
+        #[cfg(not(windows))]
+        let mut agent = AgentClient::connect_uds(&sock)
+            .await
+            .map_err(|e| anyhow!("连接 SSH Agent 失败 ({sock}): {e}"))?;
+        let identities = agent
+            .request_identities()
+            .await
+            .map_err(|e| anyhow!("列出 Agent 身份失败: {e}"))?;
+        if identities.is_empty() {
+            return Err(anyhow!("SSH Agent 中没有可用密钥"));
+        }
+        let hash = handle.best_supported_rsa_hash().await?.flatten();
+        for identity in identities {
+            let res = handle
+                .authenticate_publickey_with(username.to_string(), identity, hash, &mut agent)
+                .await
+                .map_err(|e| anyhow!("agent auth: {e}"))?;
+            if res.success() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     async fn authenticate_handle(
         handle: &mut Handle<ClientHandler>,
         username: &str,
@@ -248,12 +355,15 @@ impl SshManager {
         private_key_path: Option<&str>,
         passphrase: Option<&str>,
         auth_mode: Option<&str>,
+        agent_socket: Option<&str>,
     ) -> Result<()> {
         let mode = auth_mode.unwrap_or_else(|| {
             if private_key_path.map(|s| !s.is_empty()).unwrap_or(false) {
                 "key"
-            } else {
+            } else if password.map(|s| !s.is_empty()).unwrap_or(false) {
                 "password"
+            } else {
+                "agent"
             }
         });
         let ok = match mode {
@@ -272,6 +382,7 @@ impl SshManager {
                     .context("publickey auth")?;
                 auth_res.success()
             }
+            "agent" => Self::authenticate_with_agent(handle, username, agent_socket).await?,
             _ => {
                 let password =
                     password.ok_or_else(|| anyhow!("password required for password auth"))?;
@@ -288,7 +399,13 @@ impl SshManager {
         Ok(())
     }
 
-    fn make_handler(&self, app: &AppHandle, host: &str, port: u16) -> ClientHandler {
+    fn make_handler(
+        &self,
+        app: &AppHandle,
+        host: &str,
+        port: u16,
+        agent_socket: Option<String>,
+    ) -> ClientHandler {
         ClientHandler {
             host: host.to_string(),
             port,
@@ -296,6 +413,7 @@ impl SshManager {
             known: self.known.clone(),
             waiters: self.waiters.clone(),
             remote_routes: self.remote_routes.clone(),
+            agent_socket,
         }
     }
 
@@ -322,8 +440,14 @@ impl SshManager {
         let mut jump_handles: Vec<Arc<AsyncMutex<Handle<ClientHandler>>>> = Vec::new();
         let mut handle: Handle<ClientHandler>;
 
+        let target_agent_sock = if opts.agent_forward.unwrap_or(false) {
+            Self::default_agent_socket(opts.agent_socket.as_deref())
+        } else {
+            None
+        };
+
         if hops.is_empty() {
-            let handler = self.make_handler(&app, &opts.host, port);
+            let handler = self.make_handler(&app, &opts.host, port, target_agent_sock.clone());
             handle = client::connect(config.clone(), (opts.host.as_str(), port), handler)
                 .await
                 .with_context(|| format!("connect {}:{}", opts.host, port))?;
@@ -334,6 +458,7 @@ impl SshManager {
                 opts.private_key_path.as_deref(),
                 opts.passphrase.as_deref(),
                 opts.auth_mode.as_deref(),
+                opts.agent_socket.as_deref(),
             )
             .await?;
         } else {
@@ -363,7 +488,7 @@ impl SshManager {
 
             // First hop: plain TCP
             let (h0, p0, u0, pw0, pk0, pp0, am0) = &chain[0];
-            let handler = self.make_handler(&app, h0, *p0);
+            let handler = self.make_handler(&app, h0, *p0, None);
             let mut cur = client::connect(config.clone(), (h0.as_str(), *p0), handler)
                 .await
                 .with_context(|| format!("jump connect {h0}:{p0}"))?;
@@ -374,6 +499,7 @@ impl SshManager {
                 pk0.as_deref(),
                 pp0.as_deref(),
                 am0.as_deref(),
+                None,
             )
             .await
             .with_context(|| format!("jump auth {h0}"))?;
@@ -386,7 +512,13 @@ impl SshManager {
                     .with_context(|| format!("ProxyJump forward to {nh}:{np}"))?;
                 let stream = channel.into_stream();
                 jump_handles.push(Arc::new(AsyncMutex::new(cur)));
-                let handler = self.make_handler(&app, nh, *np);
+                let is_target = i + 1 == chain.len();
+                let hop_agent = if is_target {
+                    target_agent_sock.clone()
+                } else {
+                    None
+                };
+                let handler = self.make_handler(&app, nh, *np, hop_agent);
                 cur = client::connect_stream(config.clone(), stream, handler)
                     .await
                     .with_context(|| format!("connect via jump to {nh}:{np}"))?;
@@ -397,6 +529,11 @@ impl SshManager {
                     npk.as_deref(),
                     npp.as_deref(),
                     nam.as_deref(),
+                    if is_target {
+                        opts.agent_socket.as_deref()
+                    } else {
+                        None
+                    },
                 )
                 .await
                 .with_context(|| format!("auth via jump {nh}"))?;
@@ -411,6 +548,9 @@ impl SshManager {
             .await
             .context("request pty")?;
         channel.request_shell(true).await.context("request shell")?;
+        if opts.agent_forward.unwrap_or(false) {
+            let _ = channel.agent_forward(true).await;
+        }
 
         let meta = SessionMeta {
             host: opts.host.clone(),
