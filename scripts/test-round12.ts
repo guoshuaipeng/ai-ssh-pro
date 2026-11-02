@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { KEYMAP, matchKeymap, keysFor, isShellReservedKey } from '../src/shared/keymap'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 import { SHORTCUTS } from '../src/shared/workspace-features'
 import { changelogFor, CHANGELOG } from '../src/shared/changelog'
 import { hostStatusLevel } from '../src/shared/host-status'
@@ -52,7 +52,7 @@ for (const k of KEYMAP) {
 
 // UX-03: 7 menus in conventional order; palette appears once; toggles flagged
 assert.deepEqual(SHARED_MENUS.map((m) => m.id), ['file', 'edit', 'view', 'session', 'ops', 'ai', 'help'])
-const all = SHARED_MENUS.flatMap((m) => m.items).filter((i) => i.type === 'item')
+const all = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).filter((i) => i.type === 'item')
 assert.equal(all.filter((i) => i.type === 'item' && i.id === 'commandPalette').length, 1, 'palette listed once')
 for (const id of ['toggleSidebar', 'toggleAi', 'toggleSplit', 'toggleBroadcast', 'toggleRecording', 'toggleHostStatus']) {
   assert.ok(all.some((i) => i.type === 'item' && i.id === id && i.toggle), `${id} is a toggle`)

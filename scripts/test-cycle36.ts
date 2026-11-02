@@ -16,7 +16,7 @@ const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 ok(app.includes('data-testid="ungroup-drop"') && app.includes('moveProfileToFolder(moving, undefined)') && app.includes('setHostDragging(true)'), 'D90 wiring')
 // D92
 ok(TERMINAL_PREFS_DEFAULTS.copyOnSelect === false, 'D92 default off')
-const store = readFileSync('src/main/app-store.ts', 'utf8')
+const store = readFileSync('src/shared/terminal-prefs.ts', 'utf8')
 ok(store.includes('const copyOnSelect = o.copyOnSelect === true'), 'D92 normalize')
 const tp = readFileSync('src/renderer/src/components/TerminalPane.tsx', 'utf8')
 ok(tp.includes('if (copyOnSelectRef.current) void navigator.clipboard.writeText(t.getSelection())'), 'D92 pane')

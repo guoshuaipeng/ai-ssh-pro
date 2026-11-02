@@ -1,10 +1,10 @@
 /** CmdK/View: Focus AI panel (duplicateSession already existed). */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, menuHasAction, findMenuItem, flattenMenuItems} from '../src/shared/menus'
 
-assert.ok(SHARED_MENUS.some((m) => m.items.some((it) => it.type === 'item' && it.id === 'duplicateSession')))
-const item = SHARED_MENUS.find((m) => m.id === 'view')?.items.find((it) => it.type === 'item' && it.id === 'focusAiPanel')
+assert.ok(menuHasAction(SHARED_MENUS, 'duplicateSession'))
+const item = findMenuItem(SHARED_MENUS, 'focusAiPanel')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /AI/)
 assert.match(item.label.en.toLowerCase(), /focus/)

@@ -504,10 +504,19 @@ function uuid(): string {
 const PICKER_ACTIONS = new Set<MenuAction>(['resourceMonitor', 'serverTools', 'sftp', 'folderSync', 'portForward', 'batchExec', 'aiCommand'])
 
 function featureLabel(action: MenuAction, locale: string): string {
-  for (const m of SHARED_MENUS) {
-    for (const it of m.items) {
+  const walk = (items: typeof SHARED_MENUS[number]['items']): string | null => {
+    for (const it of items) {
       if (it.type === 'item' && it.id === action) return menuLabel(it.label, locale).replace(/…$/, '')
+      if (it.type === 'sub') {
+        const hit = walk(it.items)
+        if (hit) return hit
+      }
     }
+    return null
+  }
+  for (const m of SHARED_MENUS) {
+    const hit = walk(m.items)
+    if (hit) return hit
   }
   return action
 }
@@ -1604,16 +1613,20 @@ export default function App() {
     void window.aiss.sessions
       .list()
       .then(async (state) => {
-        setSessionState(state)
+        const normalized = {
+          folders: Array.isArray(state?.folders) ? state.folders : [],
+          profiles: Array.isArray(state?.profiles) ? state.profiles : []
+        }
+        setSessionState(normalized)
         setSessionsReady(true)
         // M21: one-time move of old per-host / per-session tiers and the autopilot allow list
         // onto host profiles, then clear the legacy settings fields.
         try {
           const ai = await window.aiss.ai.getSettings()
           if (!hasLegacyHostPolicies(ai)) return
-          const moved = migrateLegacyHostPolicies(ai, state.profiles, globalAiPolicy(ai))
+          const moved = migrateLegacyHostPolicies(ai, normalized.profiles, globalAiPolicy(ai))
           if (moved.changed > 0) {
-            const next = { ...state, profiles: moved.profiles }
+            const next = { ...normalized, profiles: moved.profiles }
             setSessionState(next)
             await window.aiss.sessions.save(next)
           }

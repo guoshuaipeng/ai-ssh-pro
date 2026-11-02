@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tauri::{AppHandle, Emitter};
+use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 
@@ -228,11 +229,19 @@ async fn proxy_agent_channel(channel: russh::Channel<Msg>, sock: String) -> anyh
     Ok(())
 }
 
+enum ChannelCmd {
+    Data(Vec<u8>),
+    Resize { cols: u32, rows: u32 },
+    Close,
+}
+
 pub struct LiveSession {
     pub handle: Arc<AsyncMutex<Handle<ClientHandler>>>,
     /// Intermediate ProxyJump hop handles (kept alive for the tunnel).
     jump_handles: Vec<Arc<AsyncMutex<Handle<ClientHandler>>>>,
-    channel: AsyncMutex<russh::Channel<Msg>>,
+    /// Writer side for the shell reader task that owns the russh Channel.
+    /// Holding Channel mutex across wait() blocked keyboard input; stdin goes through this queue.
+    stdin_tx: mpsc::UnboundedSender<ChannelCmd>,
     pub meta: SessionMeta,
     ring: Mutex<String>,
     remote_routes: Arc<RemoteForwardRouter>,
@@ -262,6 +271,98 @@ pub struct SshManager {
     jump_slots: Mutex<HashMap<String, JumpSlot>>,
     /// Independent health-probe short connections keyed by profileId.
     probe_held: AsyncMutex<HashMap<String, ProbeHeld>>,
+}
+
+
+fn spawn_shell_io(
+    app: AppHandle,
+    sid: String,
+    live: Arc<LiveSession>,
+    mut channel: russh::Channel<Msg>,
+    mut rx: mpsc::UnboundedReceiver<ChannelCmd>,
+    forwards: Arc<ForwardManager>,
+) {
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                msg = channel.wait() => {
+                    match msg {
+                        Some(ChannelMsg::Data { ref data }) => {
+                            let chunk = String::from_utf8_lossy(data).to_string();
+                            {
+                                let mut ring = live.ring.lock();
+                                ring.push_str(&chunk);
+                                if ring.len() > 200_000 {
+                                    let keep = ring.len() - 150_000;
+                                    ring.drain(..keep);
+                                }
+                            }
+                            crate::recording::append_global(&sid, &chunk);
+                            let _ = app.emit(
+                                "ssh:data",
+                                SshDataEvent {
+                                    session_id: sid.clone(),
+                                    chunk,
+                                },
+                            );
+                        }
+                        Some(ChannelMsg::ExtendedData { ref data, .. }) => {
+                            let chunk = String::from_utf8_lossy(data).to_string();
+                            crate::recording::append_global(&sid, &chunk);
+                            let _ = app.emit(
+                                "ssh:data",
+                                SshDataEvent {
+                                    session_id: sid.clone(),
+                                    chunk,
+                                },
+                            );
+                        }
+                        Some(ChannelMsg::ExitStatus { exit_status }) => {
+                            let _ = forwards.stop_session(&sid).await;
+                            let _ = app.emit(
+                                "ssh:status",
+                                SshStatusEvent {
+                                    session_id: sid.clone(),
+                                    status: "closed".into(),
+                                    message: Some(format!("exit {exit_status}")),
+                                },
+                            );
+                            break;
+                        }
+                        Some(ChannelMsg::Eof) | None => {
+                            let _ = forwards.stop_session(&sid).await;
+                            let _ = app.emit(
+                                "ssh:status",
+                                SshStatusEvent {
+                                    session_id: sid.clone(),
+                                    status: "closed".into(),
+                                    message: None,
+                                },
+                            );
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+                cmd = rx.recv() => {
+                    match cmd {
+                        Some(ChannelCmd::Data(bytes)) => {
+                            if channel.data(&bytes[..]).await.is_err() {
+                                break;
+                            }
+                        }
+                        Some(ChannelCmd::Resize { cols, rows }) => {
+                            let _ = channel.window_change(cols, rows, 0, 0).await;
+                        }
+                        Some(ChannelCmd::Close) | None => {
+                            let _ = channel.close().await;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 impl SshManager {
@@ -1023,10 +1124,11 @@ impl SshManager {
             kind: Some("ssh".into()),
         };
 
+        let (stdin_tx, stdin_rx) = mpsc::unbounded_channel::<ChannelCmd>();
         let live = Arc::new(LiveSession {
             handle: handle.clone(),
             jump_handles,
-            channel: AsyncMutex::new(channel),
+            stdin_tx,
             meta: meta.clone(),
             ring: Mutex::new(String::new()),
             remote_routes: self.remote_routes.clone(),
@@ -1054,74 +1156,14 @@ impl SshManager {
             }
         }
 
-        let app2 = app.clone();
-        let sid = session_id.clone();
-        let live2 = live.clone();
-        let forwards = self.forwards.clone();
-        tokio::spawn(async move {
-            loop {
-                let mut ch = live2.channel.lock().await;
-                let msg = ch.wait().await;
-                drop(ch);
-                match msg {
-                    Some(ChannelMsg::Data { ref data }) => {
-                        let chunk = String::from_utf8_lossy(data).to_string();
-                        {
-                            let mut ring = live2.ring.lock();
-                            ring.push_str(&chunk);
-                            if ring.len() > 200_000 {
-                                let keep = ring.len() - 150_000;
-                                ring.drain(..keep);
-                            }
-                        }
-                        crate::recording::append_global(&sid, &chunk);
-                        let _ = app2.emit(
-                            "ssh:data",
-                            SshDataEvent {
-                                session_id: sid.clone(),
-                                chunk,
-                            },
-                        );
-                    }
-                    Some(ChannelMsg::ExtendedData { ref data, .. }) => {
-                        let chunk = String::from_utf8_lossy(data).to_string();
-                        crate::recording::append_global(&sid, &chunk);
-                        let _ = app2.emit(
-                            "ssh:data",
-                            SshDataEvent {
-                                session_id: sid.clone(),
-                                chunk,
-                            },
-                        );
-                    }
-                    Some(ChannelMsg::ExitStatus { exit_status }) => {
-                        let _ = forwards.stop_session(&sid).await;
-                        let _ = app2.emit(
-                            "ssh:status",
-                            SshStatusEvent {
-                                session_id: sid.clone(),
-                                status: "closed".into(),
-                                message: Some(format!("exit {exit_status}")),
-                            },
-                        );
-                        break;
-                    }
-                    Some(ChannelMsg::Eof) | None => {
-                        let _ = forwards.stop_session(&sid).await;
-                        let _ = app2.emit(
-                            "ssh:status",
-                            SshStatusEvent {
-                                session_id: sid.clone(),
-                                status: "closed".into(),
-                                message: None,
-                            },
-                        );
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        });
+        spawn_shell_io(
+            app.clone(),
+            session_id.clone(),
+            live.clone(),
+            channel,
+            stdin_rx,
+            self.forwards.clone(),
+        );
 
         let _ = app.emit(
             "ssh:status",
@@ -1147,13 +1189,11 @@ impl SshManager {
             .collect();
         for cid in child_ids {
             if let Some(child) = map.remove(&cid) {
-                let ch = child.channel.lock().await;
-                let _ = ch.close().await;
+                let _ = child.stdin_tx.send(ChannelCmd::Close);
             }
         }
         if let Some(live) = map.remove(session_id) {
-            let ch = live.channel.lock().await;
-            let _ = ch.close().await;
+            let _ = live.stdin_tx.send(ChannelCmd::Close);
             if live.owns_client {
                 {
                     let h = live.handle.lock().await;
@@ -1173,8 +1213,9 @@ impl SshManager {
         let live = map
             .get(session_id)
             .ok_or_else(|| anyhow!("session not found"))?;
-        let ch = live.channel.lock().await;
-        ch.data(&data.into_bytes()[..]).await?;
+        live.stdin_tx
+            .send(ChannelCmd::Data(data.into_bytes()))
+            .map_err(|_| anyhow!("session channel closed"))?;
         Ok(true)
     }
 
@@ -1183,8 +1224,9 @@ impl SshManager {
         let live = map
             .get(session_id)
             .ok_or_else(|| anyhow!("session not found"))?;
-        let ch = live.channel.lock().await;
-        ch.window_change(cols, rows, 0, 0).await?;
+        live.stdin_tx
+            .send(ChannelCmd::Resize { cols, rows })
+            .map_err(|_| anyhow!("session channel closed"))?;
         Ok(true)
     }
 
@@ -1777,10 +1819,11 @@ impl SshManager {
             term_rows: rows,
             kind: Some("docker-exec".into()),
         };
+        let (stdin_tx, stdin_rx) = mpsc::unbounded_channel::<ChannelCmd>();
         let live = Arc::new(LiveSession {
             handle: handle.clone(),
             jump_handles: vec![],
-            channel: AsyncMutex::new(channel),
+            stdin_tx,
             meta: meta.clone(),
             ring: Mutex::new(String::new()),
             remote_routes: self.remote_routes.clone(),
@@ -1791,74 +1834,14 @@ impl SshManager {
             let mut map = self.sessions.lock().await;
             map.insert(session_id.clone(), live.clone());
         }
-        let app2 = app.clone();
-        let sid = session_id.clone();
-        let live2 = live.clone();
-        let forwards = self.forwards.clone();
-        tokio::spawn(async move {
-            loop {
-                let mut ch = live2.channel.lock().await;
-                let msg = ch.wait().await;
-                drop(ch);
-                match msg {
-                    Some(ChannelMsg::Data { ref data }) => {
-                        let chunk = String::from_utf8_lossy(data).to_string();
-                        {
-                            let mut ring = live2.ring.lock();
-                            ring.push_str(&chunk);
-                            if ring.len() > 200_000 {
-                                let keep = ring.len() - 150_000;
-                                ring.drain(..keep);
-                            }
-                        }
-                        crate::recording::append_global(&sid, &chunk);
-                        let _ = app2.emit(
-                            "ssh:data",
-                            SshDataEvent {
-                                session_id: sid.clone(),
-                                chunk,
-                            },
-                        );
-                    }
-                    Some(ChannelMsg::ExtendedData { ref data, .. }) => {
-                        let chunk = String::from_utf8_lossy(data).to_string();
-                        crate::recording::append_global(&sid, &chunk);
-                        let _ = app2.emit(
-                            "ssh:data",
-                            SshDataEvent {
-                                session_id: sid.clone(),
-                                chunk,
-                            },
-                        );
-                    }
-                    Some(ChannelMsg::ExitStatus { exit_status }) => {
-                        let _ = forwards.stop_session(&sid).await;
-                        let _ = app2.emit(
-                            "ssh:status",
-                            SshStatusEvent {
-                                session_id: sid.clone(),
-                                status: "closed".into(),
-                                message: Some(format!("exit {exit_status}")),
-                            },
-                        );
-                        break;
-                    }
-                    Some(ChannelMsg::Eof) | None => {
-                        let _ = forwards.stop_session(&sid).await;
-                        let _ = app2.emit(
-                            "ssh:status",
-                            SshStatusEvent {
-                                session_id: sid.clone(),
-                                status: "closed".into(),
-                                message: None,
-                            },
-                        );
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        });
+        spawn_shell_io(
+            app.clone(),
+            session_id.clone(),
+            live.clone(),
+            channel,
+            stdin_rx,
+            self.forwards.clone(),
+        );
         let _ = app.emit(
             "ssh:status",
             SshStatusEvent {

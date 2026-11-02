@@ -5675,7 +5675,7 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
 /* update dialog + what's new (V2/V3) */
 .update-modal-actions { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
 .update-modal ul { margin: 0; padding-left: 18px; line-height: 1.7; font-size: 13px; }
-.wn-icon { font-size: 18px; width: 24px; text-align: center; }
+.wn-icon { font-size: var(--fs-lg); width: 24px; text-align: center; }
 .wn-where { font-size: 12px; color: var(--muted); background: none; border: none; padding: 0; text-align: left; }
 .wn-where--link { color: var(--accent); cursor: pointer; }
 .wn-where--link:hover { text-decoration: underline; }
@@ -7239,7 +7239,7 @@ button.primary.danger:focus-visible {
   padding: 0;
   background: transparent;
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   line-height: 1;
   cursor: default;
   display: inline-flex;
@@ -7247,13 +7247,43 @@ button.primary.danger:focus-visible {
   justify-content: center;
 }
 .window-ctrl:hover {
-  background: var(--tab-active, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+}
+
+.window-ctrl-icon {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  box-sizing: border-box;
+  border: 1px solid currentColor;
+}
+.window-ctrl-icon-restore {
+  box-shadow: 2px -2px 0 -1px currentColor, 2px -2px 0 0 transparent;
+  position: relative;
 }
 .window-ctrl-close:hover {
-  background: #e81123;
-  color: #fff;
+  background: var(--color-danger);
+  color: var(--color-bg-elevated);
 }
 body.platform-darwin .window-controls {
   /* macOS keeps native traffic lights when decorations/overlay used; hide custom */
   display: none;
+}
+
+
+.titlebar-menu-sub { position: relative; }
+.titlebar-menu-item--sub { width: 100%; }
+.titlebar-menu-flyout {
+  position: absolute;
+  left: calc(100% - 4px);
+  top: 0;
+  min-width: 220px;
+  max-height: min(70vh, 480px);
+  overflow: auto;
+  z-index: 40;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-menu);
+  padding: var(--space-1) 0;
 }

@@ -243,7 +243,11 @@ export async function installTauriBridge(): Promise<void> {
     sessions: {
       list: async () => {
         const v = await invoke<any>('sessions_list')
-        return v && typeof v === 'object' ? v : emptySessions()
+        const base = v && typeof v === 'object' ? v : emptySessions()
+        return {
+          folders: Array.isArray(base.folders) ? base.folders : [],
+          profiles: Array.isArray(base.profiles) ? base.profiles : []
+        }
       },
       save: (state: unknown) => invoke('sessions_save', { value: state }),
       importPick: () => invoke('sessions_import_pick'),
@@ -266,6 +270,7 @@ export async function installTauriBridge(): Promise<void> {
       search: (query: string) => invoke('inventory_search', { query }),
       upsert: (input: unknown) => invoke('inventory_upsert', { input }),
       remove: (id: string) => invoke<boolean>('inventory_remove', { id }),
+      getRoot: () => invoke<string>('inventory_get_root'),
       setServices: (hostId: string, services: unknown) =>
         invoke('inventory_set_services', { hostId, services }),
       appendNote: (hostId: string, note: string) =>
@@ -277,7 +282,10 @@ export async function installTauriBridge(): Promise<void> {
           hostId: opts?.hostId ?? null,
           host: opts?.host ?? null,
           port: opts?.port ?? null
-        })
+        }),
+      exportToFile: () => invoke('inventory_export_to_file'),
+      importFromFile: (overwrite?: boolean) =>
+        invoke('inventory_import_from_file', { overwrite: overwrite ?? false })
     },
     coreMemory: {
       get: (sessionKey: string) => invoke('core_memory_get', { sessionKey }),
@@ -323,7 +331,24 @@ export async function installTauriBridge(): Promise<void> {
       }
     },
     ai: {
-      getSettings: async () => invoke('store_get', { path: ['ai'] }),
+      getSettings: async () => {
+        const s = await invoke<any>('store_get', { path: ['ai'] })
+        const providers = Array.isArray(s?.providers) ? s.providers : []
+        return {
+          providers,
+          activeProviderId: s?.activeProviderId || providers[0]?.id || '',
+          model: s?.model || '',
+          temperature: typeof s?.temperature === 'number' ? s.temperature : 0.1,
+          sshParseInstructions: s?.sshParseInstructions || '',
+          useOpenClaw: s?.useOpenClaw !== false,
+          autoApproveLowRisk: Boolean(s?.autoApproveLowRisk),
+          safetyTier: s?.safetyTier,
+          safetyTierHosts: s?.safetyTierHosts || {},
+          safetyTierSessions: s?.safetyTierSessions || {},
+          autopilotAllowHosts: Array.isArray(s?.autopilotAllowHosts) ? s.autopilotAllowHosts : [],
+          aiMaxSteps: s?.aiMaxSteps
+        }
+      },
       setSettings: (s: unknown) => invoke('store_set', { path: ['ai'], value: s }),
       chat: (payload: unknown) => invoke('ai_chat', { payload }),
       abortChat: async () => {

@@ -162,6 +162,7 @@ export type SharedMenuItem =
       menuHidden?: boolean
     }
   | { type: 'sep' }
+  | { type: 'sub'; id: string; label: Bilingual; items: SharedMenuItem[] }
 
 export type SharedMenu = { id: string; label: Bilingual; items: SharedMenuItem[] }
 
@@ -172,6 +173,7 @@ const it = (
   extra?: { toggle?: boolean; needsSession?: boolean; shortcut?: string; menuHidden?: boolean }
 ): SharedMenuItem => ({ type: 'item', id, label: { zh, en }, shortcut: extra?.shortcut ?? keysFor(id), ...extra })
 const sep: SharedMenuItem = { type: 'sep' }
+const sub = (id: string, zh: string, en: string, items: SharedMenuItem[]): SharedMenuItem => ({ type: 'sub', id, label: { zh, en }, items })
 
 export const SHARED_MENUS: SharedMenu[] = [
   {
@@ -221,44 +223,52 @@ export const SHARED_MENUS: SharedMenu[] = [
     label: { zh: '查看', en: 'View' },
     items: [
       it('opsHome', '运维首页', 'Ops home'),
-      it('refreshHomeHealth', '刷新首页健康', 'Refresh home health'),
-      it('retryFailedProbes', '重试失败采样', 'Retry failed probes'),
       it('commandPalette', '命令面板…', 'Command palette…'),
       it('switchTab', '切换标签…', 'Switch tab…'),
       sep,
       it('toggleSidebar', '会话栏', 'Session sidebar', { toggle: true }),
       it('toggleMain', '终端区', 'Terminal area', { toggle: true }),
       it('toggleAi', 'AI 面板', 'AI panel', { toggle: true }),
-      it('focusAiPanel', '聚焦 AI 面板', 'Focus AI panel'),
-      it('focusTerminal', '聚焦终端', 'Focus terminal'),
-      it('toggleBlockStrip', '输出分块条', 'Output block strip', { toggle: true }),
-      it('clearAiChat', '清空 AI 对话…', 'Clear AI chat…'),
-      it('copyLastAiReply', '复制上一条 AI 回复', 'Copy last AI reply'),
-      it('closeOtherTabs', '关闭其他标签', 'Close other tabs'),
-      it('closeTabsToRight', '关闭右侧标签', 'Close tabs to the right'),
-      it('openAllTabs', '全部标签…', 'All tabs…'),
-      it('closeDisconnectedTabs', '关闭已断开的标签', 'Close disconnected tabs'),
-      it('reopenClosedTab', '重新打开关闭的标签', 'Reopen closed tab'),
-      sep,
       it('toggleSplit', '分屏', 'Split view', { toggle: true }),
       it('toggleHostStatus', '显示主机在线状态', 'Show host status', { toggle: true }),
       sep,
       it('uiTheme', '界面主题…', 'UI theme…'),
       it('toggleUiTheme', '切换浅色/深色主题', 'Toggle light/dark theme'),
       it('terminalPrefs', '终端外观…', 'Terminal appearance…'),
-      it('zoomIn', '放大终端字体', 'Zoom in terminal font'),
-      it('zoomOut', '缩小终端字体', 'Zoom out terminal font'),
-      it('zoomReset', '重置终端字体', 'Reset terminal font size'),
-      it('clearScrollback', '清空终端回滚缓冲', 'Clear terminal scrollback'),
-      it('copyLastOutput', '复制上一条命令的输出', 'Copy last command output'),
-      it('searchAllTerms', '搜索所有终端标签…', 'Search all terminal tabs…'),
-      it('toggleMuteBell', '静音终端铃', 'Mute terminal bell', { toggle: true }),
-      it('toggleTabPin', '固定/取消固定当前标签', 'Pin/unpin current tab', { toggle: true }),
-      it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),
-      it('sftpComfort', 'SFTP 舒适密度', 'SFTP comfort density', { toggle: true }),
-      it('clearHostHistory', '清除本主机命令历史…', 'Clear history for this host…'),
-      it('startupSettings', '启动设置…', 'Startup settings…'),
-      it('toggleLanguage', '切换语言（English）', 'Switch language (Chinese)')
+      it('toggleLanguage', '切换语言（English）', 'Switch language (Chinese)'),
+      sep,
+      sub('view-tabs', '标签', 'Tabs', [
+        it('closeOtherTabs', '关闭其他标签', 'Close other tabs'),
+        it('closeTabsToRight', '关闭右侧标签', 'Close tabs to the right'),
+        it('openAllTabs', '全部标签…', 'All tabs…'),
+        it('closeDisconnectedTabs', '关闭已断开的标签', 'Close disconnected tabs'),
+        it('reopenClosedTab', '重新打开关闭的标签', 'Reopen closed tab'),
+        it('toggleTabPin', '固定/取消固定当前标签', 'Pin/unpin current tab', { toggle: true })
+      ]),
+      sub('view-focus', '聚焦与 AI', 'Focus & AI', [
+        it('focusAiPanel', '聚焦 AI 面板', 'Focus AI panel'),
+        it('focusTerminal', '聚焦终端', 'Focus terminal'),
+        it('toggleBlockStrip', '输出分块条', 'Output block strip', { toggle: true }),
+        it('clearAiChat', '清空 AI 对话…', 'Clear AI chat…'),
+        it('copyLastAiReply', '复制上一条 AI 回复', 'Copy last AI reply')
+      ]),
+      sub('view-terminal', '终端显示', 'Terminal display', [
+        it('zoomIn', '放大终端字体', 'Zoom in terminal font'),
+        it('zoomOut', '缩小终端字体', 'Zoom out terminal font'),
+        it('zoomReset', '重置终端字体', 'Reset terminal font size'),
+        it('clearScrollback', '清空终端回滚缓冲', 'Clear terminal scrollback'),
+        it('copyLastOutput', '复制上一条命令的输出', 'Copy last command output'),
+        it('searchAllTerms', '搜索所有终端标签…', 'Search all terminal tabs…'),
+        it('toggleMuteBell', '静音终端铃', 'Mute terminal bell', { toggle: true }),
+        it('smartComplete', '智能补全（基于命令历史）', 'Smart completion (from history)', { toggle: true }),
+        it('sftpComfort', 'SFTP 舒适密度', 'SFTP comfort density', { toggle: true }),
+        it('clearHostHistory', '清除本主机命令历史…', 'Clear history for this host…')
+      ]),
+      sub('view-home', '首页与启动', 'Home & startup', [
+        it('refreshHomeHealth', '刷新首页健康', 'Refresh home health'),
+        it('retryFailedProbes', '重试失败采样', 'Retry failed probes'),
+        it('startupSettings', '启动设置…', 'Startup settings…')
+      ])
     ]
   },
   {
@@ -266,35 +276,42 @@ export const SHARED_MENUS: SharedMenu[] = [
     label: { zh: '会话', en: 'Session' },
     items: [
       it('reconnect', '重新连接', 'Reconnect', { needsSession: true }),
-      it('reconnectNow', '立即重连（已断开）', 'Reconnect now (if dropped)', { needsSession: true }),
       it('disconnectSession', '断开当前会话…', 'Disconnect current session…', { needsSession: true }),
-      it('disconnectAllSessions', '断开全部会话…', 'Disconnect all sessions…'),
-      it('reconnectAllDropped', '重连全部已断开的会话', 'Reconnect all dropped sessions'),
-      it('reconnectPolicy', '重连策略…', 'Reconnect policy…'),
       it('duplicateSession', '复制会话', 'Duplicate session', { needsSession: true }),
-      it('editSessionNote', '编辑会话备注…', 'Edit session note…', { needsSession: true }),
-      it('openProdGuard', '生产防护…', 'Production guard…', { needsSession: true }),
-      it('readonlyOn', '开启只读会话', 'Enable read-only session', { needsSession: true }),
-      it('readonlyOff', '关闭只读会话', 'Disable read-only session', { needsSession: true }),
-      it('copyConnectionString', '复制连接串', 'Copy connection string', { needsSession: true }),
-      it('checkCerts', '检查证书…', 'Check certificates…', { needsSession: true }),
-      it('setJumpHosts', '跳板主机…', 'Jump hosts…', { needsSession: true }),
-      it('testJump', '测试跳板…', 'Test jump path…', { needsSession: true }),
-      sep,
       it('sftp', 'SFTP 文件', 'SFTP files', { needsSession: true }),
-      it('sftpTransferQueue', 'SFTP 传输队列', 'SFTP transfer queue', { needsSession: true }),
-      it('folderSync', '同步文件夹…', 'Sync folder…', { needsSession: true }),
-      it('syncConflicts', '同步冲突…', 'Sync conflicts…'),
-      it('syncPreview', '同步预览…', 'Sync preview…'),
-      it('fileSnapshots', '文件历史快照…', 'File history snapshots…'),
       it('portForward', '端口转发…', 'Port forwarding…', { needsSession: true }),
       sep,
-      it('toggleBroadcast', '广播输入', 'Broadcast input', { toggle: true }),
-      it('broadcastTargets', '选择广播目标…', 'Choose broadcast targets…'),
-      it('toggleRecording', '录制', 'Recording', { toggle: true, needsSession: true }),
-      it('sessionRecordings', '会话录制', 'Session recordings'),
-      it('toggleBlocks', '输出分块', 'Output blocks', { toggle: true }),
-      it('toggleShellIntegration', 'Shell 集成（bash/zsh）', 'Shell integration (bash/zsh)', { toggle: true })
+      sub('session-reconnect', '重连与断开', 'Reconnect & disconnect', [
+        it('reconnectNow', '立即重连（已断开）', 'Reconnect now (if dropped)', { needsSession: true }),
+        it('reconnectAllDropped', '重连全部已断开的会话', 'Reconnect all dropped sessions'),
+        it('disconnectAllSessions', '断开全部会话…', 'Disconnect all sessions…'),
+        it('reconnectPolicy', '重连策略…', 'Reconnect policy…')
+      ]),
+      sub('session-security', '安全与跳板', 'Security & jump', [
+        it('openProdGuard', '生产防护…', 'Production guard…', { needsSession: true }),
+        it('readonlyOn', '开启只读会话', 'Enable read-only session', { needsSession: true }),
+        it('readonlyOff', '关闭只读会话', 'Disable read-only session', { needsSession: true }),
+        it('setJumpHosts', '跳板主机…', 'Jump hosts…', { needsSession: true }),
+        it('testJump', '测试跳板…', 'Test jump path…', { needsSession: true }),
+        it('checkCerts', '检查证书…', 'Check certificates…', { needsSession: true }),
+        it('copyConnectionString', '复制连接串', 'Copy connection string', { needsSession: true }),
+        it('editSessionNote', '编辑会话备注…', 'Edit session note…', { needsSession: true })
+      ]),
+      sub('session-files', '文件与同步', 'Files & sync', [
+        it('sftpTransferQueue', 'SFTP 传输队列', 'SFTP transfer queue', { needsSession: true }),
+        it('folderSync', '同步文件夹…', 'Sync folder…', { needsSession: true }),
+        it('syncConflicts', '同步冲突…', 'Sync conflicts…'),
+        it('syncPreview', '同步预览…', 'Sync preview…'),
+        it('fileSnapshots', '文件历史快照…', 'File history snapshots…')
+      ]),
+      sub('session-tools', '广播与录制', 'Broadcast & record', [
+        it('toggleBroadcast', '广播输入', 'Broadcast input', { toggle: true }),
+        it('broadcastTargets', '选择广播目标…', 'Choose broadcast targets…'),
+        it('toggleRecording', '录制', 'Recording', { toggle: true, needsSession: true }),
+        it('sessionRecordings', '会话录制', 'Session recordings'),
+        it('toggleBlocks', '输出分块', 'Output blocks', { toggle: true }),
+        it('toggleShellIntegration', 'Shell 集成（bash/zsh）', 'Shell integration (bash/zsh)', { toggle: true })
+      ])
     ]
   },
   {
@@ -379,10 +396,19 @@ export function menuLabel(b: Bilingual, locale: string): string {
   return locale === 'zh-CN' ? b.zh : b.en
 }
 
-export function visibleMenuItems(menu: SharedMenu): SharedMenuItem[] {
-  const items = menu.items.filter((it) => it.type === 'sep' || !it.menuHidden)
+function filterMenuItems(items: SharedMenuItem[]): SharedMenuItem[] {
+  const mapped = items
+    .map((it) => {
+      if (it.type === 'sub') {
+        const kids = filterMenuItems(it.items)
+        return kids.length ? ({ ...it, items: kids } as SharedMenuItem) : null
+      }
+      if (it.type === 'item' && it.menuHidden) return null
+      return it
+    })
+    .filter((it): it is SharedMenuItem => it != null)
   const out: SharedMenuItem[] = []
-  for (const it of items) {
+  for (const it of mapped) {
     if (it.type === 'sep' && (out.length === 0 || out[out.length - 1]?.type === 'sep')) continue
     out.push(it)
   }
@@ -390,8 +416,43 @@ export function visibleMenuItems(menu: SharedMenu): SharedMenuItem[] {
   return out
 }
 
+export function visibleMenuItems(menu: SharedMenu): SharedMenuItem[] {
+  return filterMenuItems(menu.items)
+}
+
+function collectActionIds(items: SharedMenuItem[]): string[] {
+  return items.flatMap((it) => {
+    if (it.type === 'item') return [it.id]
+    if (it.type === 'sub') return collectActionIds(it.items)
+    return []
+  })
+}
+
 export function visibleActionIds(menu: SharedMenu): string[] {
-  return visibleMenuItems(menu).flatMap((it) => (it.type === 'item' ? [it.id] : []))
+  return collectActionIds(visibleMenuItems(menu))
+}
+
+/** Flatten items including nested subs (separators and leaves). */
+export function flattenMenuItems(items: SharedMenuItem[]): SharedMenuItem[] {
+  return items.flatMap((it) => (it.type === 'sub' ? flattenMenuItems(it.items) : [it]))
+}
+
+/** All action ids in a menu including nested subs (for palette / tests). */
+export function allMenuActionIds(menu: SharedMenu): string[] {
+  return collectActionIds(menu.items)
+}
+
+export function menuHasAction(menus: ReadonlyArray<SharedMenu>, id: MenuAction): boolean {
+  return menus.some((m) => allMenuActionIds(m).includes(id))
+}
+
+export function findMenuItem(menus: ReadonlyArray<SharedMenu>, id: MenuAction): Extract<SharedMenuItem, { type: 'item' }> | undefined {
+  for (const m of menus) {
+    for (const it of flattenMenuItems(m.items)) {
+      if (it.type === 'item' && it.id === id) return it
+    }
+  }
+  return undefined
 }
 
 /** PNG-2: open Ops rows stay at or under this count. Polish-1 keeps the list strictly under it. */

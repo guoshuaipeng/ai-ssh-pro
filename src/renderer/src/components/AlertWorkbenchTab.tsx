@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AlertRulesState, FiredAlert } from '@shared/alert-rules'
 import { filterAlerts, type AlertFilter, type BellPrefs } from '@shared/alert-workbench'
 import { locateTargetFor } from '@shared/alert-locate'
@@ -20,6 +20,7 @@ import EmptyState from './EmptyState'
 import Icon from './Icon'
 import Button from './ui/Button'
 import PanelHeader from './ui/PanelHeader'
+import LayoutResizer from './LayoutResizer'
 
 const TARGET_KEY = {
   df: 'st.tab.df',
@@ -108,6 +109,32 @@ export default function AlertWorkbenchTab({
   onClearHistory: () => void
 }) {
   const { t } = useI18n()
+  const LIST_MIN = 240
+  const LIST_MAX = 640
+  const LIST_DEFAULT = 380
+  const LIST_KEY = 'aiss-alert-list-width-v1'
+  const clampList = (n: number) => Math.min(LIST_MAX, Math.max(LIST_MIN, Math.round(n)))
+  const [listWidth, setListWidth] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LIST_KEY)
+      const n = raw ? Number(raw) : LIST_DEFAULT
+      return Number.isFinite(n) ? clampList(n) : LIST_DEFAULT
+    } catch {
+      return LIST_DEFAULT
+    }
+  })
+  const persistListWidth = useCallback((updater: number | ((n: number) => number)) => {
+    setListWidth((prev) => {
+      const raw = typeof updater === 'function' ? updater(prev) : updater
+      const next = clampList(raw)
+      try {
+        localStorage.setItem(LIST_KEY, String(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }, [])
   const [filter, setFilter] = useState<AlertFilter>(initialFilter ?? 'active')
   const [host, setHost] = useState('')
   const [rule, setRule] = useState('')
@@ -353,6 +380,7 @@ export default function AlertWorkbenchTab({
       </div>
       <div className={`l2-body${narrowDetail ? ' is-detail' : ''}`}>
         <div className="l2-list" data-testid="l2-list" role="listbox" aria-label={t('l2.title')} tabIndex={0}
+          style={{ width: listWidth }}
           onKeyDown={(e) => {
             if (!rows.length) return
             const idx = Math.max(0, rows.findIndex((r) => r.id === (selected?.id ?? '')))
@@ -409,6 +437,10 @@ export default function AlertWorkbenchTab({
             ))
           )}
         </div>
+        <LayoutResizer
+          title={t('l2.resizeList')}
+          onDrag={(dx) => persistListWidth((w) => w + dx)}
+        />
         <div className="l2-detail">
           <button type="button" className="l2-back" onClick={() => setNarrowDetail(false)}>
             {t('l2.backToList')}

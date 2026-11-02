@@ -42,17 +42,17 @@ class ErrorBoundary extends React.Component<
     if (this.state.error) {
       const msg = this.state.error?.message || String(this.state.error)
       return (
-        <div style={{ padding: 24, color: '#e6edf3', fontFamily: 'system-ui, sans-serif', maxWidth: 640 }}>
-          <h1 style={{ fontSize: 16, margin: '0 0 12px' }}>界面渲染出错</h1>
+        <div style={{ padding: 24, color: 'var(--color-text-primary)', fontFamily: 'system-ui, sans-serif', maxWidth: 640 }}>
+          <h1 style={{ fontSize: 16, margin: '0 0 12px' }}>Renderer error</h1>
           <p style={{ margin: '0 0 12px', opacity: 0.85, lineHeight: 1.5 }}>
-            主界面被错误打断。可尝试关闭 AI 面板相关状态后重启；下方为错误信息。
+            The main UI crashed. Try clearing AI panel state and restarting. Details below.
           </p>
-          <pre style={{ margin: 0, padding: 12, background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, fontSize: 12, whiteSpace: 'pre-wrap', color: '#f85149' }}>
+          <pre style={{ margin: 0, padding: 12, background: 'var(--color-bg-code)', border: '1px solid var(--color-border-default)', borderRadius: 8, fontSize: 12, whiteSpace: 'pre-wrap', color: 'var(--color-danger)' }}>
             {msg}
           </pre>
           <p style={{ marginTop: 16 }}>
             <button type="button" onClick={() => this.setState({ error: null })} style={{ padding: '8px 12px' }}>
-              重试渲染
+              Retry
             </button>
           </p>
         </div>
@@ -74,16 +74,16 @@ function AppGate(): React.ReactElement {
     const href = typeof window !== 'undefined' ? window.location.href : ''
     const line = `[renderer] mount: window.aiss = ${w.aiss === undefined ? 'undefined' : typeof w.aiss}`
     console.warn(line)
-    setDiag(`${line}\n页面 URL: ${href}`)
+    setDiag(`${line}\nhref: ${href}`)
     if (w.aiss) applyUiTheme(loadUiThemeId())
   }, [])
 
   if (!api) {
     return (
       <div style={{ padding: 24, color: '#e6edf3', fontFamily: 'system-ui, sans-serif', maxWidth: 560 }}>
-        <h1 style={{ fontSize: 16, margin: '0 0 12px' }}>主进程桥接未加载</h1>
+        <h1 style={{ fontSize: 16, margin: '0 0 12px' }}>Bridge not loaded</h1>
         <p style={{ margin: '0 0 16px', opacity: 0.85, lineHeight: 1.5 }}>
-          Tauri bridge 未安装（window.aiss 不存在）。
+          Tauri bridge is not installed (window.aiss is missing).
         </p>
         {diag && (
           <pre style={{ margin: 0, padding: 12, background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, fontSize: 12, whiteSpace: 'pre-wrap', color: '#8b949e' }}>
@@ -103,7 +103,7 @@ function AppGate(): React.ReactElement {
 function DebugWindowGate(): React.ReactElement {
   const api = (window as unknown as { aiss?: unknown }).aiss
   if (!api) {
-    return <div style={{ padding: 24, color: '#e6edf3' }}>调试窗口：桥接未加载</div>
+    return <div style={{ padding: 24, color: '#e6edf3' }}>Debug window: bridge not loaded</div>
   }
   return <AiDebugWindowApp />
 }

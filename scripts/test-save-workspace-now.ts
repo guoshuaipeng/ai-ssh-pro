@@ -1,10 +1,10 @@
 /** File/CmdK save workspace now (manual flush of last-layout snapshot). */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 import { snapshotWorkspace } from '../src/shared/session-restore'
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'saveWorkspaceNow')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'saveWorkspaceNow')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /保存工作区/)
 assert.match(item.label.en.toLowerCase(), /save workspace/)

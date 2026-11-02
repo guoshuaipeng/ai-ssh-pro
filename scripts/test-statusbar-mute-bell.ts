@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(app, /statusbar-mute-bell/)
-assert.match(app, /terminalPrefs\.muteBell/)
+assert.match(app, /\(terminalPrefs \?\? TERMINAL_PREFS_DEFAULTS\)\.muteBell|terminalPrefs\.muteBell/)
 assert.match(app, /muteBell:\s*false/)
 assert.match(app, /term\.bellUnmuted/)
 

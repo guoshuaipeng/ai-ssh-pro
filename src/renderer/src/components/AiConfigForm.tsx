@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiProvider, AiSettings } from '@shared/ipc'
 import { tg, useI18n } from '../lib/i18n'
 import Button from './ui/Button'
-import { openContextMenu } from './ContextMenu'
 import { AI_PRESETS, keyOptional, matchPreset, type AiPreset } from '@shared/ai-presets'
 
 const MASK = '••••••••'
@@ -47,13 +46,14 @@ export default function AiConfigForm() {
 
   const load = useCallback(() => {
     void window.aiss.ai.getSettings().then((s) => {
-      setProviders(s.providers)
+      const list = Array.isArray(s?.providers) ? s.providers : []
+      setProviders(list)
       setActiveProviderId(s.activeProviderId)
       setTemperature(typeof s.temperature === 'number' ? s.temperature : 0.1)
       setSshParseInstructions(s.sshParseInstructions ?? '')
       setUseOpenClaw(s.useOpenClaw !== false)
 
-      const p = s.providers.find((x) => x.id === s.activeProviderId) ?? s.providers[0]
+      const p = list.find((x) => x.id === s?.activeProviderId) ?? list[0]
       if (p) {
         setProviderName(p.name)
         setBaseURL(p.baseURL)
@@ -141,46 +141,36 @@ export default function AiConfigForm() {
     setModel(p.modelList[0] ?? '')
   }, [commitEditorToProviders])
 
-  /** B2: new provider filled from a docs-verified preset. Fields stay editable. */
-  const addFromPreset = useCallback(
+  /** c64: apply a docs-verified preset into the current editor (create one if empty). Fields stay editable. */
+  const applyPreset = useCallback(
     (preset: AiPreset) => {
+      const name = locale === 'en' ? preset.name.en : preset.name.zh
+      const models = [...preset.models]
       const nextProviders = commitEditorToProviders()
-      const id = `provider_${Date.now()}`
-      const p: AiProvider = {
-        id,
-        name: locale === 'en' ? preset.name.en : preset.name.zh,
-        baseURL: preset.baseURL,
-        apiKey: '',
-        modelList: [...preset.models]
+      if (nextProviders.length === 0 || !activeProviderId) {
+        const id = `provider_${Date.now()}`
+        const p: AiProvider = { id, name, baseURL: preset.baseURL, apiKey: '', modelList: models }
+        setProviders([p])
+        setActiveProviderId(id)
+      } else {
+        setProviders(
+          nextProviders.map((p) =>
+            p.id === activeProviderId
+              ? { ...p, name, baseURL: preset.baseURL, apiKey: '', modelList: models }
+              : p
+          )
+        )
       }
-      setProviders([...nextProviders, p])
-      setActiveProviderId(id)
-      setProviderName(p.name)
-      setBaseURL(p.baseURL)
-      setModelListText(p.modelList.join('\n'))
+      setProviderName(name)
+      setBaseURL(preset.baseURL)
+      setModelListText(models.join('\n'))
       setStoredApiKey('')
       setApiKey('')
-      setModel(p.modelList[0] ?? '')
+      setModel(models[0] ?? '')
+      setTestHint(null)
+      setTestOk(false)
     },
-    [commitEditorToProviders, locale]
-  )
-
-  const openPresetMenu = useCallback(
-    (el: HTMLElement) => {
-      const r = el.getBoundingClientRect()
-      openContextMenu(
-        { clientX: r.left, clientY: r.bottom },
-        AI_PRESETS.map((preset) => ({
-          id: `preset-${preset.id}`,
-          label: locale === 'en' ? preset.name.en : preset.name.zh,
-          title: preset.baseURL,
-          shortcut: new URL(preset.baseURL).host,
-          onSelect: () => addFromPreset(preset)
-        })),
-        { anchor: { x: r.left, y: r.bottom + 4 } }
-      )
-    },
-    [addFromPreset, locale]
+    [activeProviderId, commitEditorToProviders, locale]
   )
 
   const preset = matchPreset(baseURL)
@@ -284,12 +274,9 @@ export default function AiConfigForm() {
               style={{ width: '100%' }}
             />
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button type="button" onClick={() => addProvider()}>
               {tg('ui.7')}
-            </button>
-            <button type="button" data-testid="ai-preset-add" aria-haspopup="menu" onClick={(e) => openPresetMenu(e.currentTarget)}>
-              {tg('aiPreset.add')} ▾
             </button>
             <button type="button" onClick={() => removeActiveProvider()} disabled={providers.length <= 1}>
               {tg('ui.8')}
@@ -297,6 +284,34 @@ export default function AiConfigForm() {
           </div>
         </div>
       )}
+
+      <div className="field ai-preset-field">
+        <label>{tg('aiPreset.pick')}</label>
+        <div className="ai-preset-grid" data-testid="ai-preset-grid" role="list">
+          {AI_PRESETS.map((p) => {
+            const on = preset?.id === p.id
+            const label = locale === 'en' ? p.name.en : p.name.zh
+            let host = ''
+            try { host = new URL(p.baseURL).host } catch { /* ignore */ }
+            return (
+              <button
+                key={p.id}
+                type="button"
+                role="listitem"
+                className={on ? 'ai-preset-chip is-on' : 'ai-preset-chip'}
+                data-testid={`ai-preset-${p.id}`}
+                aria-pressed={on}
+                title={p.baseURL}
+                onClick={() => applyPreset(p)}
+              >
+                <span className="ai-preset-chip-name">{label}</span>
+                <span className="ai-preset-chip-host">{host}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="ai-preset-hint">{tg('aiPreset.pickHint')}</p>
+      </div>
 
       <div className="field">
         <label>{tg('ui.9')}</label>
@@ -345,16 +360,23 @@ export default function AiConfigForm() {
         </p>
       </div>
 
-      <div className="field">
-        <label>API Key</label>
-        <input
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={localKeyless ? tg('aiPreset.keyOptional') : tg('ui.14')}
-          type="password"
-          autoComplete="off"
-        />
-      </div>
+      {localKeyless ? (
+        <div className="field" data-testid="ai-key-local">
+          <label>API Key</label>
+          <p className="ai-preset-note">{tg('aiPreset.keyOptional')}</p>
+        </div>
+      ) : (
+        <div className="field">
+          <label>API Key</label>
+          <input
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={tg('ui.14')}
+            type="password"
+            autoComplete="off"
+          />
+        </div>
+      )}
 
       <div className="field">
         <label>{tg('ui.15')}</label>

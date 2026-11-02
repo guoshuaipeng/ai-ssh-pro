@@ -1,9 +1,9 @@
 /** Tools/CmdK: export postmortem (handler existed). */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'exportPostmortem')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'exportPostmortem')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /复盘|导出/)
 assert.match(item.label.en.toLowerCase(), /postmortem|export/)

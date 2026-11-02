@@ -16,7 +16,7 @@ import { parseDf } from '../src/shared/server-tools'
 import { parseFinalShell } from '../src/main/session-import-extra'
 import { importSessionFilesFromPaths } from '../src/main/session-import'
 import { changelogFor } from '../src/shared/changelog'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, menuHasAction, findMenuItem, flattenMenuItems} from '../src/shared/menus'
 import { readFileSync } from 'node:fs'
 import type { FiredAlert } from '../src/shared/alert-rules'
 
@@ -276,9 +276,9 @@ reopenTasks(taskStore)
 const again = loadTaskState(taskStore)
 ok(!again.dismissedForever && again.done.connect === true && !again.skipped.ai, 'reopen keeps completion')
 
-ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'updateChannel')), 'updates menu')
-ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'taskCards')), 'tasks menu')
-ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'sftpComfort')), 'comfort menu')
+ok(menuHasAction(SHARED_MENUS, 'updateChannel'), 'updates menu')
+ok(menuHasAction(SHARED_MENUS, 'taskCards'), 'tasks menu')
+ok(menuHasAction(SHARED_MENUS, 'sftpComfort'), 'comfort menu')
 ok(changelogFor('0.3.19').length >= 7, 'whats new 0.3.19')
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 ok(changelog.includes('## v0.3.19'), 'changelog md')

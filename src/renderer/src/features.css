@@ -1451,6 +1451,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l7-card-top, .l2-filters, .l2-actions, .l2-status-row, .l4-row, .l4-links { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
 .l7-icon-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; white-space: nowrap; }
 .l7-card-name, .alert-line-host, .alert-line-rule, .l2-detail-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alert-line-host { min-width: 120px; }
 .l7-card-top .demo-badge { flex: none; margin-left: 0; }
 .l7-fill { display: block; height: 100%; }
 .l7-ok { background: var(--color-ok); }
@@ -1488,7 +1489,8 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l2-filters input, .l2-filters select { min-width: 0; }
 .l2-filters .l2-search { min-width: 120px; }
 .l2-body { display: flex; min-height: 0; min-width: 0; flex: 1; overflow: hidden; }
-.l2-list { width: 300px; flex: none; border-right: 1px solid var(--border); overflow: auto; }
+.l2-list { width: 380px; min-width: 240px; max-width: 640px; flex: none; overflow: auto; }
+.l2-body > .layout-resizer { flex: none; }
 .alert-rules-panel {
   flex: 0 1 360px;
   max-width: min(420px, 40%);
@@ -1579,7 +1581,8 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 }
 @container (max-width: 1099px) {
   .l2-body { flex-direction: column; }
-  .l2-list { width: 100%; max-height: 40%; border-right: none; border-bottom: 1px solid var(--border); }
+  .l2-body > .layout-resizer { display: none; }
+  .l2-list { width: 100% !important; max-width: none; max-height: 40%; border-right: none; border-bottom: 1px solid var(--border); }
   .alert-rules-panel {
     flex: 1 1 auto;
     width: 100%;

@@ -10,7 +10,7 @@ import {
 import type { ResourceSnapshot } from '../src/shared/resource-monitor'
 import { INSPECT_CHECKS, DEMO_INSPECT_OUTPUT } from '../src/shared/inspect-cmds'
 import { buildPaletteEntries, PINYIN_ALIASES, filterPaletteEntries } from '../src/renderer/src/lib/palette'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, menuHasAction, findMenuItem, flattenMenuItems} from '../src/shared/menus'
 
 let n = 0
 const ok = (cond: boolean, msg: string) => {
@@ -64,6 +64,6 @@ const entries = buildPaletteEntries(SHARED_MENUS, 'zh-CN')
 ok(PINYIN_ALIASES.dashboard?.includes('kanban'), 'pinyin')
 ok(filterPaletteEntries(entries, 'xunjian').some((e) => e.id === 'aiInspect'), 'palette pinyin hit')
 ok(filterPaletteEntries(entries, 'gaojing').some((e) => e.id === 'alertRules'), 'palette alert')
-ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'broadcastTargets')), 'menu x3')
+ok(menuHasAction(SHARED_MENUS, 'broadcastTargets'), 'menu x3')
 
 console.log(`round15 ok (${n})`)

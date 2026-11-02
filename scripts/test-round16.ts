@@ -6,7 +6,7 @@ import { placeTourCard } from '../src/shared/tour-place'
 import { diffTrees, isProductionHost, matchExclude } from '../src/shared/folder-sync'
 import { resumeDecision } from '../src/shared/sftp-queue'
 import { changelogFor } from '../src/shared/changelog'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, menuHasAction, findMenuItem, flattenMenuItems} from '../src/shared/menus'
 
 let n = 0
 const ok = (cond: boolean, msg: string) => {
@@ -84,8 +84,8 @@ const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 ok(i18n.includes("'ux09.title': \"选择主机以打开「{feature}」\""), 'UX-43b zh title has no stray space')
 ok(!i18n.includes('选择主机以打开 {feature}'), 'old spaced zh title is gone')
 
-ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'folderSync' && i.needsSession)), 'folder sync menu')
-ok(SHARED_MENUS.some((m) => m.items.some((i) => i.type === 'item' && i.id === 'smartComplete' && i.toggle)), 'smart complete toggle')
+ok(findMenuItem(SHARED_MENUS, 'folderSync')?.needsSession, 'folder sync menu')
+ok(findMenuItem(SHARED_MENUS, 'smartComplete')?.toggle, 'smart complete toggle')
 ok(changelogFor('0.3.18').length >= 8, 'whats new 0.3.18')
 ok(readFileSync('CHANGELOG.md', 'utf8').includes('## v0.3.18'), 'changelog md')
 

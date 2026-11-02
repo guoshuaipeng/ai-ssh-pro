@@ -108,7 +108,7 @@ assert.ok(settingsUi.includes('AI_POLICIES.map') && settingsUi.includes('data-te
 assert.ok(settingsUi.includes('data-testid="ai-policy-overrides"'))
 assert.ok(!settingsUi.includes('safety-allow-hosts'), 'allow-list textarea gone')
 const app = norm('src/renderer/src/App.tsx')
-assert.ok(app.includes('migrateLegacyHostPolicies(ai, state.profiles'))
+assert.ok(app.includes('migrateLegacyHostPolicies(ai, normalized.profiles'))
 assert.ok(app.includes("safetyTierHosts: {}, safetyTierSessions: {}, autopilotAllowHosts: []"))
 const store = norm('src/main/app-store.ts')
 assert.ok(store.includes('migrateAiPolicy(anyMerged.aiPolicy) ?? migrateAiPolicy(anyMerged.safetyTier)'))

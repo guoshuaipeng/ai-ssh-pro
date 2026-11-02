@@ -30,7 +30,7 @@ assert.match(prefs, /term\.osc52/)
 assert.ok(translate('zh-CN', 'term.osc52').length > 0)
 assert.ok(translate('en', 'term.osc52Hint').length > 0)
 
-const store = readFileSync('src/main/app-store.ts', 'utf8')
+const store = readFileSync('src/shared/terminal-prefs.ts', 'utf8')
 assert.match(store, /osc52Clipboard/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: { test: string; 'test:parts'?: string } }

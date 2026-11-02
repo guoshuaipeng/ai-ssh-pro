@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { changelogFor } from '../src/shared/changelog'
 import { KEYMAP, matchKeymap } from '../src/shared/keymap'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems } from '../src/shared/menus'
 import {
   ensureSamples,
   hostSelectable,
@@ -113,12 +113,12 @@ ok(sched[1]!.at <= 1, 'idle gap is compressed')
 ok(detectKeyMaterial('sk-ssh-ed25519@openssh.com AAAA') === 'sk-ed25519', 'sk key detected')
 ok(skNeedsAgent('sk-ed25519', 'key') && !skNeedsAgent('sk-ed25519', 'agent'), 'sk needs an agent')
 
-const ids = SHARED_MENUS.flatMap((m) => m.items.filter((it) => it.type === 'item').map((it) => it.id))
+const ids = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items).filter((it) => it.type === 'item').map((it) => it.id))
 ok(ids.includes('playbooks') && ids.includes('cloudSync') && ids.includes('sessionRecordings') && ids.includes('toggleBlocks'), 'm2 menus')
 ok(KEYMAP.some((k) => k.id === 'playbooks' && k.keys === 'Ctrl+Alt+P'), 'playbook shortcut')
 
 const menuIds = (id: string) =>
-  SHARED_MENUS.find((m) => m.id === id)!.items.map((it) => (it.type === 'sep' ? '|' : it.id))
+  flattenMenuItems(SHARED_MENUS.find((m) => m.id === id)!.items).map((it) => (it.type === 'sep' ? '|' : it.id))
 const sessionIds = menuIds('session')
 const viewIds = menuIds('view')
 const opsIds = menuIds('ops')

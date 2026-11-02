@@ -690,10 +690,11 @@ export default function AIPanel({
   useEffect(() => {
     const refresh = () => {
       void window.aiss.ai.getSettings().then((s) => {
-        const p = s.providers.find((x) => x.id === s.activeProviderId) ?? s.providers[0]
-        setProviders(s.providers)
-        setActiveProviderId(s.activeProviderId)
-        setActiveModel(s.model)
+        const providers = Array.isArray(s?.providers) ? s.providers : []
+        const p = providers.find((x) => x.id === s?.activeProviderId) ?? providers[0]
+        setProviders(providers)
+        setActiveProviderId(s?.activeProviderId || providers[0]?.id || '')
+        setActiveModel(s?.model || '')
         setSafetySettings(s)
         const ready = (p ? hasUsableKey(p.baseURL, p.apiKey) : false) || screenshotForceKeyRef.current
         setHasApiKey(ready)

@@ -11,6 +11,7 @@ mod local_shell;
 mod recording;
 mod ssh;
 mod store;
+mod secret_crypto;
 mod known_hosts_lookup;
 mod updater;
 mod sync;
@@ -119,7 +120,12 @@ async fn app_check_update(opts: Option<Value>) -> Value {
 fn store_get(state: State<'_, AppState>, path: Vec<String>) -> Value {
     let store = state.store.lock();
     let refs: Vec<&str> = path.iter().map(|s| s.as_str()).collect();
-    store::get_path(&store, &refs)
+    let v = store::get_path(&store, &refs);
+    if path == ["ai"] {
+        secret_crypto::decrypt_ai_settings(v)
+    } else {
+        v
+    }
 }
 
 #[tauri::command]
@@ -467,12 +473,13 @@ async fn ai_chat(
 ) -> Result<(), String> {
     let settings_val = {
         let store = state.store.lock();
-        store.get("ai").cloned().unwrap_or(json!({
+        let raw = store.get("ai").cloned().unwrap_or(json!({
             "providers": [],
             "activeProviderId": "",
             "model": "",
             "temperature": 0.1
-        }))
+        }));
+        secret_crypto::decrypt_ai_settings(raw)
     };
     let settings: ai::AiSettings =
         serde_json::from_value(settings_val).map_err(|e| e.to_string())?;
@@ -725,7 +732,7 @@ fn recordings_delete(file: String) -> Result<bool, String> {
 async fn ai_assist(state: State<'_, AppState>, req: Value) -> Result<Value, String> {
     let settings_val = {
         let store = state.store.lock();
-        store::get_path(&store, &["ai"])
+        secret_crypto::decrypt_ai_settings(store::get_path(&store, &["ai"]))
     };
     let settings: ai::AiSettings =
         serde_json::from_value(settings_val).map_err(|e| e.to_string())?;
@@ -743,7 +750,7 @@ fn ai_abort_assist(state: State<'_, AppState>, request_id: Option<String>) {
 async fn ai_parse_ssh(state: State<'_, AppState>, text: String) -> Result<Value, String> {
     let settings_val = {
         let store = state.store.lock();
-        store::get_path(&store, &["ai"])
+        secret_crypto::decrypt_ai_settings(store::get_path(&store, &["ai"]))
     };
     let settings: ai::AiSettings =
         serde_json::from_value(settings_val).map_err(|e| e.to_string())?;
@@ -1047,6 +1054,21 @@ fn inventory_upsert_service(host_id: String, service: Value) -> Result<Value, St
 #[tauri::command]
 fn inventory_format_context(host_id: Option<String>, host: Option<String>, port: Option<u16>) -> String {
     inventory::format_context(host_id.as_deref(), host.as_deref(), port)
+}
+
+#[tauri::command]
+fn inventory_get_root() -> String {
+    inventory::get_root_string()
+}
+
+#[tauri::command]
+async fn inventory_export_to_file(app: tauri::AppHandle) -> Result<Option<Value>, String> {
+    inventory::export_to_file(app).await
+}
+
+#[tauri::command]
+async fn inventory_import_from_file(app: tauri::AppHandle, overwrite: Option<bool>) -> Result<Option<Value>, String> {
+    inventory::import_from_file(app, overwrite.unwrap_or(false)).await
 }
 
 #[tauri::command]
@@ -2002,6 +2024,9 @@ pub fn run() {
             inventory_append_note,
             inventory_upsert_service,
             inventory_format_context,
+            inventory_get_root,
+            inventory_export_to_file,
+            inventory_import_from_file,
             core_memory_get,
             core_memory_context,
             core_memory_set_goal,

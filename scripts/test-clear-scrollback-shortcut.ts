@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { KEYMAP, keysFor, matchKeymap } from '../src/shared/keymap'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
 const entry = KEYMAP.find((k) => k.id === 'clearScrollback')
 assert.ok(entry)
@@ -15,7 +15,7 @@ const hit = matchKeymap(
 )
 assert.equal(hit, 'clearScrollback')
 
-assert.ok(SHARED_MENUS.flatMap((m) => m.items).some((it) => it.type === 'item' && it.id === 'clearScrollback'))
+assert.ok(SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).some((it) => it.type === 'item' && it.id === 'clearScrollback'))
 
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.match(app, /action === 'clearScrollback'/)

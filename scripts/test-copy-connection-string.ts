@@ -2,13 +2,13 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { formatConnectionString } from '../src/shared/connection-string'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, findMenuItem, menuHasAction, flattenMenuItems} from '../src/shared/menus'
 
 assert.equal(formatConnectionString({ username: 'ops', host: '10.0.0.1', port: 22 }), 'ops@10.0.0.1:22')
 assert.equal(formatConnectionString({ username: 'ops', host: '10.0.0.1', port: 2222 }), 'ops@10.0.0.1:2222')
 assert.equal(formatConnectionString({}), 'root@host:22')
 
-const item = SHARED_MENUS.find((m) => m.id === 'session')?.items.find((it) => it.type === 'item' && it.id === 'copyConnectionString')
+const item = findMenuItem(SHARED_MENUS, 'copyConnectionString')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /连接/)
 assert.match(item.label.en.toLowerCase(), /connection/)

@@ -1,12 +1,12 @@
 /** Session/CmdK: file history snapshots (handler + Ctrl+H scope existed). */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 import { KEYMAP_ACTION_ALIAS } from '../src/shared/keymap'
 
 assert.equal(KEYMAP_ACTION_ALIAS.fileHistory, 'fileSnapshots')
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'fileSnapshots')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'fileSnapshots')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /历史|快照/)
 assert.match(item.label.en.toLowerCase(), /history|snapshot/)

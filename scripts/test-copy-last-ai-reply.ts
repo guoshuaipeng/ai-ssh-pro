@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { lastAssistantText } from '../src/shared/ai-last-reply'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
 assert.equal(lastAssistantText([]), null)
 assert.equal(lastAssistantText([{ role: 'user', content: 'hi' }]), null)
@@ -16,7 +16,7 @@ assert.equal(
   'second'
 )
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'copyLastAiReply')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'copyLastAiReply')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /复制/)
 assert.match(item.label.en.toLowerCase(), /copy.*ai|last.*reply/)

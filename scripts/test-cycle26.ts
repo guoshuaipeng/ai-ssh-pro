@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { isRunnableName } from '../src/shared/local-open'
 import { KEYMAP, matchKeymap } from '../src/shared/keymap'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
 // D58
@@ -16,7 +16,7 @@ ok(sp.includes("tg('d58.title'") && sp.includes('else void openLocalEntry(curren
 const k = KEYMAP.filter((x) => x.keys === 'Ctrl+Shift+Y')
 ok(k.length === 1 && k[0]!.id === 'copyLastOutput', 'D57 unique shortcut')
 ok(matchKeymap({ key: 'y', code: 'KeyY', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false }, true) === 'copyLastOutput', 'D57 works in terminal')
-ok(SHARED_MENUS.flatMap((m) => m.items).some((it) => it.type === 'item' && it.id === 'copyLastOutput'), 'D57 menu')
+ok(SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).some((it) => it.type === 'item' && it.id === 'copyLastOutput'), 'D57 menu')
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 ok(app.includes("action === 'copyLastOutput'"), 'D57 action')
 // D56

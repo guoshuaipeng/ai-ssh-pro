@@ -21,6 +21,41 @@ fn electron_store_path() -> PathBuf {
 
 /// If Tauri `store.json` is missing or has zero profiles, copy sessions/settings
 /// from the sibling Electron `ai-ssh-pro.json` (same AppData folder on Windows).
+
+fn heal_ai_from_electron(mut store: Value, electron_path: &PathBuf) -> Value {
+    if !electron_path.is_file() {
+        return store;
+    }
+    let cur = get_path(&store, &["ai"]);
+    if crate::secret_crypto::ai_has_usable_key(&cur) {
+        // Prefer decrypting in place so chat gets plaintext even if already "imported".
+        let decrypted = crate::secret_crypto::decrypt_ai_settings(cur.clone());
+        if decrypted != cur {
+            set_path(&mut store, &["ai"], decrypted);
+            let _ = save_store(&store);
+        }
+        return store;
+    }
+    let Ok(raw) = fs::read_to_string(electron_path) else {
+        return store;
+    };
+    let Ok(electron) = serde_json::from_str::<Value>(&raw) else {
+        return store;
+    };
+    if let Some(ai) = electron.get("ai") {
+        if crate::secret_crypto::ai_has_usable_key(ai) {
+            let decrypted = crate::secret_crypto::decrypt_ai_settings(ai.clone());
+            set_path(&mut store, &["ai"], decrypted);
+            let _ = save_store(&store);
+            eprintln!(
+                "[ai-ssh-pro] healed AI settings from Electron store {}",
+                electron_path.display()
+            );
+        }
+    }
+    store
+}
+
 fn maybe_auto_import_from_electron(mut store: Value) -> Value {
     let electron_path = electron_store_path();
     if !electron_path.is_file() {
@@ -33,7 +68,8 @@ fn maybe_auto_import_from_electron(mut store: Value) -> Value {
         .map(|a| a.len())
         .unwrap_or(0);
     if profile_count > 0 {
-        return store;
+        // Profiles already imported — still heal AI when Tauri store lost providers/keys.
+        return heal_ai_from_electron(store, &electron_path);
     }
     let Ok(raw) = fs::read_to_string(&electron_path) else {
         return store;
@@ -122,7 +158,12 @@ fn maybe_auto_import_from_electron(mut store: Value) -> Value {
         };
         if empty {
             if let Some(v) = electron.get(key) {
-                set_path(&mut store, &[key], v.clone());
+                let v = if key == "ai" {
+                    crate::secret_crypto::decrypt_ai_settings(v.clone())
+                } else {
+                    v.clone()
+                };
+                set_path(&mut store, &[key], v);
             }
         }
     }

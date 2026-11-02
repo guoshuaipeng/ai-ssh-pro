@@ -62,7 +62,7 @@ export default function WindowControls() {
         aria-label={maximized ? 'Restore' : 'Maximize'}
         onClick={toggleMax}
       >
-        <span aria-hidden>{maximized ? '❐' : '□'}</span>
+        <span aria-hidden className={maximized ? "window-ctrl-icon window-ctrl-icon-restore" : "window-ctrl-icon window-ctrl-icon-max"} />
       </button>
       <button type="button" className="window-ctrl window-ctrl-close" title="Close" aria-label="Close" onClick={close}>
         <span aria-hidden>×</span>

@@ -74,7 +74,7 @@ const app = norm('src/renderer/src/App.tsx')
 assert.equal(app.includes("protection === 'production'}"), false, 'no boolean-only protection for the AI panel')
 assert.ok(app.includes('protection={activeSessionId ? guardForSession(activeSessionId).level'))
 assert.ok(app.includes('elevated={activeSessionId ? guardForSession(activeSessionId).elevated'))
-assert.ok(app.includes('window.aiss.ai.setSessionProtection') && app.includes('push(t.sessionId, { level: g.level, elevated: g.elevated })'))
+assert.ok((app.includes('window.aiss.ai.setSessionProtection') || app.includes('window.aiss?.ai?.setSessionProtection')) && app.includes('push(t.sessionId, { level: g.level, elevated: g.elevated })'))
 // guardForSession = demo default (effectiveLevel) + per-tab temp read-only + elevation window
 const guard = app.slice(app.indexOf('const guardForSession = useCallback'), app.indexOf('const guardForSession = useCallback') + 600)
 assert.ok(guard.includes('stricterLevel(effectiveLevel(profile)') && guard.includes('sessionRo[profile.id]') && guard.includes('isElevated(profile?.id, elevateMap)'))

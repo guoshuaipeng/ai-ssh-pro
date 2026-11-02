@@ -422,3 +422,90 @@ pub fn set_services(host_id: &str, services: Value) -> Result<HostRecord, String
         "notesMarkdown": rec.notes_markdown,
     }))
 }
+
+
+pub fn get_root_string() -> String {
+    root().to_string_lossy().to_string()
+}
+
+pub async fn export_to_file(app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    ensure();
+    let idx = read_index();
+    let mut hosts = Vec::new();
+    for e in &idx.hosts {
+        if let Some(h) = get(&e.id) {
+            hosts.push(serde_json::to_value(h).unwrap_or(serde_json::Value::Null));
+        }
+    }
+    let payload = serde_json::json!({ "version": 1, "hosts": hosts });
+    let path = app
+        .dialog()
+        .file()
+        .set_file_name("ai-ssh-pro-inventory.json")
+        .add_filter("JSON", &["json"])
+        .blocking_save_file();
+    let Some(path) = path else { return Ok(None); };
+    let path = path.into_path().map_err(|e| e.to_string())?;
+    std::fs::write(&path, serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    Ok(Some(serde_json::json!({ "path": path.to_string_lossy(), "count": hosts.len() })))
+}
+
+pub async fn import_from_file(app: tauri::AppHandle, overwrite: bool) -> Result<Option<serde_json::Value>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let path = app
+        .dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .blocking_pick_file();
+    let Some(path) = path else { return Ok(None); };
+    let path = path.into_path().map_err(|e| e.to_string())?;
+    let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let v: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let arr = v.get("hosts").and_then(|x| x.as_array()).cloned().unwrap_or_default();
+    let mut upserted = 0usize;
+    let mut skipped = 0usize;
+    let mut notes = Vec::new();
+    for item in arr {
+        let id = item
+            .pointer("/meta/id")
+            .or_else(|| item.get("id"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        if id.is_empty() {
+            skipped += 1;
+            continue;
+        }
+        if !overwrite && get(&id).is_some() {
+            skipped += 1;
+            continue;
+        }
+        // Re-shape as upsert input
+        let mut input = item.clone();
+        if let Some(meta) = item.get("meta").cloned() {
+            if let Some(obj) = input.as_object_mut() {
+                if let Some(m) = meta.as_object() {
+                    for (k, v) in m {
+                        obj.insert(k.clone(), v.clone());
+                    }
+                }
+                obj.insert("id".into(), serde_json::Value::String(id));
+            }
+        }
+        match upsert(input) {
+            Ok(_) => upserted += 1,
+            Err(e) => {
+                skipped += 1;
+                notes.push(e);
+            }
+        }
+    }
+    Ok(Some(serde_json::json!({
+        "path": path.to_string_lossy(),
+        "upserted": upserted,
+        "skipped": skipped,
+        "notes": notes
+    })))
+}

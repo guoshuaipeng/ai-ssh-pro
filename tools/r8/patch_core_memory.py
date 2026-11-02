@@ -1,0 +1,267 @@
+from pathlib import Path
+p = Path(r"src-tauri/src/core_memory.rs")
+text = p.read_text(encoding="utf-8")
+old = '''#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservationBullet {
+    pub id: String,
+    pub text: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadRecord {
+    pub notes: Vec<String>,
+    pub task_summaries: Vec<String>,
+    pub working_memory: Option<WorkingMemory>,
+    #[serde(default)]
+    pub observational_memory: Vec<ObservationBullet>,
+    #[serde(default)]
+    pub epoch: u64,
+    pub updated_at: i64,
+}'''
+new = '''#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservationBullet {
+    pub id: String,
+    pub text: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpisodicSummary {
+    pub id: String,
+    pub text: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub source_chars: u64,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CiteWindow {
+    #[serde(default)]
+    pub markers: Vec<String>,
+    #[serde(default)]
+    pub held_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadRecord {
+    pub notes: Vec<String>,
+    pub task_summaries: Vec<String>,
+    pub working_memory: Option<WorkingMemory>,
+    #[serde(default)]
+    pub observational_memory: Vec<ObservationBullet>,
+    #[serde(default)]
+    pub episodes: Vec<EpisodicSummary>,
+    #[serde(default)]
+    pub running_summary: String,
+    #[serde(default)]
+    pub cite_hold: Option<CiteWindow>,
+    #[serde(default)]
+    pub compacted_cursor: Option<String>,
+    #[serde(default)]
+    pub epoch: u64,
+    pub updated_at: i64,
+}'''
+if old not in text:
+    raise SystemExit("struct block not found")
+text = text.replace(old, new, 1)
+needle = '''    if !row.observational_memory.is_empty() {
+        parts.push(format!(
+            "观测记忆:\\n- {}",
+            row.observational_memory
+                .iter()
+                .rev()
+                .take(8)
+                .map(|b| b.text.clone())
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\\n- ")
+        ));
+    }
+    parts.join("\\n")
+}'''
+insert = '''    if !row.observational_memory.is_empty() {
+        parts.push(format!(
+            "观测记忆:\\n- {}",
+            row.observational_memory
+                .iter()
+                .rev()
+                .take(8)
+                .map(|b| b.text.clone())
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\\n- ")
+        ));
+    }
+    if !row.running_summary.trim().is_empty() {
+        let summary = row.running_summary.chars().rev().take(1500).collect::<String>().chars().rev().collect::<String>();
+        parts.push(format!("滚动摘要:\\n{}", summary.trim()));
+    }
+    if !row.episodes.is_empty() {
+        parts.push(format!(
+            "情节记忆:\\n- {}",
+            row.episodes
+                .iter()
+                .rev()
+                .take(6)
+                .map(|e| e.text.clone())
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\\n- ")
+        ));
+    }
+    if let Some(hold) = &row.cite_hold {
+        if !hold.markers.is_empty() {
+            parts.push(format!(
+                "引用保留:\\n- {}",
+                hold.markers.iter().rev().take(8).cloned().collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\\n- ")
+            ));
+        }
+    }
+    parts.join("\\n")
+}'''
+if needle not in text:
+    raise SystemExit("context block not found")
+text = text.replace(needle, insert, 1)
+extra = r'''
+
+const MAX_EPISODES: usize = 40;
+const MAX_SUMMARY_CHARS: usize = 1500;
+
+fn cap_summary(text: &str) -> String {
+    let t = text.trim();
+    if t.chars().count() <= MAX_SUMMARY_CHARS {
+        return t.to_string();
+    }
+    let chars: Vec<char> = t.chars().collect();
+    let keep = MAX_SUMMARY_CHARS / 2;
+    let head: String = chars.iter().take(keep).collect();
+    let tail: String = chars.iter().rev().take(keep).collect::<String>().chars().rev().collect();
+    format!("{head}\n…\n{tail}")
+}
+
+pub fn append_episode(session_key: &str, text: &str, tags: Vec<String>) -> EpisodicSummary {
+    lazy_static_like::with(|| {
+        let key = normalize_key(session_key);
+        let mut map = load_all();
+        let mut row = map.remove(&key).unwrap_or_default();
+        let now = chrono::Utc::now().timestamp_millis();
+        let ep = EpisodicSummary {
+            id: uuid::Uuid::new_v4().to_string(),
+            text: text.chars().take(400).collect(),
+            tags: tags.into_iter().take(8).collect(),
+            source_chars: text.len() as u64,
+            created_at: now,
+        };
+        row.episodes.push(ep.clone());
+        if row.episodes.len() > MAX_EPISODES {
+            let drop_n = row.episodes.len() - MAX_EPISODES;
+            row.episodes.drain(0..drop_n);
+        }
+        row.updated_at = now;
+        map.insert(key, row);
+        save_all(&map);
+        ep
+    })
+}
+
+pub fn set_cite_hold(session_key: &str, markers: Vec<String>) -> CiteWindow {
+    lazy_static_like::with(|| {
+        let key = normalize_key(session_key);
+        let mut map = load_all();
+        let mut row = map.remove(&key).unwrap_or_default();
+        let now = chrono::Utc::now().timestamp_millis();
+        let hold = CiteWindow {
+            markers: markers
+                .into_iter()
+                .map(|m| m.chars().take(120).collect::<String>())
+                .filter(|m| !m.trim().is_empty())
+                .take(24)
+                .collect(),
+            held_at: now,
+        };
+        row.cite_hold = Some(hold.clone());
+        row.updated_at = now;
+        map.insert(key, row);
+        save_all(&map);
+        hold
+    })
+}
+
+/// Extractive compress: fold piece into runningSummary and optionally emit an episode.
+pub fn compress_transcript(session_key: &str, piece: &str, cursor: Option<String>) -> Value {
+    lazy_static_like::with(|| {
+        let key = normalize_key(session_key);
+        let mut map = load_all();
+        let mut row = map.remove(&key).unwrap_or_default();
+        let now = chrono::Utc::now().timestamp_millis();
+        let piece = piece.trim();
+        if piece.is_empty() {
+            map.insert(key, row.clone());
+            save_all(&map);
+            return json!({ "ok": true, "runningSummary": row.running_summary, "skipped": "empty" });
+        }
+        if let (Some(c), Some(prev)) = (cursor.as_ref(), row.compacted_cursor.as_ref()) {
+            if c == prev && !row.running_summary.is_empty() {
+                map.insert(key, row.clone());
+                save_all(&map);
+                return json!({ "ok": true, "runningSummary": row.running_summary, "skipped": "same-cursor" });
+            }
+        }
+        let merged = if row.running_summary.trim().is_empty() {
+            piece.to_string()
+        } else {
+            format!("{}\n{}", row.running_summary.trim(), piece)
+        };
+        row.running_summary = cap_summary(&merged);
+        if let Some(c) = cursor {
+            row.compacted_cursor = Some(c);
+        }
+        if piece.chars().count() >= 40 {
+            row.episodes.push(EpisodicSummary {
+                id: uuid::Uuid::new_v4().to_string(),
+                text: piece.chars().take(400).collect(),
+                tags: vec!["compress".into()],
+                source_chars: piece.len() as u64,
+                created_at: now,
+            });
+            if row.episodes.len() > MAX_EPISODES {
+                let drop_n = row.episodes.len() - MAX_EPISODES;
+                row.episodes.drain(0..drop_n);
+            }
+        }
+        if let Some(hold) = row.cite_hold.as_mut() {
+            let blob = format!(
+                "{}\n{}",
+                row.observational_memory.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n"),
+                row.running_summary
+            );
+            hold.markers.retain(|m| blob.contains(m));
+            hold.held_at = now;
+        }
+        row.updated_at = now;
+        let summary = row.running_summary.clone();
+        map.insert(key, row);
+        save_all(&map);
+        json!({ "ok": true, "runningSummary": summary })
+    })
+}
+'''
+if "pub fn append_episode" not in text:
+    text = text.rstrip() + "\n" + extra + "\n"
+p.write_text(text, encoding="utf-8")
+print("core_memory patched")
