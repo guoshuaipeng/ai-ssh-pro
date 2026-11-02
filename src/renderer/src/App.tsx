@@ -3564,7 +3564,8 @@ export default function App() {
   // M20: the main process enforces host protection on AI writes; keep its per-session copy current
   // (profile level, demo default, per-tab temporary read-only, elevation window).
   useEffect(() => {
-    const push = window.aiss.ai.setSessionProtection
+    const push = window.aiss?.ai?.setSessionProtection
+    if (typeof push !== 'function') return
     if (!push) return
     for (const t of tabs) {
       if (!t.sessionId || (t.view && t.view !== 'session')) continue
@@ -5396,7 +5397,9 @@ export default function App() {
     }
     setAiParsing(true)
     try {
-      const p = await window.aiss.ai.parseSshForm(blob)
+      const parseForm = window.aiss?.ai?.parseSshForm ?? window.aiss?.ai?.parseSsh
+      if (typeof parseForm !== 'function') return
+      const p = await parseForm(blob)
       if (p.label != null && p.label !== '') setLabel(p.label)
       if (p.host != null && p.host !== '') setHost(p.host)
       if (p.port != null && Number.isFinite(p.port)) setPort(String(p.port))

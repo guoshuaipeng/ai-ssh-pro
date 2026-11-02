@@ -1178,7 +1178,9 @@ export default function AIPanel({
       return next
     })
     try {
-      await window.aiss.ai.confirmStep(requestId, ok)
+      const step = window.aiss?.ai?.confirmStep ?? window.aiss?.ai?.resolveConfirm
+    if (typeof step !== 'function') return
+    await step(requestId, ok)
     } finally {
       // Dock unmounts with the focused button — return caret to the composer.
       queueMicrotask(() => inputRef.current?.focus())

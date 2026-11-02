@@ -84,14 +84,82 @@ struct LiveForward {
     router: Option<Arc<RemoteForwardRouter>>,
 }
 
+
+#[derive(Clone)]
+pub struct CarrySpec {
+    pub direction: String,
+    pub local_host: Option<String>,
+    pub local_port: u16,
+    pub remote_host: String,
+    pub remote_port: u16,
+}
+
+struct CarryEntry {
+    at: i64,
+    specs: Vec<CarrySpec>,
+}
+
+pub struct CarryStore {
+    map: Mutex<HashMap<String, CarryEntry>>,
+    ttl_ms: i64,
+    max: usize,
+}
+
+impl CarryStore {
+    pub fn new() -> Self {
+        Self {
+            map: Mutex::new(HashMap::new()),
+            ttl_ms: 30 * 60_000,
+            max: 50,
+        }
+    }
+
+    fn prune(&self, now: i64) {
+        let mut map = self.map.lock();
+        map.retain(|_, v| now - v.at <= self.ttl_ms);
+    }
+
+    pub fn put(&self, session_id: &str, specs: Vec<CarrySpec>) {
+        let now = chrono::Utc::now().timestamp_millis();
+        self.prune(now);
+        if specs.is_empty() {
+            return;
+        }
+        let mut map = self.map.lock();
+        map.insert(
+            session_id.to_string(),
+            CarryEntry {
+                at: now,
+                specs,
+            },
+        );
+        while map.len() > self.max {
+            if let Some(first) = map.keys().next().cloned() {
+                map.remove(&first);
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub fn take(&self, session_id: &str) -> Vec<CarrySpec> {
+        let now = chrono::Utc::now().timestamp_millis();
+        self.prune(now);
+        let mut map = self.map.lock();
+        map.remove(session_id).map(|e| e.specs).unwrap_or_default()
+    }
+}
+
 pub struct ForwardManager {
     forwards: AsyncMutex<HashMap<String, Arc<LiveForward>>>,
+    carry: CarryStore,
 }
 
 impl ForwardManager {
     pub fn new() -> Self {
         Self {
             forwards: AsyncMutex::new(HashMap::new()),
+            carry: CarryStore::new(),
         }
     }
 
@@ -119,6 +187,31 @@ impl ForwardManager {
 
     pub async fn stop_session(&self, session_id: &str) -> u64 {
         let mut map = self.forwards.lock().await;
+        let mine: Vec<Arc<LiveForward>> = map
+            .values()
+            .filter(|f| f.info.lock().session_id == session_id)
+            .cloned()
+            .collect();
+        let keep: Vec<CarrySpec> = mine
+            .iter()
+            .filter_map(|f| {
+                let info = f.info.lock();
+                if info.source == "manual" && info.status == "listening" {
+                    Some(CarrySpec {
+                        direction: info.direction.clone(),
+                        local_host: info.local_host.clone(),
+                        local_port: info.local_port,
+                        remote_host: info.remote_host.clone(),
+                        remote_port: info.remote_port,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        if !keep.is_empty() {
+            self.carry.put(session_id, keep);
+        }
         let ids: Vec<String> = map
             .iter()
             .filter(|(_, f)| f.info.lock().session_id == session_id)
@@ -134,6 +227,10 @@ impl ForwardManager {
             }
         }
         n
+    }
+
+    pub fn take_carry(&self, session_id: &str) -> Vec<CarrySpec> {
+        self.carry.take(session_id)
     }
 
     pub async fn start(

@@ -94,12 +94,17 @@ npm run build:tauri
 
 已 `build:tauri` + 刷新桌面快捷方式；CDP 验证 `showAi:true` 下主界面可进、无控制台异常。
 
+## Hotfix：系统白顶栏（2026-11-02 Asia/Shanghai）
+
+**现象**：Tauri 窗口上方多一条白色系统标题栏，关闭/最小化在系统栏，与 Electron 自绘标题栏不一致。
+
+**修复**：`tauri.conf.json` → `decorations: false`（+ `label: main`、深色 `backgroundColor`）；标题栏右侧自绘 `WindowControls`（min/max/close）；capabilities 放开 window close/minimize/maximize/drag；`data-tauri-drag-region` 拖拽。
+
 ## 尚未移植（缺口）（Tauri-only 产品）
 
-- sessions **完整**第三方导入：Xshell / PuTTY / MobaXterm / SecureCRT / FinalShell（importPick 已支持 OpenSSH config + JSON profiles）
-- healthProbe **独立**短连 probe 池（现仅 `reuseSessionId` / demo；无 held probe client）
-- workspace.resources 完整面板、forwards.restore 批量恢复；SFTP `hash` / `detectKeyKind` 等边角
-- OpenClaw：embedding 召回、与 Electron 同构的完整 transcript compact / cite scrub 测试覆盖
+- OpenClaw：**向量 embedding 召回**仍缺（Round-9 已上 extractive `compactTurns` + keyword `recall`；无 embedding 模型）
+- OpenClaw：与 Electron 同构的 cite scrub / compact **测试覆盖**仍缺
+- 第三方导入：部分私有加密格式 / 未导出会话仍可能解析不到（Xshell `.xsh` / PuTTY `.reg` / Moba / SecureCRT / FinalShell 主路径已接）
 - 云同步：OAuth 浏览器登录、真正到点自动 push/pull（骨架只发 tick；**实网仍卡用户 token/口令**）
 - **真实自动安装更新**（**卡在用户代码签名证书** + `tauri-plugin-updater` 发布端点；当前仅 check，`installDeferred: true`）
 - known_hosts：**无法**对 `|1|…` 哈希行做反向解哈希整文件导入（只能主机名列表 + `ssh-keygen -F` 批量解析后导入）
@@ -110,12 +115,21 @@ npm run build:tauri
 
 | 产物 | 大小 | 备注 |
 |---|---|---|
-| `ai-ssh-pro.exe`（release） | **7.95 MB** (8334336) | Round-8 |
-| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **3.29 MB** (3449270) | |
-| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **4.27 MB** (4476928) | |
+| `ai-ssh-pro.exe`（release） | **8.08 MB** (8474112) | Round-9 + 无边框窗控 |
+| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **3.33 MB** (3494783) | |
+| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **4.33 MB** (4538368) | |
 
 对比：Electron ~169 MB / slim ~82 MB。**仍远低于 20 MB**。
 
+
+### Round-9 变更摘要
+
+- **第三方会话导入**：`session_import.rs`（Xshell `.xsh` / PuTTY reg·会话文件 / MobaXterm / SecureCRT / FinalShell）经 `sessions_import_pick`
+- **healthProbe 独立短连池**：`probe_only` + `probe_held`；`healthProbeSweep` / `healthProbeRelease` 做实
+- **workspace.resources** + **forwards.restore**（CarryStore 跨重连恢复）
+- **SFTP/localFs hash**（sha256）+ **detectKeyKind**
+- **OpenClaw**：`compactTurns` / `recall`（extractive + keyword；**无 embedding**）
+- 桥：上述 API 接入；并防 AI 桥缺失导致启动崩溃（`getWorkingMemory` 等）
 
 ### Round-8 变更摘要
 

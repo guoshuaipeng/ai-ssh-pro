@@ -322,6 +322,7 @@ body {
 }
 
 .app-titlebar {
+  position: relative;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -4705,6 +4706,55 @@ button.danger {
 .ai-preset-note .link-btn:hover {
   text-decoration: underline;
 }
+/* c64: always-visible vendor chips */
+.ai-preset-field { margin-top: var(--space-2); }
+.ai-preset-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.ai-preset-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 140px;
+  max-width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  flex: 0 1 auto;
+}
+.ai-preset-chip:hover { border-color: var(--color-accent); }
+.ai-preset-chip.is-on {
+  border-color: var(--color-accent);
+  background: var(--color-accent-muted, color-mix(in srgb, var(--color-accent) 14%, transparent));
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+.ai-preset-chip-name {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold, 600);
+  line-height: 1.3;
+}
+.ai-preset-chip-host {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-preset-hint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
 /* B3: direction switch (themed, not a native control) */
 .pf-dir {
   display: inline-flex;
@@ -7165,3 +7215,45 @@ button.primary.danger:focus-visible {
 .session-connecting-cancel { margin-left: var(--space-2); padding: 0 var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--color-border-default); background: none; color: inherit; font-size: var(--fs-xs); cursor: pointer; }
 /* D76: compact icon buttons in the SFTP toolbar */
 .sftp-icon-btn { min-width: 28px; display: inline-flex; align-items: center; justify-content: center; font-family: monospace; }
+
+/* Tauri undecorated: custom window controls in the Electron titleBarOverlay reserve */
+.window-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 40px;
+  display: flex;
+  align-items: stretch;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  z-index: 20;
+}
+.app-titlebar {
+  position: relative;
+}
+.window-ctrl {
+  width: 46px;
+  height: 40px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.window-ctrl:hover {
+  background: var(--tab-active, rgba(255, 255, 255, 0.08));
+}
+.window-ctrl-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+body.platform-darwin .window-controls {
+  /* macOS keeps native traffic lights when decorations/overlay used; hide custom */
+  display: none;
+}

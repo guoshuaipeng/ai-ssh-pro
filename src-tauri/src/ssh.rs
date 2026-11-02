@@ -63,6 +63,10 @@ pub struct SshConnectOptions {
     pub resume_from_hop: Option<u32>,
     /// When false, do not park/reuse jump slots (default true).
     pub jump_retry_from_failed_hop: Option<bool>,
+    /// Health-probe short connection: authenticate only, no PTY/shell.
+    pub probe_only: Option<bool>,
+    /// Key for the held probe pool (usually profileId).
+    pub probe_profile_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -242,6 +246,12 @@ struct JumpSlot {
     at: i64,
 }
 
+struct ProbeHeld {
+    handle: Arc<AsyncMutex<Handle<ClientHandler>>>,
+    jump_handles: Vec<Arc<AsyncMutex<Handle<ClientHandler>>>>,
+    last_used: i64,
+}
+
 pub struct SshManager {
     sessions: AsyncMutex<HashMap<String, Arc<LiveSession>>>,
     known: Arc<KnownHostsStore>,
@@ -250,6 +260,8 @@ pub struct SshManager {
     remote_routes: Arc<RemoteForwardRouter>,
     /// Successful jump hop handles parked after a later hop failed (Electron jumpSlots).
     jump_slots: Mutex<HashMap<String, JumpSlot>>,
+    /// Independent health-probe short connections keyed by profileId.
+    probe_held: AsyncMutex<HashMap<String, ProbeHeld>>,
 }
 
 impl SshManager {
@@ -266,6 +278,7 @@ impl SshManager {
             forwards,
             remote_routes,
             jump_slots: Mutex::new(HashMap::new()),
+            probe_held: AsyncMutex::new(HashMap::new()),
         }
     }
 
@@ -955,6 +968,39 @@ impl SshManager {
 
 
         let handle = Arc::new(AsyncMutex::new(handle));
+        if opts.probe_only.unwrap_or(false) {
+            let key = opts
+                .probe_profile_id
+                .clone()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| session_id.clone());
+            let now = chrono::Utc::now().timestamp_millis();
+            {
+                let mut held = self.probe_held.lock().await;
+                held.insert(
+                    key.clone(),
+                    ProbeHeld {
+                        handle: handle.clone(),
+                        jump_handles,
+                        last_used: now,
+                    },
+                );
+            }
+            let meta = SessionMeta {
+                host: opts.host.clone(),
+                port,
+                username: opts.username.clone(),
+                label: opts.label.clone(),
+                connected_at: now,
+                term_cols: cols,
+                term_rows: rows,
+                kind: Some("probe".into()),
+            };
+            return Ok(SshConnectResult {
+                session_id: key,
+                meta,
+            });
+        }
         let channel = handle.lock().await.channel_open_session().await.context("open session")?;
         channel
             .request_pty(false, "xterm-256color", cols, rows, 0, 0, &[])
@@ -1166,15 +1212,24 @@ impl SshManager {
         command: String,
         timeout_ms: Option<u64>,
     ) -> Result<serde_json::Value> {
-        let map = self.sessions.lock().await;
-        let live = map
-            .get(session_id)
-            .ok_or_else(|| anyhow!("session not found"))?
-            .clone();
-        drop(map);
+        let handle = {
+            let map = self.sessions.lock().await;
+            if let Some(live) = map.get(session_id) {
+                let h = live.handle.clone();
+                drop(map);
+                h
+            } else {
+                drop(map);
+                let mut held = self.probe_held.lock().await;
+                let row = held
+                    .get_mut(session_id)
+                    .ok_or_else(|| anyhow!("session not found"))?;
+                row.last_used = chrono::Utc::now().timestamp_millis();
+                row.handle.clone()
+            }
+        };
 
-        let mut channel = live
-            .handle
+        let mut channel = handle
             .lock()
             .await
             .channel_open_session()
@@ -1504,6 +1559,37 @@ impl SshManager {
         .await
     }
 
+    pub async fn sftp_hash(
+        &self,
+        session_id: &str,
+        remote_path: String,
+        max_bytes: Option<u64>,
+    ) -> Result<String> {
+        let max = max_bytes.unwrap_or(32 * 1024 * 1024);
+        self.with_sftp(session_id, move |sftp| async move {
+            use sha2::{Digest, Sha256};
+            use tokio::io::AsyncReadExt;
+            let mut file = sftp.open(&remote_path).await.context("sftp open for hash")?;
+            let mut hasher = Sha256::new();
+            let mut buf = vec![0u8; 64 * 1024];
+            let mut got: u64 = 0;
+            loop {
+                if got >= max {
+                    break;
+                }
+                let want = ((max - got) as usize).min(buf.len());
+                let n = file.read(&mut buf[..want]).await.context("sftp read")?;
+                if n == 0 {
+                    break;
+                }
+                hasher.update(&buf[..n]);
+                got += n as u64;
+            }
+            Ok(format!("{:x}", hasher.finalize()))
+        })
+        .await
+    }
+
     pub async fn sftp_read_text(
         &self,
         session_id: &str,
@@ -1568,6 +1654,49 @@ impl SshManager {
             .get(session_id)
             .ok_or_else(|| anyhow!("session not found"))?;
         Ok(live.handle.clone())
+    }
+
+
+    pub async fn probe_sweep(&self, max_idle_ms: u64) -> Value {
+        let now = chrono::Utc::now().timestamp_millis();
+        let limit = max_idle_ms as i64;
+        let mut held = self.probe_held.lock().await;
+        let drop_ids: Vec<String> = held
+            .iter()
+            .filter(|(_, row)| now - row.last_used >= limit)
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in &drop_ids {
+            held.remove(id);
+        }
+        json!({ "ok": true, "dropped": drop_ids.len(), "open": held.len() })
+    }
+
+    pub async fn probe_release(&self, profile_id: Option<String>) -> Value {
+        let mut held = self.probe_held.lock().await;
+        if let Some(id) = profile_id.filter(|s| !s.trim().is_empty()) {
+            held.remove(&id);
+        } else {
+            held.clear();
+        }
+        json!({ "ok": true, "open": held.len() })
+    }
+
+    pub async fn probe_open(
+        &self,
+        app: AppHandle,
+        profile_id: String,
+        opts: SshConnectOptions,
+    ) -> Result<SshConnectResult> {
+        let mut opts = opts;
+        opts.probe_only = Some(true);
+        opts.probe_profile_id = Some(profile_id);
+        // Drop previous held for this profile before reconnect
+        if let Some(pid) = opts.probe_profile_id.clone() {
+            let mut held = self.probe_held.lock().await;
+            held.remove(&pid);
+        }
+        self.connect(app, opts).await
     }
 
     pub async fn add_forward(
