@@ -1,7 +1,7 @@
 /**
  * Tauri bridge: exposes window.aiss with the same shape as Electron preload.
  * Real: SSH connect/write/resize/exec, sessions store, app helpers.
- * Stubs: SFTP/Docker/AI agent/forwards/etc. — return safe empty values.
+ * Stubs: Docker/OpenClaw Agent/recording/backup — return safe empty values.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -117,7 +117,8 @@ export async function installTauriBridge(): Promise<void> {
         invoke('sftp_remove', { sessionId, remotePath }),
       rename: (sessionId: string, fromPath: string, toPath: string) =>
         invoke('sftp_rename', { sessionId, fromPath, toPath }),
-      chmod: () => notImpl('sftp.chmod'),
+      chmod: (sessionId: string, remotePath: string, mode: number) =>
+        invoke('sftp_chmod', { sessionId, remotePath, mode }),
       readText: (sessionId: string, remotePath: string, maxBytes?: number) =>
         invoke('sftp_read_text', { sessionId, remotePath, maxBytes: maxBytes ?? null }),
       writeText: (sessionId: string, remotePath: string, content: string) =>
@@ -125,7 +126,12 @@ export async function installTauriBridge(): Promise<void> {
       pickDownloadPath: async () => null,
       pickUploadFiles: async () => null,
       pickSavePaths: async () => null,
-      onProgress: (_cb: AnyFn) => () => {},
+      onProgress: (cb: AnyFn) =>
+        unsubListen(
+          listen('sftp:progress', (e) => {
+            cb(e.payload)
+          })
+        ),
       stat: (sessionId: string, remotePath: string) =>
         invoke('sftp_stat', { sessionId, remotePath }),
       hash: async () => '',
@@ -223,12 +229,14 @@ export async function installTauriBridge(): Promise<void> {
     ai: {
       getSettings: async () => invoke('store_get', { path: ['ai'] }),
       setSettings: (s: unknown) => invoke('store_set', { path: ['ai'], value: s }),
-      chat: () => notImpl('ai.chat'),
-      abortChat: async () => {},
+      chat: (payload: unknown) => invoke('ai_chat', { payload }),
+      abortChat: async () => {
+        await invoke('ai_abort_chat')
+      },
       parseSsh: () => notImpl('ai.parseSsh'),
       assist: () => notImpl('ai.assist'),
       abortAssist: async () => {},
-      testProvider: () => notImpl('ai.testProvider'),
+      testProvider: (provider: unknown) => invoke('ai_test_provider', { provider }),
       resolveConfirm: async () => {},
       getChatHistory: async (key: string) => {
         const all = (await invoke<any>('store_get', { path: ['aiChatHistory'] })) || {}
@@ -262,7 +270,12 @@ export async function installTauriBridge(): Promise<void> {
           return Array.isArray(all[key]) ? all[key] : []
         }
       },
-      onStream: (_cb: AnyFn) => () => {}
+      onStream: (cb: AnyFn) =>
+        unsubListen(
+          listen('ai:stream', (e) => {
+            cb(e.payload)
+          })
+        )
     },
     debug: {
       openWindow: async () => {},

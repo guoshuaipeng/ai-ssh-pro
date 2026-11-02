@@ -1,3 +1,4 @@
+mod ai;
 mod forward;
 mod hostkey;
 mod import_electron;
@@ -23,6 +24,7 @@ pub struct AppState {
     pub known: Arc<KnownHostsStore>,
     pub waiters: Arc<HostKeyWaiters>,
     pub forwards: Arc<ForwardManager>,
+    pub ai: ai::SharedAi,
 }
 
 impl AppState {
@@ -30,17 +32,20 @@ impl AppState {
         let known = Arc::new(KnownHostsStore::load());
         let waiters = Arc::new(HostKeyWaiters::new());
         let forwards = Arc::new(ForwardManager::new());
+        let remote_routes = Arc::new(crate::forward::RemoteForwardRouter::new());
         Self {
             ssh: Arc::new(ssh::SshManager::new(
                 known.clone(),
                 waiters.clone(),
                 forwards.clone(),
+                remote_routes,
             )),
             local: Arc::new(LocalShellManager::new()),
             store: Mutex::new(store::load_store()),
             known,
             waiters,
             forwards,
+            ai: Arc::new(ai::AiRuntime::new()),
         }
     }
 }
@@ -84,8 +89,9 @@ fn app_focus() -> bool {
 fn app_check_update() -> Value {
     json!({
         "ok": false,
+        "deferred": true,
+        "reason": "tauri-plugin-updater 需代码签名密钥与发布端点；本轮推迟，避免未签名误更与体积膨胀",
         "hasUpdate": false,
-        "message": "Updater not ported to Tauri yet"
     })
 }
 
@@ -388,6 +394,7 @@ async fn sftp_stat(
 
 #[tauri::command]
 async fn sftp_download(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     session_id: String,
     remote_path: String,
@@ -395,13 +402,14 @@ async fn sftp_download(
 ) -> Result<(), String> {
     state
         .ssh
-        .sftp_download(&session_id, remote_path, local_path)
+        .sftp_download(app, &session_id, remote_path, local_path)
         .await
         .map_err(|e| format!("{:#}", e))
 }
 
 #[tauri::command]
 async fn sftp_upload(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     session_id: String,
     local_path: String,
@@ -409,9 +417,61 @@ async fn sftp_upload(
 ) -> Result<(), String> {
     state
         .ssh
-        .sftp_upload(&session_id, local_path, remote_path)
+        .sftp_upload(app, &session_id, local_path, remote_path)
         .await
         .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+async fn sftp_chmod(
+    state: State<'_, AppState>,
+    session_id: String,
+    remote_path: String,
+    mode: u32,
+) -> Result<(), String> {
+    state
+        .ssh
+        .sftp_chmod(&session_id, remote_path, mode)
+        .await
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+async fn ai_chat(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    payload: Value,
+) -> Result<(), String> {
+    let settings_val = {
+        let store = state.store.lock();
+        store.get("ai").cloned().unwrap_or(json!({
+            "providers": [],
+            "activeProviderId": "",
+            "model": "",
+            "temperature": 0.1
+        }))
+    };
+    let settings: ai::AiSettings =
+        serde_json::from_value(settings_val).map_err(|e| e.to_string())?;
+    let chat: ai::AiChatPayload =
+        serde_json::from_value(payload).map_err(|e| e.to_string())?;
+    state
+        .ai
+        .chat(app, settings, chat)
+        .await
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+fn ai_abort_chat(state: State<'_, AppState>) -> bool {
+    state.ai.abort();
+    true
+}
+
+#[tauri::command]
+async fn ai_test_provider(state: State<'_, AppState>, provider: Value) -> Result<Value, String> {
+    let p: ai::AiProvider = serde_json::from_value(provider).map_err(|e| e.to_string())?;
+    Ok(state.ai.test_provider(p).await)
 }
 
 #[tauri::command]
@@ -572,6 +632,10 @@ pub fn run() {
             sftp_upload,
             sftp_read_text,
             sftp_write_text,
+            sftp_chmod,
+            ai_chat,
+            ai_abort_chat,
+            ai_test_provider,
             forwards_list,
             forwards_add,
             forwards_remove,

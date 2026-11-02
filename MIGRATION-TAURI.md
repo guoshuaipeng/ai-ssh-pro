@@ -55,38 +55,43 @@ npm run build:tauri
 
 - Tauri v2 工程（`src-tauri`）+ 窗口加载现有 React UI
 - `window.aiss` 兼容桥（核心 API + stub）
-- **Host key / known_hosts**：校验、UI 确认事件、永久信任落盘、列表/删除/批量导入；可从 Electron `ai-ssh-pro-known-hosts.json` 合并
+- **Host key / known_hosts**：校验、UI 确认事件、永久信任落盘、列表/删除/批量导入；可从 Electron `ai-ssh-pro-known-hosts.json` 合并；**ProxyJump 每跳独立校验**
+- **ProxyJump / jump chain**：最多 5 跳（`jumpChain` / 遗留 `jumpHost`），`direct-tcpip` + `connect_stream`
 - **本机 Shell**：Windows `portable-pty`（ConPTY）
-- **SFTP 基础**：list / home / mkdir / remove / rename / stat / download / upload / readText / writeText
-- **本地端口转发（L）**：监听本地端口并 `direct-tcpip` 到远端
+- **SFTP**：list / home / mkdir / remove / rename / stat / download / upload / readText / writeText / **chmod**；上下传 **进度事件** `sftp:progress`
+- **端口转发**：本地（L）、**远程（R / tcpip-forward）**、**SOCKS5 动态（D）**
+- **AI 流式**：OpenAI 兼容 SSE（`ai_chat` / `ai:stream` / abort / testProvider）；OpenClaw Agent 仍 stub
 - **Electron store 导入**：发现 `%AppData%/ai-ssh-pro/ai-ssh-pro.json`，合并会话/分组/片段/AI 偏好 + known_hosts
 - SSH：密码/私钥、PTY、读写、resize、exec、快照、断开
 - 会话列表存盘；系统字体（不打 `@fontsource`）
+- **自动更新**：明确推迟（需签名密钥 + 发布端点）；`app_check_update` 返回 `deferred`
 
 ## 尚未移植（缺口）
 
-- ProxyJump / jump chain / agent forward / host-key per-hop
-- SFTP：chmod、断点续传、进度事件、队列、文件选择对话框
-- 远程转发（R）/ SOCKS5（D）
-- Docker 管理、AI 流式对话 / OpenClaw Agent
-- 备份加密、云同步、会话录音回放、自动更新
+- SSH agent forward；jump 失败续跳 / probeJump 完整 UX
+- SFTP：断点续传、队列、文件选择对话框
+- Docker 管理、OpenClaw / Core-A Agent、AI assist / parseSsh
+- 备份加密、云同步、会话录音回放
+- **自动更新**（tauri-plugin-updater + 签名与端点）
 - OpenSSH known_hosts 文件选择导入预览（哈希主机行）
 
 ## 实测体积（本机 Windows x64，2026-11-02 Asia/Shanghai）
 
-| 产物 | 大小 |
-|---|---|
-| `ai-ssh-pro.exe`（release） | **5.54 MB** (5,814,272) |
-| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **2.37 MB** (2,486,327) |
-| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **3.08 MB** (3,231,744) |
+| 产物 | 大小 | vs Round-2 |
+|---|---|---|
+| `ai-ssh-pro.exe`（release） | **6.91 MB** (7,244,800) | +reqwest/rustls |
+| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **2.97 MB** (3,112,643) | |
+| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **3.81 MB** (3,993,600) | |
 
-对比：Electron 安装包 ~169 MB，slim ~82 MB。**Tauri 仍远低于 20 MB 目标**；相对 Round-1（exe 5.15 / NSIS 2.25 / MSI 2.91）仅 +0.39 / +0.12 / +0.17 MB。
+对比：Electron ~169 MB / slim ~82 MB。**仍远低于 20 MB**。Round-3 引入 `reqwest`+`rustls`（AI 流式）后 NSIS 约 3 MB 级。
 
-### Round-2（缺口补齐）变更摘要
+### Round-3 变更摘要
 
-- 新增模块：`known_hosts.rs`、`hostkey.rs`、`local_shell.rs`、`forward.rs`、`import_electron.rs`
-- `tauri-bridge.ts` 对接 hostKey 事件、SFTP、forwards、local shell、electron store 导入
-- 依赖：`russh-sftp`、`portable-pty`、`sha2`（体积可控）
+- ProxyJump / jump chain（含 per-hop host-key）
+- 端口转发 R（tcpip-forward）+ D（SOCKS5）
+- AI OpenAI 兼容流式；updater 明确推迟
+- SFTP chmod + `sftp:progress`
+- 新模块：`ai.rs`；扩展 `forward.rs` / `ssh.rs`
 
 ## 体积策略
 

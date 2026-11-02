@@ -14,9 +14,25 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 
-use crate::forward::{ActiveForward, ForwardManager, ForwardSpec};
+use crate::forward::{
+    spawn_forwarded_tcpip, ActiveForward, ForwardManager, ForwardSpec, RemoteForwardRouter,
+};
 use crate::hostkey::{HostKeyPromptEvent, HostKeyWaiters};
-use crate::known_hosts::{public_key_wire_bytes, algorithm_name, HostKeyCheck, KnownHostsStore};
+use crate::known_hosts::{algorithm_name, public_key_wire_bytes, HostKeyCheck, KnownHostsStore};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JumpHop {
+    pub host: String,
+    pub port: Option<u16>,
+    pub username: String,
+    pub password: Option<String>,
+    pub private_key_path: Option<String>,
+    pub passphrase: Option<String>,
+    pub auth: Option<String>,
+    pub id: Option<String>,
+    pub label: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +49,10 @@ pub struct SshConnectOptions {
     pub auth_mode: Option<String>,
     pub demo: Option<bool>,
     pub forwards: Option<Vec<ForwardSpec>>,
+    /// Legacy single bastion hop
+    pub jump_host: Option<JumpHop>,
+    /// Up to five ProxyJump hops (replaces jumpHost when set)
+    pub jump_chain: Option<Vec<JumpHop>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +96,7 @@ pub struct ClientHandler {
     pub app: AppHandle,
     pub known: Arc<KnownHostsStore>,
     pub waiters: Arc<HostKeyWaiters>,
+    pub remote_routes: Arc<RemoteForwardRouter>,
 }
 
 impl client::Handler for ClientHandler {
@@ -136,13 +157,31 @@ impl client::Handler for ClientHandler {
             }
         }
     }
+
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: russh::Channel<Msg>,
+        _connected_address: &str,
+        connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        if let Some(route) = self.remote_routes.take(connected_port) {
+            spawn_forwarded_tcpip(channel, route);
+        }
+        Ok(())
+    }
 }
 
 pub struct LiveSession {
-    pub handle: Arc<Handle<ClientHandler>>,
+    pub handle: Arc<AsyncMutex<Handle<ClientHandler>>>,
+    /// Intermediate ProxyJump hop handles (kept alive for the tunnel).
+    jump_handles: Vec<Arc<AsyncMutex<Handle<ClientHandler>>>>,
     channel: AsyncMutex<russh::Channel<Msg>>,
     pub meta: SessionMeta,
     ring: Mutex<String>,
+    remote_routes: Arc<RemoteForwardRouter>,
 }
 
 pub struct SshManager {
@@ -150,6 +189,7 @@ pub struct SshManager {
     known: Arc<KnownHostsStore>,
     waiters: Arc<HostKeyWaiters>,
     forwards: Arc<ForwardManager>,
+    remote_routes: Arc<RemoteForwardRouter>,
 }
 
 impl SshManager {
@@ -157,13 +197,19 @@ impl SshManager {
         known: Arc<KnownHostsStore>,
         waiters: Arc<HostKeyWaiters>,
         forwards: Arc<ForwardManager>,
+        remote_routes: Arc<RemoteForwardRouter>,
     ) -> Self {
         Self {
             sessions: AsyncMutex::new(HashMap::new()),
             known,
             waiters,
             forwards,
+            remote_routes,
         }
+    }
+
+    pub fn remote_routes(&self) -> Arc<RemoteForwardRouter> {
+        self.remote_routes.clone()
     }
 
     pub fn known(&self) -> Arc<KnownHostsStore> {
@@ -176,6 +222,78 @@ impl SshManager {
 
     pub fn forwards(&self) -> Arc<ForwardManager> {
         self.forwards.clone()
+    }
+
+    fn resolve_hops(opts: &SshConnectOptions) -> Vec<JumpHop> {
+        if let Some(chain) = &opts.jump_chain {
+            if !chain.is_empty() {
+                return chain.iter().take(5).cloned().collect();
+            }
+        }
+        if let Some(j) = &opts.jump_host {
+            if !j.host.trim().is_empty() && !j.username.trim().is_empty() {
+                return vec![j.clone()];
+            }
+        }
+        Vec::new()
+    }
+
+    async fn authenticate_handle(
+        handle: &mut Handle<ClientHandler>,
+        username: &str,
+        password: Option<&str>,
+        private_key_path: Option<&str>,
+        passphrase: Option<&str>,
+        auth_mode: Option<&str>,
+    ) -> Result<()> {
+        let mode = auth_mode.unwrap_or_else(|| {
+            if private_key_path.map(|s| !s.is_empty()).unwrap_or(false) {
+                "key"
+            } else {
+                "password"
+            }
+        });
+        let ok = match mode {
+            "key" => {
+                let path = private_key_path
+                    .ok_or_else(|| anyhow!("privateKeyPath required for key auth"))?;
+                let key_pair = load_secret_key(PathBuf::from(path), passphrase)
+                    .with_context(|| format!("load private key {path}"))?;
+                let hash = handle.best_supported_rsa_hash().await?.flatten();
+                let auth_res = handle
+                    .authenticate_publickey(
+                        username.to_string(),
+                        PrivateKeyWithHashAlg::new(Arc::new(key_pair), hash),
+                    )
+                    .await
+                    .context("publickey auth")?;
+                auth_res.success()
+            }
+            _ => {
+                let password =
+                    password.ok_or_else(|| anyhow!("password required for password auth"))?;
+                let auth_res = handle
+                    .authenticate_password(username.to_string(), password)
+                    .await
+                    .context("password auth")?;
+                auth_res.success()
+            }
+        };
+        if !ok {
+            return Err(anyhow!("authentication failed for {username}"));
+        }
+        Ok(())
+    }
+
+    fn make_handler(&self, app: &AppHandle, host: &str, port: u16) -> ClientHandler {
+        ClientHandler {
+            host: host.to_string(),
+            port,
+            app: app.clone(),
+            known: self.known.clone(),
+            waiters: self.waiters.clone(),
+            remote_routes: self.remote_routes.clone(),
+        }
     }
 
     pub async fn connect(
@@ -191,74 +309,100 @@ impl SshManager {
         let cols = opts.term_cols.unwrap_or(120);
         let rows = opts.term_rows.unwrap_or(32);
         let session_id = Uuid::new_v4().to_string();
+        let hops = Self::resolve_hops(&opts);
 
-        let config = client::Config {
+        let config = Arc::new(client::Config {
             inactivity_timeout: Some(std::time::Duration::from_secs(300)),
             ..Default::default()
-        };
-        let config = Arc::new(config);
-        let handler = ClientHandler {
-            host: opts.host.clone(),
-            port,
-            app: app.clone(),
-            known: self.known.clone(),
-            waiters: self.waiters.clone(),
-        };
-
-        let mut handle = client::connect(config, (opts.host.as_str(), port), handler)
-            .await
-            .with_context(|| format!("connect {}:{}", opts.host, port))?;
-
-        let auth_mode = opts.auth_mode.as_deref().unwrap_or_else(|| {
-            if opts
-                .private_key_path
-                .as_ref()
-                .map(|s| !s.is_empty())
-                .unwrap_or(false)
-            {
-                "key"
-            } else {
-                "password"
-            }
         });
 
-        let auth_ok = match auth_mode {
-            "key" => {
-                let path = opts
-                    .private_key_path
-                    .as_ref()
-                    .ok_or_else(|| anyhow!("privateKeyPath required for key auth"))?;
-                let key_pair = load_secret_key(PathBuf::from(path), opts.passphrase.as_deref())
-                    .with_context(|| format!("load private key {}", path))?;
-                let hash = handle.best_supported_rsa_hash().await?.flatten();
-                let auth_res = handle
-                    .authenticate_publickey(
-                        opts.username.clone(),
-                        PrivateKeyWithHashAlg::new(Arc::new(key_pair), hash),
-                    )
-                    .await
-                    .context("publickey auth")?;
-                auth_res.success()
-            }
-            _ => {
-                let password = opts
-                    .password
-                    .clone()
-                    .ok_or_else(|| anyhow!("password required for password auth"))?;
-                let auth_res = handle
-                    .authenticate_password(opts.username.clone(), password)
-                    .await
-                    .context("password auth")?;
-                auth_res.success()
-            }
-        };
+        let mut jump_handles: Vec<Arc<AsyncMutex<Handle<ClientHandler>>>> = Vec::new();
+        let mut handle: Handle<ClientHandler>;
 
-        if !auth_ok {
-            return Err(anyhow!("authentication failed"));
+        if hops.is_empty() {
+            let handler = self.make_handler(&app, &opts.host, port);
+            handle = client::connect(config.clone(), (opts.host.as_str(), port), handler)
+                .await
+                .with_context(|| format!("connect {}:{}", opts.host, port))?;
+            Self::authenticate_handle(
+                &mut handle,
+                &opts.username,
+                opts.password.as_deref(),
+                opts.private_key_path.as_deref(),
+                opts.passphrase.as_deref(),
+                opts.auth_mode.as_deref(),
+            )
+            .await?;
+        } else {
+            // Connect hop0 via TCP, then tunnel each next hop / final target via direct-tcpip.
+            let mut chain: Vec<(String, u16, String, Option<String>, Option<String>, Option<String>, Option<String>)> =
+                Vec::new();
+            for h in &hops {
+                chain.push((
+                    h.host.clone(),
+                    h.port.unwrap_or(22),
+                    h.username.clone(),
+                    h.password.clone(),
+                    h.private_key_path.clone(),
+                    h.passphrase.clone(),
+                    h.auth.clone(),
+                ));
+            }
+            chain.push((
+                opts.host.clone(),
+                port,
+                opts.username.clone(),
+                opts.password.clone(),
+                opts.private_key_path.clone(),
+                opts.passphrase.clone(),
+                opts.auth_mode.clone(),
+            ));
+
+            // First hop: plain TCP
+            let (h0, p0, u0, pw0, pk0, pp0, am0) = &chain[0];
+            let handler = self.make_handler(&app, h0, *p0);
+            let mut cur = client::connect(config.clone(), (h0.as_str(), *p0), handler)
+                .await
+                .with_context(|| format!("jump connect {h0}:{p0}"))?;
+            Self::authenticate_handle(
+                &mut cur,
+                u0,
+                pw0.as_deref(),
+                pk0.as_deref(),
+                pp0.as_deref(),
+                am0.as_deref(),
+            )
+            .await
+            .with_context(|| format!("jump auth {h0}"))?;
+
+            for i in 1..chain.len() {
+                let (nh, np, nu, npw, npk, npp, nam) = &chain[i];
+                let channel = cur
+                    .channel_open_direct_tcpip(nh.clone(), *np as u32, "127.0.0.1", 0)
+                    .await
+                    .with_context(|| format!("ProxyJump forward to {nh}:{np}"))?;
+                let stream = channel.into_stream();
+                jump_handles.push(Arc::new(AsyncMutex::new(cur)));
+                let handler = self.make_handler(&app, nh, *np);
+                cur = client::connect_stream(config.clone(), stream, handler)
+                    .await
+                    .with_context(|| format!("connect via jump to {nh}:{np}"))?;
+                Self::authenticate_handle(
+                    &mut cur,
+                    nu,
+                    npw.as_deref(),
+                    npk.as_deref(),
+                    npp.as_deref(),
+                    nam.as_deref(),
+                )
+                .await
+                .with_context(|| format!("auth via jump {nh}"))?;
+            }
+            handle = cur;
         }
 
-        let handle = Arc::new(handle);
-        let channel = handle.channel_open_session().await.context("open session")?;
+        let handle = Arc::new(AsyncMutex::new(handle));
+        let channel = handle.lock().await.channel_open_session().await.context("open session")?;
         channel
             .request_pty(false, "xterm-256color", cols, rows, 0, 0, &[])
             .await
@@ -278,9 +422,11 @@ impl SshManager {
 
         let live = Arc::new(LiveSession {
             handle: handle.clone(),
+            jump_handles,
             channel: AsyncMutex::new(channel),
             meta: meta.clone(),
             ring: Mutex::new(String::new()),
+            remote_routes: self.remote_routes.clone(),
         });
 
         {
@@ -288,12 +434,17 @@ impl SshManager {
             map.insert(session_id.clone(), live.clone());
         }
 
-        // Optional profile local forwards
         if let Some(fwds) = opts.forwards.clone() {
             for f in fwds {
                 let _ = self
                     .forwards
-                    .start_local(session_id.clone(), handle.clone(), f, "profile")
+                    .start(
+                        session_id.clone(),
+                        handle.clone(),
+                        self.remote_routes.clone(),
+                        f,
+                        "profile",
+                    )
                     .await;
             }
         }
@@ -343,7 +494,7 @@ impl SshManager {
                             SshStatusEvent {
                                 session_id: sid.clone(),
                                 status: "closed".into(),
-                                message: Some(format!("exit {}", exit_status)),
+                                message: Some(format!("exit {exit_status}")),
                             },
                         );
                         break;
@@ -383,10 +534,14 @@ impl SshManager {
         if let Some(live) = map.remove(session_id) {
             let ch = live.channel.lock().await;
             let _ = ch.close().await;
-            let _ = live
-                .handle
-                .disconnect(Disconnect::ByApplication, "", "")
-                .await;
+            {
+                let h = live.handle.lock().await;
+                let _ = h.disconnect(Disconnect::ByApplication, "", "").await;
+            }
+            for j in &live.jump_handles {
+                let h = j.lock().await;
+                let _ = h.disconnect(Disconnect::ByApplication, "", "").await;
+            }
         }
         Ok(())
     }
@@ -444,6 +599,8 @@ impl SshManager {
 
         let mut channel = live
             .handle
+            .lock()
+            .await
             .channel_open_session()
             .await
             .context("open exec channel")?;
@@ -504,6 +661,8 @@ impl SshManager {
 
         let channel = live
             .handle
+            .lock()
+            .await
             .channel_open_session()
             .await
             .context("open sftp channel")?;
@@ -618,12 +777,21 @@ impl SshManager {
 
     pub async fn sftp_download(
         &self,
+        app: AppHandle,
         session_id: &str,
         remote_path: String,
         local_path: String,
     ) -> Result<()> {
-        self.with_sftp(session_id, |sftp| async move {
-            use tokio::io::AsyncWriteExt;
+        let sid = session_id.to_string();
+        self.with_sftp(session_id, move |sftp| async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let meta = sftp.metadata(&remote_path).await.ok();
+            let total = meta.and_then(|m| m.size).unwrap_or(0);
+            let transfer_id = Uuid::new_v4().to_string();
+            let name = Path::new(&remote_path)
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| remote_path.clone());
             let mut remote = sftp
                 .open(&remote_path)
                 .await
@@ -634,10 +802,40 @@ impl SshManager {
             let mut local = tokio::fs::File::create(&local_path)
                 .await
                 .with_context(|| format!("create local {local_path}"))?;
-            tokio::io::copy(&mut remote, &mut local)
-                .await
-                .context("download copy")?;
+            let mut buf = [0u8; 32 * 1024];
+            let mut transferred: u64 = 0;
+            loop {
+                let n = remote.read(&mut buf).await.context("download read")?;
+                if n == 0 {
+                    break;
+                }
+                local.write_all(&buf[..n]).await.context("download write")?;
+                transferred += n as u64;
+                let _ = app.emit(
+                    "sftp:progress",
+                    json!({
+                        "transferId": transfer_id,
+                        "sessionId": sid,
+                        "direction": "download",
+                        "name": name,
+                        "transferred": transferred,
+                        "total": total,
+                    }),
+                );
+            }
             local.flush().await.ok();
+            let _ = app.emit(
+                "sftp:progress",
+                json!({
+                    "transferId": transfer_id,
+                    "sessionId": sid,
+                    "direction": "download",
+                    "name": name,
+                    "transferred": transferred,
+                    "total": if total > 0 { total } else { transferred },
+                    "done": true,
+                }),
+            );
             Ok(())
         })
         .await
@@ -645,12 +843,22 @@ impl SshManager {
 
     pub async fn sftp_upload(
         &self,
+        app: AppHandle,
         session_id: &str,
         local_path: String,
         remote_path: String,
     ) -> Result<()> {
-        self.with_sftp(session_id, |sftp| async move {
+        let sid = session_id.to_string();
+        self.with_sftp(session_id, move |sftp| async move {
             use russh_sftp::protocol::OpenFlags;
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let meta = tokio::fs::metadata(&local_path).await.ok();
+            let total = meta.map(|m| m.len()).unwrap_or(0);
+            let transfer_id = Uuid::new_v4().to_string();
+            let name = Path::new(&local_path)
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| local_path.clone());
             let mut local = tokio::fs::File::open(&local_path)
                 .await
                 .with_context(|| format!("open local {local_path}"))?;
@@ -661,9 +869,60 @@ impl SshManager {
                 )
                 .await
                 .with_context(|| format!("open remote {remote_path}"))?;
-            tokio::io::copy(&mut local, &mut remote)
+            let mut buf = [0u8; 32 * 1024];
+            let mut transferred: u64 = 0;
+            loop {
+                let n = local.read(&mut buf).await.context("upload read")?;
+                if n == 0 {
+                    break;
+                }
+                remote.write_all(&buf[..n]).await.context("upload write")?;
+                transferred += n as u64;
+                let _ = app.emit(
+                    "sftp:progress",
+                    json!({
+                        "transferId": transfer_id,
+                        "sessionId": sid,
+                        "direction": "upload",
+                        "name": name,
+                        "transferred": transferred,
+                        "total": total,
+                    }),
+                );
+            }
+            let _ = app.emit(
+                "sftp:progress",
+                json!({
+                    "transferId": transfer_id,
+                    "sessionId": sid,
+                    "direction": "upload",
+                    "name": name,
+                    "transferred": transferred,
+                    "total": if total > 0 { total } else { transferred },
+                    "done": true,
+                }),
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn sftp_chmod(
+        &self,
+        session_id: &str,
+        remote_path: String,
+        mode: u32,
+    ) -> Result<()> {
+        self.with_sftp(session_id, move |sftp| async move {
+            use russh_sftp::protocol::FileAttributes;
+            let bits = mode & 0o7777;
+            let attrs = FileAttributes {
+                permissions: Some(bits),
+                ..Default::default()
+            };
+            sftp.set_metadata(&remote_path, attrs)
                 .await
-                .context("upload copy")?;
+                .with_context(|| format!("chmod {remote_path} {bits:o}"))?;
             Ok(())
         })
         .await
@@ -727,7 +986,7 @@ impl SshManager {
         .await
     }
 
-    pub async fn get_handle(&self, session_id: &str) -> Result<Arc<Handle<ClientHandler>>> {
+    pub async fn get_handle(&self, session_id: &str) -> Result<Arc<AsyncMutex<Handle<ClientHandler>>>> {
         let map = self.sessions.lock().await;
         let live = map
             .get(session_id)
@@ -742,7 +1001,13 @@ impl SshManager {
     ) -> Result<ActiveForward> {
         let handle = self.get_handle(&session_id).await?;
         self.forwards
-            .start_local(session_id, handle, spec, "manual")
+            .start(
+                session_id,
+                handle,
+                self.remote_routes.clone(),
+                spec,
+                "manual",
+            )
             .await
     }
 }
