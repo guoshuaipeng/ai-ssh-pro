@@ -27,6 +27,7 @@ import type {
   TerminalPrefs
 } from '@shared/ipc'
 import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
+import { normalizeTerminalPrefs } from '@shared/terminal-prefs'
 import { bumpTerminalFontSize, resetTerminalFontSize } from '@shared/terminal-zoom'
 import { normalizeSessionNote, sessionNotePreview } from '@shared/session-note'
 import { formatConnectionString, formatSshCommand, statusHostChipLabel } from '@shared/connection-string'
@@ -1630,7 +1631,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void window.aiss.terminal.getPrefs().then(setTerminalPrefs)
+    void window.aiss.terminal.getPrefs().then((p) => setTerminalPrefs(normalizeTerminalPrefs(p))).catch(() => setTerminalPrefs({ ...TERMINAL_PREFS_DEFAULTS }))
     void window.aiss.ssh.isLocalShellAvailable().then(setLocalShellAvailable).catch(() => setLocalShellAvailable(false))
   }, [])
 
@@ -2719,7 +2720,7 @@ export default function App() {
       const fontSize = args.fontSize ? Number(args.fontSize) : 0
       if (!theme && !fontSize) return { ok: false, message: tg('aa.setNothing') }
       if (theme) applyUiTheme(theme as UiThemeId)
-      if (fontSize) setTerminalPrefs(await window.aiss.terminal.setPrefs({ fontSize }))
+      if (fontSize) setTerminalPrefs(normalizeTerminalPrefs(await window.aiss.terminal.setPrefs({ fontSize })))
       return { ok: true, message: tg('aa.setDone') }
     })
   }
@@ -6804,9 +6805,9 @@ export default function App() {
         return
       }
       if (action === 'toggleMuteBell') {
-        const next = !terminalPrefs.muteBell
+        const next = !(terminalPrefs ?? TERMINAL_PREFS_DEFAULTS).muteBell
         void window.aiss.terminal.setPrefs({ muteBell: next }).then((p) => {
-          setTerminalPrefs(p)
+          setTerminalPrefs(normalizeTerminalPrefs(p))
           showToast(tg(next ? 'term.bellMuted' : 'term.bellUnmuted'))
         }).catch(() => undefined)
         return
@@ -6824,7 +6825,7 @@ export default function App() {
           return
         }
         void window.aiss.terminal.setPrefs({ fontSize: next }).then((p) => {
-          setTerminalPrefs(p)
+          setTerminalPrefs(normalizeTerminalPrefs(p))
           showToast(tg('zoom.size', { n: p.fontSize }))
         }).catch(() => undefined)
         return
@@ -6832,7 +6833,7 @@ export default function App() {
       if (action === 'toggleUiTheme') {
         const next = toggleLightDarkTheme()
         const termTheme = suggestedTerminalTheme(next)
-        void window.aiss.terminal.setPrefs({ themeId: termTheme }).then(setTerminalPrefs).catch(() => {})
+        void window.aiss.terminal.setPrefs({ themeId: termTheme }).then((p) => setTerminalPrefs(normalizeTerminalPrefs(p))).catch(() => {})
         showToast(tg(isLightUiTheme(next) ? 'theme.switchedLight' : 'theme.switchedDark'))
         return
       }
@@ -7990,7 +7991,7 @@ export default function App() {
           toggleAi: layout.showAi,
           toggleSplit: splitEnabled,
           toggleHostStatus: showHostStatus,
-          toggleMuteBell: terminalPrefs.muteBell,
+          toggleMuteBell: (terminalPrefs ?? TERMINAL_PREFS_DEFAULTS).muteBell,
           toggleBroadcast: broadcastEnabled,
           toggleRecording: Boolean(recordingSessionId),
           toggleBlocks: blocksOn,
@@ -10032,7 +10033,7 @@ export default function App() {
                     onGithub={() => void window.aiss.app.openGithub().catch(() => undefined)}
                     onOpenMcp={() => openSettingsTab('mcpGuide')}
                     onOpenUpdates={() => openUnifiedSettings('about')}
-                    onTerminalSaved={setTerminalPrefs}
+                    onTerminalSaved={(p) => setTerminalPrefs(normalizeTerminalPrefs(p))}
                     probePrefs={probePrefs}
                     onProbePrefs={updateProbePrefs}
                     tagOptions={[...new Set(profiles.flatMap((p) => p.tags ?? []))]}
@@ -10046,10 +10047,10 @@ export default function App() {
                 ) : t.view === 'terminalPrefs' ? (
                   <TerminalPrefsModal
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
-                    onSaved={setTerminalPrefs}
+                    onSaved={(p) => setTerminalPrefs(normalizeTerminalPrefs(p))}
                   />
                 ) : t.view === 'uiTheme' ? (
-                  <UiThemeModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} onTerminalTheme={(themeId) => setTerminalPrefs((p) => ({ ...p, themeId }))} />
+                  <UiThemeModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} onTerminalTheme={(themeId) => setTerminalPrefs((p) => normalizeTerminalPrefs({ ...(p ?? {}), themeId }))} />
                 ) : t.view === 'snippets' ? null : t.view === 'mcpGuide' ? (
                   <McpGuidePanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'updates' ? (
@@ -10721,7 +10722,7 @@ export default function App() {
                   <span className="statusbar-label">{tg('sb.pinned')}</span>
                 </button>
               ) : null}
-              {terminalPrefs.muteBell ? (
+              {(terminalPrefs ?? TERMINAL_PREFS_DEFAULTS).muteBell ? (
                 <button
                   type="button"
                   className="statusbar-slot statusbar-slot--mute-bell"
@@ -10729,7 +10730,7 @@ export default function App() {
                   title={tg('sb.muteBellTip')}
                   onClick={() => {
                     void window.aiss.terminal.setPrefs({ muteBell: false }).then((p) => {
-                      setTerminalPrefs(p)
+                      setTerminalPrefs(normalizeTerminalPrefs(p))
                       showToast(tg('term.bellUnmuted'))
                     }).catch(() => undefined)
                   }}
@@ -10750,7 +10751,7 @@ export default function App() {
                         ? bumpTerminalFontSize(terminalPrefs.fontSize, -1)
                         : resetTerminalFontSize()
                   void window.aiss.terminal.setPrefs({ fontSize: next }).then((p) => {
-                    setTerminalPrefs(p)
+                    setTerminalPrefs(normalizeTerminalPrefs(p))
                     showToast(tg('zoom.size', { n: p.fontSize }))
                   })
                 }}

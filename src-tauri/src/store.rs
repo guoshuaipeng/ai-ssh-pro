@@ -222,10 +222,13 @@ pub fn default_store() -> Value {
             "useOpenClaw": true
         },
         "terminalPrefs": {
+            "themeId": "github-dark",
             "fontSize": 14,
             "fontFamily": "Cascadia Mono, Consolas, monospace",
-            "cursorBlink": true,
-            "scrollback": 5000
+            "scrollback": 5000,
+            "osc52Clipboard": true,
+            "muteBell": false,
+            "copyOnSelect": false
         },
         "snippets": [],
         "aiChatHistory": {},

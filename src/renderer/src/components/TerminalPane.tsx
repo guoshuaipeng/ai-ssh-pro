@@ -163,10 +163,10 @@ export default function TerminalPane({
   prefsRef.current = resolvePrefs(prefs)
   const osc52EnabledRef = useRef(prefsRef.current.osc52Clipboard !== false)
   osc52EnabledRef.current = prefsRef.current.osc52Clipboard !== false
-  const muteBellRef = useRef(prefsRef.current.muteBell === true)
+  const muteBellRef = useRef((prefsRef.current?.muteBell === true))
   const copyOnSelectRef = useRef(prefsRef.current.copyOnSelect === true)
   copyOnSelectRef.current = prefsRef.current.copyOnSelect === true
-  muteBellRef.current = prefsRef.current.muteBell === true
+  muteBellRef.current = (prefsRef.current?.muteBell === true)
   const [zmodemStatus, setZmodemStatus] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   // D7: multi-line paste waits here for a decision

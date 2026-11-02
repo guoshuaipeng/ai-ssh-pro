@@ -7,6 +7,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { normalizeTerminalPrefs } from '@shared/terminal-prefs'
+import { type TerminalPrefs } from '@shared/ipc'
 
 type AnyFn = (...args: any[]) => any
 
@@ -311,16 +313,14 @@ export async function installTauriBridge(): Promise<void> {
     terminal: {
       getPrefs: async () => {
         const v = await invoke<any>('store_get', { path: ['terminalPrefs'] })
-        return (
-          v || {
-            fontSize: 14,
-            fontFamily: 'Cascadia Mono, Consolas, monospace',
-            cursorBlink: true,
-            scrollback: 5000
-          }
-        )
+        return normalizeTerminalPrefs(v)
       },
-      setPrefs: (prefs: unknown) => invoke('store_set', { path: ['terminalPrefs'], value: prefs })
+      setPrefs: async (partial: Partial<TerminalPrefs>) => {
+        const cur = normalizeTerminalPrefs(await invoke<any>('store_get', { path: ['terminalPrefs'] }))
+        const next = normalizeTerminalPrefs({ ...cur, ...(partial && typeof partial === 'object' ? partial : {}) })
+        await invoke('store_set', { path: ['terminalPrefs'], value: next })
+        return next
+      }
     },
     ai: {
       getSettings: async () => invoke('store_get', { path: ['ai'] }),
