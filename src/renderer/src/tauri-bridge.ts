@@ -172,8 +172,8 @@ export async function installTauriBridge(): Promise<void> {
       stat: (target: string) => invoke('local_fs_stat', { target }),
       mkdir: (target: string) => invoke<boolean>('local_fs_mkdir', { target }),
       rename: (from: string, to: string) => invoke<boolean>('local_fs_rename', { from, to }),
-      trash: async () => ({ token: '', note: 'trash not ported' }),
-      restore: async () => false,
+      trash: (target: string) => invoke<{ token: string }>('local_fs_trash', { target }),
+      restore: (token: string) => invoke<boolean>('local_fs_restore', { token }),
       reveal: (target: string) => invoke<boolean>('local_fs_reveal', { target }),
       open: (target: string) => invoke<string>('local_fs_open', { target }),
       hash: async () => '',
@@ -242,9 +242,10 @@ export async function installTauriBridge(): Promise<void> {
         return v && typeof v === 'object' ? v : emptySessions()
       },
       save: (state: unknown) => invoke('sessions_save', { value: state }),
-      importPick: async () => null,
-      importSshConfig: async () => ({ items: [], warnings: [] }),
-      export: () => notImpl('sessions.export'),
+      importPick: () => invoke('sessions_import_pick'),
+      importSshConfig: (path?: string) =>
+        invoke('sessions_import_ssh_config', { path: path ?? null }),
+      export: (format?: string) => invoke<string>('sessions_export', { format: format ?? 'json' }),
       discoverElectronStore: () => invoke('electron_store_discover'),
       importElectronStore: () => invoke('electron_store_import')
     },
@@ -286,7 +287,13 @@ export async function installTauriBridge(): Promise<void> {
       listThreads: () => invoke('core_memory_list_threads'),
       bumpEpoch: (sessionKey: string) => invoke<number>('core_memory_bump_epoch', { sessionKey }),
       appendObservations: (sessionKey: string, texts: string[]) =>
-        invoke('core_memory_append_observations', { sessionKey, texts })
+        invoke('core_memory_append_observations', { sessionKey, texts }),
+      appendEpisode: (sessionKey: string, text: string, tags?: string[]) =>
+        invoke('core_memory_append_episode', { sessionKey, text, tags: tags ?? null }),
+      setCiteHold: (sessionKey: string, markers: string[]) =>
+        invoke('core_memory_set_cite_hold', { sessionKey, markers }),
+      compress: (sessionKey: string, piece: string, cursor?: string) =>
+        invoke('core_memory_compress', { sessionKey, piece, cursor: cursor ?? null }),
     },
     terminal: {
       getPrefs: async () => {
@@ -361,13 +368,15 @@ export async function installTauriBridge(): Promise<void> {
       onPush: (_cb: AnyFn) => () => {}
     },
     tools: {
-      processes: async () => [],
-      kill: () => notImpl('tools.kill'),
-      services: async () => [],
-      service: () => notImpl('tools.service'),
-      ports: async () => [],
-      df: async () => [],
-      logs: async () => ({ text: '', code: null, at: Date.now() })
+      processes: (sessionId: string) => invoke('tools_processes', { sessionId }),
+      kill: (sessionId: string, pid: number, signal?: string, sudo?: boolean) =>
+        invoke('tools_kill', { sessionId, pid, signal: signal ?? null, sudo: sudo ?? null }),
+      services: (sessionId: string) => invoke('tools_services', { sessionId }),
+      service: (sessionId: string, unit: string, action: string, sudo?: boolean) =>
+        invoke('tools_service', { sessionId, unit, action, sudo: sudo ?? null }),
+      ports: (sessionId: string) => invoke('tools_ports', { sessionId }),
+      df: (sessionId: string) => invoke('tools_df', { sessionId }),
+      logs: (sessionId: string, req: unknown) => invoke('tools_logs', { sessionId, req })
     },
     backup: {
       export: (raw: unknown) => invoke('backup_export', { raw }),
@@ -376,11 +385,11 @@ export async function installTauriBridge(): Promise<void> {
     workspace: {
       ping: async () => null,
       probeHosts: async () => [],
-      batchExec: () => notImpl('workspace.batchExec'),
+      batchExec: (payload: unknown) => invoke('workspace_batch_exec', { payload }),
       resources: async () => ({ at: Date.now() }),
-      healthProbe: () => notImpl('workspace.healthProbe'),
-      healthProbeSweep: async () => ({ ok: true }),
-      healthProbeRelease: async () => ({ ok: true }),
+      healthProbe: (payload: unknown) => invoke('workspace_health_probe', { payload }),
+      healthProbeSweep: () => invoke('workspace_health_probe_sweep'),
+      healthProbeRelease: () => invoke('workspace_health_probe_release'),
       forwards: {
         list: (sessionId?: string) =>
           invoke('forwards_list', { sessionId: sessionId ?? null }),
@@ -474,15 +483,16 @@ export async function installTauriBridge(): Promise<void> {
       reveal: (target: string) => invoke<boolean>('files_reveal', { target })
     },
     snapshots: {
-      list: async () => [],
-      stats: async () => ({ files: 0, bytes: 0, count: 0 }),
-      put: async () => ({ added: false, skipped: 'not implemented', count: 0 }),
-      setPrefs: async (prefs: any) => ({ auto: !!prefs?.auto, keep: prefs?.keep ?? 10 }),
-      read: async () => ({ ok: false, reason: 'not implemented' }),
-      pin: async () => null,
-      delete: async () => ({ ok: false }),
-      clear: async () => ({ ok: true, n: 0 }),
-      openDir: async () => ({ ok: false })
+      list: (query?: unknown) => invoke('snapshots_list', { query: query ?? null }),
+      stats: () => invoke('snapshots_stats'),
+      put: (input: unknown) => invoke('snapshots_put', { input }),
+      setPrefs: (prefs: unknown) => invoke('snapshots_set_prefs', { input: prefs ?? null }),
+      read: (id: string) => invoke('snapshots_read', { id }),
+      pin: (id: string, pinned: boolean) => invoke('snapshots_pin', { id, pinned }),
+      delete: (id: string) => invoke('snapshots_delete', { id }),
+      clear: () => invoke('snapshots_clear'),
+      openDir: () => invoke('snapshots_open_dir'),
+      rollbackAllowed: (level: string) => invoke<boolean>('snapshots_rollback_allowed', { level })
     }
   }
 

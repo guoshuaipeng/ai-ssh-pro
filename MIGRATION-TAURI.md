@@ -4,7 +4,7 @@
 
 用系统 WebView（Windows WebView2）替换 Electron/Chromium，把安装包体积压到接近 **20MB** 量级，并提升启动流畅度。
 
-当前仓库为 **双轨**：Electron（`npm run dev` / `npm run dist`）仍可用；Tauri 为新主路径（`npm run dev:tauri` / `npm run build:tauri`）。
+**产品路径：仅 Tauri**（小体积 WebView2）。默认脚本 `npm run dev` / `npm run build` 走 Tauri；桌面快捷方式 `AI-SSH-Pro (Tauri latest).lnk` 始终指向最新 `src-tauri/target/release/ai-ssh-pro.exe`。仓库内 Electron 源码可暂留作对照，但 **不再维护 Electron 打包/宣传**（如需：`npm run dev:electron` / `npm run build:electron` / `npm run dist:electron`）。
 
 ## 前置条件（Windows）
 
@@ -81,24 +81,39 @@ npm run build:tauri
 - **probeJump**：逐跳探测、首败即停、信任主机密钥才过；emit `ssh:hop` / `ssh:stage`；桥接 `probeJump`/`onHop`/`onStage`
 
 
-## 尚未移植（缺口）
+## 尚未移植（缺口）（Tauri-only 产品）
 
-- OpenClaw 全量：episodes / citeHold / 运行摘要压缩与 Electron 观测管线完整对等；远程 tools（processes/services/ports/df/logs）与 workspace.batchExec/healthProbe
-- 本地回收站 trash/restore、SFTP hash、snapshots 库、sessions.export / importSshConfig 完整解析
+- sessions **完整**第三方导入：Xshell / PuTTY / MobaXterm / SecureCRT / FinalShell（importPick 已支持 OpenSSH config + JSON profiles）
+- healthProbe **独立**短连 probe 池（现仅 `reuseSessionId` / demo；无 held probe client）
+- workspace.resources 完整面板、forwards.restore 批量恢复；SFTP `hash` / `detectKeyKind` 等边角
+- OpenClaw：embedding 召回、与 Electron 同构的完整 transcript compact / cite scrub 测试覆盖
 - 云同步：OAuth 浏览器登录、真正到点自动 push/pull（骨架只发 tick；**实网仍卡用户 token/口令**）
 - **真实自动安装更新**（**卡在用户代码签名证书** + `tauri-plugin-updater` 发布端点；当前仅 check，`installDeferred: true`）
 - known_hosts：**无法**对 `|1|…` 哈希行做反向解哈希整文件导入（只能主机名列表 + `ssh-keygen -F` 批量解析后导入）
 - SSH agent forward / jump 续跳 **实机验证**依赖本机 Agent、跳板可达性与用户密钥
+- Electron 打包：**不再作为产品主路径**（`dev:electron` / `dist:electron` 仅对照）
 
 ## 实测体积（本机 Windows x64，2026-11-02 Asia/Shanghai）
 
 | 产物 | 大小 | 备注 |
 |---|---|---|
-| `ai-ssh-pro.exe`（release） | **7.71 MB** (8089088) | Round-7 |
-| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **3.21 MB** (3368371) | |
-| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **4.16 MB** (4362240) | |
+| `ai-ssh-pro.exe`（release） | **7.95 MB** (8334336) | Round-8 |
+| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **3.29 MB** (3449270) | |
+| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **4.27 MB** (4476928) | |
 
 对比：Electron ~169 MB / slim ~82 MB。**仍远低于 20 MB**。
+
+
+### Round-8 变更摘要
+
+- **远程 tools**：`processes` / `kill` / `services` / `service` / `ports` / `df` / `logs`（`server_tools.rs` + `ssh.exec` 解析，对齐 shared/server-tools）
+- **workspace**：`batchExec`（多会话并行 exec）、`healthProbe`（复用会话采样 / demo；无独立 probe 连接池）、sweep/release 空实现占位
+- **snapshots**：加密远端文本快照（本地 `snapshot.key` + AES-GCM；list/stats/put/prefs/read/pin/delete/clear/openDir）
+- **localFs.trash / restore**：本地暂存书 + token 撤销
+- **sessions.export**（json / openssh）+ **importSshConfig**（Include 展开 + Host 解析）+ **importPick**（ssh-config / JSON profiles；Xshell/PuTTY/Moba 等仍缺口）
+- **OpenClaw**：`episodes` / `citeHold` / `runningSummary` + `compress` / `appendEpisode` / `setCiteHold`（extractive 压缩管线；无 embedding）
+- 桥：`tauri-bridge.ts` 上述 API 全部接真命令
+- **产品策略**：默认入口改为 Tauri-only；Electron 降为可选对照脚本
 
 ### Round-3 变更摘要
 

@@ -239,3 +239,78 @@ pub fn open_ssh_dir() -> bool {
     let _ = fs::create_dir_all(&dir);
     open_path(dir.to_string_lossy().to_string()).is_ok()
 }
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+use uuid::Uuid;
+
+struct TrashEntry {
+    original: String,
+    staged: String,
+}
+
+fn trash_book() -> &'static Mutex<HashMap<String, TrashEntry>> {
+    use std::sync::OnceLock;
+    static BOOK: OnceLock<Mutex<HashMap<String, TrashEntry>>> = OnceLock::new();
+    BOOK.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn trash_dir() -> PathBuf {
+    let dir = crate::store::data_dir().join("sftp-trash");
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+/// Stage a local path for undo; falls back to permanent delete if rename fails.
+pub fn trash(target: String) -> Result<Value, String> {
+    let target = target.trim().to_string();
+    if target.is_empty() {
+        return Err("empty-path".into());
+    }
+    let src = PathBuf::from(&target);
+    if !src.exists() {
+        return Err("not-found".into());
+    }
+    let token = Uuid::new_v4().to_string();
+    let name = src
+        .file_name()
+        .map(|x| x.to_string_lossy().to_string())
+        .unwrap_or_else(|| "item".into());
+    let staged = trash_dir().join(format!("{token}-{name}"));
+    fs::rename(&src, &staged).map_err(|e| e.to_string())?;
+    if let Ok(mut book) = trash_book().lock() {
+        book.insert(
+            token.clone(),
+            TrashEntry {
+                original: target,
+                staged: staged.to_string_lossy().to_string(),
+            },
+        );
+    }
+    Ok(json!({ "token": token }))
+}
+
+pub fn restore(token: String) -> bool {
+    let token = token.trim().to_string();
+    if token.is_empty() {
+        return false;
+    }
+    let entry = {
+        let Ok(mut book) = trash_book().lock() else {
+            return false;
+        };
+        book.remove(&token)
+    };
+    let Some(entry) = entry else {
+        return false;
+    };
+    let staged = PathBuf::from(&entry.staged);
+    let original = PathBuf::from(&entry.original);
+    if !staged.exists() {
+        return false;
+    }
+    if let Some(parent) = original.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::rename(&staged, &original).is_ok()
+}

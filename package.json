@@ -5,10 +5,9 @@
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "dist": "npm run build && electron-builder",
+    "dev": "tauri dev",
+    "build": "npm run build:tauri",
+    "preview": "npm run build:web && tauri preview",
     "icons": "node scripts/build-icon.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "mcp:inventory": "node scripts/mcp-inventory-server.mjs",
@@ -23,7 +22,11 @@
     "build:web": "vite build --config vite.config.tauri.ts && node scripts/rename-tauri-index.mjs",
     "dev:tauri": "tauri dev",
     "build:tauri": "tauri build && C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-desktop-shortcut.ps1",
-    "shortcut:tauri": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-desktop-shortcut.ps1"
+    "shortcut:tauri": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-desktop-shortcut.ps1",
+    "dev:electron": "electron-vite dev",
+    "build:electron": "electron-vite build",
+    "preview:electron": "electron-vite preview",
+    "dist:electron": "npm run build:electron && electron-builder"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
