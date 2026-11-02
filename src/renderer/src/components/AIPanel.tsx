@@ -733,10 +733,19 @@ export default function AIPanel({
       setWorkingGoal(null)
       return
     }
-    void window.aiss.ai.getWorkingMemory(key).then((goal) => {
-      if (persistKeyRef.current !== key) return
-      setWorkingGoal(visibleWorkingGoal(goal))
-    })
+    const getter = window.aiss?.ai?.getWorkingMemory
+    if (typeof getter !== 'function') {
+      setWorkingGoal(null)
+      return
+    }
+    void Promise.resolve(getter(key))
+      .then((goal) => {
+        if (persistKeyRef.current !== key) return
+        setWorkingGoal(visibleWorkingGoal(goal))
+      })
+      .catch(() => {
+        if (persistKeyRef.current === key) setWorkingGoal(null)
+      })
   }, [])
 
   // Load persisted chat when history key / session changes

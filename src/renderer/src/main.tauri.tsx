@@ -27,6 +27,41 @@ function isDebugWindow(): boolean {
   return window.location.hash === '#debug'
 }
 
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[renderer] ErrorBoundary', error, info)
+  }
+  render() {
+    if (this.state.error) {
+      const msg = this.state.error?.message || String(this.state.error)
+      return (
+        <div style={{ padding: 24, color: '#e6edf3', fontFamily: 'system-ui, sans-serif', maxWidth: 640 }}>
+          <h1 style={{ fontSize: 16, margin: '0 0 12px' }}>界面渲染出错</h1>
+          <p style={{ margin: '0 0 12px', opacity: 0.85, lineHeight: 1.5 }}>
+            主界面被错误打断。可尝试关闭 AI 面板相关状态后重启；下方为错误信息。
+          </p>
+          <pre style={{ margin: 0, padding: 12, background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, fontSize: 12, whiteSpace: 'pre-wrap', color: '#f85149' }}>
+            {msg}
+          </pre>
+          <p style={{ marginTop: 16 }}>
+            <button type="button" onClick={() => this.setState({ error: null })} style={{ padding: '8px 12px' }}>
+              重试渲染
+            </button>
+          </p>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function AppGate(): React.ReactElement {
   const api = (window as unknown as { aiss?: unknown }).aiss
   const [diag, setDiag] = useState('')
@@ -58,7 +93,11 @@ function AppGate(): React.ReactElement {
       </div>
     )
   }
-  return <App />
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  )
 }
 
 function DebugWindowGate(): React.ReactElement {

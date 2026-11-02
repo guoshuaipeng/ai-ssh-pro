@@ -146,7 +146,8 @@ export async function installTauriBridge(): Promise<void> {
         ),
       stat: (sessionId: string, remotePath: string) =>
         invoke('sftp_stat', { sessionId, remotePath }),
-      hash: async () => '',
+      hash: (sessionId: string, remotePath: string, maxBytes?: number) =>
+        invoke<string>('sftp_hash', { sessionId, remotePath, maxBytes: maxBytes ?? null }),
       cancel: async () => false,
       transfer: (
         sessionId: string,
@@ -176,10 +177,11 @@ export async function installTauriBridge(): Promise<void> {
       restore: (token: string) => invoke<boolean>('local_fs_restore', { token }),
       reveal: (target: string) => invoke<boolean>('local_fs_reveal', { target }),
       open: (target: string) => invoke<string>('local_fs_open', { target }),
-      hash: async () => '',
+      hash: (target: string, maxBytes?: number) =>
+        invoke<string>('local_fs_hash', { target, maxBytes: maxBytes ?? null }),
       readText: (target: string, maxBytes?: number) =>
         invoke('local_fs_read_text', { target, maxBytes: maxBytes ?? null }),
-      detectKeyKind: async () => 'unknown',
+      detectKeyKind: (target: string) => invoke<string>('local_fs_detect_key_kind', { target }),
       pickPrivateKey: () => invoke<string | null>('pick_private_key'),
       pickCertificate: () => invoke<string | null>('pick_certificate')
     },
@@ -294,6 +296,15 @@ export async function installTauriBridge(): Promise<void> {
         invoke('core_memory_set_cite_hold', { sessionKey, markers }),
       compress: (sessionKey: string, piece: string, cursor?: string) =>
         invoke('core_memory_compress', { sessionKey, piece, cursor: cursor ?? null }),
+
+      compactTurns: (sessionKey: string, turns: unknown[], maxTurns?: number) =>
+        invoke('core_memory_compact_turns', {
+          sessionKey,
+          turns,
+          maxTurns: maxTurns ?? null
+        }),
+      recall: (sessionKey: string, query: string, topK?: number) =>
+        invoke('core_memory_recall', { sessionKey, query, topK: topK ?? null }),
     },
     terminal: {
       getPrefs: async () => {
@@ -324,6 +335,23 @@ export async function installTauriBridge(): Promise<void> {
       testProvider: (provider: unknown) => invoke('ai_test_provider', { provider }),
       resolveConfirm: (requestId: string, ok: boolean) =>
         invoke('ai_resolve_confirm', { requestId, ok }),
+      /** Electron alias used by AIPanel confirm buttons */
+      confirmStep: (requestId: string, ok: boolean) =>
+        invoke('ai_resolve_confirm', { requestId, ok }),
+      /** Electron alias — parse SSH paste into form fields */
+      parseSshForm: (rawText: string) => invoke('ai_parse_ssh', { text: rawText }),
+      /** Protection registry (Electron); Tauri no-ops until wired */
+      setSessionProtection: (_sessionId: string, _protection: unknown) => {},
+      /** Working-memory goal for AI panel header (Electron ai:workingMemory:get) */
+      getWorkingMemory: async (key: string) => {
+        try {
+          const row = await invoke<any>('core_memory_get', { sessionKey: key })
+          const goal = row?.workingMemory?.goal
+          return typeof goal === 'string' && goal.trim() ? goal : null
+        } catch {
+          return null
+        }
+      },
       getChatHistory: async (key: string) => {
         const all = (await invoke<any>('store_get', { path: ['aiChatHistory'] })) || {}
         return Array.isArray(all[key]) ? all[key] : []
@@ -386,15 +414,17 @@ export async function installTauriBridge(): Promise<void> {
       ping: async () => null,
       probeHosts: async () => [],
       batchExec: (payload: unknown) => invoke('workspace_batch_exec', { payload }),
-      resources: async () => ({ at: Date.now() }),
+      resources: (sessionId: string) => invoke('workspace_resources', { sessionId }),
       healthProbe: (payload: unknown) => invoke('workspace_health_probe', { payload }),
-      healthProbeSweep: () => invoke('workspace_health_probe_sweep'),
-      healthProbeRelease: () => invoke('workspace_health_probe_release'),
+      healthProbeSweep: (idleMs?: number) =>
+        invoke('workspace_health_probe_sweep', { idleMs: idleMs ?? null }),
+      healthProbeRelease: (profileId?: string) =>
+        invoke('workspace_health_probe_release', { profileId: profileId ?? null }),
       forwards: {
         list: (sessionId?: string) =>
           invoke('forwards_list', { sessionId: sessionId ?? null }),
         add: (req: unknown) => invoke('forwards_add', { req }),
-        restore: async () => ({ ok: false, restored: [], skipped: [] }),
+        restore: (payload: unknown) => invoke('forwards_restore', { payload }),
         remove: (id: string) => invoke<boolean>('forwards_remove', { id })
       },
       commandHistory: {
