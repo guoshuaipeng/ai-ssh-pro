@@ -147,3 +147,122 @@ pub fn public_key_wire_bytes(key: &russh::keys::PublicKey) -> Result<Vec<u8>, St
 pub fn algorithm_name(key: &russh::keys::PublicKey) -> String {
     key.algorithm().to_string()
 }
+
+
+/// Parse plain (non-hashed) OpenSSH known_hosts text into import preview rows.
+pub fn build_import_preview(text: &str, source_path: Option<String>, store: &KnownHostsStore) -> Value {
+    use serde_json::json;
+    let existing = store.list();
+    let mut rows = Vec::new();
+    let mut skipped_hashed = 0usize;
+    let mut skipped_other = 0usize;
+    let mut hashed_samples: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for raw_line in text.split('\n') {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            skipped_other += 1;
+            continue;
+        }
+        if line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('@') {
+            skipped_other += 1;
+            continue;
+        }
+        let bits: Vec<&str> = line.split_whitespace().collect();
+        if bits.len() < 3 {
+            skipped_other += 1;
+            continue;
+        }
+        let names_field = bits[0];
+        let key_type = bits[1];
+        let host_key_b64 = bits[2];
+        if names_field.starts_with('|')
+            || names_field.split(',').any(|p| p.trim().starts_with('|'))
+        {
+            skipped_hashed += 1;
+            if hashed_samples.len() < 8 {
+                let sample = if line.chars().count() > 96 {
+                    format!("{}…", line.chars().take(96).collect::<String>())
+                } else {
+                    line.to_string()
+                };
+                hashed_samples.push(sample);
+            }
+            continue;
+        }
+        if !host_key_b64
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')
+            || host_key_b64.len() < 32
+        {
+            skipped_other += 1;
+            continue;
+        }
+        for name_token in names_field.split(',') {
+            let token = name_token.trim();
+            if token.is_empty() {
+                continue;
+            }
+            let (host, port) = parse_known_host_name(token);
+            let dedupe = format!("{host}:{port}|{key_type}|{host_key_b64}");
+            if !seen.insert(dedupe) {
+                continue;
+            }
+            let host_port = format!("{}:{}", host.to_lowercase(), port);
+            let existing_entry = existing.iter().find(|e| e.host_port == host_port);
+            let action = match existing_entry {
+                None => "add",
+                Some(e) if e.host_key_base64 == host_key_b64 => "skip",
+                Some(_) => "update",
+            };
+            let fingerprint = match B64.decode(host_key_b64) {
+                Ok(bytes) => KnownHostsStore::fingerprint_sha256(&bytes),
+                Err(_) => "SHA256:?".into(),
+            };
+            rows.push(json!({
+                "host": host,
+                "port": port,
+                "keyType": key_type,
+                "hostKeyBase64": host_key_b64,
+                "action": action,
+                "fingerprint": fingerprint,
+                "selectedDefault": action == "add" || action == "update",
+            }));
+        }
+    }
+
+    json!({
+        "rows": rows,
+        "skippedHashed": skipped_hashed,
+        "skippedOther": skipped_other,
+        "skippedHashedSamples": hashed_samples,
+        "sourcePath": source_path,
+    })
+}
+
+fn parse_known_host_name(token: &str) -> (String, u16) {
+    // [host]:port or host
+    if let Some(rest) = token.strip_prefix('[') {
+        if let Some(end) = rest.find(']') {
+            let host = rest[..end].to_string();
+            let port = rest[end + 1..]
+                .strip_prefix(':')
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(22);
+            return (host, port);
+        }
+    }
+    if let Some((h, p)) = token.rsplit_once(':') {
+        if let Ok(port) = p.parse::<u16>() {
+            // avoid treating IPv6 without brackets as host:port wrongly — only if host has no other colons
+            if !h.contains(':') {
+                return (h.to_string(), port);
+            }
+        }
+    }
+    (token.to_string(), 22)
+}

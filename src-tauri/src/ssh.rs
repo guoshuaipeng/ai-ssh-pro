@@ -469,6 +469,7 @@ impl SshManager {
                                 ring.drain(..keep);
                             }
                         }
+                        crate::recording::append_global(&sid, &chunk);
                         let _ = app2.emit(
                             "ssh:data",
                             SshDataEvent {
@@ -479,6 +480,7 @@ impl SshManager {
                     }
                     Some(ChannelMsg::ExtendedData { ref data, .. }) => {
                         let chunk = String::from_utf8_lossy(data).to_string();
+                        crate::recording::append_global(&sid, &chunk);
                         let _ = app2.emit(
                             "ssh:data",
                             SshDataEvent {

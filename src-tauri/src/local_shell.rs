@@ -125,6 +125,7 @@ impl LocalShellManager {
                                 ring.drain(..keep);
                             }
                         }
+                        crate::recording::append_global(&sid, &chunk);
                         let _ = app2.emit(
                             "ssh:data",
                             SshDataEvent {

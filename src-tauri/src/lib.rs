@@ -1,9 +1,13 @@
 mod ai;
+mod backup;
+mod dialogs;
+mod docker;
 mod forward;
 mod hostkey;
 mod import_electron;
 mod known_hosts;
 mod local_shell;
+mod recording;
 mod ssh;
 mod store;
 
@@ -25,6 +29,7 @@ pub struct AppState {
     pub waiters: Arc<HostKeyWaiters>,
     pub forwards: Arc<ForwardManager>,
     pub ai: ai::SharedAi,
+    pub recordings: recording::SharedRecordings,
 }
 
 impl AppState {
@@ -33,6 +38,8 @@ impl AppState {
         let waiters = Arc::new(HostKeyWaiters::new());
         let forwards = Arc::new(ForwardManager::new());
         let remote_routes = Arc::new(crate::forward::RemoteForwardRouter::new());
+        let recordings = Arc::new(recording::RecordingRegistry::new());
+        recording::set_global(recordings.clone());
         Self {
             ssh: Arc::new(ssh::SshManager::new(
                 known.clone(),
@@ -46,6 +53,7 @@ impl AppState {
             waiters,
             forwards,
             ai: Arc::new(ai::AiRuntime::new()),
+            recordings,
         }
     }
 }
@@ -567,6 +575,193 @@ fn electron_store_import(state: State<'_, AppState>) -> Result<Value, String> {
 }
 
 #[tauri::command]
+async fn docker_list_tree(state: State<'_, AppState>, session_id: String) -> Result<Value, String> {
+    docker::list_tree(&state.ssh, &session_id)
+        .await
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+async fn docker_container_action(
+    state: State<'_, AppState>,
+    session_id: String,
+    container_id: String,
+    action: String,
+) -> Result<bool, String> {
+    docker::container_action(&state.ssh, &session_id, &container_id, &action)
+        .await
+        .map_err(|e| format!("{:#}", e))?;
+    Ok(true)
+}
+
+#[tauri::command]
+async fn docker_logs(
+    state: State<'_, AppState>,
+    session_id: String,
+    container_id: String,
+    tail: Option<u32>,
+) -> Result<String, String> {
+    docker::container_logs(&state.ssh, &session_id, &container_id, tail)
+        .await
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+async fn docker_inspect(
+    state: State<'_, AppState>,
+    session_id: String,
+    container_id: String,
+) -> Result<Value, String> {
+    docker::inspect_container(&state.ssh, &session_id, &container_id)
+        .await
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+async fn docker_compose_ps(
+    state: State<'_, AppState>,
+    session_id: String,
+    project: String,
+) -> Result<Value, String> {
+    docker::compose_ps(&state.ssh, &session_id, &project)
+        .await
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+async fn docker_compose_action(
+    state: State<'_, AppState>,
+    session_id: String,
+    project: String,
+    action: String,
+) -> Result<bool, String> {
+    docker::compose_action(&state.ssh, &session_id, &project, &action)
+        .await
+        .map_err(|e| format!("{:#}", e))?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn backup_export(app: tauri::AppHandle, state: State<'_, AppState>, raw: Value) -> Value {
+    let password = raw
+        .get("password")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let include_ai = raw
+        .get("includeAi")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let store = state.store.lock();
+    backup::export_backup(&app, &store, &password, include_ai)
+}
+
+#[tauri::command]
+fn backup_import(app: tauri::AppHandle, state: State<'_, AppState>, raw: Value) -> Value {
+    let password = raw
+        .get("password")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let mut store = state.store.lock();
+    backup::import_backup(&app, &mut store, &password)
+}
+
+#[tauri::command]
+fn ssh_start_recording(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    session_id: String,
+    opts: Option<Value>,
+) -> Result<Option<String>, String> {
+    recording::start_recording_cmd(&app, &state.recordings, &session_id, opts.as_ref())
+}
+
+#[tauri::command]
+fn ssh_stop_recording(state: State<'_, AppState>, session_id: String) -> bool {
+    state.recordings.stop(&session_id)
+}
+
+#[tauri::command]
+fn recordings_list() -> Value {
+    recording::list_recordings()
+}
+
+#[tauri::command]
+fn recordings_read(file: String) -> Result<String, String> {
+    recording::read_recording(&file)
+}
+
+#[tauri::command]
+fn recordings_delete(file: String) -> Result<bool, String> {
+    recording::delete_recording(&file)
+}
+
+#[tauri::command]
+async fn ai_assist(state: State<'_, AppState>, req: Value) -> Result<Value, String> {
+    let settings_val = {
+        let store = state.store.lock();
+        store::get_path(&store, &["ai"])
+    };
+    let settings: ai::AiSettings =
+        serde_json::from_value(settings_val).map_err(|e| e.to_string())?;
+    Ok(state.ai.assist(settings, req).await)
+}
+
+#[tauri::command]
+fn ai_abort_assist(state: State<'_, AppState>, request_id: Option<String>) {
+    if let Some(id) = request_id {
+        state.ai.abort_assist(&id);
+    }
+}
+
+#[tauri::command]
+async fn ai_parse_ssh(state: State<'_, AppState>, text: String) -> Result<Value, String> {
+    let settings_val = {
+        let store = state.store.lock();
+        store::get_path(&store, &["ai"])
+    };
+    let settings: ai::AiSettings =
+        serde_json::from_value(settings_val).map_err(|e| e.to_string())?;
+    state
+        .ai
+        .parse_ssh(settings, text)
+        .await
+        .map_err(|e| format!("{:#}", e))
+}
+
+#[tauri::command]
+fn sftp_pick_download_path(app: tauri::AppHandle, default_name: Option<String>) -> Option<String> {
+    dialogs::sftp_pick_download_path(&app, default_name)
+}
+
+#[tauri::command]
+fn sftp_pick_upload_files(app: tauri::AppHandle) -> Option<Vec<String>> {
+    dialogs::sftp_pick_upload_files(&app)
+}
+
+#[tauri::command]
+fn sftp_pick_save_paths(app: tauri::AppHandle, names: Vec<String>) -> Option<Vec<String>> {
+    dialogs::sftp_pick_save_paths(&app, names)
+}
+
+#[tauri::command]
+fn sftp_queue_load() -> Value {
+    dialogs::sftp_queue_load()
+}
+
+#[tauri::command]
+fn sftp_queue_save(tasks: Value) -> Value {
+    dialogs::sftp_queue_save(tasks)
+}
+
+#[tauri::command]
+fn known_hosts_pick_import(app: tauri::AppHandle, state: State<'_, AppState>) -> Option<Value> {
+    dialogs::known_hosts_pick_import(&app, &state.known)
+}
+
+
+#[tauri::command]
 fn stub_ok() -> bool {
     true
 }
@@ -641,6 +836,28 @@ pub fn run() {
             forwards_remove,
             electron_store_discover,
             electron_store_import,
+            docker_list_tree,
+            docker_container_action,
+            docker_logs,
+            docker_inspect,
+            docker_compose_ps,
+            docker_compose_action,
+            backup_export,
+            backup_import,
+            ssh_start_recording,
+            ssh_stop_recording,
+            recordings_list,
+            recordings_read,
+            recordings_delete,
+            ai_assist,
+            ai_abort_assist,
+            ai_parse_ssh,
+            sftp_pick_download_path,
+            sftp_pick_upload_files,
+            sftp_pick_save_paths,
+            sftp_queue_load,
+            sftp_queue_save,
+            known_hosts_pick_import,
             stub_ok,
             stub_null,
             stub_empty_array,

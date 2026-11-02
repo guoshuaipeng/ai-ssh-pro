@@ -1,7 +1,7 @@
 /**
  * Tauri bridge: exposes window.aiss with the same shape as Electron preload.
  * Real: SSH connect/write/resize/exec, sessions store, app helpers.
- * Stubs: Docker/OpenClaw Agent/recording/backup — return safe empty values.
+ * Stubs remain for OpenClaw Agent / swarm watch / cloud sync / updater.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -69,8 +69,9 @@ export async function installTauriBridge(): Promise<void> {
       respondHostKey: (payload: unknown) => invoke<boolean>('ssh_respond_host_key', { payload }),
       openLocalShell: (opts?: unknown) => invoke('ssh_open_local_shell', { opts: opts ?? null }),
       isLocalShellAvailable: () => invoke<boolean>('ssh_is_local_shell_available'),
-      startRecording: async () => null,
-      stopRecording: async () => false,
+      startRecording: (sessionId: string, opts?: unknown) =>
+        invoke<string | null>('ssh_start_recording', { sessionId, opts: opts ?? null }),
+      stopRecording: (sessionId: string) => invoke<boolean>('ssh_stop_recording', { sessionId }),
       setShellIntegration: async () => true,
       exec: (sessionId: string, command: string, timeoutMs?: number) =>
         invoke('ssh_exec', { sessionId, command, timeoutMs: timeoutMs ?? null }),
@@ -123,9 +124,10 @@ export async function installTauriBridge(): Promise<void> {
         invoke('sftp_read_text', { sessionId, remotePath, maxBytes: maxBytes ?? null }),
       writeText: (sessionId: string, remotePath: string, content: string) =>
         invoke('sftp_write_text', { sessionId, remotePath, content }),
-      pickDownloadPath: async () => null,
-      pickUploadFiles: async () => null,
-      pickSavePaths: async () => null,
+      pickDownloadPath: (defaultName?: string) =>
+        invoke<string | null>('sftp_pick_download_path', { defaultName: defaultName ?? null }),
+      pickUploadFiles: () => invoke<string[] | null>('sftp_pick_upload_files'),
+      pickSavePaths: (names: string[]) => invoke<string[] | null>('sftp_pick_save_paths', { names }),
       onProgress: (cb: AnyFn) =>
         unsubListen(
           listen('sftp:progress', (e) => {
@@ -137,8 +139,8 @@ export async function installTauriBridge(): Promise<void> {
       hash: async () => '',
       cancel: async () => false,
       transfer: () => notImpl('sftp.transfer'),
-      queueLoad: async () => [],
-      queueSave: async (tasks: unknown) => tasks
+      queueLoad: () => invoke('sftp_queue_load'),
+      queueSave: (tasks: unknown) => invoke('sftp_queue_save', { tasks })
     },
     localFs: {
       home: async () => '',
@@ -160,25 +162,30 @@ export async function installTauriBridge(): Promise<void> {
     knownHosts: {
       list: () => invoke('known_hosts_list'),
       remove: (hostPort: string) => invoke<boolean>('known_hosts_remove', { hostPort }),
-      pickImport: async () => null,
+      pickImport: () => invoke('known_hosts_pick_import'),
       applyImport: (rows: unknown) => invoke('known_hosts_apply_import', { rows }),
       listLocalKeys: async () => ({ dir: '', keys: [] }),
       openSshDir: async () => false,
       lookupHost: async () => ({ ok: false, query: '', file: '', matches: [] })
     },
     docker: {
-      listTree: async () => ({ containers: [], compose: [], swarm: [], error: 'not implemented' }),
+      listTree: (sessionId: string) => invoke('docker_list_tree', { sessionId }),
       watchEvents: async () => false,
       unwatchEvents: async () => false,
       onChanged: (_cb: AnyFn) => () => {},
-      containerAction: async () => false,
-      inspect: () => notImpl('docker.inspect'),
-      logs: async () => '',
+      containerAction: (sessionId: string, containerId: string, action: string) =>
+        invoke<boolean>('docker_container_action', { sessionId, containerId, action }),
+      inspect: (sessionId: string, containerId: string) =>
+        invoke('docker_inspect', { sessionId, containerId }),
+      logs: (sessionId: string, containerId: string, tail?: number) =>
+        invoke<string>('docker_logs', { sessionId, containerId, tail: tail ?? null }),
       swarmInspect: () => notImpl('docker.swarmInspect'),
       swarmLogs: async () => '',
       swarmAction: async () => false,
-      composePs: async () => ({ services: [], error: 'not implemented' }),
-      composeAction: async () => false,
+      composePs: (sessionId: string, project: string) =>
+        invoke('docker_compose_ps', { sessionId, project }),
+      composeAction: (sessionId: string, project: string, action: string) =>
+        invoke<boolean>('docker_compose_action', { sessionId, project, action }),
       openShell: () => notImpl('docker.openShell')
     },
     fs: {
@@ -233,9 +240,11 @@ export async function installTauriBridge(): Promise<void> {
       abortChat: async () => {
         await invoke('ai_abort_chat')
       },
-      parseSsh: () => notImpl('ai.parseSsh'),
-      assist: () => notImpl('ai.assist'),
-      abortAssist: async () => {},
+      parseSsh: (text: string) => invoke('ai_parse_ssh', { text }),
+      assist: (req: unknown) => invoke('ai_assist', { req }),
+      abortAssist: async (requestId?: string) => {
+        await invoke('ai_abort_assist', { requestId: requestId ?? null })
+      },
       testProvider: (provider: unknown) => invoke('ai_test_provider', { provider }),
       resolveConfirm: async () => {},
       getChatHistory: async (key: string) => {
@@ -291,8 +300,8 @@ export async function installTauriBridge(): Promise<void> {
       logs: async () => ({ text: '', code: null, at: Date.now() })
     },
     backup: {
-      export: () => notImpl('backup.export'),
-      import: () => notImpl('backup.import')
+      export: (raw: unknown) => invoke('backup_export', { raw }),
+      import: (raw: unknown) => invoke('backup_import', { raw })
     },
     workspace: {
       ping: async () => null,
@@ -357,9 +366,9 @@ export async function installTauriBridge(): Promise<void> {
       }
     },
     recordings: {
-      list: async () => [],
-      read: async () => '',
-      delete: async () => false
+      list: () => invoke('recordings_list'),
+      read: (file: string) => invoke<string>('recordings_read', { file }),
+      delete: (file: string) => invoke<boolean>('recordings_delete', { file })
     },
     sync: {
       getConfig: async () => null,

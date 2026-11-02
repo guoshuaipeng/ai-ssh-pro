@@ -56,6 +56,7 @@ dependencies = [
 name = "ai-ssh-pro"
 version = "0.7.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "async-trait",
  "base64 0.22.1",
@@ -65,9 +66,11 @@ dependencies = [
  "futures",
  "parking_lot",
  "portable-pty",
+ "rand 0.8.8",
  "reqwest 0.12.28",
  "russh",
  "russh-sftp",
+ "scrypt",
  "serde",
  "serde_json",
  "sha2",
@@ -4299,6 +4302,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0516a385866c09368f0b5bcd1caff3366aace790fcd46e2bb032697bb172fd1f"
 dependencies = [
+ "password-hash",
  "pbkdf2",
  "salsa20",
  "sha2",
