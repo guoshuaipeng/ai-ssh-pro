@@ -102,11 +102,10 @@ npm run build:tauri
 
 ## 尚未移植（缺口）（Tauri-only 产品）
 
-- OpenClaw：**向量 embedding 召回**仍缺（Round-9 已上 extractive `compactTurns` + keyword `recall`；无 embedding 模型）
-- OpenClaw：与 Electron 同构的 cite scrub / compact **测试覆盖**仍缺
-- 第三方导入：部分私有加密格式 / 未导出会话仍可能解析不到（Xshell `.xsh` / PuTTY `.reg` / Moba / SecureCRT / FinalShell 主路径已接）
-- 云同步：OAuth 浏览器登录、真正到点自动 push/pull（骨架只发 tick；**实网仍卡用户 token/口令**）
-- **真实自动安装更新**（**卡在用户代码签名证书** + `tauri-plugin-updater` 发布端点；当前仅 check，`installDeferred: true`）
+- OpenClaw：**远程向量 embedding 服务**仍不接（Round-10 用本地 char-trigram + RRF 作 embedding 槽位；可换真 embedding ranks 而不改 prompt）
+- 第三方导入：厂商**专有加密库**仍不解密（已给清晰 notes；请导出明文 / OpenSSH config）
+- 云同步：OAuth 浏览器登录、真正到点自动 push/pull（骨架只发 tick；**实网仍卡用户 token/口令**；Round-10 **只文档，不假装**）
+- **真实自动安装更新**（**卡在用户代码签名证书** + `tauri-plugin-updater` 发布端点；当前仅 check，`installDeferred: true`；Round-10 **只文档，不假装**）
 - known_hosts：**无法**对 `|1|…` 哈希行做反向解哈希整文件导入（只能主机名列表 + `ssh-keygen -F` 批量解析后导入）
 - SSH agent forward / jump 续跳 **实机验证**依赖本机 Agent、跳板可达性与用户密钥
 - Electron 打包：**不再作为产品主路径**（`dev:electron` / `dist:electron` 仅对照）
@@ -115,12 +114,21 @@ npm run build:tauri
 
 | 产物 | 大小 | 备注 |
 |---|---|---|
-| `ai-ssh-pro.exe`（release） | **8.08 MB** (8474112) | Round-9 + 无边框窗控 |
-| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **3.33 MB** (3494783) | |
-| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **4.33 MB** (4538368) | |
+| `ai-ssh-pro.exe`（release） | **8.11 MB** (8508928) | Round-10 |
+| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **3.34 MB** (3505009) | |
+| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **4.34 MB** (4554752) | |
 
 对比：Electron ~169 MB / slim ~82 MB。**仍远低于 20 MB**。
 
+
+### Round-10 变更摘要
+
+- **OpenClaw cite scrub / compact**：`CiteWindow` 对齐 outsideHeadTail + droppedFiller；compact 时 scrub fillers；`applyCiteScrub` 命令
+- **召回增强**：keyword + Jaccard overlap + **本地 char-trigram** ranks，RRF 融合（无远程 embedding）
+- **单测**：`core_memory::tests` 5 项（scrub / rare markers / recall topK·相关性 / compact scrub）
+- **会话导入边角**：加密/受保护 Xshell·Moba·FinalShell·SecureCRT·PuTTY 口令字段 → 明确中文 notes，不假装解密
+- **桥安全**：`installTauriBridge` 末尾兜底 `getWorkingMemory` / `confirmStep` / `parseSshForm` / `setSessionProtection`，防再黑屏
+- **云同步 / 签名 updater**：仍仅文档；不假装已实网 OAuth 或自动安装
 
 ### Round-9 变更摘要
 

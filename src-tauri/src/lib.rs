@@ -1859,6 +1859,11 @@ fn core_memory_recall(session_key: String, query: String, top_k: Option<usize>) 
     core_memory::recall_episodes(&session_key, &query, top_k)
 }
 
+#[tauri::command]
+fn core_memory_apply_cite_scrub(session_key: String, text: String) -> Value {
+    core_memory::apply_cite_scrub(&session_key, &text)
+}
+
 
 #[tauri::command]
 fn stub_not_implemented(feature: String) -> Result<Value, String> {
@@ -2064,6 +2069,7 @@ pub fn run() {
             sftp_hash,
             core_memory_compact_turns,
             core_memory_recall,
+            core_memory_apply_cite_scrub,
             stub_ok,
             stub_null,
             stub_empty_array,

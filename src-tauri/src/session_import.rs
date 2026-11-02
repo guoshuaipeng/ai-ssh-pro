@@ -88,6 +88,25 @@ fn parse_port(raw: Option<&str>, fallback: u16) -> u16 {
         .unwrap_or(fallback)
 }
 
+
+fn looks_encrypted_blob(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    lower.contains("encrypted")
+        || lower.contains("cipher")
+        || lower.contains("aes")
+        || lower.contains("passwordhash")
+        || lower.contains("masterpassword")
+        || lower.contains("encrypt")
+        || lower.contains("isencrypt")
+        || text.contains("-----BEGIN PGP")
+}
+
+fn note_encrypted(base: &str, kind: &str, notes: &mut Vec<String>) {
+    notes.push(format!(
+        "{base}：检测到{kind}加密/受保护内容，本机导入不会解密口令或私钥密文；请导出为明文会话/OpenSSH config，或导入后手动填写认证信息"
+    ));
+}
+
 fn draft(label: &str, host: &str, port: u16, username: &str) -> Value {
     json!({
         "label": label.chars().take(80).collect::<String>(),
@@ -611,6 +630,9 @@ pub fn import_session_files(paths: &[PathBuf]) -> Value {
         let text = decode_text_file(&buf);
 
         if ext == "mxtsessions" || looks_like_moba(&text) {
+            if looks_encrypted_blob(&text) {
+                note_encrypted(&base, "MobaXterm", &mut notes);
+            }
             let drafts = parse_moba(&text);
             if drafts.is_empty() {
                 notes.push(format!("{base}：未解析到 MobaXterm SSH 书签"));
@@ -622,6 +644,12 @@ pub fn import_session_files(paths: &[PathBuf]) -> Value {
         }
 
         if ext == "json" || looks_like_finalshell(&text) {
+            if looks_encrypted_blob(&text)
+                || text.contains("ENC(")
+                || text.to_ascii_lowercase().contains("\"encrypt\":true")
+            {
+                note_encrypted(&base, "FinalShell/JSON", &mut notes);
+            }
             let drafts = parse_finalshell(&text);
             if !drafts.is_empty() {
                 notes.push(format!("{base}：自 FinalShell 解析 {} 条", drafts.len()));
@@ -644,6 +672,9 @@ pub fn import_session_files(paths: &[PathBuf]) -> Value {
 
         if looks_like_securecrt(&text) {
             let stem = fp.file_stem().and_then(|s| s.to_str()).unwrap_or("session");
+            if looks_encrypted_blob(&text) || text.to_ascii_lowercase().contains("v2password") {
+                note_encrypted(&base, "SecureCRT", &mut notes);
+            }
             if let Some(one) = parse_securecrt(stem, &text) {
                 items.push(one);
                 notes.push(format!("{base}：自 SecureCRT 会话解析 1 条"));
@@ -654,6 +685,12 @@ pub fn import_session_files(paths: &[PathBuf]) -> Value {
         }
 
         if ext == "xsh" {
+            if looks_encrypted_blob(&text)
+                || text.to_ascii_lowercase().contains("password=!")
+                || text.to_ascii_lowercase().contains("encrypt=")
+            {
+                note_encrypted(&base, "Xshell", &mut notes);
+            }
             if let Some(one) = parse_xsh(fp, &text) {
                 items.push(one);
             } else {
@@ -663,6 +700,12 @@ pub fn import_session_files(paths: &[PathBuf]) -> Value {
         }
 
         if ext == "reg" || looks_like_putty_reg(&text) {
+            if text.contains("ProxyPassword") || text.to_ascii_lowercase().contains("password") {
+                // note: does not decrypt; user must re-enter secrets
+                notes.push(format!(
+                    "{base}：PuTTY 导出可能含代理/会话口令字段；本机不会还原密文口令，请确认认证方式"
+                ));
+            }
             let (drafts, putty_notes) = parse_putty_reg(&text, &base);
             notes.extend(putty_notes);
             if drafts.is_empty() {
@@ -711,9 +754,13 @@ pub fn import_session_files(paths: &[PathBuf]) -> Value {
             continue;
         }
 
-        notes.push(format!(
-            "{base}：非 .xsh / PuTTY，且未识别为 SSH config（需含 Host … 块）"
-        ));
+        if looks_encrypted_blob(&text) {
+            note_encrypted(&base, "未知私有", &mut notes);
+        } else {
+            notes.push(format!(
+                "{base}：无法识别的会话格式（支持：Xshell .xsh / PuTTY .reg·会话 / MobaXterm .mxtsessions / SecureCRT / FinalShell JSON / OpenSSH config）。若为厂商加密库，请先在原软件导出明文或 OpenSSH config"
+            ));
+        }
     }
     let before = items.len();
     let merged = merge_unique(items);

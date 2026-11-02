@@ -305,6 +305,8 @@ export async function installTauriBridge(): Promise<void> {
         }),
       recall: (sessionKey: string, query: string, topK?: number) =>
         invoke('core_memory_recall', { sessionKey, query, topK: topK ?? null }),
+      applyCiteScrub: (sessionKey: string, text: string) =>
+        invoke('core_memory_apply_cite_scrub', { sessionKey, text }),
     },
     terminal: {
       getPrefs: async () => {
@@ -534,6 +536,26 @@ export async function installTauriBridge(): Promise<void> {
     /* ignore */
   }
 
-  ;(window as any).aiss = api
+  ;
+  // Round-10: never leave AI panel mount paths as undefined (black-screen class of bugs)
+  const ai = api.ai || (api.ai = {})
+  if (typeof ai.getWorkingMemory !== 'function') {
+    ai.getWorkingMemory = async () => null
+  }
+  if (typeof ai.confirmStep !== 'function' && typeof ai.resolveConfirm === 'function') {
+    ai.confirmStep = ai.resolveConfirm.bind(ai)
+  }
+  if (typeof ai.confirmStep !== 'function') {
+    ai.confirmStep = async () => false
+  }
+  if (typeof ai.setSessionProtection !== 'function') {
+    ai.setSessionProtection = () => {}
+  }
+  if (typeof ai.parseSshForm !== 'function') {
+    ai.parseSshForm = (raw: string) =>
+      typeof ai.parseSsh === 'function' ? ai.parseSsh(raw) : Promise.resolve({ ok: false })
+  }
+
+  (window as any).aiss = api
   console.warn('[tauri-bridge] window.aiss installed')
 }
