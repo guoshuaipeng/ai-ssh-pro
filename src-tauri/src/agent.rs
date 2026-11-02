@@ -298,6 +298,26 @@ impl AgentRuntime {
                         crate::core_memory::archive_goal(key, &goal);
                         "archived".into()
                     }
+                    "memory_observe" => {
+                        let key = args
+                            .get("sessionKey")
+                            .or_else(|| args.get("key"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("default");
+                        let mut texts = Vec::new();
+                        if let Some(arr) = args.get("texts").and_then(|v| v.as_array()) {
+                            for v in arr {
+                                if let Some(s) = v.as_str() {
+                                    texts.push(s.to_string());
+                                }
+                            }
+                        } else if let Some(s) = args.get("text").and_then(|v| v.as_str()) {
+                            texts.push(s.to_string());
+                        }
+                        serde_json::to_string(&crate::core_memory::append_observations(key, texts))
+                            .unwrap_or_else(|_| "[]".into())
+                    }
+                    "memory_list_threads" => crate::core_memory::list_threads().to_string(),
                     other => format!("unknown tool: {other}"),
                 };
                 messages.push(json!({
@@ -414,7 +434,7 @@ impl AgentRuntime {
 
 const SYSTEM_PROMPT: &str = r#"你是运维/开发助手（OpenClaw Core-A 最小闭环）。每一轮只决定下一步，输出单个 JSON 对象，不要 Markdown：
 {"action":"tool_call"|"command"|"end","tool":"...","args":{...},"command":"...","message":"...","risk":"safe"|"caution"|"danger","completed":false}
-可用 tool：get_terminal_snapshot；inventory_search/get/context/append_note；memory_get/context/set_goal/archive_goal（HITL 归档）。
+可用 tool：get_terminal_snapshot；inventory_search/get/context/append_note；memory_get/context/set_goal/archive_goal/observe/list_threads（多线程+观测记忆）。
 规则：优先只读；destructive 命令须 danger；任务完成时先 memory_archive_goal 再 action=end 且 completed=true。用简体中文。"#;
 
 pub type SharedAgent = Arc<AgentRuntime>;

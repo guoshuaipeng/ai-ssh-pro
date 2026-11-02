@@ -22,7 +22,8 @@
     "dev:web": "vite --config vite.config.tauri.ts",
     "build:web": "vite build --config vite.config.tauri.ts && node scripts/rename-tauri-index.mjs",
     "dev:tauri": "tauri dev",
-    "build:tauri": "tauri build"
+    "build:tauri": "tauri build && C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-desktop-shortcut.ps1",
+    "shortcut:tauri": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-desktop-shortcut.ps1"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

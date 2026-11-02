@@ -103,3 +103,29 @@ pub fn sftp_queue_save(tasks: Value) -> Value {
 fn _is_file(p: &Path) -> bool {
     p.is_file()
 }
+
+
+pub fn pick_private_key(app: &AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("SSH private key", &["", "pem", "key"])
+        .blocking_pick_file()
+        .and_then(path_str)
+}
+
+pub fn pick_certificate(app: &AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("Certificate", &["crt", "pem", "cer", "pub"])
+        .blocking_pick_file()
+        .and_then(path_str)
+}
+
+pub fn pick_save_text(app: &AppHandle, default_name: Option<String>) -> Option<String> {
+    let name = default_name.unwrap_or_else(|| "export.txt".into());
+    app.dialog()
+        .file()
+        .set_file_name(name)
+        .blocking_save_file()
+        .and_then(path_str)
+}

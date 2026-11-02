@@ -1,4 +1,4 @@
-//! Minimal Core-A thread memory: notes + task summaries + working goal (HITL archive).
+//! Core-A thread memory: notes, task summaries, working goal, observational bullets, multi-thread.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -8,11 +8,22 @@ use std::sync::Mutex;
 
 use crate::store;
 
+const MAX_OBS: usize = 40;
+const MAX_OBS_CHARS: usize = 180;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkingMemory {
     pub goal: String,
     pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservationBullet {
+    pub id: String,
+    pub text: String,
+    pub created_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -21,6 +32,10 @@ pub struct ThreadRecord {
     pub notes: Vec<String>,
     pub task_summaries: Vec<String>,
     pub working_memory: Option<WorkingMemory>,
+    #[serde(default)]
+    pub observational_memory: Vec<ObservationBullet>,
+    #[serde(default)]
+    pub epoch: u64,
     pub updated_at: i64,
 }
 
@@ -68,10 +83,7 @@ fn normalize_key(key: &str) -> String {
 pub fn format_archived_goal(goal: &str) -> (String, String) {
     let g: String = goal.chars().take(180).collect();
     let g = g.trim();
-    (
-        format!("archived-goal: {g}"),
-        format!("[done] {g}"),
-    )
+    (format!("archived-goal: {g}"), format!("[done] {g}"))
 }
 
 pub fn get_thread(session_key: &str) -> ThreadRecord {
@@ -80,6 +92,47 @@ pub fn get_thread(session_key: &str) -> ThreadRecord {
         map.get(&normalize_key(session_key))
             .cloned()
             .unwrap_or_default()
+    })
+}
+
+pub fn list_threads() -> Value {
+    lazy_static_like::with(|| {
+        let map = load_all();
+        let mut rows: Vec<Value> = map
+            .iter()
+            .map(|(k, v)| {
+                json!({
+                    "sessionKey": k,
+                    "updatedAt": v.updated_at,
+                    "epoch": v.epoch,
+                    "goal": v.working_memory.as_ref().map(|w| w.goal.clone()).unwrap_or_default(),
+                    "notes": v.notes.len(),
+                    "observations": v.observational_memory.len(),
+                    "taskSummaries": v.task_summaries.len(),
+                })
+            })
+            .collect();
+        rows.sort_by(|a, b| {
+            b.get("updatedAt")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0)
+                .cmp(&a.get("updatedAt").and_then(|v| v.as_i64()).unwrap_or(0))
+        });
+        json!(rows)
+    })
+}
+
+pub fn bump_epoch(session_key: &str) -> u64 {
+    lazy_static_like::with(|| {
+        let key = normalize_key(session_key);
+        let mut map = load_all();
+        let mut row = map.remove(&key).unwrap_or_default();
+        row.epoch = row.epoch.saturating_add(1);
+        row.updated_at = chrono::Utc::now().timestamp_millis();
+        let e = row.epoch;
+        map.insert(key, row);
+        save_all(&map);
+        e
     })
 }
 
@@ -180,6 +233,44 @@ pub fn clear_working(session_key: &str) {
     });
 }
 
+fn cap_observations(mut bullets: Vec<ObservationBullet>) -> Vec<ObservationBullet> {
+    if bullets.len() <= MAX_OBS {
+        return bullets;
+    }
+    let drop_n = bullets.len() - MAX_OBS;
+    bullets.drain(..drop_n);
+    bullets
+}
+
+pub fn append_observations(session_key: &str, texts: Vec<String>) -> Vec<ObservationBullet> {
+    lazy_static_like::with(|| {
+        let key = normalize_key(session_key);
+        let mut map = load_all();
+        let mut row = map.remove(&key).unwrap_or_default();
+        let now = chrono::Utc::now().timestamp_millis();
+        for (i, text) in texts.into_iter().enumerate() {
+            let t: String = text.trim().chars().take(MAX_OBS_CHARS).collect();
+            if t.is_empty() {
+                continue;
+            }
+            if row.observational_memory.iter().any(|b| b.text == t) {
+                continue;
+            }
+            row.observational_memory.push(ObservationBullet {
+                id: format!("om-{}-{}", now, i),
+                text: t,
+                created_at: now,
+            });
+        }
+        row.observational_memory = cap_observations(row.observational_memory);
+        row.updated_at = now;
+        let out = row.observational_memory.clone();
+        map.insert(key, row);
+        save_all(&map);
+        out
+    })
+}
+
 pub fn context_for_prompt(session_key: &str) -> String {
     let row = get_thread(session_key);
     let mut parts = Vec::new();
@@ -191,13 +282,46 @@ pub fn context_for_prompt(session_key: &str) -> String {
     if !row.task_summaries.is_empty() {
         parts.push(format!(
             "近期任务摘要:\n- {}",
-            row.task_summaries.iter().rev().take(4).cloned().collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n- ")
+            row.task_summaries
+                .iter()
+                .rev()
+                .take(4)
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\n- ")
         ));
     }
     if !row.notes.is_empty() {
         parts.push(format!(
             "归档笔记:\n- {}",
-            row.notes.iter().rev().take(4).cloned().collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n- ")
+            row.notes
+                .iter()
+                .rev()
+                .take(4)
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\n- ")
+        ));
+    }
+    if !row.observational_memory.is_empty() {
+        parts.push(format!(
+            "观测记忆:\n- {}",
+            row.observational_memory
+                .iter()
+                .rev()
+                .take(8)
+                .map(|b| b.text.clone())
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\n- ")
         ));
     }
     parts.join("\n")

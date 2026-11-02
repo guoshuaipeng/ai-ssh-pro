@@ -1,7 +1,7 @@
 /**
  * Tauri bridge: exposes window.aiss with the same shape as Electron preload.
  * Real: SSH connect/write/resize/exec, sessions store, app helpers.
- * Round-6: agent forward + probeJump UX, inventory/core-memory, hashed bulk lookup, sync wizard local config.
+ * Round-7: jump resume slots, observational memory, localFs/files, sync schedule/conflicts, desktop shortcut.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -166,29 +166,30 @@ export async function installTauriBridge(): Promise<void> {
       queueSave: (tasks: unknown) => invoke('sftp_queue_save', { tasks })
     },
     localFs: {
-      home: async () => '',
-      drives: async () => ({ drives: [], cwd: '' }),
-      list: async () => ({ path: '', entries: [] }),
-      stat: async () => null,
-      mkdir: async () => false,
-      rename: async () => false,
-      trash: async () => ({ token: '' }),
+      home: () => invoke<string>('local_fs_home'),
+      drives: () => invoke('local_fs_drives'),
+      list: (dir?: string) => invoke('local_fs_list', { dir: dir ?? null }),
+      stat: (target: string) => invoke('local_fs_stat', { target }),
+      mkdir: (target: string) => invoke<boolean>('local_fs_mkdir', { target }),
+      rename: (from: string, to: string) => invoke<boolean>('local_fs_rename', { from, to }),
+      trash: async () => ({ token: '', note: 'trash not ported' }),
       restore: async () => false,
-      reveal: async () => false,
-      open: async () => '',
+      reveal: (target: string) => invoke<boolean>('local_fs_reveal', { target }),
+      open: (target: string) => invoke<string>('local_fs_open', { target }),
       hash: async () => '',
-      readText: async () => ({ ok: false, content: '', truncated: false }),
+      readText: (target: string, maxBytes?: number) =>
+        invoke('local_fs_read_text', { target, maxBytes: maxBytes ?? null }),
       detectKeyKind: async () => 'unknown',
-      pickPrivateKey: async () => null,
-      pickCertificate: async () => null
+      pickPrivateKey: () => invoke<string | null>('pick_private_key'),
+      pickCertificate: () => invoke<string | null>('pick_certificate')
     },
     knownHosts: {
       list: () => invoke('known_hosts_list'),
       remove: (hostPort: string) => invoke<boolean>('known_hosts_remove', { hostPort }),
       pickImport: () => invoke('known_hosts_pick_import'),
       applyImport: (rows: unknown) => invoke('known_hosts_apply_import', { rows }),
-      listLocalKeys: async () => ({ dir: '', keys: [] }),
-      openSshDir: async () => false,
+      listLocalKeys: () => invoke('local_fs_list_keys'),
+      openSshDir: () => invoke<boolean>('local_fs_open_ssh_dir'),
       lookupHost: (host: string, port?: number) =>
         invoke('known_hosts_lookup_host', { host, port: port ?? null, filePath: null }),
       lookupHostsBulk: (hosts: Array<{ host: string; port?: number }>, filePath?: string | null) =>
@@ -281,7 +282,11 @@ export async function installTauriBridge(): Promise<void> {
       archiveGoal: (sessionKey: string, goal?: string) =>
         invoke<boolean>('core_memory_archive_goal', { sessionKey, goal: goal ?? null }),
       clearWorking: (sessionKey: string) =>
-        invoke<boolean>('core_memory_clear_working', { sessionKey })
+        invoke<boolean>('core_memory_clear_working', { sessionKey }),
+      listThreads: () => invoke('core_memory_list_threads'),
+      bumpEpoch: (sessionKey: string) => invoke<number>('core_memory_bump_epoch', { sessionKey }),
+      appendObservations: (sessionKey: string, texts: string[]) =>
+        invoke('core_memory_append_observations', { sessionKey, texts })
     },
     terminal: {
       getPrefs: async () => {
@@ -441,12 +446,32 @@ export async function installTauriBridge(): Promise<void> {
       test: () => invoke('sync_test'),
       push: (passphrase: string) => invoke('sync_push', { passphrase }),
       pull: (passphrase: string) => invoke('sync_pull', { passphrase }),
-      backupLocal: () => invoke('sync_backup_local')
+      backupLocal: () => invoke('sync_backup_local'),
+      getBase: () => invoke('sync_get_base'),
+      setBase: (base: unknown) => invoke('sync_set_base', { base }),
+      findConflicts: (local: unknown[], remote: unknown[], base?: unknown) =>
+        invoke('sync_find_conflicts', { local, remote, base: base ?? null }),
+      scheduleStatus: () => invoke('sync_schedule_status'),
+      scheduleTick: (result?: unknown) => invoke('sync_schedule_tick', { result: result ?? null }),
+      onScheduleTick: (cb: AnyFn) =>
+        unsubListen(
+          listen('sync:scheduleTick', (e) => {
+            cb(e.payload)
+          })
+        )
     },
     files: {
-      saveText: async () => null,
+      saveText: async (defaultName?: string, content?: string) => {
+        if (typeof content === 'string') {
+          return invoke<string | null>('files_save_text', {
+            defaultName: defaultName ?? null,
+            content
+          })
+        }
+        return invoke<string | null>('files_pick_save_text', { defaultName: defaultName ?? null })
+      },
       saveBytes: async () => null,
-      reveal: async () => false
+      reveal: (target: string) => invoke<boolean>('files_reveal', { target })
     },
     snapshots: {
       list: async () => [],
