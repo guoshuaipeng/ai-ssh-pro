@@ -50,3 +50,10 @@ src-tauri/icons/ios/
 
 src-tauri/gen/
 
+
+# Tauri updater signing keys (NEVER commit private keys)
+*.key
+*.key.pub
+.env.tauri-signing
+_updater_pubkey.txt
+

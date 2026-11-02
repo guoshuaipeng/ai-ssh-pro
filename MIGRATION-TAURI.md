@@ -106,7 +106,7 @@ npm run build:tauri
 - OpenClaw：**远程向量 embedding 服务**仍不接（Round-10 用本地 char-trigram + RRF 作 embedding 槽位；可换真 embedding ranks 而不改 prompt）
 - 第三方导入：厂商**专有加密库**仍不解密（已给清晰 notes；请导出明文 / OpenSSH config）
 - 云同步：OAuth 浏览器登录、真正到点自动 push/pull（骨架只发 tick；**实网仍卡用户 token/口令**；Round-10 **只文档，不假装**）
-- **真实自动安装更新**（**卡在用户代码签名证书** + `tauri-plugin-updater` 发布端点；当前仅 check，`installDeferred: true`；Round-10 **只文档，不假装**）
+- **真实自动安装更新**：signer 公钥 + 插件已接入；**仍缺真实发布端点 `latest.json` 与签名产物上传**（见下文「Updater 签名密钥」）
 - known_hosts：**无法**对 `|1|…` 哈希行做反向解哈希整文件导入（只能主机名列表 + `ssh-keygen -F` 批量解析后导入）
 - SSH agent forward / jump 续跳 **实机验证**依赖本机 Agent、跳板可达性与用户密钥
 - Electron 打包：**不再作为产品主路径**（`dev:electron` / `dist:electron` 仅对照）
@@ -216,3 +216,37 @@ npm run build:tauri
 3. 后续可再关 MSI、只留 NSIS；按需裁 plugin
 
 
+
+
+## Updater 签名密钥（Tauri signer，非 Windows Authenticode）
+
+> Round-11：已用官方 `cargo tauri signer generate` 生成本机密钥对；**私钥永不进 git**。
+
+| 项 | 路径 / 说明 |
+| --- | --- |
+| 私钥 | `%USERPROFILE%\.tauri\ai-ssh-pro.key`（本机安全目录，已收紧 ACL） |
+| 公钥 | `%USERPROFILE%\.tauri\ai-ssh-pro.key.pub` → 已写入 `src-tauri/tauri.conf.json` → `plugins.updater.pubkey` |
+| 密码 | 当前为空密码（靠文件 ACL 保护）。若要加密码：`cargo tauri signer generate -w %USERPROFILE%\.tauri\ai-ssh-pro.key -p YOUR_PASS -f`，签名时设 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
+| 插件 | `tauri-plugin-updater` + `bundle.createUpdaterArtifacts: true` + capability `updater:default` |
+| 端点（占位） | GitHub Releases `.../latest/download/latest.json`；Pages `.../updater/{{target}}/{{arch}}/{{current_version}}.json` |
+
+### 发布签名更新流程
+
+1. **设置环境变量（本机或 CI secrets，勿提交）**
+   - `TAURI_SIGNING_PRIVATE_KEY=%USERPROFILE%\.tauri\ai-ssh-pro.key  (build/bundle 可用路径或内容; signer sign 另可用 TAURI_SIGNING_PRIVATE_KEY_PATH)`
+   - 或 `TAURI_SIGNING_PRIVATE_KEY=<私钥文件内容>`
+   - 可选 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+2. **构建**：`npm run build:tauri`（或 `cargo tauri build`）。会生成 NSIS/MSI 及 updater 产物与 `.sig`。
+3. **手动签单个文件（可选）**：
+```bat
+set TAURI_SIGNING_PRIVATE_KEY_PATH=%USERPROFILE%\.tauri\ai-ssh-pro.key
+cargo tauri signer sign path\to\update-artifact
+```
+4. **发布**：把安装包、updater 产物、`.sig` 以及 `latest.json`（含 version、url、signature）上传到 GitHub Releases（或自建 HTTPS 端点）。把真实 URL 写回 `plugins.updater.endpoints`。
+5. **仍缺**：真实 `latest.json` 托管、CI 注入私钥、（可选）Windows Authenticode 代码签名证书——Authenticode 与 updater 签名是两回事。
+
+### 注意
+
+- 丢失私钥或密码后，**已安装客户端无法再校验新更新**，必须重新分发带新公钥的应用。
+- `.gitignore` 已忽略 `*.key` / `*.key.pub` / `_updater_pubkey.txt`。
+- 应用内 `app.checkUpdate` 仍可读站点/GitHub 版本；在端点未提供有效签名清单前，自动安装保持谨慎（见 `updater.rs`）。

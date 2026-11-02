@@ -1,5 +1,5 @@
 //! Update *check* against public manifests (site / GitHub). In-app install remains gated on
-//! code-signing + tauri-plugin-updater endpoints — see MIGRATION-TAURI.md.
+//! tauri-plugin-updater endpoints (signer pubkey configured) — see MIGRATION-TAURI.md.
 use serde_json::{json, Value};
 
 const SITE_LATEST: &str = "https://guoshuaipeng.github.io/ai-ssh-pro/latest.json";
