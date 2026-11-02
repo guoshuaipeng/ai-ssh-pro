@@ -45,6 +45,7 @@ pub struct AiSettings {
     pub temperature: Option<f64>,
     pub use_open_claw: Option<bool>,
     pub ssh_parse_instructions: Option<String>,
+    pub ai_max_steps: Option<u32>,
 }
 
 pub struct AiRuntime {
@@ -78,15 +79,6 @@ impl AiRuntime {
         settings: AiSettings,
         payload: AiChatPayload,
     ) -> Result<()> {
-        if settings.use_open_claw.unwrap_or(true) {
-            // Core-A / OpenClaw agent is not ported yet — fall through to streaming JSON chat
-            // so the panel still works; emit a soft status once.
-            let _ = app.emit(
-                "ai:stream",
-                json!({ "type": "status", "text": "OpenClaw Agent 尚未移植；使用兼容流式对话" }),
-            );
-        }
-
         self.abort.store(false, Ordering::SeqCst);
         *self.inflight.lock() = Some(());
 
@@ -305,6 +297,10 @@ impl AiRuntime {
 
 pub type SharedAi = Arc<AiRuntime>;
 
+
+pub fn extract_json_object_pub(text: &str) -> Result<Value> {
+    extract_json_object(text)
+}
 
 fn extract_json_object(text: &str) -> Result<Value> {
     let t = text.trim();
