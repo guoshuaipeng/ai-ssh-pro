@@ -57,6 +57,17 @@
 
 ## 开发
 
+### Tauri（体积优化主路径，双轨）
+
+Windows NSIS 安装包实测约 **2.25 MB**。完整说明见 [MIGRATION-TAURI.md](./MIGRATION-TAURI.md)。
+
+```bash
+npm run dev:tauri
+npm run build:tauri
+```
+
+### Electron
+
 ```bash
 npm install
 npm run dev
