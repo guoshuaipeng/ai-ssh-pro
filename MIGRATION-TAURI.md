@@ -53,31 +53,40 @@ npm run build:tauri
 
 ## 本阶段已实现
 
-- Tauri v2 工程（`src-tauri`）
-- 窗口加载现有 React UI
-- `window.aiss` 兼容桥（核心 API + 大量安全 stub）
-- 最小 SSH：密码 / 私钥登录、PTY、读写、resize、exec、快照、断开
-- 会话列表存盘（`sessions.list` / `sessions.save`）
+- Tauri v2 工程（`src-tauri`）+ 窗口加载现有 React UI
+- `window.aiss` 兼容桥（核心 API + stub）
+- **Host key / known_hosts**：校验、UI 确认事件、永久信任落盘、列表/删除/批量导入；可从 Electron `ai-ssh-pro-known-hosts.json` 合并
+- **本机 Shell**：Windows `portable-pty`（ConPTY）
+- **SFTP 基础**：list / home / mkdir / remove / rename / stat / download / upload / readText / writeText
+- **本地端口转发（L）**：监听本地端口并 `direct-tcpip` 到远端
+- **Electron store 导入**：发现 `%AppData%/ai-ssh-pro/ai-ssh-pro.json`，合并会话/分组/片段/AI 偏好 + known_hosts
+- SSH：密码/私钥、PTY、读写、resize、exec、快照、断开
+- 会话列表存盘；系统字体（不打 `@fontsource`）
 
 ## 尚未移植（缺口）
 
-- Host key 确认 UI / known_hosts
-- ProxyJump / jump chain / agent forward
-- SFTP、端口转发、Docker、本地 Shell（node-pty）
-- AI 流式对话 / OpenClaw agent（主进程逻辑）
-- 备份加密、云同步、录音回放、自动更新
-- 从 Electron `electron-store` 一键导入数据
-
+- ProxyJump / jump chain / agent forward / host-key per-hop
+- SFTP：chmod、断点续传、进度事件、队列、文件选择对话框
+- 远程转发（R）/ SOCKS5（D）
+- Docker 管理、AI 流式对话 / OpenClaw Agent
+- 备份加密、云同步、会话录音回放、自动更新
+- OpenSSH known_hosts 文件选择导入预览（哈希主机行）
 
 ## 实测体积（本机 Windows x64，2026-11-02 Asia/Shanghai）
 
 | 产物 | 大小 |
 |---|---|
-| `ai-ssh-pro.exe`（release） | 5.15 MB |
-| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **2.25 MB (2,355,439 bytes)** |
-| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **2.91 MB (3,051,520 bytes)** |
+| `ai-ssh-pro.exe`（release） | **5.54 MB** (5,814,272) |
+| NSIS `AI-SSH-Pro_0.7.0_x64-setup.exe` | **2.37 MB** (2,486,327) |
+| MSI `AI-SSH-Pro_0.7.0_x64_en-US.msi` | **3.08 MB** (3,231,744) |
 
-对比：Electron 安装包 ~169 MB，slim ~82 MB。**Tauri 已远低于 20 MB 目标。**
+对比：Electron 安装包 ~169 MB，slim ~82 MB。**Tauri 仍远低于 20 MB 目标**；相对 Round-1（exe 5.15 / NSIS 2.25 / MSI 2.91）仅 +0.39 / +0.12 / +0.17 MB。
+
+### Round-2（缺口补齐）变更摘要
+
+- 新增模块：`known_hosts.rs`、`hostkey.rs`、`local_shell.rs`、`forward.rs`、`import_electron.rs`
+- `tauri-bridge.ts` 对接 hostKey 事件、SFTP、forwards、local shell、electron store 导入
+- 依赖：`russh-sftp`、`portable-pty`、`sha2`（体积可控）
 
 ## 体积策略
 

@@ -3,13 +3,20 @@ use parking_lot::Mutex;
 use russh::client::{self, Handle, Msg};
 use russh::keys::{load_secret_key, PrivateKeyWithHashAlg, PublicKey};
 use russh::{ChannelMsg, Disconnect};
+use russh_sftp::client::SftpSession;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::io::AsyncReadExt;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
+
+use crate::forward::{ActiveForward, ForwardManager, ForwardSpec};
+use crate::hostkey::{HostKeyPromptEvent, HostKeyWaiters};
+use crate::known_hosts::{public_key_wire_bytes, algorithm_name, HostKeyCheck, KnownHostsStore};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,6 +32,7 @@ pub struct SshConnectOptions {
     pub term_rows: Option<u32>,
     pub auth_mode: Option<String>,
     pub demo: Option<bool>,
+    pub forwards: Option<Vec<ForwardSpec>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,9 +70,12 @@ pub struct SshStatusEvent {
     pub message: Option<String>,
 }
 
-struct ClientHandler {
-    session_id: String,
-    app: AppHandle,
+pub struct ClientHandler {
+    pub host: String,
+    pub port: u16,
+    pub app: AppHandle,
+    pub known: Arc<KnownHostsStore>,
+    pub waiters: Arc<HostKeyWaiters>,
 }
 
 impl client::Handler for ClientHandler {
@@ -72,31 +83,99 @@ impl client::Handler for ClientHandler {
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &PublicKey,
+        server_public_key: &PublicKey,
     ) -> Result<bool, Self::Error> {
-        // Phase-1: accept all host keys (TOFU UI later)
-        let _ = (&self.session_id, &self.app);
-        Ok(true)
+        let bytes = match public_key_wire_bytes(server_public_key) {
+            Ok(b) => b,
+            Err(_) => return Ok(false),
+        };
+        match self.known.check(&self.host, self.port, &bytes) {
+            HostKeyCheck::Trusted => Ok(true),
+            check => {
+                let (reason, fingerprint, previous) = match check {
+                    HostKeyCheck::Unknown { fingerprint } => ("unknown", fingerprint, None),
+                    HostKeyCheck::Changed {
+                        fingerprint,
+                        previous_fingerprint,
+                    } => ("changed", fingerprint, Some(previous_fingerprint)),
+                    HostKeyCheck::Trusted => unreachable!(),
+                };
+                let (request_id, rx) = self.waiters.register();
+                let expires_at = chrono::Utc::now().timestamp_millis() + 120_000;
+                let ev = HostKeyPromptEvent {
+                    request_id: request_id.clone(),
+                    host: self.host.clone(),
+                    port: self.port,
+                    fingerprint,
+                    reason: reason.into(),
+                    previous_fingerprint: previous,
+                    key_type: Some(algorithm_name(server_public_key)),
+                    expires_at: Some(expires_at),
+                };
+                let _ = self.app.emit("ssh:hostKeyPrompt", ev);
+                match tokio::time::timeout(std::time::Duration::from_secs(120), rx).await {
+                    Ok(Ok(decision)) => {
+                        if decision.accept {
+                            if decision.always_trust {
+                                self.known.trust(&self.host, self.port, &bytes);
+                            }
+                            Ok(true)
+                        } else {
+                            Ok(false)
+                        }
+                    }
+                    _ => {
+                        self.waiters.cancel(&request_id);
+                        let _ = self.app.emit(
+                            "ssh:hostKeyExpired",
+                            json!({ "requestId": request_id }),
+                        );
+                        Ok(false)
+                    }
+                }
+            }
+        }
     }
 }
 
-#[allow(dead_code)]
-struct LiveSession {
-    handle: Handle<ClientHandler>,
+pub struct LiveSession {
+    pub handle: Arc<Handle<ClientHandler>>,
     channel: AsyncMutex<russh::Channel<Msg>>,
-    meta: SessionMeta,
+    pub meta: SessionMeta,
     ring: Mutex<String>,
 }
 
 pub struct SshManager {
     sessions: AsyncMutex<HashMap<String, Arc<LiveSession>>>,
+    known: Arc<KnownHostsStore>,
+    waiters: Arc<HostKeyWaiters>,
+    forwards: Arc<ForwardManager>,
 }
 
 impl SshManager {
-    pub fn new() -> Self {
+    pub fn new(
+        known: Arc<KnownHostsStore>,
+        waiters: Arc<HostKeyWaiters>,
+        forwards: Arc<ForwardManager>,
+    ) -> Self {
         Self {
             sessions: AsyncMutex::new(HashMap::new()),
+            known,
+            waiters,
+            forwards,
         }
+    }
+
+    pub fn known(&self) -> Arc<KnownHostsStore> {
+        self.known.clone()
+    }
+
+    pub fn waiters(&self) -> Arc<HostKeyWaiters> {
+        self.waiters.clone()
+    }
+
+    pub fn forwards(&self) -> Arc<ForwardManager> {
+        self.forwards.clone()
     }
 
     pub async fn connect(
@@ -119,8 +198,11 @@ impl SshManager {
         };
         let config = Arc::new(config);
         let handler = ClientHandler {
-            session_id: session_id.clone(),
+            host: opts.host.clone(),
+            port,
             app: app.clone(),
+            known: self.known.clone(),
+            waiters: self.waiters.clone(),
         };
 
         let mut handle = client::connect(config, (opts.host.as_str(), port), handler)
@@ -175,6 +257,7 @@ impl SshManager {
             return Err(anyhow!("authentication failed"));
         }
 
+        let handle = Arc::new(handle);
         let channel = handle.channel_open_session().await.context("open session")?;
         channel
             .request_pty(false, "xterm-256color", cols, rows, 0, 0, &[])
@@ -194,7 +277,7 @@ impl SshManager {
         };
 
         let live = Arc::new(LiveSession {
-            handle,
+            handle: handle.clone(),
             channel: AsyncMutex::new(channel),
             meta: meta.clone(),
             ring: Mutex::new(String::new()),
@@ -205,9 +288,20 @@ impl SshManager {
             map.insert(session_id.clone(), live.clone());
         }
 
+        // Optional profile local forwards
+        if let Some(fwds) = opts.forwards.clone() {
+            for f in fwds {
+                let _ = self
+                    .forwards
+                    .start_local(session_id.clone(), handle.clone(), f, "profile")
+                    .await;
+            }
+        }
+
         let app2 = app.clone();
         let sid = session_id.clone();
         let live2 = live.clone();
+        let forwards = self.forwards.clone();
         tokio::spawn(async move {
             loop {
                 let mut ch = live2.channel.lock().await;
@@ -243,6 +337,7 @@ impl SshManager {
                         );
                     }
                     Some(ChannelMsg::ExitStatus { exit_status }) => {
+                        let _ = forwards.stop_session(&sid).await;
                         let _ = app2.emit(
                             "ssh:status",
                             SshStatusEvent {
@@ -254,6 +349,7 @@ impl SshManager {
                         break;
                     }
                     Some(ChannelMsg::Eof) | None => {
+                        let _ = forwards.stop_session(&sid).await;
                         let _ = app2.emit(
                             "ssh:status",
                             SshStatusEvent {
@@ -282,6 +378,7 @@ impl SshManager {
     }
 
     pub async fn disconnect(&self, session_id: &str) -> Result<()> {
+        let _ = self.forwards.stop_session(session_id).await;
         let mut map = self.sessions.lock().await;
         if let Some(live) = map.remove(session_id) {
             let ch = live.channel.lock().await;
@@ -345,7 +442,8 @@ impl SshManager {
             .clone();
         drop(map);
 
-        let mut channel = live.handle
+        let mut channel = live
+            .handle
             .channel_open_session()
             .await
             .context("open exec channel")?;
@@ -377,7 +475,7 @@ impl SshManager {
         match tokio::time::timeout(timeout, fut).await {
             Ok(()) => {}
             Err(_) => {
-                return Ok(serde_json::json!({
+                return Ok(json!({
                     "code": null,
                     "stdout": stdout,
                     "stderr": format!("{}\ntimeout", stderr),
@@ -385,10 +483,266 @@ impl SshManager {
             }
         }
 
-        Ok(serde_json::json!({
+        Ok(json!({
             "code": code,
             "stdout": stdout,
             "stderr": stderr,
         }))
+    }
+
+    async fn with_sftp<F, Fut, T>(&self, session_id: &str, f: F) -> Result<T>
+    where
+        F: FnOnce(SftpSession) -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        let map = self.sessions.lock().await;
+        let live = map
+            .get(session_id)
+            .ok_or_else(|| anyhow!("session not found"))?
+            .clone();
+        drop(map);
+
+        let channel = live
+            .handle
+            .channel_open_session()
+            .await
+            .context("open sftp channel")?;
+        channel
+            .request_subsystem(true, "sftp")
+            .await
+            .context("request sftp")?;
+        let sftp = SftpSession::new(channel.into_stream())
+            .await
+            .context("sftp session")?;
+        f(sftp).await
+    }
+
+    pub async fn sftp_list(&self, session_id: &str, remote_path: String) -> Result<serde_json::Value> {
+        self.with_sftp(session_id, |sftp| async move {
+            let path = if remote_path.is_empty() {
+                sftp.canonicalize(".").await.unwrap_or_else(|_| ".".into())
+            } else {
+                remote_path
+            };
+            let entries = sftp.read_dir(&path).await.context("sftp read_dir")?;
+            let mut out = Vec::new();
+            for e in entries {
+                let name = e.file_name();
+                if name == "." || name == ".." {
+                    continue;
+                }
+                let meta = e.metadata();
+                let is_dir = meta.file_type().is_dir();
+                let size = meta.size.unwrap_or(0);
+                let mtime = meta.mtime.map(|t| (t as i64) * 1000);
+                let full = if path.ends_with('/') {
+                    format!("{path}{name}")
+                } else {
+                    format!("{path}/{name}")
+                };
+                out.push(json!({
+                    "name": name,
+                    "path": full,
+                    "isDirectory": is_dir,
+                    "size": size,
+                    "modifyTime": mtime,
+                    "mode": meta.permissions.map(|p| p as u32),
+                }));
+            }
+            Ok(json!({ "path": path, "entries": out }))
+        })
+        .await
+    }
+
+    pub async fn sftp_home(&self, session_id: &str) -> Result<String> {
+        self.with_sftp(session_id, |sftp| async move {
+            let p = sftp.canonicalize(".").await.unwrap_or_else(|_| "/".into());
+            Ok(p)
+        })
+        .await
+    }
+
+    pub async fn sftp_mkdir(&self, session_id: &str, remote_path: String) -> Result<()> {
+        self.with_sftp(session_id, |sftp| async move {
+            sftp.create_dir(&remote_path).await.context("mkdir")?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn sftp_remove(&self, session_id: &str, remote_path: String) -> Result<()> {
+        self.with_sftp(session_id, |sftp| async move {
+            match sftp.metadata(&remote_path).await {
+                Ok(m) if m.file_type().is_dir() => {
+                    sftp.remove_dir(&remote_path).await.context("rmdir")?;
+                }
+                _ => {
+                    sftp.remove_file(&remote_path).await.context("rm")?;
+                }
+            }
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn sftp_rename(
+        &self,
+        session_id: &str,
+        from_path: String,
+        to_path: String,
+    ) -> Result<()> {
+        self.with_sftp(session_id, |sftp| async move {
+            sftp.rename(&from_path, &to_path).await.context("rename")?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn sftp_stat(
+        &self,
+        session_id: &str,
+        remote_path: String,
+    ) -> Result<Option<serde_json::Value>> {
+        self.with_sftp(session_id, |sftp| async move {
+            match sftp.metadata(&remote_path).await {
+                Ok(m) => Ok(Some(json!({
+                    "size": m.size.unwrap_or(0),
+                    "mtime": m.mtime.map(|t| (t as i64) * 1000),
+                    "isDirectory": m.file_type().is_dir(),
+                }))),
+                Err(_) => Ok(None),
+            }
+        })
+        .await
+    }
+
+    pub async fn sftp_download(
+        &self,
+        session_id: &str,
+        remote_path: String,
+        local_path: String,
+    ) -> Result<()> {
+        self.with_sftp(session_id, |sftp| async move {
+            use tokio::io::AsyncWriteExt;
+            let mut remote = sftp
+                .open(&remote_path)
+                .await
+                .with_context(|| format!("open remote {remote_path}"))?;
+            if let Some(parent) = Path::new(&local_path).parent() {
+                tokio::fs::create_dir_all(parent).await.ok();
+            }
+            let mut local = tokio::fs::File::create(&local_path)
+                .await
+                .with_context(|| format!("create local {local_path}"))?;
+            tokio::io::copy(&mut remote, &mut local)
+                .await
+                .context("download copy")?;
+            local.flush().await.ok();
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn sftp_upload(
+        &self,
+        session_id: &str,
+        local_path: String,
+        remote_path: String,
+    ) -> Result<()> {
+        self.with_sftp(session_id, |sftp| async move {
+            use russh_sftp::protocol::OpenFlags;
+            let mut local = tokio::fs::File::open(&local_path)
+                .await
+                .with_context(|| format!("open local {local_path}"))?;
+            let mut remote = sftp
+                .open_with_flags(
+                    &remote_path,
+                    OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE,
+                )
+                .await
+                .with_context(|| format!("open remote {remote_path}"))?;
+            tokio::io::copy(&mut local, &mut remote)
+                .await
+                .context("upload copy")?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn sftp_read_text(
+        &self,
+        session_id: &str,
+        remote_path: String,
+        max_bytes: Option<u64>,
+    ) -> Result<serde_json::Value> {
+        let max = max_bytes.unwrap_or(512 * 1024) as usize;
+        self.with_sftp(session_id, |sftp| async move {
+            let mut remote = sftp.open(&remote_path).await.context("open")?;
+            let mut buf = Vec::new();
+            let mut tmp = [0u8; 8192];
+            let mut truncated = false;
+            loop {
+                let n = remote.read(&mut tmp).await.context("read")?;
+                if n == 0 {
+                    break;
+                }
+                if buf.len() + n > max {
+                    buf.extend_from_slice(&tmp[..max - buf.len()]);
+                    truncated = true;
+                    break;
+                }
+                buf.extend_from_slice(&tmp[..n]);
+            }
+            let content = String::from_utf8_lossy(&buf).to_string();
+            Ok(json!({
+                "path": remote_path,
+                "content": content,
+                "size": buf.len(),
+                "truncated": truncated,
+                "encoding": "utf-8",
+            }))
+        })
+        .await
+    }
+
+    pub async fn sftp_write_text(
+        &self,
+        session_id: &str,
+        remote_path: String,
+        content: String,
+    ) -> Result<bool> {
+        self.with_sftp(session_id, |sftp| async move {
+            use russh_sftp::protocol::OpenFlags;
+            use tokio::io::AsyncWriteExt;
+            let mut remote = sftp
+                .open_with_flags(
+                    &remote_path,
+                    OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE,
+                )
+                .await
+                .context("open")?;
+            remote.write_all(content.as_bytes()).await.context("write")?;
+            Ok(true)
+        })
+        .await
+    }
+
+    pub async fn get_handle(&self, session_id: &str) -> Result<Arc<Handle<ClientHandler>>> {
+        let map = self.sessions.lock().await;
+        let live = map
+            .get(session_id)
+            .ok_or_else(|| anyhow!("session not found"))?;
+        Ok(live.handle.clone())
+    }
+
+    pub async fn add_forward(
+        &self,
+        session_id: String,
+        spec: ForwardSpec,
+    ) -> Result<ActiveForward> {
+        let handle = self.get_handle(&session_id).await?;
+        self.forwards
+            .start_local(session_id, handle, spec, "manual")
+            .await
     }
 }

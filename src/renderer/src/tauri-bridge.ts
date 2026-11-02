@@ -67,7 +67,7 @@ export async function installTauriBridge(): Promise<void> {
       getSnapshot: (sessionId: string, options?: unknown) =>
         invoke<string | null>('ssh_get_snapshot', { sessionId, options: options ?? null }),
       respondHostKey: (payload: unknown) => invoke<boolean>('ssh_respond_host_key', { payload }),
-      openLocalShell: () => notImpl('ssh.openLocalShell'),
+      openLocalShell: (opts?: unknown) => invoke('ssh_open_local_shell', { opts: opts ?? null }),
       isLocalShellAvailable: () => invoke<boolean>('ssh_is_local_shell_available'),
       startRecording: async () => null,
       stopRecording: async () => false,
@@ -86,29 +86,48 @@ export async function installTauriBridge(): Promise<void> {
             cb(e.payload)
           })
         ),
-      onHostKeyPrompt: (_cb: AnyFn) => () => {},
+      onHostKeyPrompt: (cb: AnyFn) =>
+        unsubListen(
+          listen('ssh:hostKeyPrompt', (e) => {
+            cb(e.payload)
+          })
+        ),
       onPowerResume: (_cb: AnyFn) => () => {},
-      onHostKeyExpired: (_cb: AnyFn) => () => {},
+      onHostKeyExpired: (cb: AnyFn) =>
+        unsubListen(
+          listen('ssh:hostKeyExpired', (e) => {
+            cb(e.payload)
+          })
+        ),
       probeJump: async () => [],
       onHop: (_cb: AnyFn) => () => {},
       onStage: (_cb: AnyFn) => () => {}
     },
     sftp: {
-      list: async () => ({ path: '/', entries: [] }),
-      home: async () => '/',
-      download: () => notImpl('sftp.download'),
-      upload: () => notImpl('sftp.upload'),
-      mkdir: () => notImpl('sftp.mkdir'),
-      remove: () => notImpl('sftp.remove'),
-      rename: () => notImpl('sftp.rename'),
+      list: (sessionId: string, remotePath: string) =>
+        invoke('sftp_list', { sessionId, remotePath }),
+      home: (sessionId: string) => invoke<string>('sftp_home', { sessionId }),
+      download: (sessionId: string, remotePath: string, localPath: string) =>
+        invoke('sftp_download', { sessionId, remotePath, localPath }),
+      upload: (sessionId: string, localPath: string, remotePath: string) =>
+        invoke('sftp_upload', { sessionId, localPath, remotePath }),
+      mkdir: (sessionId: string, remotePath: string) =>
+        invoke('sftp_mkdir', { sessionId, remotePath }),
+      remove: (sessionId: string, remotePath: string) =>
+        invoke('sftp_remove', { sessionId, remotePath }),
+      rename: (sessionId: string, fromPath: string, toPath: string) =>
+        invoke('sftp_rename', { sessionId, fromPath, toPath }),
       chmod: () => notImpl('sftp.chmod'),
-      readText: async () => ({ ok: false, content: '', truncated: false, reason: 'not implemented' }),
-      writeText: async () => false,
+      readText: (sessionId: string, remotePath: string, maxBytes?: number) =>
+        invoke('sftp_read_text', { sessionId, remotePath, maxBytes: maxBytes ?? null }),
+      writeText: (sessionId: string, remotePath: string, content: string) =>
+        invoke('sftp_write_text', { sessionId, remotePath, content }),
       pickDownloadPath: async () => null,
       pickUploadFiles: async () => null,
       pickSavePaths: async () => null,
       onProgress: (_cb: AnyFn) => () => {},
-      stat: async () => null,
+      stat: (sessionId: string, remotePath: string) =>
+        invoke('sftp_stat', { sessionId, remotePath }),
       hash: async () => '',
       cancel: async () => false,
       transfer: () => notImpl('sftp.transfer'),
@@ -133,10 +152,10 @@ export async function installTauriBridge(): Promise<void> {
       pickCertificate: async () => null
     },
     knownHosts: {
-      list: async () => [],
-      remove: async () => false,
+      list: () => invoke('known_hosts_list'),
+      remove: (hostPort: string) => invoke<boolean>('known_hosts_remove', { hostPort }),
       pickImport: async () => null,
-      applyImport: async () => ({ ok: 0, fail: 0 }),
+      applyImport: (rows: unknown) => invoke('known_hosts_apply_import', { rows }),
       listLocalKeys: async () => ({ dir: '', keys: [] }),
       openSshDir: async () => false,
       lookupHost: async () => ({ ok: false, query: '', file: '', matches: [] })
@@ -168,7 +187,9 @@ export async function installTauriBridge(): Promise<void> {
       save: (state: unknown) => invoke('sessions_save', { value: state }),
       importPick: async () => null,
       importSshConfig: async () => ({ items: [], warnings: [] }),
-      export: () => notImpl('sessions.export')
+      export: () => notImpl('sessions.export'),
+      discoverElectronStore: () => invoke('electron_store_discover'),
+      importElectronStore: () => invoke('electron_store_import')
     },
     snippets: {
       list: async () => {
@@ -269,10 +290,11 @@ export async function installTauriBridge(): Promise<void> {
       healthProbeSweep: async () => ({ ok: true }),
       healthProbeRelease: async () => ({ ok: true }),
       forwards: {
-        list: async () => [],
-        add: () => notImpl('forwards.add'),
-        restore: async () => ({ ok: false, restored: 0 }),
-        remove: async () => false
+        list: (sessionId?: string) =>
+          invoke('forwards_list', { sessionId: sessionId ?? null }),
+        add: (req: unknown) => invoke('forwards_add', { req }),
+        restore: async () => ({ ok: false, restored: [], skipped: [] }),
+        remove: (id: string) => invoke<boolean>('forwards_remove', { id })
       },
       commandHistory: {
         list: async () => {
