@@ -1284,6 +1284,9 @@ impl SshManager {
         let mut stderr = String::new();
         let mut code: Option<u32> = None;
 
+        // russh often delivers Eof before ExitStatus. Breaking on Eof alone
+        // leaves code=None; callers that treat missing code as failure then dump
+        // stdout (e.g. docker ps JSON) as a red error. Wait for ExitStatus.
         let fut = async {
             loop {
                 match channel.wait().await {
@@ -1295,8 +1298,12 @@ impl SshManager {
                     }
                     Some(ChannelMsg::ExitStatus { exit_status }) => {
                         code = Some(exit_status);
+                        break;
                     }
-                    Some(ChannelMsg::Eof) | None => break,
+                    Some(ChannelMsg::Eof) => {
+                        // Keep waiting for ExitStatus (or channel close / outer timeout).
+                    }
+                    None => break,
                     _ => {}
                 }
             }

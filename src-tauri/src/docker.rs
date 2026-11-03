@@ -38,7 +38,32 @@ fn trim_err(stdout: &str, stderr: &str, code: Option<i64>) -> String {
     } else {
         &format!("exit {}", code.unwrap_or(-1))
     };
-    msg.chars().take(800).collect()
+    // Never surface raw docker --format json blobs as the user-facing error.
+    let trimmed = msg.chars().take(800).collect::<String>();
+    if looks_like_docker_ps_json(&trimmed) {
+        return format!(
+            "读取 Docker 输出失败（exit {}）",
+            code.map(|c| c.to_string()).unwrap_or_else(|| "?".into())
+        );
+    }
+    trimmed
+}
+
+/// True when stdout/stderr looks like `docker ps --format json` NDJSON, not a real error.
+fn looks_like_docker_ps_json(msg: &str) -> bool {
+    let t = msg.trim_start();
+    t.starts_with('{')
+        && (t.contains("\"ID\"") || t.contains("\"Id\""))
+        && (t.contains("\"Image\"") || t.contains("\"Names\"") || t.contains("\"Command\""))
+}
+
+/// Electron sshExec uses `code ?? 0`. Missing ExitStatus (Eof race) must not be failure.
+/// Explicit timeout from ssh.exec still counts as failure when there is no parseable payload.
+fn exec_ok(code: Option<i64>, stderr: &str) -> bool {
+    if code.is_none() && stderr.to_ascii_lowercase().contains("timeout") {
+        return false;
+    }
+    code.unwrap_or(0) == 0
 }
 
 fn assert_safe_id(id: &str, label: &str) -> Result<String> {
@@ -211,14 +236,16 @@ fn map_container(raw: &Value) -> Option<Value> {
 async fn list_containers(ssh: &SshManager, session_id: &str) -> (Vec<Value>, Option<String>) {
     match exec_json(ssh, session_id, "docker ps -a --format '{{json .}}'", Some(60_000)).await {
         Ok((code, stdout, stderr)) => {
-            if code.unwrap_or(1) != 0 {
-                return (vec![], Some(trim_err(&stdout, &stderr, code)));
-            }
-            let containers = parse_json_lines(&stdout)
+            let containers: Vec<Value> = parse_json_lines(&stdout)
                 .iter()
                 .filter_map(map_container)
                 .collect();
-            (containers, None)
+            // Prefer parsed rows even when exit status was lost (code=None) or non-zero
+            // with JSON still on stdout — never render raw NDJSON as containersError.
+            if !containers.is_empty() || exec_ok(code, &stderr) {
+                return (containers, None);
+            }
+            (vec![], Some(trim_err(&stdout, &stderr, code)))
         }
         Err(e) => (vec![], Some(e.to_string())),
     }
@@ -244,21 +271,25 @@ fn map_compose_projects(stdout: &str) -> Vec<Value> {
 
 async fn list_compose_projects(ssh: &SshManager, session_id: &str) -> (Vec<Value>, Option<String>) {
     match exec_json(ssh, session_id, "docker compose ls --format json", Some(60_000)).await {
-        Ok((code, stdout, _stderr)) if code.unwrap_or(1) == 0 => {
-            (map_compose_projects(&stdout), None)
+        Ok((code, stdout, stderr)) => {
+            let projects = map_compose_projects(&stdout);
+            if !projects.is_empty() || exec_ok(code, &stderr) {
+                return (projects, None);
+            }
+            // fall through to docker-compose binary
         }
-        Ok(_) | Err(_) => {
-            match exec_json(ssh, session_id, "docker-compose ls --format json", Some(60_000)).await {
-                Ok((code, stdout, stderr)) => {
-                    if code.unwrap_or(1) != 0 {
-                        (vec![], Some(trim_err(&stdout, &stderr, code)))
-                    } else {
-                        (map_compose_projects(&stdout), None)
-                    }
-                }
-                Err(e) => (vec![], Some(e.to_string())),
+        Err(_) => {}
+    }
+    match exec_json(ssh, session_id, "docker-compose ls --format json", Some(60_000)).await {
+        Ok((code, stdout, stderr)) => {
+            let projects = map_compose_projects(&stdout);
+            if !projects.is_empty() || exec_ok(code, &stderr) {
+                (projects, None)
+            } else {
+                (vec![], Some(trim_err(&stdout, &stderr, code)))
             }
         }
+        Err(e) => (vec![], Some(e.to_string())),
     }
 }
 
@@ -1055,4 +1086,52 @@ pub async fn swarm_action(
         return Ok(());
     }
     Err(anyhow!("不支持的 Swarm 操作: {action}"))
+}
+
+
+#[cfg(test)]
+mod docker_list_tests {
+    use super::*;
+
+    #[test]
+    fn exec_ok_treats_missing_code_as_success_like_electron() {
+        assert!(exec_ok(None, ""));
+        assert!(exec_ok(Some(0), ""));
+        assert!(!exec_ok(Some(1), "permission denied"));
+        assert!(!exec_ok(None, "partial\ntimeout"));
+    }
+
+    #[test]
+    fn trim_err_does_not_echo_docker_ps_json() {
+        let json = r#"{"Command":"/bin/sh","CreatedAt":"2026-11-02","ID":"98f1ed8995fe","Image":"snowy-zhqhmobile-app:eb89","Names":"snowy-zhqhmobile-app.1"}"#;
+        let msg = trim_err(json, "", None);
+        assert!(!msg.contains("98f1ed8995fe"), "raw json leaked: {msg}");
+        assert!(msg.contains("读取 Docker"));
+    }
+
+    #[test]
+    fn parse_json_lines_maps_swarm_container() {
+        let line = r#"{"Command":"\"/bin/sh\"","CreatedAt":"2026-11-02 11:12:28 +0800 CST","ID":"98f1ed8995fe","Image":"snowy-zhqhmobile-app:eb89bb02-5487","Labels":"com.docker.swarm.service.name=snowy-zhqhmobile-app,image.vendor=Anolis OS","Names":"snowy-zhqhmobile-app.1.hvvige809","Ports":"","State":"running","Status":"Up 2 hours"}"#;
+        let rows = parse_json_lines(line);
+        assert_eq!(rows.len(), 1);
+        let c = map_container(&rows[0]).expect("map");
+        assert_eq!(c.get("id").and_then(|v| v.as_str()), Some("98f1ed8995fe"));
+        assert_eq!(
+            c.get("swarmService").and_then(|v| v.as_str()),
+            Some("snowy-zhqhmobile-app")
+        );
+    }
+
+    #[test]
+    fn missing_exit_with_json_stdout_still_lists_containers() {
+        let stdout = r#"{"ID":"abc123def456","Names":"web","Image":"nginx","State":"running","Status":"Up 1s","Ports":"80/tcp","Labels":""}"#;
+        let code: Option<i64> = None;
+        let stderr = "";
+        let containers: Vec<Value> = parse_json_lines(stdout)
+            .iter()
+            .filter_map(map_container)
+            .collect();
+        assert_eq!(containers.len(), 1);
+        assert!(!containers.is_empty() || exec_ok(code, stderr));
+    }
 }
