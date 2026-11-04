@@ -1,7 +1,7 @@
 {
   "name": "ai-ssh-pro",
-  "version": "0.7.0",
-  "description": "类 Xshell 的多会话 SSH 客户端，集成 AI 对话（Electron + Tauri 双轨）",
+  "version": "0.8.0",
+  "description": "类 Xshell 的多会话 SSH 客户端，集成 AI 对话，安装包不到 10MB",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {

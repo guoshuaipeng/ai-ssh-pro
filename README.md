@@ -1,6 +1,6 @@
 # AI-SSH-Pro
 
-类 Xshell 的多会话 SSH 客户端，集成 AI 对话。**产品路径：Tauri v2（WebView2，小体积）**；技术栈 TypeScript + React + Rust。Electron 源码仅作仓库对照，不再作为默认打包路径。
+类 Xshell 的多会话 SSH 客户端，集成 AI 对话。Windows 安装包不到 **10MB**。技术栈 TypeScript + React + Rust。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
@@ -168,3 +168,4 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Security reports: [SECURITY.md](./SECU
 ## License
 
 [MIT](./LICENSE)
+
