@@ -1,10 +1,10 @@
 /** Session/CmdK readonly on/off + already-state toasts. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
 for (const id of ['readonlyOn', 'readonlyOff'] as const) {
-  const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === id)
+  const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === id)
   assert.ok(item && item.type === 'item', id)
   assert.equal(item.needsSession, true)
 }

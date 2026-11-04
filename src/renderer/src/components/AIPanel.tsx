@@ -690,10 +690,11 @@ export default function AIPanel({
   useEffect(() => {
     const refresh = () => {
       void window.aiss.ai.getSettings().then((s) => {
-        const p = s.providers.find((x) => x.id === s.activeProviderId) ?? s.providers[0]
-        setProviders(s.providers)
-        setActiveProviderId(s.activeProviderId)
-        setActiveModel(s.model)
+        const providers = Array.isArray(s?.providers) ? s.providers : []
+        const p = providers.find((x) => x.id === s?.activeProviderId) ?? providers[0]
+        setProviders(providers)
+        setActiveProviderId(s?.activeProviderId || providers[0]?.id || '')
+        setActiveModel(s?.model || '')
         setSafetySettings(s)
         const ready = (p ? hasUsableKey(p.baseURL, p.apiKey) : false) || screenshotForceKeyRef.current
         setHasApiKey(ready)
@@ -733,10 +734,19 @@ export default function AIPanel({
       setWorkingGoal(null)
       return
     }
-    void window.aiss.ai.getWorkingMemory(key).then((goal) => {
-      if (persistKeyRef.current !== key) return
-      setWorkingGoal(visibleWorkingGoal(goal))
-    })
+    const getter = window.aiss?.ai?.getWorkingMemory
+    if (typeof getter !== 'function') {
+      setWorkingGoal(null)
+      return
+    }
+    void Promise.resolve(getter(key))
+      .then((goal) => {
+        if (persistKeyRef.current !== key) return
+        setWorkingGoal(visibleWorkingGoal(goal))
+      })
+      .catch(() => {
+        if (persistKeyRef.current === key) setWorkingGoal(null)
+      })
   }, [])
 
   // Load persisted chat when history key / session changes
@@ -1169,7 +1179,9 @@ export default function AIPanel({
       return next
     })
     try {
-      await window.aiss.ai.confirmStep(requestId, ok)
+      const step = window.aiss?.ai?.confirmStep ?? window.aiss?.ai?.resolveConfirm
+    if (typeof step !== 'function') return
+    await step(requestId, ok)
     } finally {
       // Dock unmounts with the focused button — return caret to the composer.
       queueMicrotask(() => inputRef.current?.focus())

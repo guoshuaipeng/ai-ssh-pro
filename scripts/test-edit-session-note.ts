@@ -1,10 +1,9 @@
 /** CmdK/menu: Edit session note opens connection form focused on note. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, findMenuItem, menuHasAction, flattenMenuItems} from '../src/shared/menus'
 
-const session = SHARED_MENUS.find((m) => m.id === 'session')
-const item = session?.items.find((it) => it.type === 'item' && it.id === 'editSessionNote')
+const item = findMenuItem(SHARED_MENUS, 'editSessionNote')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /备注/)
 assert.match(item.label.en.toLowerCase(), /note/)

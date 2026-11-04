@@ -1,9 +1,9 @@
 /** Session/CmdK: production guard (handler existed). */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'openProdGuard')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'openProdGuard')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /生产|防护/)
 assert.match(item.label.en.toLowerCase(), /prod|guard/)

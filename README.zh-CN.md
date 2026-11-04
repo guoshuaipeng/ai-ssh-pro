@@ -57,6 +57,17 @@
 
 ## 开发
 
+### 轻量桌面版（体积优化主路径）
+
+Windows NSIS 安装包不到 **10MB**（当前约 3–4MB）。
+
+```bash
+npm run dev:tauri
+npm run build:tauri
+```
+
+### Electron
+
 ```bash
 npm install
 npm run dev
@@ -175,3 +186,4 @@ npx electron-rebuild -f -w node-pty
 ## 许可证
 
 [MIT](./LICENSE)
+

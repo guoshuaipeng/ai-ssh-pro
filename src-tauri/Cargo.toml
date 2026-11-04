@@ -1,0 +1,48 @@
+[package]
+name = "ai-ssh-pro"
+version = "0.8.0"
+description = "AI-SSH-Pro"
+authors = ["guoshuaipeng"]
+edition = "2021"
+
+[lib]
+name = "ai_ssh_pro_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "process", "net", "io-std", "fs"] }
+uuid = { version = "1", features = ["v4"] }
+russh = "0.50"
+russh-sftp = "2"
+portable-pty = "0.8"
+sha2 = "0.10"
+async-trait = "0.1"
+thiserror = "2"
+parking_lot = "0.12"
+dirs = "6"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+base64 = "0.22"
+anyhow = "1"
+futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+bytes = "1"
+rand = "0.8"
+scrypt = "0.11"
+aes-gcm = "0.10"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

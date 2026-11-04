@@ -15,7 +15,8 @@ for (const c of r.out) {
   if (nOk) for (const [k, v] of Object.entries(c.p)) {
     const got = String((p!.params as Record<string, unknown>)[k] ?? '')
     if (Array.isArray(v)) pOk &&= v.every((x) => parseTargets(got).map((s) => s.toLowerCase()).includes(String(x).toLowerCase()))
-    else if (k === 'query' || k === 'title') pOk &&= got.toLowerCase().includes(String(v).toLowerCase())
+    else if (k === 'tags') pOk &&= (() => { const n = (x: string) => x.split(/[,，\s]+/).map((t) => t.replace(/^#/, '').toLowerCase()).filter(Boolean).sort().join(','); return n(got) === n(String(v)) })() // c61: tag lists compare as sets
+  else if (k === 'query' || k === 'title') pOk &&= got.toLowerCase().includes(String(v).toLowerCase())
     else pOk &&= got.trim() === String(v)
   }
   const rp = JSON.stringify(rawP?.params ?? {})

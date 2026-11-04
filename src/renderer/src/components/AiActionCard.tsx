@@ -7,6 +7,7 @@ import {
   cardReducer,
   getAction,
   initialValues,
+  isRiskyAction,
   missingFields,
   parseTargets,
   visibleFields,
@@ -39,7 +40,7 @@ export default function AiActionCard({ proposal, onRun }: Props) {
       dispatch({ type: 'confirm' })
       return
     }
-    if (def.risk?.(s.values) && !s.armed) {
+    if (isRiskyAction(def, s.values) && !s.armed) {
       // c55: high-risk -> first click arms, auto-disarm after 4s
       dispatch({ type: 'confirm' })
       window.setTimeout(() => dispatch({ type: 'disarm' }), 4000)
@@ -83,6 +84,8 @@ export default function AiActionCard({ proposal, onRun }: Props) {
                   testId={id}
                   ariaLabel={tg(f.labelKey as MessageKey)}
                   value={s.values[f.key] ?? ''}
+                  placeholder={tg('aa.choose')}
+                  invalid={bad}
                   disabled={!open}
                   options={(f.options ?? []).map((o) => ({ value: o.value, label: tg(o.labelKey as MessageKey) }))}
                   onChange={(v) => dispatch({ type: 'edit', key: f.key, value: v })}

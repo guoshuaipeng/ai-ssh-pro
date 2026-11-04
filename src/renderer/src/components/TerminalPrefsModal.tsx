@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { TerminalPrefs, TerminalThemeId } from '@shared/ipc'
+import { normalizeTerminalPrefs } from '@shared/terminal-prefs'
 import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
 import { TERMINAL_THEME_OPTIONS } from '../lib/terminal-themes'
 import { tg } from '../lib/i18n'
@@ -39,7 +40,8 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
 
   useEffect(() => {
     setHint(null)
-    void window.aiss.terminal.getPrefs().then((p) => {
+    void window.aiss.terminal.getPrefs().then((raw) => {
+      const p = normalizeTerminalPrefs(raw)
       setThemeId(p.themeId)
       setFontFamily(p.fontFamily)
       setFontSize(p.fontSize)
@@ -48,7 +50,7 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
       setMuteBell(p.muteBell === true)
       setCopyOnSelect(p.copyOnSelect === true)
       setLoaded(true)
-    })
+    }).catch(() => setLoaded(true))
   }, [])
 
   useEffect(() => {
@@ -67,15 +69,17 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
   const save = useCallback(async () => {
     setBusy(true)
     try {
-      const next = await window.aiss.terminal.setPrefs({
-        themeId,
-        fontFamily: fontFamily.trim() || TERMINAL_PREFS_DEFAULTS.fontFamily,
-        fontSize: Math.min(48, Math.max(8, Math.round(fontSize) || 14)),
-        scrollback: Math.min(100000, Math.max(100, Math.round(scrollback) || 4000)),
-        osc52Clipboard,
-        muteBell,
-        copyOnSelect
-      })
+      const next = normalizeTerminalPrefs(
+        await window.aiss.terminal.setPrefs({
+          themeId,
+          fontFamily: fontFamily.trim() || TERMINAL_PREFS_DEFAULTS.fontFamily,
+          fontSize: Math.min(48, Math.max(8, Math.round(fontSize) || 14)),
+          scrollback: Math.min(100000, Math.max(100, Math.round(scrollback) || 4000)),
+          osc52Clipboard,
+          muteBell,
+          copyOnSelect
+        })
+      )
       onSaved?.(next)
       setHint(tg('ui.4'))
     } finally {

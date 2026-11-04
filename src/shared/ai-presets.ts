@@ -1,6 +1,6 @@
 /**
  * B2: provider presets. Every base URL below is copied from the provider's own docs
- * (checked 2026-10-20, see docsUrl). Model ids are the examples those pages use; users can edit them.
+ * (checked 2026-10-23, see docsUrl). Model ids are the examples those pages use; users can edit them.
  * Do not add an endpoint here without a docs link that shows it.
  */
 
@@ -75,7 +75,55 @@ export const AI_PRESETS: readonly AiPreset[] = [
       zh: '无需 API Key。先在本机执行 ollama pull <模型>，模型名以 ollama list 为准。',
       en: 'No API key needed. Run ollama pull <model> first; use the names from ollama list.'
     }
-  }
+  },
+  {
+    id: 'siliconflow',
+    name: { zh: '硅基流动 · SiliconFlow', en: 'SiliconFlow' },
+    baseURL: 'https://api.siliconflow.cn/v1',
+    models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-7B-Instruct'],
+    keyRequired: true,
+    docsUrl: 'https://docs.siliconflow.cn/cn/userguide/quickstart',
+    note: {
+      zh: '小模型常有 Free 额度，具体以控制台为准。',
+      en: 'Small models are often Free; check the console for the current list.'
+    }
+  },
+  {
+    id: 'modelscope',
+    name: { zh: '魔搭 · ModelScope', en: 'ModelScope' },
+    baseURL: 'https://api-inference.modelscope.cn/v1',
+    models: ['Qwen/Qwen3.8-Flash-Next', 'deepseek-ai/DeepSeek-V4.1-Flash'],
+    keyRequired: true,
+    docsUrl: 'https://modelscope.cn/docs/model-service/API-Inference/intro',
+    note: {
+      zh: '使用 Access Token；可能需阿里云实名；有每日免费额度。',
+      en: 'Uses an Access Token; Alibaba Cloud real-name may be required; daily free quota applies.'
+    }
+  },
+  {
+    id: 'lmstudio',
+    name: { zh: 'LM Studio（本机）', en: 'LM Studio (local)' },
+    baseURL: 'http://localhost:1234/v1',
+    models: ['openai/gpt-oss-20b'],
+    keyRequired: false,
+    docsUrl: 'https://lmstudio.ai/docs/developer/openai-compat',
+    note: {
+      zh: '无需 API Key。模型名以 LM Studio 已加载的为准。',
+      en: 'No API key needed. Use the model id currently loaded in LM Studio.'
+    }
+  },
+  {
+    id: 'openrouter',
+    name: { zh: 'OpenRouter', en: 'OpenRouter' },
+    baseURL: 'https://openrouter.ai/api/v1',
+    models: ['openrouter/free', 'meta-llama/llama-3.2-3b-instruct:free'],
+    keyRequired: true,
+    docsUrl: 'https://openrouter.ai/docs/quickstart',
+    note: {
+      zh: ':free 模型列表会变；国内访问可能需要额外网络条件。',
+      en: 'The :free model list changes; access from mainland China may need extra network setup.'
+    }
+  },
 ]
 
 export function findPreset(id: string): AiPreset | undefined {

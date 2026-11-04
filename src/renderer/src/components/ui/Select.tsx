@@ -20,6 +20,8 @@ type Props = {
   /** Why the whole control is disabled. Shown as tooltip. */
   disabledReason?: string
   placeholder?: string
+  /** c63: marks a required, still empty choice (same red state as inputs). */
+  invalid?: boolean
   ariaLabel?: string
   testId?: string
   className?: string
@@ -27,7 +29,7 @@ type Props = {
 }
 
 /** C2: themed replacement for the native select element. Button + listbox popover, keyboard and type-ahead. */
-export default function Select({ value, options, onChange, disabled, disabledReason, placeholder, ariaLabel, testId, className, style }: Props) {
+export default function Select({ value, options, onChange, disabled, disabledReason, placeholder, invalid, ariaLabel, testId, className, style }: Props) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const [pos, setPos] = useState<{ left: number; top: number; width: number; up: boolean } | null>(null)
@@ -153,6 +155,7 @@ export default function Select({ value, options, onChange, disabled, disabledRea
         aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
         aria-label={ariaLabel}
         aria-disabled={disabled || undefined}
+        aria-invalid={invalid || undefined}
         title={disabled ? disabledReason : current?.title}
         data-testid={testId}
         data-value={value}

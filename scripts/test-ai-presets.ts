@@ -24,12 +24,19 @@ const ok = (s: string) => {
   ok('preset shape and docs links')
 }
 {
-  // pinned to what the official pages showed on 2026-10-20
+  // pinned to what the official pages showed on 2026-10-23
   assert.equal(findPreset('deepseek')?.baseURL, 'https://api.deepseek.com')
   assert.equal(findPreset('dashscope')?.baseURL, 'https://dashscope.aliyuncs.com/compatible-mode/v1')
   assert.equal(findPreset('moonshot')?.baseURL, 'https://api.moonshot.cn/v1')
   assert.equal(findPreset('zhipu')?.baseURL, 'https://open.bigmodel.cn/api/paas/v4')
   assert.equal(findPreset('ollama')?.baseURL, 'http://localhost:11434/v1')
+  assert.equal(findPreset('siliconflow')?.baseURL, 'https://api.siliconflow.cn/v1')
+  assert.equal(findPreset('modelscope')?.baseURL, 'https://api-inference.modelscope.cn/v1')
+  assert.equal(findPreset('lmstudio')?.baseURL, 'http://localhost:1234/v1')
+  assert.equal(findPreset('openrouter')?.baseURL, 'https://openrouter.ai/api/v1')
+  assert.equal(findPreset('lmstudio')?.keyRequired, false)
+  assert.equal(findPreset('siliconflow')?.keyRequired, true)
+  assert.ok(AI_PRESETS.length >= 10, 'at least 10 presets')
   ok('verified endpoints are pinned')
 }
 {

@@ -64,6 +64,7 @@ import { app, BrowserWindow } from 'electron'
 import { writeFileSync } from 'node:fs'
 app.setPath('appData', ${JSON.stringify(appData)})
 app.setPath('userData', ${JSON.stringify(userData)})
+if (app.getPath("userData") !== ${JSON.stringify(userData)}) { console.error("[isolation-guard] userData not isolated"); app.exit(97) }
 const shots = ${JSON.stringify(shots.map((s) => ({ ...s, path: join(outDir, s.file) })))}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let done = false

@@ -1,12 +1,12 @@
 /** CmdK disconnect current session with confirm. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 import { CONFIRM_WHITELIST } from '../src/shared/confirm-whitelist'
 
 assert.ok(CONFIRM_WHITELIST.has('confirm.disconnectSession'))
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'disconnectSession')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'disconnectSession')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /断开/)
 assert.match(item.label.en.toLowerCase(), /disconnect/)

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu } from 'electron'
 import type { AppDialogKind } from '../shared/ipc'
-import { SHARED_MENUS, visibleMenuItems, type MenuAction } from '../shared/menus'
+import { SHARED_MENUS, visibleMenuItems, type MenuAction, type SharedMenuItem } from '../shared/menus'
 import { mt } from './main-i18n'
 
 let mainWindowRef: BrowserWindow | null = null
@@ -54,28 +54,40 @@ export function buildMenuTemplate(isMac = process.platform === 'darwin'): Electr
       ]
     })
   }
-  for (const menu of SHARED_MENUS) {
-    const submenu: Electron.MenuItemConstructorOptions[] = []
-    for (const item of visibleMenuItems(menu)) {
+  const buildItems = (items: SharedMenuItem[]): Electron.MenuItemConstructorOptions[] => {
+    const out: Electron.MenuItemConstructorOptions[] = []
+    for (const item of items) {
       if (item.type === 'sep') {
-        submenu.push({ type: 'separator' })
+        out.push({ type: 'separator' })
+        continue
+      }
+      if (item.type === 'sub') {
+        out.push({
+          label: mt(item.label.zh, item.label.en),
+          submenu: buildItems(item.items)
+        })
         continue
       }
       if (isMac && (item.id === 'quit' || item.id === 'about')) continue
       const label = mt(item.label.zh, item.label.en)
       const role = ROLE_ITEMS[item.id]
       if (role) {
-        submenu.push({ role, label })
+        out.push({ role, label })
         continue
       }
       const accel = item.shortcut && !item.shortcut.includes('…') ? item.shortcut.replace(/^Ctrl\+/, 'CmdOrCtrl+') : undefined
-      submenu.push({
+      out.push({
         label,
         accelerator: accel,
         registerAccelerator: false,
         click: () => sendOpenDialog(item.id)
       })
     }
+    return out
+  }
+
+  for (const menu of SHARED_MENUS) {
+    const submenu: Electron.MenuItemConstructorOptions[] = buildItems(visibleMenuItems(menu))
     if (menu.id === 'view') {
       submenu.push(
         { type: 'separator' },

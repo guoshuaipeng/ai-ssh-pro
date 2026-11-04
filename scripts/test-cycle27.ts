@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { pushRecentRun, recentRunsContext, RECENT_RUNS_MAX, RECENT_CTX_MAX, RECENT_FRESH_MS, type LastRun } from '../src/shared/failed-output'
 import { searchSessions, hitsPerSession, SEARCH_ALL_CAP } from '../src/shared/term-search-all'
 import { KEYMAP, matchKeymap } from '../src/shared/keymap'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 import { withSkipHost } from '../src/shared/paste-skip'
 let n = 0
 const ok = (c: unknown, m: string) => { assert.ok(c, m); n++ }
@@ -30,7 +30,7 @@ ok(hitsPerSession(hits).size === 2, 'D60 per tab')
 ok(searchSessions([{ sessionId: 'c', label: 'c', lines: Array(500).fill('needle') }], 'needle').length === SEARCH_ALL_CAP, 'D60 cap')
 ok(KEYMAP.filter((x) => x.keys === 'Ctrl+Shift+Alt+F').length === 1, 'D60 unique shortcut')
 ok(matchKeymap({ key: 'F', code: 'KeyF', ctrlKey: true, shiftKey: true, altKey: true, metaKey: false }, true) === 'searchAllTerms', 'D60 works in terminal')
-ok(SHARED_MENUS.flatMap((m) => m.items).some((it) => it.type === 'item' && it.id === 'searchAllTerms'), 'D60 menu')
+ok(SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).some((it) => it.type === 'item' && it.id === 'searchAllTerms'), 'D60 menu')
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 ok(app.includes("action === 'searchAllTerms'") && app.includes('<SearchAllTermsModal'), 'D60 wired')
 ok(tp.includes('registerTermBuffer(sessionId') && tp.includes('detail?.query'), 'D60 pane registers + seeds query')

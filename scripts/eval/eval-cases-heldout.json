@@ -173,5 +173,69 @@
   "p": {
    "target": "demo-mysql"
   }
+ },
+ {
+  "lang": "zh",
+  "q": "刚刚那几步操作帮我保存成剧本，名字叫重启流程",
+  "name": "playbook.fromRecent",
+  "p": {
+   "name": "重启流程"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Save my recent commands as a runbook named redis-fix",
+  "name": "playbook.fromRecent",
+  "p": {
+   "name": "redis-fix"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "最近那条告警是怎么回事？",
+  "name": "alert.explain",
+  "p": {}
+ },
+ {
+  "lang": "en",
+  "q": "Why did db-01 fire an alert?",
+  "name": "alert.explain",
+  "p": {
+   "target": "db-01"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "给 redis-02 加上 cache 和 prod 两个标签",
+  "name": "connection.organize",
+  "p": {
+   "target": "redis-02",
+   "tags": "cache, prod"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Move staging-api into the Staging folder",
+  "name": "connection.organize",
+  "p": {
+   "target": "staging-api",
+   "folder": "Staging"
+  }
+ },
+ {
+  "lang": "zh",
+  "q": "帮我切到沙色主题",
+  "name": "settings.set",
+  "p": {
+   "theme": "sand"
+  }
+ },
+ {
+  "lang": "en",
+  "q": "Switch the app to the slate theme",
+  "name": "settings.set",
+  "p": {
+   "theme": "slate"
+  }
  }
 ]

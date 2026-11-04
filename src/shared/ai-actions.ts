@@ -5,8 +5,9 @@
  * and never sent to it.
  */
 import type { AlertMetric, AlertRulesState } from './alert-rules'
-import type { AddForwardRequest, CommandSnippet, SavedSessionProfile } from './ipc'
+import type { AddForwardRequest, CommandSnippet, SavedSessionFolder, SavedSessionProfile } from './ipc'
 import type { Playbook } from './playbook'
+import type { CommandBus } from './command-bus'
 
 export type ActionFieldType = 'text' | 'number' | 'select' | 'secret'
 
@@ -30,17 +31,34 @@ export type ActionDef = {
   /** One line for the model: when to propose this action. */
   hint: string
   fields: ActionField[]
-  /** c55: high-risk when this returns true -> the card needs a second confirm. */
-  risk?: (values: Record<string, string>) => boolean
+  /** c62: app command (see command-bus.ts) that does the work after the user confirms. */
+  command: string
+  /** c62: command argument -> card field key. Only these values reach the command. */
+  args: Record<string, string>
+  /** c62: resolve saved connection(s) from this field before the command runs (noTarget on a miss). */
+  target?: { field: string; many?: boolean; notDemoKey?: string }
+  /** c62: needs an active SSH session (noSession otherwise). */
+  requires?: 'activeSession'
+  /** c62: pre-checks, run in order after target resolution; first failure stops with its message. */
+  checks?: { validator: ActionValidator; field?: string; messageKey: string }[]
+  /** c55/c62: high-risk rule -> the card needs a second confirm. */
+  risk?: RiskRule
   /** c57: note shown while armed (defaults to the batch note). */
   riskNoteKey?: string
+  /** c62: audit host field (default host, then target). Detail = action name + non-secret fields. */
+  audit?: { hostField?: string }
 }
+
+export type RiskRule = { always: true } | { field: string; equals: string } | { field: string; listAtLeast: number }
+export type ActionValidator = 'sftpPath' | 'transferPaths' | 'nonEmpty'
 
 export type AppActionProposal = { name: string; params: Record<string, string> }
 
 const CONNECTION_ADD: ActionDef = {
   name: 'connection.add',
   titleKey: 'aa.connAdd.title',
+  command: 'connections.save',
+  args: { label: 'label', host: 'host', port: 'port', username: 'username', auth: 'auth', password: 'password', privateKeyPath: 'privateKeyPath' },
   hint: 'add a saved SSH connection (host, port, username, auth)',
   fields: [
     { key: 'label', labelKey: 'aa.f.label', type: 'text' },
@@ -66,6 +84,8 @@ const CONNECTION_ADD: ActionDef = {
 const MONITOR_CONFIGURE: ActionDef = {
   name: 'monitor.configure',
   titleKey: 'aa.monitor.title',
+  command: 'alerts.setRule',
+  args: { metric: 'metric', threshold: 'threshold', sustainMin: 'sustainMin', enabled: 'enabled' },
   hint: 'create, change, enable or disable an alert rule of THIS APP (metric cpu|mem|disk|offline; threshold % not needed for offline; enabled on|off). "turn off disk alerts" -> metric=disk, enabled=off',
   fields: [
     {
@@ -98,6 +118,10 @@ const MONITOR_CONFIGURE: ActionDef = {
 const SFTP_OPEN: ActionDef = {
   name: 'sftp.open',
   titleKey: 'aa.sftp.title',
+  command: 'sftp.openAt',
+  args: { path: 'path' },
+  target: { field: 'target' },
+  checks: [{ validator: 'sftpPath', field: 'path', messageKey: 'aa.badPath' }],
   hint: 'open the SFTP file browser for a saved connection (target = its name or host), optionally at a directory (path starts with / or ~)',
   fields: [
     { key: 'target', labelKey: 'aa.f.target', type: 'text', required: true, placeholder: 'web-01' },
@@ -111,14 +135,20 @@ export const BATCH_RISK_MIN = 3
 const CONNECTION_OPEN: ActionDef = {
   name: 'connection.open',
   titleKey: 'aa.open.title',
+  command: 'connections.connect',
+  args: {},
+  target: { field: 'targets', many: true },
   hint: 'connect to one or more saved connections (targets = names or hosts separated by commas)',
   fields: [{ key: 'targets', labelKey: 'aa.f.targets', type: 'text', required: true, placeholder: 'web-01, web-02' }],
-  risk: (v) => parseTargets(v.targets ?? '').length >= BATCH_RISK_MIN
+  risk: { field: 'targets', listAtLeast: BATCH_RISK_MIN }
 }
 
 const HISTORY_FILL: ActionDef = {
   name: 'history.fill',
   titleKey: 'aa.hist.title',
+  command: 'commandBar.fillFromHistory',
+  args: { query: 'query' },
+  requires: 'activeSession',
   hint: 'find a command the user ran before in THIS APP\'s local history and put it in the command bar (never sent); query = 1-3 keywords. Do not run `history` on the server',
   fields: [{ key: 'query', labelKey: 'aa.f.query', type: 'text', required: true, placeholder: 'nginx' }]
 }
@@ -126,6 +156,8 @@ const HISTORY_FILL: ActionDef = {
 const PLAYBOOK_CREATE: ActionDef = {
   name: 'playbook.create',
   titleKey: 'aa.pb.title',
+  command: 'playbooks.save',
+  args: { name: 'name', commands: 'commands', description: 'description' },
   hint: 'save a multi-step playbook (runbook) in THIS APP; commands = shell commands separated by ";" or new lines, one step each. Saved only, never run. For a single command use snippet.create',
   fields: [
     { key: 'name', labelKey: 'aa.f.name', type: 'text', required: true },
@@ -134,9 +166,49 @@ const PLAYBOOK_CREATE: ActionDef = {
   ]
 }
 
+const PLAYBOOK_FROM_RECENT: ActionDef = {
+  name: 'playbook.fromRecent',
+  titleKey: 'aa.pbr.title',
+  command: 'playbooks.saveFromRecent',
+  args: { name: 'name', count: 'count' },
+  hint: 'save the commands the user recently ran in THIS APP (current host first) as a playbook; count = how many recent commands (default 10, max 30). Saved only, never run. Also use it when the user refers to what they just did (those steps, what I ran, the work done today) without spelling out the commands. Use playbook.create only when the user lists the commands',
+  fields: [
+    { key: 'name', labelKey: 'aa.f.name', type: 'text', required: true },
+    { key: 'count', labelKey: 'aa.f.count', type: 'number', placeholder: '10' }
+  ]
+}
+
+const ALERT_EXPLAIN: ActionDef = {
+  name: 'alert.explain',
+  titleKey: 'aa.alx.title',
+  command: 'alerts.explainLatest',
+  args: { target: 'target' },
+  hint: 'open THIS APP\'s alert workbench on the newest alert, active ones first, and start the AI explanation; target = host name to narrow it, empty = newest alert. Read-only, never changes the server',
+  fields: [{ key: 'target', labelKey: 'aa.f.host', type: 'text', placeholder: 'web-01' }]
+}
+
+const CONNECTION_ORGANIZE: ActionDef = {
+  name: 'connection.organize',
+  titleKey: 'aa.org.title',
+  command: 'connections.organize',
+  args: { folder: 'folder', label: 'label', tags: 'tags' },
+  target: { field: 'target', notDemoKey: 'aa.orgDemo' },
+  hint: 'organize ONE saved connection in THIS APP: move it to a folder (created if missing), rename it, and/or add tags (comma separated). Only changes local metadata, never the server or credentials',
+  fields: [
+    { key: 'target', labelKey: 'aa.f.target', type: 'text', required: true },
+    { key: 'folder', labelKey: 'aa.f.folder', type: 'text' },
+    { key: 'label', labelKey: 'aa.f.newLabel', type: 'text' },
+    { key: 'tags', labelKey: 'aa.f.tags', type: 'text', placeholder: 'prod, web' }
+  ]
+}
+
 const SFTP_TRANSFER: ActionDef = {
   name: 'sftp.transfer',
   titleKey: 'aa.xfer.title',
+  command: 'sftp.transfer',
+  args: { direction: 'direction', remotePath: 'remotePath', localPath: 'localPath' },
+  target: { field: 'target' },
+  checks: [{ validator: 'transferPaths', messageKey: 'aa.badPath' }],
   hint: 'download a remote file to this computer, or upload a local file to the server, over THIS APP\'s SFTP; target = saved connection label/host, paths absolute. Upload needs a second confirmation',
   fields: [
     { key: 'target', labelKey: 'aa.f.target', type: 'text', required: true },
@@ -153,25 +225,32 @@ const SFTP_TRANSFER: ActionDef = {
     { key: 'remotePath', labelKey: 'aa.f.remotePath', type: 'text', required: true, placeholder: '/var/log/syslog' },
     { key: 'localPath', labelKey: 'aa.f.localPath', type: 'text', required: true, placeholder: 'C:\\Users\\me\\Downloads\\syslog' }
   ],
-  risk: (v) => (v.direction ?? '').trim() === 'upload',
+  risk: { field: 'direction', equals: 'upload' },
   riskNoteKey: 'aa.uploadNote'
 }
 
 const BATCH_PREFILL: ActionDef = {
   name: 'batch.prefill',
   titleKey: 'aa.batch.title',
+  command: 'batch.prefill',
+  args: { command: 'command' },
+  target: { field: 'targets', many: true },
+  checks: [{ validator: 'nonEmpty', field: 'command', messageKey: 'aa.pbEmpty' }],
   hint: 'open THIS APP\'s batch-execute panel with the hosts ticked and the command filled in; it is NOT run, the user reviews and presses Run. targets = saved connection names/hosts separated by commas',
   fields: [
     { key: 'targets', labelKey: 'aa.f.targets', type: 'text', required: true, placeholder: 'web-01, web-02' },
     { key: 'command', labelKey: 'aa.f.command', type: 'text', required: true, placeholder: 'uptime' }
   ],
-  risk: () => true,
+  risk: { always: true },
   riskNoteKey: 'aa.batchNote'
 }
 
 const MONITOR_OPEN: ActionDef = {
   name: 'monitor.open',
   titleKey: 'aa.mon.title',
+  command: 'monitor.openFor',
+  args: {},
+  target: { field: 'target' },
   hint: 'open THIS APP\'s resource monitor (CPU / memory / disk) for one saved connection; for alert thresholds use monitor.configure',
   fields: [{ key: 'target', labelKey: 'aa.f.target', type: 'text', required: true }]
 }
@@ -179,6 +258,8 @@ const MONITOR_OPEN: ActionDef = {
 const SNIPPET_CREATE: ActionDef = {
   name: 'snippet.create',
   titleKey: 'aa.snippet.title',
+  command: 'snippets.add',
+  args: { title: 'title', command: 'command', category: 'category' },
   hint: 'save a reusable command snippet in THIS APP (title, command, optional category); never write it to the server',
   fields: [
     { key: 'title', labelKey: 'aa.f.title', type: 'text', required: true },
@@ -190,6 +271,9 @@ const SNIPPET_CREATE: ActionDef = {
 const FORWARD_CREATE: ActionDef = {
   name: 'forward.create',
   titleKey: 'aa.forward.title',
+  command: 'forwards.add',
+  args: { localPort: 'localPort', remoteHost: 'remoteHost', remotePort: 'remotePort' },
+  requires: 'activeSession',
   hint: 'add a local port forward on the active SSH session (localPort -> remoteHost:remotePort)',
   fields: [
     { key: 'localPort', labelKey: 'aa.f.localPort', type: 'number', required: true, min: 1, max: 65535 },
@@ -198,7 +282,19 @@ const FORWARD_CREATE: ActionDef = {
   ]
 }
 
-export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN]
+const SETTINGS_SET: ActionDef = {
+  name: 'settings.set',
+  titleKey: 'aa.set.title',
+  command: 'settings.apply',
+  args: { theme: 'theme', fontSize: 'fontSize' },
+  hint: 'change THIS APP\'s look: theme (github-dark, slate, ocean, forest = dark; light, sand = light) and/or terminal fontSize (10-24). Leave a field out to keep it',
+  fields: [
+    { key: 'theme', labelKey: 'aa.f.theme', type: 'select', def: 'keep', options: [{ value: 'keep', labelKey: 'aa.th.keep' }, { value: 'github-dark', labelKey: 'aa.th.github-dark' }, { value: 'slate', labelKey: 'aa.th.slate' }, { value: 'ocean', labelKey: 'aa.th.ocean' }, { value: 'forest', labelKey: 'aa.th.forest' }, { value: 'light', labelKey: 'aa.th.light' }, { value: 'sand', labelKey: 'aa.th.sand' }] },
+    { key: 'fontSize', labelKey: 'aa.f.fontSize', type: 'number', min: 10, max: 24, placeholder: '14' }
+  ]
+}
+
+export const AI_ACTIONS: readonly ActionDef[] = [CONNECTION_ADD, MONITOR_CONFIGURE, SFTP_OPEN, SNIPPET_CREATE, FORWARD_CREATE, CONNECTION_OPEN, HISTORY_FILL, PLAYBOOK_CREATE, SFTP_TRANSFER, BATCH_PREFILL, MONITOR_OPEN, PLAYBOOK_FROM_RECENT, ALERT_EXPLAIN, CONNECTION_ORGANIZE, SETTINGS_SET]
 
 export function getAction(name: string): ActionDef | undefined {
   return AI_ACTIONS.find((a) => a.name === name)
@@ -300,7 +396,7 @@ export function cardReducer(def: ActionDef, s: CardState, e: CardEvent): CardSta
       if (!open) return s
       if (missingFields(def, s.values).length) return { ...s, phase: 'editing', showMissing: true, armed: false }
       // c55: high-risk -> first confirm only arms; the second one runs
-      if (def.risk?.(s.values) && !s.armed) return { ...s, armed: true }
+      if (isRiskyAction(def, s.values) && !s.armed) return { ...s, armed: true }
       return { ...s, phase: 'running', message: undefined, armed: false }
     case 'disarm':
       return s.armed ? { ...s, armed: false } : s
@@ -337,6 +433,38 @@ export function buildProfileFromAction(
   }
   const next = existing ? profiles.map((p) => (p.id === existing.id ? profile : p)) : [...profiles, profile]
   return { profiles: next, profile, updated: Boolean(existing) }
+}
+
+/** c61: folder (reuse by name or create), rename, add tags. null = nothing to change. */
+export function organizeProfileFromAction(
+  v: Record<string, string>,
+  prof: SavedSessionProfile,
+  profiles: readonly SavedSessionProfile[],
+  folders: readonly SavedSessionFolder[],
+  newId: () => string
+): { profiles: SavedSessionProfile[]; folders: SavedSessionFolder[]; profile: SavedSessionProfile } | null {
+  const label = (v.label ?? '').trim()
+  const fname = (v.folder ?? '').trim()
+  const tags = (v.tags ?? '').split(/[,，\s]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean)
+  if (!label && !fname && !tags.length) return null
+  const nextFolders = [...folders]
+  let folderId = prof.folderId
+  if (fname) {
+    const ex = folders.find((f) => f.name.toLowerCase() === fname.toLowerCase())
+    if (ex) folderId = ex.id
+    else {
+      const f = { id: newId(), name: fname }
+      nextFolders.push(f)
+      folderId = f.id
+    }
+  }
+  const profile: SavedSessionProfile = {
+    ...prof,
+    ...(label ? { label } : {}),
+    ...(folderId ? { folderId } : {}),
+    ...(tags.length ? { tags: [...new Set([...(prof.tags ?? []), ...tags])] } : {})
+  }
+  return { profiles: profiles.map((p) => (p.id === prof.id ? profile : p)), folders: nextFolders, profile }
 }
 
 export function applyMonitorAction(state: AlertRulesState, v: Record<string, string>): AlertRulesState {
@@ -393,15 +521,47 @@ export function splitPlaybookCommands(raw: string): string[] {
     .slice(0, 30)
 }
 
+/** c60: newest alert for a host filter (active first, then any status); empty filter = all hosts. */
+export function pickAlertForAction<T extends { hostKey: string; hostTitle: string; at: number; status: string }>(list: readonly T[], target: string | undefined): T | undefined {
+  const q = (target ?? '').trim().toLowerCase()
+  const pool = q ? list.filter((a) => a.hostTitle.toLowerCase().includes(q) || a.hostKey.toLowerCase() === q) : [...list]
+  const newest = (xs: T[]) => [...xs].sort((a, b) => b.at - a.at)[0]
+  return newest(pool.filter((a) => a.status === 'active')) ?? newest(pool)
+}
+
+/** c59: newest N distinct commands (current host first, else all hosts), returned oldest-first. */
+export function recentCommandsForPlaybook(
+  entries: readonly { command: string; hostKey: string; lastUsed: number }[],
+  hostKey: string,
+  count: string | undefined
+): string[] {
+  const n = Math.min(30, Math.max(1, Number.parseInt(count ?? '', 10) || 10))
+  const scoped = hostKey ? entries.filter((e) => e.hostKey === hostKey) : []
+  const pool = scoped.length ? scoped : entries
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const e of [...pool].sort((a, b) => b.lastUsed - a.lastUsed)) {
+    const c = e.command.trim()
+    if (!c || seen.has(c)) continue
+    seen.add(c)
+    out.push(c)
+    if (out.length >= n) break
+  }
+  return out.reverse()
+}
+
 /** c57: every AI-made step asks before running (lockedConfirm) and stops on error. */
 export function buildPlaybookFromAction(v: Record<string, string>, id: string, now: number): Playbook | null {
-  const name = (v.name ?? '').trim()
-  const cmds = splitPlaybookCommands(v.commands ?? '')
+  return buildPlaybookFromCommands(v.name ?? '', v.description ?? '', splitPlaybookCommands(v.commands ?? ''), id, now)
+}
+
+export function buildPlaybookFromCommands(rawName: string, desc: string, cmds: string[], id: string, now: number): Playbook | null {
+  const name = rawName.trim()
   if (!name || !cmds.length) return null
   return {
     id,
     name,
-    description: (v.description ?? '').trim(),
+    description: desc.trim(),
     steps: cmds.map((command, i) => ({ id: `${id}-s${i + 1}`, type: 'command' as const, command, confirm: true, lockedConfirm: true, stopOnError: true, timeoutSec: 60, aiGenerated: true })),
     updatedAt: now
   }
@@ -467,4 +627,67 @@ export function proposalFromReply(obj: Record<string, unknown>): AppActionPropos
   if (direct) return direct
   if (typeof obj.action === 'string' && getAction(obj.action)) return sanitizeProposal({ name: obj.action, params: obj.params ?? {} })
   return null
+}
+
+// ---- c62: config-driven runner (every action goes through here; no per-action branches) ----
+export function isRiskyAction(def: ActionDef, v: Record<string, string>): boolean {
+  const r = def.risk
+  if (!r) return false
+  if ('always' in r) return true
+  const val = (v[r.field] ?? '').trim()
+  if ('equals' in r) return val === r.equals
+  return parseTargets(val).length >= r.listAtLeast
+}
+
+export const ACTION_VALIDATORS: Record<ActionValidator, (v: Record<string, string>, field?: string) => boolean> = {
+  sftpPath: (v, f) => sftpPathOk(v[f ?? ''] ?? ''),
+  transferPaths: (v) => transferPathsOk(v),
+  nonEmpty: (v, f) => Boolean((v[f ?? ''] ?? '').trim())
+}
+
+export function mapActionArgs(def: ActionDef, v: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [arg, field] of Object.entries(def.args)) out[arg] = v[field] ?? ''
+  return out
+}
+
+export type ActionRunCtx = {
+  bus: CommandBus
+  profiles: readonly SavedSessionProfile[]
+  activeSessionId: string | null | undefined
+  t: (key: string, vars?: Record<string, string | number>) => string
+}
+
+/** Order is fixed for every action: session -> target(s) -> checks -> command. */
+export async function runAction(name: string, v: Record<string, string>, ctx: ActionRunCtx): Promise<ActionResult> {
+  const def = getAction(name)
+  if (!def || !ctx.bus.has(def.command)) return { ok: false, message: ctx.t('aa.noExecutor') }
+  if (def.requires === 'activeSession' && !ctx.activeSessionId) return { ok: false, message: ctx.t('aa.noSession') }
+  let profiles: SavedSessionProfile[] = []
+  if (def.target) {
+    const raw = v[def.target.field] ?? ''
+    if (def.target.many) {
+      const r = resolveTargets(ctx.profiles, raw)
+      if (r.missing.length) return { ok: false, message: ctx.t('aa.noTarget', { target: r.missing.join(ctx.t('aa.sep')) }) }
+      profiles = r.found
+    } else {
+      const prof = findProfileForAction(ctx.profiles, raw)
+      if (!prof) return { ok: false, message: ctx.t('aa.noTarget', { target: raw }) }
+      if (def.target.notDemoKey && prof.demo) return { ok: false, message: ctx.t(def.target.notDemoKey) }
+      profiles = [prof]
+    }
+  }
+  for (const c of def.checks ?? []) {
+    if (!ACTION_VALIDATORS[c.validator](v, c.field)) return { ok: false, message: ctx.t(c.messageKey) }
+  }
+  const r = await ctx.bus.run(def.command, { args: mapActionArgs(def, v), profiles, sessionId: ctx.activeSessionId ?? null })
+  return r ?? { ok: false, message: ctx.t('aa.noExecutor') }
+}
+
+/** c62: the audit line for one confirmed action (secrets never included). */
+export function auditForAction(name: string, v: Record<string, string>, r: ActionResult): { host: string; detail: string } {
+  const def = getAction(name)
+  const hf = def?.audit?.hostField
+  const host = (hf ? v[hf] : undefined) || v.host || v.target || ''
+  return { host, detail: auditDetailForAction(name, v) + (r.ok ? '' : ' · ' + (r.message ?? '')) }
 }

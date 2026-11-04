@@ -40,3 +40,20 @@ _*.mjs
 .regression-*
 scripts/_e2e_*.mjs
 scripts/_pin*.py
+# Tauri
+/src-tauri/target/
+/dist-tauri/
+
+# Tauri mobile icon trees (optional)
+src-tauri/icons/android/
+src-tauri/icons/ios/
+
+src-tauri/gen/
+
+
+# Tauri updater signing keys (NEVER commit private keys)
+*.key
+*.key.pub
+.env.tauri-signing
+_updater_pubkey.txt
+

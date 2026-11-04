@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RecentConnection } from '@shared/workspace-features'
 import TitlebarMenus, { type TitlebarMenuAction } from './TitlebarMenus'
+import WindowControls from './WindowControls'
 import RecentConnections from './RecentConnections'
 import {
   isLightUiTheme,
@@ -176,7 +177,7 @@ export default function AppToolbar({
   ]
 
   return (
-    <header className={`app-titlebar titlebar-compact-${compactLevel}`} ref={headerRef} data-compact={compactLevel}>
+    <header className={`app-titlebar titlebar-compact-${compactLevel}`} ref={headerRef} data-compact={compactLevel} data-tauri-drag-region>
       <div className="app-titlebar-drag">
         <span className="app-toolbar-brand" title={versionText ? `${PRODUCT_NAME} ${versionText}` : PRODUCT_NAME}>
           <BrandMark size={16} />
@@ -368,6 +369,7 @@ export default function AppToolbar({
           </button>
         ))}
       </div>
+      <WindowControls />
     </header>
   )
 }

@@ -322,11 +322,26 @@ function groupCount(id: ToolboxDockerGroupId, rows: ToolboxDockerRow[]): number 
   return rows.filter((row) => row.kind === 'container').length
 }
 
+
+/** Avoid painting raw `docker ps --format json` NDJSON into the red error cell. */
+export function humanizeDockerError(err?: string): string | undefined {
+  if (!err) return err
+  const t = err.trim()
+  if (
+    t.startsWith('{') &&
+    (/"ID"|"Id"/.test(t) || /"Image"/.test(t)) &&
+    (/"Names"|"Command"|"CreatedAt"/.test(t))
+  ) {
+    return '读取容器列表失败，请刷新重试'
+  }
+  return err
+}
+
 /** Compose / swarm / standalone rows for the toolbox table. */
 export function toolboxDockerList(tree: DockerTreeResult, query = ''): ToolboxDockerModel {
   const q = queryOf(query)
   const missing = dockerDaemonMissing(tree)
-  const failure = tree.containersError || ''
+  const failure = humanizeDockerError(tree.containersError) || ''
   const failed = !missing && !hasMaterial(tree) && !tree.swarm.active && Boolean(failure)
   const empty = !missing && !failed && dockerToolboxEmpty(tree)
   const projects = filterProjects(tree.composeProjects, q)
@@ -356,7 +371,7 @@ export function toolboxDockerList(tree: DockerTreeResult, query = ''): ToolboxDo
   groups.push({
     id: 'standalone',
     rows: aloneRows,
-    error: tree.containersError,
+    error: humanizeDockerError(tree.containersError),
     count: groupCount('standalone', aloneRows)
   })
   const noMatch = !missing && !failed && !empty && q.length > 0 && groups.every((group) => group.rows.length === 0)

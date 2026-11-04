@@ -194,14 +194,20 @@ export function buildPaletteEntries(menus: ReadonlyArray<SharedMenu>, locale: st
       hay: `${label} ${other} ${group} ${id} ${alias}`.toLowerCase()
     })
   }
-  for (const m of menus) {
-    const group = menuLabel(m.label, locale)
-    for (const it of m.items) {
+  const walk = (items: typeof menus[number]['items'], group: string) => {
+    for (const it of items) {
+      if (it.type === 'sub') {
+        walk(it.items, group)
+        continue
+      }
       if (it.type !== 'item' || PALETTE_HIDDEN.has(it.id)) continue
       const label = menuLabel(it.label, locale)
       const other = locale === 'zh-CN' ? it.label.en : it.label.zh
       push(it.id, label, other, group, it.shortcut)
     }
+  }
+  for (const m of menus) {
+    walk(m.items, menuLabel(m.label, locale))
   }
   for (const extra of PALETTE_EXTRAS) {
     const label = locale === 'zh-CN' ? extra.zh : extra.en

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { closeRight } from '../src/shared/tab-actions'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
 const tabs = [
   { id: 'a', seq: 1, view: 'session' },
@@ -12,7 +12,7 @@ const tabs = [
 assert.deepEqual(closeRight(tabs, 'a').close, ['c'])
 assert.equal(closeRight(tabs, 'c').disabled, true)
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'closeTabsToRight')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'closeTabsToRight')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /右侧/)
 assert.match(item.label.en.toLowerCase(), /right/)

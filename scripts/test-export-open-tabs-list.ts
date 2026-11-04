@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { formatOpenTabsList, tabExportHost, tabExportLabel } from '../src/shared/open-tabs-export'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
 const rows = [
   {
@@ -25,7 +25,7 @@ assert.match(text, /web — root@10\.0\.0\.1/)
 assert.match(text, /db — ubuntu@db\.local:2222 \[disconnected\]/)
 assert.match(text, /Settings/)
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'exportOpenTabsList')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'exportOpenTabsList')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /标签/)
 assert.match(item.label.en.toLowerCase(), /tabs/)

@@ -40,8 +40,10 @@ assert.match(app, /resetTerminalFontSize/)
 assert.match(app, /action === 'zoomIn'/)
 assert.match(app, /zoom\.size/)
 
-const store = readFileSync('src/main/app-store.ts', 'utf8')
-assert.match(store, /clampTerminalFontSize/)
+const store = readFileSync('src/shared/terminal-prefs.ts', 'utf8')
+assert.match(store, /fontSize/)
+const zoom = readFileSync('src/shared/terminal-zoom.ts', 'utf8')
+assert.match(zoom, /clampTerminalFontSize/)
 
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 assert.match(i18n, /'zoom\.size'/)

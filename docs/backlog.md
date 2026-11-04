@@ -379,3 +379,22 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 
 - ✅ c58：卡片错误换行；测试 sshd 支持 SFTP，补上传和下载成功路径的 E2E；batch.prefill 🔴；monitor.open；卡片输入框悬停显示完整内容。
 - 下一批（按频率）：playbook.fromRecent、alert.explain、connection.organize。
+
+- ✅ c59：合并 SFTP 测试服务端；上传失败断言只读错误，可单独运行；playbook.fromRecent；成功状态前加 ✓；转发测试端口避开临时端口段；npm run e2e 每轮必跑。
+- 下一批（按频率）：alert.explain、connection.organize。
+
+- ✅ c60：alert.explain；AI 卡片错误状态加「!」标记；全页面视觉审查（默认集 34 张 + chrome 集 74 张）。
+- c60 视觉审查发现：
+  - P2 告警工作台 1024 宽：「告警已静默至…」这一行贴着左边，没有内边距。
+  - P2 告警详情：一条 cpu 告警的详情显示「主机离线」，待复现（可能是测试数据缺字段）。
+  - P3 alert.explain 卡片的字段标签是「连接」，应该是「主机」。
+  - P3 设置页在 1400 宽时右侧大片空白。
+  - P3 浅色主题下终端仍然是深色，需要确认是不是有意这样设计。
+  - P3 dark-tabs 场景实际拍到的是审计页，场景名和内容对不上。
+  - P3 chrome 集全量连跑时，e2e 场景之间会互相影响（exit 2）；E2E 只按 e2e 列表、按主题隔离来跑。
+  - P3 评测留出集：「刚刚那几步…存成剧本」会被识别成 playbook.create。
+- 下一批（按频率）：connection.organize。
+
+- ✅ c61：工作台静默行内边距（P2）；「主机离线」改为「该主机当前未连接…」（查实不是 bug）；connection.organize；评测 tags 按集合比较。
+- 待办：留出集「刚刚那几步…存成剧本」仍被识别为 playbook.create（P3）；alert.explain 卡片字段标签「连接」→「主机」（P3）。
+- 下一批（按频率）：见 docs/design/ai-app-actions.md 第 11 项之后。

@@ -1,9 +1,9 @@
 /** Tools/CmdK: import playbook pack (handler existed). */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
-const item = SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'importPlaybookPack')
+const item = SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'importPlaybookPack')
 assert.ok(item && item.type === 'item')
 assert.match(item.label.zh, /导入|分享/)
 assert.match(item.label.en.toLowerCase(), /import|pack/)

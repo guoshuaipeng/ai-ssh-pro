@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { closeOthers } from '../src/shared/tab-actions'
-import { SHARED_MENUS } from '../src/shared/menus'
+import { SHARED_MENUS, flattenMenuItems} from '../src/shared/menus'
 
 const tabs = [
   { id: 'a', seq: 1, view: 'session' },
@@ -13,7 +13,7 @@ const tabs = [
 assert.deepEqual(closeOthers(tabs, 'a').sort(), ['c'])
 
 const item = SHARED_MENUS.find((m) => m.id === 'view')?.items.find((it) => it.type === 'item' && it.id === 'closeOtherTabs')
-  ?? SHARED_MENUS.flatMap((m) => m.items).find((it) => it.type === 'item' && it.id === 'closeOtherTabs')
+  ?? SHARED_MENUS.flatMap((m) => flattenMenuItems(m.items)).find((it) => it.type === 'item' && it.id === 'closeOtherTabs')
 assert.ok(item && item.type === 'item')
 
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')

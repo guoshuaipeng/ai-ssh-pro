@@ -1576,8 +1576,16 @@ export default function SftpPanel({
               </button>
             </div>
           ) : (
-            <button type="button" className="sftp-crumb-toggle" onClick={() => setCrumbOpen((v) => !v)}>
-              {tg('ux46.crumb')}
+            // c63: compact mode still shows where the pane is (e.g. after the AI opened a folder); click to edit the path
+            <button
+              type="button"
+              className="sftp-crumb-toggle sftp-cwd-compact"
+              data-testid={`sftp-${side}-cwd`}
+              title={cwd ? `${tg('ux46.crumb')} · ${cwd}` : tg('ux46.crumb')}
+              aria-label={cwd ? `${tg('ux46.crumb')} ${cwd}` : tg('ux46.crumb')}
+              onClick={() => setCrumbOpen((v) => !v)}
+            >
+              <span dir="ltr">{cwd || tg('ux46.crumb')}</span>
             </button>
           )}
           <div className="sftp-head-tools" role="toolbar" aria-label={tg('sh1.tools')}>

@@ -1,6 +1,7 @@
 import { agentForwardAuditDetail } from '@shared/agent-forward'
 import { requestSftpGoto } from './lib/sftp-goto'
-import { applyMonitorAction, cleanIpcError, auditDetailForAction, buildProfileFromAction, buildSnippetFromAction, findProfileForAction, forwardRequestFromAction, pickHistoryForAction, resolveTargets, sftpPathOk, buildPlaybookFromAction, transferPathsOk, type ActionResult } from '@shared/ai-actions'
+import { applyMonitorAction, cleanIpcError, auditForAction, buildProfileFromAction, buildSnippetFromAction, forwardRequestFromAction, pickHistoryForAction, buildPlaybookFromAction, buildPlaybookFromCommands, recentCommandsForPlaybook, pickAlertForAction, organizeProfileFromAction, runAction, type ActionResult } from '@shared/ai-actions'
+import { createCommandBus } from '@shared/command-bus'
 import { loadPlaybooks as loadPlaybooksAA, savePlaybooks as savePlaybooksAA, upsertPlaybook as upsertPlaybookAA } from '@shared/playbook'
 import { hasUsableKey } from '@shared/ai-presets'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -26,6 +27,7 @@ import type {
   TerminalPrefs
 } from '@shared/ipc'
 import { TERMINAL_PREFS_DEFAULTS } from '@shared/ipc'
+import { normalizeTerminalPrefs } from '@shared/terminal-prefs'
 import { bumpTerminalFontSize, resetTerminalFontSize } from '@shared/terminal-zoom'
 import { normalizeSessionNote, sessionNotePreview } from '@shared/session-note'
 import { formatConnectionString, formatSshCommand, statusHostChipLabel } from '@shared/connection-string'
@@ -502,10 +504,19 @@ function uuid(): string {
 const PICKER_ACTIONS = new Set<MenuAction>(['resourceMonitor', 'serverTools', 'sftp', 'folderSync', 'portForward', 'batchExec', 'aiCommand'])
 
 function featureLabel(action: MenuAction, locale: string): string {
-  for (const m of SHARED_MENUS) {
-    for (const it of m.items) {
+  const walk = (items: typeof SHARED_MENUS[number]['items']): string | null => {
+    for (const it of items) {
       if (it.type === 'item' && it.id === action) return menuLabel(it.label, locale).replace(/…$/, '')
+      if (it.type === 'sub') {
+        const hit = walk(it.items)
+        if (hit) return hit
+      }
     }
+    return null
+  }
+  for (const m of SHARED_MENUS) {
+    const hit = walk(m.items)
+    if (hit) return hit
   }
   return action
 }
@@ -1602,16 +1613,20 @@ export default function App() {
     void window.aiss.sessions
       .list()
       .then(async (state) => {
-        setSessionState(state)
+        const normalized = {
+          folders: Array.isArray(state?.folders) ? state.folders : [],
+          profiles: Array.isArray(state?.profiles) ? state.profiles : []
+        }
+        setSessionState(normalized)
         setSessionsReady(true)
         // M21: one-time move of old per-host / per-session tiers and the autopilot allow list
         // onto host profiles, then clear the legacy settings fields.
         try {
           const ai = await window.aiss.ai.getSettings()
           if (!hasLegacyHostPolicies(ai)) return
-          const moved = migrateLegacyHostPolicies(ai, state.profiles, globalAiPolicy(ai))
+          const moved = migrateLegacyHostPolicies(ai, normalized.profiles, globalAiPolicy(ai))
           if (moved.changed > 0) {
-            const next = { ...state, profiles: moved.profiles }
+            const next = { ...normalized, profiles: moved.profiles }
             setSessionState(next)
             await window.aiss.sessions.save(next)
           }
@@ -1629,7 +1644,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void window.aiss.terminal.getPrefs().then(setTerminalPrefs)
+    void window.aiss.terminal.getPrefs().then((p) => setTerminalPrefs(normalizeTerminalPrefs(p))).catch(() => setTerminalPrefs({ ...TERMINAL_PREFS_DEFAULTS }))
     void window.aiss.ssh.isLocalShellAvailable().then(setLocalShellAvailable).catch(() => setLocalShellAvailable(false))
   }, [])
 
@@ -2583,124 +2598,149 @@ export default function App() {
     async (name: string, v: Record<string, string>): Promise<ActionResult> => {
       const r = await runAppActionRef.current(name, v)
       // c54: every confirmed AI action lands in the audit log (secrets never included)
-      appendAudit({ type: 'ai.action', host: v.host || v.target || '', source: 'AI', outcome: r.ok ? 'allowed' : 'blocked', detail: auditDetailForAction(name, v) + (r.ok ? '' : ' · ' + (r.message ?? '')) })
+      const a = auditForAction(name, v, r)
+      appendAudit({ type: 'ai.action', host: a.host, source: 'AI', outcome: r.ok ? 'allowed' : 'blocked', detail: a.detail })
       return r
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [folders, persistSessionState, alertRules, showToast, activeSessionId]
   )
+  // c62: app-internal command bus. Each feature registers one handler; ActionDef.command picks it.
+  // Re-registered every render so handlers always see the latest state (same as the old ref pattern).
+  const commandBusRef = useRef(createCommandBus())
+  {
+    const bus = commandBusRef.current
+    bus.register('connections.connect', ({ profiles }) => {
+      for (const prof of profiles) void connectProfile(prof)
+      const msg = tg('aa.connOpened', { n: profiles.length })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('commandBar.fillFromHistory', ({ args, sessionId }) => {
+      const cmd = pickHistoryForAction(loadSmartHistory(), args.query ?? '', activeTab ? sessionHostKey(activeTab) : '')
+      if (!cmd || !sessionId) return { ok: false, message: tg('aa.noHistory', { query: args.query ?? '' }) }
+      fillCommandBar(sessionId, cmd)
+      return { ok: true, message: tg('aa.histFilled', { cmd }) }
+    })
+    bus.register('connections.organize', async ({ args, profiles }) => {
+      const prof = profiles[0]!
+      const r = organizeProfileFromAction(args, prof, profilesRef.current, folders, uuid)
+      if (!r) return { ok: false, message: tg('aa.orgNothing') }
+      await persistSessionState({ folders: r.folders, profiles: r.profiles })
+      return { ok: true, message: tg('aa.orgDone', { name: r.profile.label }) }
+    })
+    bus.register('alerts.explainLatest', ({ args }) => {
+      const hist = loadAlertHistory()
+      const alert = pickAlertForAction(hist, args.target)
+      if (!alert) return { ok: false, message: tg(args.target?.trim() ? 'aa.noAlertFor' : 'aa.noAlert', { target: args.target?.trim() ?? '' }) }
+      setAlertHistory(hist)
+      window.setTimeout(() => openWorkbenchRef.current({ alertId: alert.id, explain: true }), 0)
+      return { ok: true, message: tg('aa.alxOpened', { host: alert.hostTitle }) }
+    })
+    bus.register('playbooks.saveFromRecent', ({ args }) => {
+      const cmds = recentCommandsForPlaybook(loadSmartHistory(), activeTab ? sessionHostKey(activeTab) : '', args.count)
+      if (!cmds.length) return { ok: false, message: tg('aa.noRecent') }
+      const pb = buildPlaybookFromCommands(args.name ?? '', tg('aa.pbrDesc', { n: cmds.length }), cmds, `pb-ai-${Date.now()}`, Date.now())
+      if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
+      savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
+      window.dispatchEvent(new Event('aiss-playbooks'))
+      return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
+    })
+    bus.register('batch.prefill', async ({ args, profiles }) => {
+      const cmd = (args.command ?? '').trim()
+      const sids: string[] = []
+      for (const prof of profiles) {
+        const sid = await ensureProfileSession(prof)
+        if (sid) sids.push(sid)
+      }
+      if (!sids.length) return { ok: false, message: tg('aa.noSession') }
+      openToolTabRef.current('batch', null, sids)
+      setTabs((prev) => prev.map((t) => (t.view === 'batch' ? { ...t, batchPreselect: sids, batchCommand: cmd } : t)))
+      return { ok: true, message: tg('aa.batchFilled', { n: sids.length }) }
+    })
+    bus.register('monitor.openFor', async ({ profiles }) => {
+      const prof = profiles[0]!
+      const sid = await ensureProfileSession(prof)
+      if (!sid) return { ok: false, message: tg('aa.noSession') }
+      openMonitorForSession(sid)
+      return { ok: true, message: tg('aa.monOpened', { name: prof.label }) }
+    })
+    bus.register('playbooks.save', ({ args }) => {
+      const pb = buildPlaybookFromAction(args, `pb-ai-${Date.now()}`, Date.now())
+      if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
+      savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
+      window.dispatchEvent(new Event('aiss-playbooks'))
+      return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
+    })
+    bus.register('sftp.transfer', async ({ args, profiles }) => {
+      try {
+        const sid = await ensureProfileSession(profiles[0]!)
+        if (!sid) return { ok: false, message: tg('aa.noSession') }
+        const remote = args.remotePath.trim()
+        const local = args.localPath.trim()
+        const up = args.direction.trim() === 'upload'
+        if (up) await window.aiss.sftp.upload(sid, local, remote)
+        else await window.aiss.sftp.download(sid, remote, local)
+        return { ok: true, message: tg(up ? 'aa.uploaded' : 'aa.downloaded', { path: up ? remote : local }) }
+      } catch (e) {
+        return { ok: false, message: cleanIpcError(e) }
+      }
+    })
+    bus.register('sftp.openAt', ({ args, profiles }) => {
+      const prof = profiles[0]!
+      openSftpFromHost(prof, (args.path ?? '').trim() || undefined)
+      return { ok: true, message: tg('aa.sftpOpened', { name: prof.label }) }
+    })
+    bus.register('snippets.add', async ({ args }) => {
+      const cur = await window.aiss.snippets.list()
+      const r = buildSnippetFromAction(args, cur, uuid)
+      await window.aiss.snippets.save(r.list)
+      // c55: stay on the AI panel so the card shows its result (E2E caught the card vanishing)
+      window.dispatchEvent(new CustomEvent('aiss-snippets-changed'))
+      const msg = tg('aa.snippetSaved', { name: r.snippet.title })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('forwards.add', async ({ args, sessionId }) => {
+      const req = forwardRequestFromAction(args, sessionId ?? '')
+      try {
+        await window.aiss.workspace.forwards.add(req)
+      } catch (err) {
+        return { ok: false, message: cleanIpcError(err) }
+      }
+      const msg = tg('aa.forwardAdded', { local: req.localPort, remote: `${req.remoteHost}:${req.remotePort}` })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('connections.save', async ({ args }) => {
+      const r = buildProfileFromAction(args, profilesRef.current, uuid)
+      await persistSessionState({ folders, profiles: r.profiles })
+      const msg = tg(r.updated ? 'aa.connUpdated' : 'aa.connSaved', { name: r.profile.label })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    bus.register('alerts.setRule', ({ args }) => {
+      const next = applyMonitorAction(alertRules, args)
+      saveAlertRules(next)
+      setAlertRules(next)
+      const msg = tg('aa.monitorSaved', { metric: args.metric })
+      showToast(msg)
+      return { ok: true, message: msg }
+    })
+    // c63 settings.set: theme and/or terminal font size; options and range come from the ActionDef
+    bus.register('settings.apply', async ({ args }) => {
+      const theme = args.theme && args.theme !== 'keep' ? args.theme : ''
+      const fontSize = args.fontSize ? Number(args.fontSize) : 0
+      if (!theme && !fontSize) return { ok: false, message: tg('aa.setNothing') }
+      if (theme) applyUiTheme(theme as UiThemeId)
+      if (fontSize) setTerminalPrefs(normalizeTerminalPrefs(await window.aiss.terminal.setPrefs({ fontSize })))
+      return { ok: true, message: tg('aa.setDone') }
+    })
+  }
   // c55: always run the latest executor (onAppAction is memoized; this avoids stale state)
   const runAppActionRef = useRef<(name: string, v: Record<string, string>) => Promise<ActionResult>>(async () => ({ ok: false }))
-  runAppActionRef.current = async (name: string, v: Record<string, string>): Promise<ActionResult> => {
-    {
-      if (name === 'connection.open') {
-        const r = resolveTargets(profilesRef.current, v.targets ?? '')
-        if (r.missing.length) return { ok: false, message: tg('aa.noTarget', { target: r.missing.join(tg('aa.sep')) }) }
-        for (const prof of r.found) void connectProfile(prof)
-        const msg = tg('aa.connOpened', { n: r.found.length })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'history.fill') {
-        if (!activeSessionId) return { ok: false, message: tg('aa.noSession') }
-        const cmd = pickHistoryForAction(loadSmartHistory(), v.query ?? '', activeTab ? sessionHostKey(activeTab) : '')
-        if (!cmd) return { ok: false, message: tg('aa.noHistory', { query: v.query ?? '' }) }
-        fillCommandBar(activeSessionId, cmd)
-        return { ok: true, message: tg('aa.histFilled', { cmd }) }
-      }
-      if (name === 'batch.prefill') {
-        const r = resolveTargets(profilesRef.current, v.targets ?? '')
-        if (r.missing.length) return { ok: false, message: tg('aa.noTarget', { target: r.missing.join(tg('aa.sep')) }) }
-        const cmd = (v.command ?? '').trim()
-        if (!cmd) return { ok: false, message: tg('aa.pbEmpty') }
-        const sids: string[] = []
-        for (const prof of r.found) {
-          const sid = await ensureProfileSession(prof)
-          if (sid) sids.push(sid)
-        }
-        if (!sids.length) return { ok: false, message: tg('aa.noSession') }
-        openToolTabRef.current('batch', null, sids)
-        setTabs((prev) => prev.map((t) => (t.view === 'batch' ? { ...t, batchPreselect: sids, batchCommand: cmd } : t)))
-        return { ok: true, message: tg('aa.batchFilled', { n: sids.length }) }
-      }
-      if (name === 'monitor.open') {
-        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
-        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        const sid = await ensureProfileSession(prof)
-        if (!sid) return { ok: false, message: tg('aa.noSession') }
-        openMonitorForSession(sid)
-        return { ok: true, message: tg('aa.monOpened', { name: prof.label }) }
-      }
-      if (name === 'playbook.create') {
-        const pb = buildPlaybookFromAction(v, `pb-ai-${Date.now()}`, Date.now())
-        if (!pb) return { ok: false, message: tg('aa.pbEmpty') }
-        savePlaybooksAA(upsertPlaybookAA(loadPlaybooksAA(), pb))
-        window.dispatchEvent(new Event('aiss-playbooks'))
-        return { ok: true, message: tg('aa.pbSaved', { name: pb.name, n: pb.steps.length }) }
-      }
-      if (name === 'sftp.transfer') {
-        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
-        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        if (!transferPathsOk(v)) return { ok: false, message: tg('aa.badPath') }
-        try {
-          const sid = await ensureProfileSession(prof)
-          if (!sid) return { ok: false, message: tg('aa.noSession') }
-          const remote = v.remotePath.trim()
-          const local = v.localPath.trim()
-          if (v.direction.trim() === 'upload') await window.aiss.sftp.upload(sid, local, remote)
-          else await window.aiss.sftp.download(sid, remote, local)
-          return { ok: true, message: tg(v.direction.trim() === 'upload' ? 'aa.uploaded' : 'aa.downloaded', { path: v.direction.trim() === 'upload' ? remote : local }) }
-        } catch (e) {
-          return { ok: false, message: cleanIpcError(e) }
-        }
-      }
-      if (name === 'sftp.open') {
-        const prof = findProfileForAction(profilesRef.current, v.target ?? '')
-        if (!prof) return { ok: false, message: tg('aa.noTarget', { target: v.target ?? '' }) }
-        if (!sftpPathOk(v.path ?? '')) return { ok: false, message: tg('aa.badPath') }
-        openSftpFromHost(prof, (v.path ?? '').trim() || undefined)
-        return { ok: true, message: tg('aa.sftpOpened', { name: prof.label }) }
-      }
-      if (name === 'snippet.create') {
-        const cur = await window.aiss.snippets.list()
-        const r = buildSnippetFromAction(v, cur, uuid)
-        await window.aiss.snippets.save(r.list)
-        // c55: stay on the AI panel so the card shows its result (E2E caught the card vanishing)
-        window.dispatchEvent(new CustomEvent('aiss-snippets-changed'))
-        const msg = tg('aa.snippetSaved', { name: r.snippet.title })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'forward.create') {
-        if (!activeSessionId) return { ok: false, message: tg('aa.noSession') }
-        const req = forwardRequestFromAction(v, activeSessionId)
-        try {
-          await window.aiss.workspace.forwards.add(req)
-        } catch (err) {
-          return { ok: false, message: cleanIpcError(err) }
-        }
-        const msg = tg('aa.forwardAdded', { local: req.localPort, remote: `${req.remoteHost}:${req.remotePort}` })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'connection.add') {
-        const r = buildProfileFromAction(v, profilesRef.current, uuid)
-        await persistSessionState({ folders, profiles: r.profiles })
-        const msg = tg(r.updated ? 'aa.connUpdated' : 'aa.connSaved', { name: r.profile.label })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      if (name === 'monitor.configure') {
-        const next = applyMonitorAction(alertRules, v)
-        saveAlertRules(next)
-        setAlertRules(next)
-        const msg = tg('aa.monitorSaved', { metric: v.metric })
-        showToast(msg)
-        return { ok: true, message: msg }
-      }
-      return { ok: false, message: tg('aa.noExecutor') }
-    }
-  }
+  runAppActionRef.current = (name: string, v: Record<string, string>): Promise<ActionResult> =>
+    runAction(name, v, { bus: commandBusRef.current, profiles: profilesRef.current, activeSessionId, t: (k, vars) => tg(k as MessageKey, vars) })
   const saveProfile = useCallback(() => {
     if (!host.trim() || !username.trim()) {
       setError(tg('app.needHostUser'))
@@ -3538,7 +3578,8 @@ export default function App() {
   // M20: the main process enforces host protection on AI writes; keep its per-session copy current
   // (profile level, demo default, per-tab temporary read-only, elevation window).
   useEffect(() => {
-    const push = window.aiss.ai.setSessionProtection
+    const push = window.aiss?.ai?.setSessionProtection
+    if (typeof push !== 'function') return
     if (!push) return
     for (const t of tabs) {
       if (!t.sessionId || (t.view && t.view !== 'session')) continue
@@ -5370,7 +5411,9 @@ export default function App() {
     }
     setAiParsing(true)
     try {
-      const p = await window.aiss.ai.parseSshForm(blob)
+      const parseForm = window.aiss?.ai?.parseSshForm ?? window.aiss?.ai?.parseSsh
+      if (typeof parseForm !== 'function') return
+      const p = await parseForm(blob)
       if (p.label != null && p.label !== '') setLabel(p.label)
       if (p.host != null && p.host !== '') setHost(p.host)
       if (p.port != null && Number.isFinite(p.port)) setPort(String(p.port))
@@ -6775,9 +6818,9 @@ export default function App() {
         return
       }
       if (action === 'toggleMuteBell') {
-        const next = !terminalPrefs.muteBell
+        const next = !(terminalPrefs ?? TERMINAL_PREFS_DEFAULTS).muteBell
         void window.aiss.terminal.setPrefs({ muteBell: next }).then((p) => {
-          setTerminalPrefs(p)
+          setTerminalPrefs(normalizeTerminalPrefs(p))
           showToast(tg(next ? 'term.bellMuted' : 'term.bellUnmuted'))
         }).catch(() => undefined)
         return
@@ -6795,7 +6838,7 @@ export default function App() {
           return
         }
         void window.aiss.terminal.setPrefs({ fontSize: next }).then((p) => {
-          setTerminalPrefs(p)
+          setTerminalPrefs(normalizeTerminalPrefs(p))
           showToast(tg('zoom.size', { n: p.fontSize }))
         }).catch(() => undefined)
         return
@@ -6803,7 +6846,7 @@ export default function App() {
       if (action === 'toggleUiTheme') {
         const next = toggleLightDarkTheme()
         const termTheme = suggestedTerminalTheme(next)
-        void window.aiss.terminal.setPrefs({ themeId: termTheme }).then(setTerminalPrefs).catch(() => {})
+        void window.aiss.terminal.setPrefs({ themeId: termTheme }).then((p) => setTerminalPrefs(normalizeTerminalPrefs(p))).catch(() => {})
         showToast(tg(isLightUiTheme(next) ? 'theme.switchedLight' : 'theme.switchedDark'))
         return
       }
@@ -7961,7 +8004,7 @@ export default function App() {
           toggleAi: layout.showAi,
           toggleSplit: splitEnabled,
           toggleHostStatus: showHostStatus,
-          toggleMuteBell: terminalPrefs.muteBell,
+          toggleMuteBell: (terminalPrefs ?? TERMINAL_PREFS_DEFAULTS).muteBell,
           toggleBroadcast: broadcastEnabled,
           toggleRecording: Boolean(recordingSessionId),
           toggleBlocks: blocksOn,
@@ -10003,7 +10046,7 @@ export default function App() {
                     onGithub={() => void window.aiss.app.openGithub().catch(() => undefined)}
                     onOpenMcp={() => openSettingsTab('mcpGuide')}
                     onOpenUpdates={() => openUnifiedSettings('about')}
-                    onTerminalSaved={setTerminalPrefs}
+                    onTerminalSaved={(p) => setTerminalPrefs(normalizeTerminalPrefs(p))}
                     probePrefs={probePrefs}
                     onProbePrefs={updateProbePrefs}
                     tagOptions={[...new Set(profiles.flatMap((p) => p.tags ?? []))]}
@@ -10017,10 +10060,10 @@ export default function App() {
                 ) : t.view === 'terminalPrefs' ? (
                   <TerminalPrefsModal
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
-                    onSaved={setTerminalPrefs}
+                    onSaved={(p) => setTerminalPrefs(normalizeTerminalPrefs(p))}
                   />
                 ) : t.view === 'uiTheme' ? (
-                  <UiThemeModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} onTerminalTheme={(themeId) => setTerminalPrefs((p) => ({ ...p, themeId }))} />
+                  <UiThemeModal onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} onTerminalTheme={(themeId) => setTerminalPrefs((p) => normalizeTerminalPrefs({ ...(p ?? {}), themeId }))} />
                 ) : t.view === 'snippets' ? null : t.view === 'mcpGuide' ? (
                   <McpGuidePanel onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)} />
                 ) : t.view === 'updates' ? (
@@ -10692,7 +10735,7 @@ export default function App() {
                   <span className="statusbar-label">{tg('sb.pinned')}</span>
                 </button>
               ) : null}
-              {terminalPrefs.muteBell ? (
+              {(terminalPrefs ?? TERMINAL_PREFS_DEFAULTS).muteBell ? (
                 <button
                   type="button"
                   className="statusbar-slot statusbar-slot--mute-bell"
@@ -10700,7 +10743,7 @@ export default function App() {
                   title={tg('sb.muteBellTip')}
                   onClick={() => {
                     void window.aiss.terminal.setPrefs({ muteBell: false }).then((p) => {
-                      setTerminalPrefs(p)
+                      setTerminalPrefs(normalizeTerminalPrefs(p))
                       showToast(tg('term.bellUnmuted'))
                     }).catch(() => undefined)
                   }}
@@ -10721,7 +10764,7 @@ export default function App() {
                         ? bumpTerminalFontSize(terminalPrefs.fontSize, -1)
                         : resetTerminalFontSize()
                   void window.aiss.terminal.setPrefs({ fontSize: next }).then((p) => {
-                    setTerminalPrefs(p)
+                    setTerminalPrefs(normalizeTerminalPrefs(p))
                     showToast(tg('zoom.size', { n: p.fontSize }))
                   })
                 }}

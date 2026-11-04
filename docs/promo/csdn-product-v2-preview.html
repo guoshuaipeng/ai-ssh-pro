@@ -1,0 +1,146 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>AI-SSH-Pro 产品推荐（CSDN 草稿预览）</title><style>
+body{margin:0;background:#f5f6f7;font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;color:#222226}
+.page{max-width:860px;margin:24px auto;background:#fff;padding:32px 40px 48px;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.csdn-bar{font-size:12px;color:#999aaa;border-bottom:1px solid #e8e8ed;padding-bottom:12px;margin-bottom:20px}
+h1{font-size:28px;line-height:1.4;margin:0 0 16px}
+h2{font-size:22px;margin:36px 0 14px;padding-bottom:6px;border-bottom:1px solid #e8e8ed}
+h3{font-size:18px;margin:26px 0 10px}
+p,li{font-size:16px;line-height:1.8}
+blockquote{margin:16px 0;padding:10px 16px;background:#eef0f4;border-left:4px solid #fc5531;color:#4d4d4d}
+blockquote p{margin:0}
+img{display:block;max-width:100%;margin:14px auto 6px;border:1px solid #e8e8ed;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+p.fig{text-align:center;font-size:13px;color:#999aaa;margin:0 0 18px}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:15px}
+th,td{border:1px solid #e1e4e8;padding:8px 12px;text-align:left}
+th{background:#f6f8fa}
+code{background:#f3f4f4;padding:1px 4px;border-radius:3px;font-size:14px}
+hr{border:0;border-top:1px dashed #e0e0e0;margin:28px 0}
+a{color:#fc5531;text-decoration:none}
+</style></head><body><div class="page"><div class="csdn-bar">CSDN 草稿预览 · 未发布 · 图片与本文件同目录</div><h1>AI-SSH-Pro：带 AI 助手、默认安全的多会话 SSH 桌面客户端</h1>
+<blockquote>
+<p>一句话介绍：AI-SSH-Pro 是一款本地运行的多会话 SSH 客户端，集成了 Cursor 风格的 AI 运维助手。AI 给出建议，执行策略由你决定：仅建议、执行前确认或自动执行。</p>
+</blockquote>
+<p class="fig"><img alt="封面：终端 + AI 助手" src="01-cover-ai-terminal.png" />封面：终端 + AI 助手</p>
+<ul>
+<li>官网：https://guoshuaipeng.github.io/ai-ssh-pro/</li>
+<li>下载：https://github.com/guoshuaipeng/ai-ssh-pro/releases</li>
+<li>开源协议：MIT</li>
+</ul>
+<hr />
+<h2>一、适合谁</h2>
+<ul>
+<li><strong>运维 / SRE</strong>：每天同时盯好几台机器，要一个界面看全状态。</li>
+<li><strong>后端开发</strong>：经常上服务器查日志、重启服务，希望 AI 帮你把排查步骤理清楚。</li>
+<li><strong>小团队负责人</strong>：想用 AI，又希望每台主机的执行权限可控。</li>
+<li><strong>从 Xshell / FinalShell 迁移的用户</strong>：熟悉多标签、会话树的操作方式。</li>
+</ul>
+<hr />
+<h2>二、核心能力</h2>
+<h3>1. 运维首页：一眼看清所有主机</h3>
+<p>打开就是运维首页：</p>
+<ul>
+<li>在线主机数、待处理告警，放在最上面。</li>
+<li>每台主机一张卡片，显示 CPU、内存、磁盘的实时指标。</li>
+<li>卡片上一键进入终端、SFTP、监控。</li>
+<li>常用运维剧本（如滚动重启 nginx、磁盘清理）放在快捷区。</li>
+</ul>
+<p class="fig"><img alt="运维首页与主机指标" src="02-ops-home.png" />运维首页与主机指标</p>
+<h3>2. 多会话 SSH 与标签页</h3>
+<ul>
+<li>多标签、分屏、会话分组，支持搜索和 #标签 过滤。</li>
+<li>支持跳板机（多级 ProxyJump）、端口转发、主机密钥确认。</li>
+<li>可导入 <code>~/.ssh/config</code>，最近连接一键重连。</li>
+<li>生产主机的标签页带醒目横幅，时刻提醒当前环境。</li>
+</ul>
+<p class="fig"><img alt="终端与生产环境提示" src="03-terminal-production.png" />终端与生产环境提示</p>
+<h3>3. AI 助手：Cursor 风格的右侧面板</h3>
+<p>AI 面板常驻终端右侧，排障时不用切窗口。</p>
+<ul>
+<li>你的提问是浅色气泡，AI 回复是干净的正文，不堆卡片。</li>
+<li>建议命令合并成一个紧凑代码块，带 <strong>复制 / 执行</strong> 和风险标签（低 / 中 / 高）。</li>
+<li>每条回复下方显示耗时，可一键复制。</li>
+<li>输入区一行完成：模型、执行策略、附带终端输出、发送；模型与策略均为主题化弹出菜单。</li>
+</ul>
+<p class="fig"><img alt="AI 面板中的命令块" src="04-ai-panel-command.png" />AI 面板中的命令块</p>
+<h3>4. 三档 AI 执行策略</h3>
+<p>在 <strong>设置 → AI</strong> 里选一档就行：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>仅建议</td>
+<td>仅执行只读命令，变更命令只作为建议展示</td>
+</tr>
+<tr>
+<td>执行前确认（默认）</td>
+<td>只读命令直接执行，变更命令执行前需确认，高风险需二次确认</td>
+</tr>
+<tr>
+<td>自动执行</td>
+<td>中低风险自动执行，高风险仍需确认</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>“自动执行”下可单独开启“高风险命令也自动执行”，默认关闭。</li>
+<li>输入区的策略菜单可为当前标签页临时调整，只读主机上不可用的选项会直接注明原因。</li>
+</ul>
+<p class="fig"><img alt="AI 执行策略设置" src="05-ai-policy-settings.png" />AI 执行策略设置</p>
+<h3>5. 主机保护：每台主机单独设定</h3>
+<p>每台主机的设置里都有一张 <strong>安全</strong> 卡片：</p>
+<ul>
+<li>保护级别：普通 / 生产 / 只读。</li>
+<li>这台主机的 AI 策略：跟随全局，或单独选一档。</li>
+<li>卡片直接显示<strong>实际生效</strong>的策略，例如：“实际生效：仅建议（受只读保护限制）”。</li>
+</ul>
+<p class="fig"><img alt="主机安全卡片" src="06-host-safety-card.png" />主机安全卡片</p>
+<h3>6. 对话绑定标签页，历史可找回</h3>
+<ul>
+<li>每个终端标签页是一段独立对话；同一主机开两个标签页，就是 #1、#2 两段。</li>
+<li>点 <strong>＋ 新对话</strong> 会归档当前对话，不会直接删除。</li>
+<li>历史对话按主机分组，点击即可恢复。</li>
+<li>终端断开时提示“重新连接后继续”；没有绑定终端时是通用问答，不会执行任何命令。</li>
+</ul>
+<p class="fig"><img alt="按主机分组的历史对话" src="07-ai-history.png" />按主机分组的历史对话</p>
+<h3>7. SFTP 双栏与更多运维工具</h3>
+<ul>
+<li><strong>SFTP 双栏</strong>：本地与远程并排，拖拽上传下载，带传输队列。</li>
+<li><strong>监控</strong>：资源监控、多主机看板、告警规则与告警工作台。</li>
+<li><strong>工具箱</strong>：进程、端口、服务、日志、Docker 容器与 Compose。</li>
+<li><strong>效率</strong>：命令片段、运维剧本、批量执行、多会话广播、会话录制与回放。</li>
+<li><strong>审计</strong>：敏感操作留痕，可按时间筛选与导出。</li>
+</ul>
+<p class="fig"><img alt="SFTP 双栏文件传输" src="08-sftp-dual.png" />SFTP 双栏文件传输</p>
+<p class="fig"><img alt="多标签与审计日志" src="09-tabs-audit.png" />多标签与审计日志</p>
+<hr />
+<h2>三、安全设计</h2>
+<p>安全不是一个开关，而是几层叠加：</p>
+<ul>
+<li><strong>主进程兜底</strong>：AI 写终端前，主进程会按主机保护再检查一次。只读主机即使点了同意，AI 也无法写入。</li>
+<li><strong>策略由你决定</strong>：全局、主机、标签页三级设置，所选策略在任何主机上按原样生效；生产主机保留醒目横幅作为提醒。</li>
+<li><strong>一个规则，处处一致</strong>：设置页、主机卡片、AI 输入区和后台执行用同一套规则计算实际策略，不会出现“界面说要确认、后台却直接跑”。</li>
+<li><strong>临时调整有边界</strong>：可以为当前标签页临时调整策略，只保存在内存中，关闭或断开即恢复，仍受只读保护限制。</li>
+<li><strong>凭据只在本机</strong>：密码、私钥口令、API Key 用系统安全存储加密保存在本机，不上传到任何产品云端。</li>
+<li><strong>全程可追溯</strong>：AI 发起的命令和危险操作都记入审计日志。</li>
+</ul>
+<hr />
+<h2>四、下载安装</h2>
+<ol>
+<li>打开 GitHub Release 页面：https://github.com/guoshuaipeng/ai-ssh-pro/releases</li>
+<li>下载最新版本的安装包（以 Release 页面实际提供的文件为准）。</li>
+<li>安装后启动，可以先连内置的<strong>演示主机</strong>体验，数据全部模拟，不会连接真实服务器。</li>
+<li>在 <strong>设置 → AI</strong> 填入你自己的模型 Provider（支持 OpenAI 兼容接口，如 DeepSeek、通义千问等）。</li>
+</ol>
+<p>更多介绍与使用说明见官网：https://guoshuaipeng.github.io/ai-ssh-pro/</p>
+<hr />
+<h2>五、最后</h2>
+<p>如果你想要一款<strong>顺手的多会话 SSH</strong>，又希望 AI <strong>给出方案、由你决定执行方式</strong>，欢迎试试 AI-SSH-Pro。</p>
+<ul>
+<li>觉得有用，欢迎到 GitHub 点个 Star。</li>
+<li>遇到问题或有想法，直接提 Issue：https://github.com/guoshuaipeng/ai-ssh-pro/issues</li>
+</ul></div></body></html>
