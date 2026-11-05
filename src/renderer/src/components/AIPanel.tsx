@@ -7,6 +7,7 @@ import { tg } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
 import { friendlyError, friendlyErrorMessage } from '../lib/friendly-error'
 import { aiErrorWantsSettings } from '@shared/ai-http-error'
+import { aiEmptyGate, aiErrorPrimaryCta, aiNeedsModelPick } from '@shared/ai-empty-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { normalizeAiChatMessage } from '@shared/ai-chat-history'
 import { parseAiAssistantReply } from '@shared/ipc'
@@ -915,8 +916,9 @@ export default function AIPanel({
       setBusy(true)
       setPendingConfirm(null)
 
+      // H06: always read live transcript from linesRef (post new-chat / restore), not a stale closure.
       const history: AiChatMessage[] = [
-        ...lines.map<AiChatMessage>((l) => ({
+        ...linesRef.current.map<AiChatMessage>((l) => ({
           role: l.role,
           content: l.content
         })),
@@ -1161,7 +1163,7 @@ export default function AIPanel({
       })
     }
   },
-    [activeSessionId, hostInventoryId, hostName, inventoryLookup, lines, persistHistory, persistKey, production, refreshWorkingGoal]
+    [activeSessionId, hostInventoryId, hostName, inventoryLookup, persistHistory, persistKey, production, refreshWorkingGoal]
   )
 
   const send = useCallback(async () => {
@@ -1864,7 +1866,7 @@ export default function AIPanel({
 
   return (
     <aside className="ai-panel" style={{ minWidth: 280 }}>
-      {!hasApiKey ? (
+      {aiEmptyGate(hasApiKey) === 'needs_config' ? (
         <div className="ai-empty-state" data-testid="ai-empty-state">
           <div className="ai-config-head">{tg('ai.title')}</div>
           <AiConfigCard context={configContext} flash={configFlash} onConfigure={() => onOpenSettings?.()} />
@@ -2172,6 +2174,23 @@ export default function AIPanel({
         </button>
       ) : null}
 
+      
+      {aiNeedsModelPick(currentModel, modelList) ? (
+        <div className="ai-model-missing" data-testid="ai-model-missing" role="status">
+          <span className="ai-model-missing-text">{tg('ai.modelMissing')}</span>
+          {onOpenSettings ? (
+            <button
+              type="button"
+              className="ai-fill-cmd-btn ai-btn-agree"
+              data-testid="ai-model-missing-settings"
+              onClick={() => onOpenSettings()}
+            >
+              {tg('a1.goSettings')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">
@@ -2292,7 +2311,7 @@ export default function AIPanel({
             )
           }
           if (l.variant === 'error') {
-            const openSettings = aiErrorWantsSettings(l.errorCode)
+            const openSettings = aiErrorPrimaryCta(l.errorCode) === 'settings'
             return (
               <div
                 key={i}

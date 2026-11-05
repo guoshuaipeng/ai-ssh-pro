@@ -1214,9 +1214,10 @@ export type DurableThreadFields = {
 }
 
 /**
- * Chat clear: archive the current goal into notes/task summaries, then drop
- * working memory, episodes, and the running summary. Commands and observations
- * stay. This does not know about host inventory.
+ * Chat clear / new chat: archive the current goal into notes/task summaries, then
+ * drop working memory, episodes, running summary, and prompt-facing observations /
+ * recentCommands so a blank chat cannot silently answer prior-session facts (H06).
+ * High-level notes/taskSummaries remain. This does not know about host inventory.
  */
 export function archiveAndClearRecord<T extends DurableThreadFields>(record: T): T {
   const notes = [...record.notes]
@@ -1230,6 +1231,9 @@ export function archiveAndClearRecord<T extends DurableThreadFields>(record: T):
     ...record,
     notes: notes.slice(-8),
     taskSummaries: taskSummaries.slice(-6),
+    // H06: drop command/output facts so「新对话」cannot recall prior conclusions silently.
+    recentCommands: [],
+    observations: [],
     workingMemory: null,
     episodes: [],
     runningSummary: '',

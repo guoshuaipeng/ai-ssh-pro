@@ -1000,7 +1000,7 @@ function assertExpectation(
     assert.equal(status.includes('证据不足'), false, `${label}: status claimed 证据不足`)
   }
   if (expected.recentCommandsMustContain || expected.recentCommandsMustNotContain) {
-    const persisted = scope?.sessionId ? loadPersistedCoreSession(scope.sessionId) : null
+    const persisted = loadPlannerSessionMemory(scope)
     assert.ok(persisted, `${label}: session memory missing`)
     const recent = persisted?.recentCommands ?? []
     for (const command of expected.recentCommandsMustContain ?? []) {
@@ -1086,8 +1086,8 @@ function assertMidChainDeny(
       `${label}: later command written after deny: ${command}`
     )
   }
-  assert.ok(scope?.sessionId, `${label}: mid-chain deny without a session id`)
-  const persisted = scope?.sessionId ? loadPersistedCoreSession(scope.sessionId) : null
+  assert.ok(scope?.sessionId || scope?.historyKey, `${label}: mid-chain deny without a session/history key`)
+  const persisted = loadPlannerSessionMemory(scope)
   assert.ok(persisted, `${label}: session memory missing after deny`)
   const recent = persisted?.recentCommands ?? []
   assert.equal(
@@ -1165,8 +1165,20 @@ function assertCancelReturnsToPlanning(): void {
   assert.notEqual(replanned.requestId, interrupted.requestId)
 }
 
+
+/** H06: planner memory is keyed by historyKey/threadId (fallback: sessionId). */
+function loadPlannerSessionMemory(scope?: { sessionId?: string; historyKey?: string }) {
+  if (scope?.historyKey) {
+    const byHist = loadPersistedCoreSession(scope.historyKey)
+    if (byHist) return byHist
+  }
+  if (scope?.sessionId) return loadPersistedCoreSession(scope.sessionId)
+  return null
+}
+
 function persistedBlob(sessionId: string | undefined, historyKey: string | undefined): string {
-  const session = sessionId ? loadPersistedCoreSession(sessionId) : null
+  // H06: threadId == historyKey holds planner notes/commands; sessionId kept for legacy dual-read.
+  const session = loadPlannerSessionMemory({ sessionId, historyKey })
   const thread = historyKey ? loadPersistedCoreSession(historyKey) : null
   return JSON.stringify({ session, thread })
 }
@@ -1207,7 +1219,7 @@ function assertMidChainCancel(
   const cancelMessage = cancelEvent && cancelEvent.type === 'cancelled' ? (cancelEvent.message ?? '') : ''
   assert.equal(cancelMessage.includes('未同意') || cancelMessage.includes('declined'), false, `${label}: cancel copy is the deny copy`)
   assert.ok(scope?.sessionId, `${label}: mid-chain cancel without a session id`)
-  const persisted = scope?.sessionId ? loadPersistedCoreSession(scope.sessionId) : null
+  const persisted = loadPlannerSessionMemory(scope)
   assert.ok(persisted, `${label}: session memory missing after cancel`)
   const recent = persisted?.recentCommands ?? []
   assert.equal(
@@ -2116,7 +2128,8 @@ describe('Core-A eval fixtures', { concurrency: 1 }, () => {
             })
             assertExpectation(turn, result, false, {
               hostId: fixture.seedInventory?.hostId || fixture.hostProfile?.hostId,
-              sessionId: `${fixture.session.targetSessionId}-deny`
+              sessionId: `${fixture.session.targetSessionId}-deny`,
+              historyKey: fixture.session.historyKey
             })
           } catch (error) {
             rethrowWithDraft(turn.turnId, error)

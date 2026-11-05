@@ -1,0 +1,84 @@
+{
+  "id": "H06",
+  "title": "History isolation — new chat vs restore recall",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H06",
+  "poison": "DISK_FREE_40_PERCENT",
+  "askRecall": "我们上次磁盘结论是什么",
+  "scenarios": [
+    {
+      "id": "H06-new-chat-no-poison-in-request",
+      "note": "新建对话后直接问上次结论；请求体不得带旧会话磁盘结论",
+      "seed": [
+        { "role": "user", "content": "帮我看磁盘" },
+        { "role": "assistant", "content": "结论：DISK_FREE_40_PERCENT，建议清理日志" }
+      ],
+      "steps": ["newChat", "askRecall"],
+      "expect": {
+        "liveEmpty": true,
+        "archiveCount": 1,
+        "requestHasPoison": false,
+        "requestHasAsk": true
+      }
+    },
+    {
+      "id": "H06-restore-then-recall",
+      "note": "打开旧会话后再问；请求体应含磁盘结论",
+      "seed": [
+        { "role": "user", "content": "帮我看磁盘" },
+        { "role": "assistant", "content": "结论：DISK_FREE_40_PERCENT，建议清理日志" }
+      ],
+      "steps": ["newChat", "restore", "askRecall"],
+      "expect": {
+        "liveEmpty": false,
+        "archiveCount": 0,
+        "requestHasPoison": true,
+        "requestHasAsk": true
+      }
+    },
+    {
+      "id": "H06-cross-key",
+      "note": "key A 的旧会话不得进入 key B 的请求",
+      "seedKey": "host-a",
+      "otherKey": "host-b",
+      "seed": [
+        { "role": "user", "content": "磁盘" },
+        { "role": "assistant", "content": "DISK_FREE_40_PERCENT" }
+      ],
+      "steps": ["seedOtherEmpty", "askOnOther"],
+      "expect": {
+        "otherRequestHasPoison": false
+      }
+    },
+    {
+      "id": "H06-prompt-memory-cleared",
+      "note": "新对话后观测/最近命令不得残留可回答结论的事实",
+      "promptMemory": {
+        "observations": ["df -h → DISK_FREE_40_PERCENT"],
+        "recentCommands": ["df -h"],
+        "notes": ["host tag prod"]
+      },
+      "expect": {
+        "afterClearHasPoison": false,
+        "afterClearKeepsNotes": true
+      }
+    }
+  ],
+  "wiring": {
+    "panelMustInclude": [
+      "archiveCurrent",
+      "startNewChat",
+      "restoreArchived",
+      "linesRef.current",
+      "setChatHistory(persistKey, [])"
+    ],
+    "clearRecordMustClearFacts": true,
+    "agentSessionUsesThreadId": true,
+    "isoModuleExports": [
+      "applyNewChat",
+      "applyRestore",
+      "buildRequestMessages",
+      "clearPromptFacts"
+    ]
+  }
+}

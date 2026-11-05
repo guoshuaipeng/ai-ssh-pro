@@ -891,12 +891,13 @@ export async function runOpenClawCoreAgentChat(
   }))
   const userQuestion = lastUserQuestion(conversation)
   const sessionKey = payload.targetSessionId?.trim() || 'global'
-  const sessionState = getSessionState(payload.targetSessionId)
-  ensureSeedTask(sessionState, userQuestion || lastUserQuestionForDebug(payload.messages))
+  // H06: bind planner memory to historyKey/threadId so new-chat clear drops the same bucket.
   const threadId = resolveThreadId({
     historyKey: payload.historyKey,
     targetSessionId: payload.targetSessionId
   })
+  const sessionState = getSessionState(threadId)
+  ensureSeedTask(sessionState, userQuestion || lastUserQuestionForDebug(payload.messages))
   let { ctx: thread, epoch: threadEpoch } = loadThreadContext(threadId)
   const absorbed = absorbUserTurn(thread, conversation)
   thread = absorbed.ctx
@@ -939,7 +940,7 @@ export async function runOpenClawCoreAgentChat(
   const MAX_CONSECUTIVE_SNAPSHOT_TOOLS = 6
 
   const persistAll = (): void => {
-    persistSessionState(payload.targetSessionId, sessionState)
+    persistSessionState(threadId, sessionState)
     saveThreadContext(threadId, thread, threadEpoch)
   }
 
