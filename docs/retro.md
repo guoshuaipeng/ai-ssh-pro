@@ -313,3 +313,13 @@
 - 根因：策略「设置位」与「生产机实际生效」混在同一字段展示。
 - 以后怎么避免：凡生产横幅/chip 只反映 *effective* 行为；设置文案写清「非生产 vs 生产」分叉；留出策略题优先 declarative JSON + 脚本，不必强行塞进 Core-A Sxx。
 - 验收：`test-prod-auto-hint` + `test-held-out-h01-h03` + Core-A 34/34；宽/窄×深/浅真机截图仍待 rebuild/`tauri dev`。
+
+## 2026-11-05 第 74 轮（Round 10）AI 对话 — H04 不串流夹具 + busy chip
+- 计划：约 30 分钟；1 高频留出 H04 快速连发/不串流夹具化 + 1 小打磨（busy chip / i18n）。
+- 实际：约 35 分钟。两项交付；Core-A 34/34；未拍真机矩阵（沿用 R6–R9 债）。
+- 卡在哪：① Stop 后 `turnRef` 仍指向旧 turn，迟到 delta 可经 `applyStreamDelta` 再开一张 streaming 卡；② `test-ai-stream-stop-retry` 绑死旧 stop 注释。
+- 哪里没做好：R7 做真停止态时只清 busy/finalize 文案，未把 turn 标为 stopped。
+- 根因：live 判定只有 `turnRef.current === turn`，没有「已 Stop」态。
+- 以后怎么避免：凡 abort/Stop 路径必须 `turn.stopped = true`（或清空 turnRef）且 stream apply 入口先看 stopped；留出流式题用 declarative JSON + 纯函数 replay，不要只靠源码字符串断言。
+- 验收：`test-held-out-h04` + `test-ai-busy-chip` + `test-ai-stream-stop-retry` + Core-A 34/34；宽/窄×深/浅真机截图仍待 rebuild/`tauri dev`。
+

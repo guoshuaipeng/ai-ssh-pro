@@ -6,6 +6,12 @@
 
 > 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
 
+## 2026-11-05 Round 10 追加
+- 已完成：留出 **H04** 快速连发/不串流夹具化（`tests/fixtures/held-out/h04-rapid-stream.json` + `test-held-out-h04`；Stop 置 `turn.stopped`）；AI header **busy chip** + zh「正在生成…」对齐。
+- P2：窄栏×深浅色真机矩阵 / busy chip + 流式停止态截图（需 HEAD rebuild 或 `tauri dev`）。
+- P1 候选 Round 11：留出 **H06** 历史回溯隔离夹具化；或 **H08** 空/错态再核对；或 D29「继续上次排错」增强——保持 AI 对话范围，不接端口转发。
+- 未做：真机截图矩阵；Core-A 仍不接 production safetyContext（策略题继续走 held-out JSON）。
+
 ## 2026-11-05 Round 9 追加
 - 已完成：Roadmap **2.4** / H01 生产横幅收尾（诚实文案、settings 联动、面板 protection+elevated）；留出 **H01/H03** 夹具化（`tests/fixtures/held-out/` + `test-held-out-h01-h03`）。
 - P2：窄栏×深浅色真机矩阵 / 生产横幅 + 设置→AI 策略页截图（需 HEAD rebuild 或 `tauri dev`）。
