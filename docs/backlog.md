@@ -410,4 +410,19 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 - H01：生产+自动执行在 AI 面板显示提醒条（点开策略菜单）；生产机 high-risk 强制 strong 确认，禁止静默写入（64fe47b8）。
 - H05/H04：停止立即解锁输入；cancelled/finally 按 turn 清 busy；过期 turn 不再画到当前会话（00fd21da）。
 下一步（先 grep）：H02 仅建议策略下重启类命令零写入；H07 工具建议分步可读；真机截图补齐宽/窄×深/浅（H01 横幅 + 停止态）。
+## 2026-11-05 cycle 67（AI 对话打磨 Round 3，本地）
+已完成：
+- H02：仅建议下 write/high/interactive 一律 suggest（write=false）；卡片 Copy/Fill，无 Agree（3e05d08e）。
+- H07：命令/工具建议「步骤 n」+ 风险标签；计划型 tool strip 可换行（87f1dd99）。
+真机截图：release `ai-ssh-pro.exe`（0.8.0）可起窗，但不含 R2/R3 代码；本轮未做 `tauri build/dev` 重建 → H01 横幅 / H05 停止态 / H02·H07 新 UI 待用户 `tauri dev` 确认。
+
+### Round 3 轻量视觉审查（逢 3 轮）→ backlog
+- P2 AI 仅建议决策行：窄侧栏（≤230px）时 Copy+Fill 与状态文案可能折成三行，挤占下一条卡片（验收时核对，必要时短文案）。
+- P2 `ai-step-index` 与 `RiskBadge` 同排：中文「步骤 12」+「风险: medium」在极窄面板可能换行两次；保持 pill 不缩字。
+- P3 自动快照 tool strip 仍单行省略，计划型 strip 换行后与快照条视觉权重接近——若显得吵，可把计划条左边加 2px 主色条区分。
+- P3 H01 生产自动横幅 / H05 停止态：宽/窄×深/浅真机截图仍缺（R2 遗留），下一轮优先补拍或进截图脚本。
+- P3 留出集 H03 标签覆盖策略仍未自动化夹具。
+
+下一步（Round 4）：H03 标签策略与 Core-A「一律确认」对齐文档/行为；或补真机截图矩阵（H01/H05/H02/H07）；P2 窄栏 suggest 行折行。
+
 

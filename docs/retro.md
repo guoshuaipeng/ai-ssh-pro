@@ -246,4 +246,11 @@
 - 根因：主进程 `planCommandConfirm` 传 `production: false` 以允许中低风险自动执行，连带放开了 high+autoHighRisk；busy 清理未绑定 turn 身份。
 - 以后怎么避免：生产机自动执行只覆盖中低风险；任何 clearBusy 必须 `turnRef.current === turn`；跨平台补丁优先小 Python 脚本。
 - 验收：宽/窄、深/浅色真机截图本轮未拍（未开 tauri UI）→ 待用户确认；Core-A 34/34；`test-prod-auto-hint` / `test-ai-stream-stop-retry` 通过。
-
+## 2026-11-05 第 67 轮：H02 仅建议零写入 + H07 步骤可读
+- 计划：约 30 分钟；1 高频（H02）+ 1 小打磨（H07）；编码前 UX 评审；逢 3 轮轻量视觉审查。
+- 实际：约 40 分钟。两项交付；Core-A 34/34；未重建 tauri 故真机截图未拍。
+- 卡在哪：Windows 无 rg、PowerShell here-string 吃 Python 脚本 → 改落盘 `.py`；release 0.8.0 可起窗但不含本轮代码。
+- 哪里没做好：交互命令在 observe 下原先仍会 Agree（产品文案写变更仅建议），本轮才发现。
+- 根因：`modeFor` 对 interactive 短路在 tier 分支之前；测试只覆盖了 rm/restart，没覆盖 top/vim。
+- 以后怎么避免：仅建议回归用例必须含 write + high + interactive；真机截图若二进制落后于 HEAD，在 retro 标明「待 rebuild」，不要用旧包冒充验收。
+- 验收：单元 `test-h02-suggest-only` / `test-h07-suggestion-steps` 通过；Core-A 34/34；宽/窄×深/浅真机截图待 `tauri dev`。
