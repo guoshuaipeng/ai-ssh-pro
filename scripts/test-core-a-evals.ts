@@ -1,5 +1,6 @@
 /**
  * Core-A multi-turn evals. Every `*.json` file in tests/fixtures/core-a/ is a
+ * Round 28: fixture.safetyContext is forwarded into the chat payload (production/readonly).
  * scenario (S1–S24 and any later drop-in, including S20-N). The real planner
  * runs against the fixture's scripted model and a fake terminal.
  * S20: after contradictory filler, observational memory still has the original
@@ -348,6 +349,17 @@ type Fixture = {
   id: string
   title: string
   hostProfile?: { hostId?: string; label?: string; hostname?: string }
+  /** Round 28: optional host safety for the chat payload (production / readonly). */
+  safetyContext?: {
+    production?: boolean
+    protection?: 'normal' | 'production' | 'readonly'
+    hostPolicy?: 'suggest' | 'ask' | 'auto'
+    tempPolicy?: 'suggest' | 'ask' | 'auto'
+    elevated?: boolean
+    hostId?: string
+    hostName?: string
+    sessionId?: string
+  }
   session: { targetSessionId: string; historyKey: string }
   settings?: { autoApproveLowRisk?: boolean; useOpenClaw?: boolean }
   env?: Record<string, string>
@@ -656,7 +668,19 @@ async function drive(input: {
         targetSessionId: input.sessionId,
         historyKey: input.fixture.session.historyKey,
         debugTurnId: `${input.fixture.id}-${input.turn.turnId}`,
-        hostInventoryId: input.fixture.seedInventory?.hostId || input.fixture.hostProfile?.hostId
+        hostInventoryId: input.fixture.seedInventory?.hostId || input.fixture.hostProfile?.hostId,
+        // Round 28: pass fixture safetyContext so production/readonly paths are exercised.
+        safetyContext: input.fixture.safetyContext
+          ? {
+              ...input.fixture.safetyContext,
+              hostId: input.fixture.safetyContext.hostId || input.fixture.hostProfile?.hostId,
+              hostName:
+                input.fixture.safetyContext.hostName ||
+                input.fixture.hostProfile?.hostname ||
+                input.fixture.hostProfile?.label,
+              sessionId: input.fixture.safetyContext.sessionId || input.sessionId
+            }
+          : undefined
       },
       ssh as unknown as Parameters<AgentModule['runOpenClawCoreAgentChat']>[3]
     )
