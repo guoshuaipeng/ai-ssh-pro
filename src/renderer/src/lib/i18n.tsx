@@ -6938,7 +6938,7 @@ const en: Record<MessageKey, string> = {
   'policy.ask': 'Confirm before run',
   'policy.auto': 'Auto run',
   'policy.chip.suggest': 'Suggest',
-  'policy.chip.ask': 'Confirm',
+  'policy.chip.ask': 'Ask',
   'policy.chip.auto': 'Auto',
   'policy.suggestHint': 'Runs read-only commands only. Commands that change the host are shown as suggestions without a Run action.',
   'policy.askHint': 'Default. Read-only commands run; changes require confirmation, and high-risk commands require a second confirmation.',

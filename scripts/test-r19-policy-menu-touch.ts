@@ -27,7 +27,9 @@ assert.equal(/var\(--[^,)]+,\s*[^)]+\)/.test(css.slice(start, end)), false, 'no 
 assert.equal(translate('zh-CN', 'policy.chip.ask'), '需确认')
 assert.equal(translate('zh-CN', 'policy.chip.suggest'), '仅建议')
 assert.equal(translate('zh-CN', 'policy.chip.auto'), '自动')
-assert.equal(translate('en', 'policy.chip.ask'), 'Confirm')
+assert.equal(translate('en', 'policy.chip.ask'), 'Ask')
+assert.equal(translate('en', 'policy.chip.suggest'), 'Suggest')
+assert.equal(translate('en', 'policy.chip.auto'), 'Auto')
 assert.equal(translate('zh-CN', 'policy.ask'), '执行前确认') // full name still in menu
 
 // Menu still exposes full labels + hints (no mystery truncation in pop)
