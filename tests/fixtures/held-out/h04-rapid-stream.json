@@ -1,0 +1,184 @@
+{
+  "id": "H04",
+  "title": "Rapid multi-turn — no stream mix-up",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H04",
+  "scenarios": [
+    {
+      "id": "H04-three-rapid-sequential",
+      "note": "连续快速发 3 条不同问题；每条回复归属正确 turn",
+      "events": [
+        {
+          "op": "begin",
+          "turn": "t1",
+          "user": "磁盘还剩多少"
+        },
+        {
+          "op": "delta",
+          "turn": "t1",
+          "chunk": "查"
+        },
+        {
+          "op": "delta",
+          "turn": "t1",
+          "chunk": "磁盘"
+        },
+        {
+          "op": "complete",
+          "turn": "t1",
+          "text": "答：磁盘 40%"
+        },
+        {
+          "op": "begin",
+          "turn": "t2",
+          "user": "内存呢"
+        },
+        {
+          "op": "delta",
+          "turn": "t2",
+          "chunk": "查"
+        },
+        {
+          "op": "delta",
+          "turn": "t2",
+          "chunk": "内存"
+        },
+        {
+          "op": "complete",
+          "turn": "t2",
+          "text": "答：内存 60%"
+        },
+        {
+          "op": "begin",
+          "turn": "t3",
+          "user": "负载呢"
+        },
+        {
+          "op": "delta",
+          "turn": "t3",
+          "chunk": "查负载"
+        },
+        {
+          "op": "complete",
+          "turn": "t3",
+          "text": "答：负载 1.2"
+        }
+      ],
+      "expect": {
+        "t1": "答：磁盘 40%",
+        "t2": "答：内存 60%",
+        "t3": "答：负载 1.2",
+        "liveId": null
+      }
+    },
+    {
+      "id": "H04-stale-delta-after-supersede",
+      "note": "新 turn 开始后，旧 turn 迟到 delta 不得进入 live 文案",
+      "allowOffLive": false,
+      "events": [
+        {
+          "op": "begin",
+          "turn": "t1",
+          "user": "问题一"
+        },
+        {
+          "op": "delta",
+          "turn": "t1",
+          "chunk": "A-partial"
+        },
+        {
+          "op": "begin",
+          "turn": "t2",
+          "user": "问题二"
+        },
+        {
+          "op": "delta",
+          "turn": "t1",
+          "chunk": "LATE-FROM-T1"
+        },
+        {
+          "op": "delta",
+          "turn": "t2",
+          "chunk": "B-ok"
+        },
+        {
+          "op": "complete",
+          "turn": "t2",
+          "text": "答二"
+        }
+      ],
+      "expect": {
+        "t1AssistantContains": "A-partial",
+        "t1AssistantNotContains": "LATE-FROM-T1",
+        "t2": "答二",
+        "liveNeverHad": "LATE-FROM-T1"
+      },
+      "liveSnapshots": [
+        {
+          "afterEvent": 1,
+          "expectContains": "A-partial"
+        },
+        {
+          "afterEvent": 2,
+          "expectEquals": ""
+        },
+        {
+          "afterEvent": 3,
+          "expectEquals": "",
+          "expectNotContains": "LATE-FROM-T1"
+        },
+        {
+          "afterEvent": 4,
+          "expectContains": "B-ok"
+        }
+      ]
+    },
+    {
+      "id": "H04-stop-then-late-delta",
+      "note": "Stop 后迟到 delta 不得重新打开 streaming 卡",
+      "events": [
+        {
+          "op": "begin",
+          "turn": "t1",
+          "user": "长回答"
+        },
+        {
+          "op": "delta",
+          "turn": "t1",
+          "chunk": "正在写"
+        },
+        {
+          "op": "stop",
+          "turn": "t1"
+        },
+        {
+          "op": "delta",
+          "turn": "t1",
+          "chunk": "STOP后还来"
+        }
+      ],
+      "expect": {
+        "t1Stopped": true,
+        "t1AssistantNotContains": "STOP后还来",
+        "t1Streaming": false,
+        "liveId": null
+      }
+    }
+  ],
+  "wiring": {
+    "panelMustInclude": [
+      "const live = turnRef.current === turn",
+      "if (!text || busy) return",
+      "H04: invalidate live turn on Stop",
+      "turn.stopped"
+    ],
+    "isoModuleExports": [
+      "beginIsoTurn",
+      "applyIsoDelta",
+      "stopIsoTurn",
+      "replayIsoEvents",
+      "isLiveIsoTurn"
+    ],
+    "stopMustSetStopped": true
+  }
+}

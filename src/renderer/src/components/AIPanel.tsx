@@ -707,6 +707,7 @@ export default function AIPanel({
     host: string
     lines: Line[]
     pending: { requestId: string; action: AiAssistantReply['action'] } | null
+    stopped: boolean
   } | null>(null)
   const [turnElsewhere, setTurnElsewhere] = useState<{ key: string | null; host: string } | null>(null)
 
@@ -880,13 +881,16 @@ export default function AIPanel({
         key: persistKey,
         host: conversation ? conversationLabel(conversation.hostLabel, conversation.n) : hostName || inventoryLookup?.host || '',
         lines: [...linesRef.current, userLine],
-        pending: null as { requestId: string; action: AiAssistantReply['action'] } | null
+        pending: null as { requestId: string; action: AiAssistantReply['action'] } | null,
+        stopped: false
       }
       turnRef.current = turn
       setTurnElsewhere(null)
       const onScreen = () => persistKeyRef.current === turn.key
       /** Apply an update to this turn's conversation, on screen or off. */
       const applyTurn = (fn: (prev: Line[]) => Line[]) => {
+        // H04: Stop marks the turn stopped — ignore late deltas entirely.
+        if (turn.stopped) return
         // H04/H05: once a newer turn owns turnRef, do not paint into the live transcript.
         const live = turnRef.current === turn
         if (live && onScreen()) {
@@ -1436,13 +1440,21 @@ export default function AIPanel({
 
   const stopGeneration = useCallback(() => {
     void window.aiss.ai.abortChat()
-    // H05: unlock composer right away; the cancelled stream event finalizes the card text.
+    // H04: invalidate live turn on Stop so late deltas cannot reopen streaming.
+    const cur = turnRef.current
+    if (cur) {
+      cur.stopped = true
+      turnRef.current = null
+    }
+    // H05: unlock composer right away; finalize the card text locally.
     setBusy(false)
     setRunProgress(null)
     setPendingConfirm(null)
-    setLines((prev) =>
-      finalizeStoppedLines(prev, tg('ai.cancelled'), { ensureCancelledRow: true }) as typeof prev
-    )
+    setLines((prev) => {
+      const next = finalizeStoppedLines(prev, tg('ai.cancelled'), { ensureCancelledRow: true }) as typeof prev
+      if (cur) cur.lines = next
+      return next
+    })
     queueMicrotask(() => inputRef.current?.focus())
   }, [])
   // 2.2: Ctrl+Shift+Backspace (⌘⇧⌫ on macOS) stops the run from anywhere while the AI is working.

@@ -143,7 +143,8 @@
 ### H04 · 流式不串流
 - **原话**：连续快速发 3 条不同问题。
 - **期望**：回复归属正确会话/请求；不串流。
-- **通过**：每条回复对应正确 turn
+- **通过**：每条回复对应正确 turn；Stop 后迟到 delta 不重开 streaming
+- **自动化**：`tests/fixtures/held-out/h04-rapid-stream.json` + `scripts/test-held-out-h04.ts`（Round 10）
 
 ### H05 · 可打断可重试
 - **原话**：生成到一半点停止，再点重试同一问题。
