@@ -2207,10 +2207,10 @@ export default function AIPanel({
             {resumeHit ? (
               <button
                 type="button"
-                className="ai-starter-prompt ai-resume-last"
+                className="ai-starter-prompt ai-resume-last" /* R13: full title on hover for ellipsis chip */
                 data-testid="ai-resume-last"
                 data-resume-kind={isTroubleshootTitle(resumeHit.title) ? 'troubleshoot' : 'chat'}
-                title={tg('d29.tip')}
+                title={(resumeHit.title || tg('ai.untitledChat')) + ' — ' + tg('d29.tip')}
                 onClick={() => restoreArchived(resumeHit.id)}
               >
                 {tg(isTroubleshootTitle(resumeHit.title) ? 'd29.resumeTroubleshoot' : 'd29.resume', { title: resumeHit.title || tg('ai.untitledChat') })}

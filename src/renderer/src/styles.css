@@ -6462,6 +6462,60 @@ button.primary.danger:focus-visible {
   align-items: flex-start;
 }
 
+/* R13 Round13: cancel / D29 / suggest narrow chrome */
+.ai-panel .ai-stream-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  column-gap: var(--space-2);
+  min-width: 0;
+}
+.ai-panel .ai-stream-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-panel .ai-stream-head > .ai-fill-cmd-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ai-panel .ai-card-cancelled {
+  border-left: 2px solid var(--color-text-muted);
+}
+.ai-panel .ai-stream-partial {
+  margin: var(--space-2) 0 0;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-panel .ai-resume-last,
+.ai-reply-empty .ai-resume-last {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 230px) {
+  .ai-panel .ai-card-cancelled .ai-stream-label,
+  .ai-panel .ai-card-streaming .ai-stream-label {
+    flex: 1 1 100%;
+  }
+  .ai-panel .ai-card-cancelled .ai-stream-head > .ai-fill-cmd-btn,
+  .ai-panel .ai-card-streaming .ai-stream-head > .ai-fill-cmd-btn {
+    flex: 0 0 auto;
+  }
+  /* reinforce Round4 suggest row: status full width, Copy/Fill pair */
+  .ai-panel .ai-suggest-only > .ai-decision {
+    flex: 1 1 100%;
+  }
+}
+
 /* H02: suggest-only decision row — copy is the primary action, never Agree. */
 .ai-panel .ai-suggest-only {
   display: flex;
