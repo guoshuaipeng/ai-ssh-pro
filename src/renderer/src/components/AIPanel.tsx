@@ -2313,12 +2313,16 @@ export default function AIPanel({
                   data-card="tool"
                   data-step={stepNo || undefined}
                 >
-                  {stepNo && !isSnapshot ? (
-                    <span className="ai-step-index" data-testid="ai-step-index">
-                      {tg('ai.stepIndex', { n: stepNo })}
+                  {!isSnapshot && (stepNo || s.riskLevel) ? (
+                    <span className="ai-tool-meta" data-testid="ai-tool-meta">
+                      {stepNo ? (
+                        <span className="ai-step-index" data-testid="ai-step-index">
+                          {tg('ai.stepIndex', { n: stepNo })}
+                        </span>
+                      ) : null}
+                      {s.riskLevel ? <RiskBadge level={s.riskLevel} /> : null}
                     </span>
                   ) : null}
-                  {!isSnapshot && s.riskLevel ? <RiskBadge level={s.riskLevel} /> : null}
                   <span className={`ai-tool-step${isSnapshot ? '' : ' ai-tool-step--wrap'}`}>
                     {isSnapshot ? (
                       <>
@@ -2368,13 +2372,15 @@ export default function AIPanel({
                 {s.action === 'tool_call' && l.requestId ? (
                   <div className="ai-reply-cmd">
                     <div className="ai-cmd-head">
-                      {suggestionStepNo.get(i) ? (
-                        <span className="ai-step-index" data-testid="ai-step-index">
-                          {tg('ai.stepIndex', { n: suggestionStepNo.get(i)! })}
-                        </span>
-                      ) : null}
+                      <span className="ai-tool-meta" data-testid="ai-tool-meta">
+                        {suggestionStepNo.get(i) ? (
+                          <span className="ai-step-index" data-testid="ai-step-index">
+                            {tg('ai.stepIndex', { n: suggestionStepNo.get(i)! })}
+                          </span>
+                        ) : null}
+                        <RiskBadge level={s.riskLevel} />
+                      </span>
                       <span className="ai-code-lang">tool</span>
-                      <RiskBadge level={s.riskLevel} />
                     </div>
                     <div className="ai-tool-need">
                       {tg('ux64.toolNeed')}
@@ -2417,13 +2423,15 @@ export default function AIPanel({
                 {s.action === 'command' && s.command?.trim() ? (
                   <div className="ai-reply-cmd" data-testid="ai-cmd-block" data-step={suggestionStepNo.get(i) || undefined}>
                     <div className="ai-cmd-head">
-                      {suggestionStepNo.get(i) ? (
-                        <span className="ai-step-index" data-testid="ai-step-index">
-                          {tg('ai.stepIndex', { n: suggestionStepNo.get(i)! })}
-                        </span>
-                      ) : null}
+                      <span className="ai-tool-meta" data-testid="ai-tool-meta">
+                        {suggestionStepNo.get(i) ? (
+                          <span className="ai-step-index" data-testid="ai-step-index">
+                            {tg('ai.stepIndex', { n: suggestionStepNo.get(i)! })}
+                          </span>
+                        ) : null}
+                        <RiskBadge level={s.riskLevel} />
+                      </span>
                       <span className="ai-code-lang">shell</span>
-                      <RiskBadge level={s.riskLevel} />
                       <button
                         type="button"
                         className="ai-meta-btn ai-cmd-copy"

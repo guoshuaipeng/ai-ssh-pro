@@ -6383,6 +6383,47 @@ button.primary.danger:focus-visible {
 .ai-panel .ai-tool-strip--plan .ai-risk-badge {
   margin: 0;
 }
+/* P2 Round4: narrow AI panel — suggest row + step/risk pills. */
+.ai-panel .ai-suggest-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-1);
+  row-gap: var(--space-1);
+}
+.ai-panel .ai-suggest-only > .ai-decision {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-panel .ai-suggest-only > .ai-fill-cmd-btn {
+  flex: 0 0 auto;
+}
+.ai-panel .ai-tool-meta {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  white-space: nowrap;
+}
+.ai-panel .ai-tool-meta .ai-step-index,
+.ai-panel .ai-tool-meta .ai-risk-badge {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ai-panel .ai-cmd-head {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+  column-gap: var(--space-2);
+}
+.ai-panel .ai-tool-strip--plan {
+  align-items: flex-start;
+}
+
 /* H02: suggest-only decision row — copy is the primary action, never Agree. */
 .ai-panel .ai-suggest-only {
   display: flex;
