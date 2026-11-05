@@ -6558,6 +6558,33 @@ button.primary.danger:focus-visible {
   z-index: 30;
 }
 
+/* R34 Round34: quieter failure+memory hierarchy */
+/* Failure evidence owns the story; memory stays count-only chrome even on wide. */
+.ai-panel:has([data-testid='ai-failure-evidence']) .ai-memory-chip,
+.ai-panel:has(.ai-exec-replay.has-failure-pin) .ai-memory-chip {
+  opacity: 0.58;
+  color: var(--color-text-muted);
+}
+.ai-panel:has([data-testid='ai-failure-evidence']) .ai-memory-chip-label,
+.ai-panel:has(.ai-exec-replay.has-failure-pin) .ai-memory-chip-label {
+  display: none;
+}
+.ai-panel:has([data-testid='ai-failure-evidence']) .ai-memory-wrap,
+.ai-panel:has(.ai-exec-replay.has-failure-pin) .ai-memory-wrap {
+  max-width: 3.75rem;
+  flex: 0 0 auto;
+}
+.ai-panel:has([data-testid='ai-failure-evidence']) .ai-memory-chip:hover,
+.ai-panel:has([data-testid='ai-failure-evidence']) .ai-memory-chip.is-open,
+.ai-panel:has([data-testid='ai-failure-evidence']) .ai-memory-chip:focus-visible,
+.ai-panel:has(.ai-exec-replay.has-failure-pin) .ai-memory-chip:hover,
+.ai-panel:has(.ai-exec-replay.has-failure-pin) .ai-memory-chip.is-open,
+.ai-panel:has(.ai-exec-replay.has-failure-pin) .ai-memory-chip:focus-visible {
+  opacity: 0.92;
+  color: var(--color-text-muted);
+  background: var(--color-fill-muted);
+}
+
 /* R25 Round25: working-memory expand UX */
 .ai-panel .ai-memory-pop-head {
   display: flex;

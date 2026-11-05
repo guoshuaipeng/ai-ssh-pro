@@ -20,3 +20,11 @@ Ops: `locale`, `aiPolicy`, `aiComposerPop`.
 ```bash
 node scripts/screenshot-key-screens.mjs docs/screenshots/r34 --set chrome --only r34-zh-ask,r34-zh-suggest,r34-zh-auto,r34-en-ask,r34-en-suggest,r34-en-auto,r34-zh-ask-narrow,r34-en-suggest-narrow,r34-zh-ask-pop,r34-en-ask-pop --themes dark,light
 ```
+
+| `*-r34-failure-memory.png` | zh-CN | — | failure pin + memory quieter (opacity &lt; 0.7, label hidden) |
+| `*-r34-failure-memory-narrow.png` | zh-CN | — | same, narrow |
+
+```bash
+node scripts/screenshot-key-screens.mjs docs/screenshots/r34 --set chrome --only r34-failure-memory,r34-failure-memory-narrow --themes dark,light
+```
+

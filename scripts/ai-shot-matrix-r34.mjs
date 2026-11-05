@@ -9,7 +9,9 @@ export const R34_AI_SHOT_NAMES = [
   'r34-zh-ask-narrow',
   'r34-en-suggest-narrow',
   'r34-zh-ask-pop',
-  'r34-en-ask-pop'
+  'r34-en-ask-pop',
+  'r34-failure-memory',
+  'r34-failure-memory-narrow'
 ]
 
 /** @returns {Array<{name:string,narrow?:boolean,wait?:number,steps:Array<object>,expect?:string}>} */
@@ -44,6 +46,29 @@ export function r34AiShots() {
       wait: 1600,
       steps: [...open('en', 'ask'), { op: 'aiComposerPop', which: 'safety' }],
       expect: expectPop('Ask')
+    },
+    {
+      name: 'r34-failure-memory',
+      wait: 1600,
+      steps: [
+        { op: 'menu', action: 'demoHost' },
+        { op: 'aiChat', empty: true },
+        { op: 'aiFailureEvidence', withMemory: true }
+      ],
+      expect:
+        "!!(document.querySelector('[data-testid=ai-failure-evidence]')&&document.querySelector('[data-testid=ai-memory-chip]')&&parseFloat(getComputedStyle(document.querySelector('[data-testid=ai-memory-chip]')).opacity)<0.7&&getComputedStyle(document.querySelector('.ai-memory-chip-label')||document.createElement('span')).display==='none')"
+    },
+    {
+      name: 'r34-failure-memory-narrow',
+      narrow: true,
+      wait: 1700,
+      steps: [
+        { op: 'menu', action: 'demoHost' },
+        { op: 'aiChat', empty: true },
+        { op: 'aiFailureEvidence', withMemory: true }
+      ],
+      expect:
+        "!!(document.querySelector('[data-testid=ai-failure-evidence]')&&document.querySelector('[data-testid=ai-memory-chip]')&&parseFloat(getComputedStyle(document.querySelector('[data-testid=ai-memory-chip]')).opacity)<0.7)"
     }
   ]
 }
