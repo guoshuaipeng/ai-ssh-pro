@@ -7,6 +7,7 @@ import { startE2eSshd, freePort, stablePort, E2E_USER, E2E_PASS } from './e2e-ss
 import { stdAiScenarios, aiTableScenarioNames, AI_E2E_TABLE } from './e2e-ai-table.mjs'
 import { r14AiShots } from './ai-shot-matrix-r14.mjs'
 import { r17AiShots } from './ai-shot-matrix-r17.mjs'
+import { r18AiShots } from './ai-shot-matrix-r18.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -328,6 +329,14 @@ const chrome = [
   })),
   // Round 17: ask progress + sticky batch bar
   ...${JSON.stringify(r17AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
+    steps: s.steps,
+    expect: s.expect || undefined
+  })),
+  // Round 18: plan-step align + audit↔dialog deep links
+  ...${JSON.stringify(r18AiShots())}.map((s) => ({
     name: s.name,
     size: s.narrow ? N : W,
     wait: s.wait || 1000,

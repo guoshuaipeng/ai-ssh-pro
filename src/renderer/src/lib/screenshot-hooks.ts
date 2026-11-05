@@ -48,6 +48,12 @@ export type ScreenshotOp =
   | { op: "aiAskProgress"; step?: number; max?: number; preview?: string }
   /** Round 17: sticky batch bar with >=2 suggestion commands. */
   | { op: "aiBatchSticky" }
+  /** Round 18: plan step align — runProgress drifts vs suggestionStepNo. */
+  | { op: "aiPlanStepAlign"; runStep?: number; max?: number }
+  /** Round 18: AI card with ExecReplay jump-to-audit button. */
+  | { op: "aiExecAuditLink" }
+  /** Round 18: AI card highlighted as if arrived from audit row. */
+  | { op: "aiAuditFocus"; auditId?: string; command?: string }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

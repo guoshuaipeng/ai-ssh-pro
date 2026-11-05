@@ -7497,7 +7497,10 @@ export default function App() {
         detail.op === 'aiError' ||
         detail.op === 'aiAccentStack' ||
         detail.op === 'aiAskProgress' ||
-        detail.op === 'aiBatchSticky'
+        detail.op === 'aiBatchSticky' ||
+        detail.op === 'aiPlanStepAlign' ||
+        detail.op === 'aiExecAuditLink' ||
+        detail.op === 'aiAuditFocus'
       ) {
         setQuickOpen(false)
         setTourOpen(false)
