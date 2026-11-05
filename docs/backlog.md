@@ -2,10 +2,15 @@
 
 > 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
 
+## 2026-11-05 Round 8 追加
+- 已完成：Roadmap **2.5** 模型接入预设 UX（分组芯片 / 下一步文案 / 不覆盖有 Key 的 Provider）；`test-polish-34` M19 token fallback 债已清。
+- P2：窄栏×深浅色真机矩阵 / 设置→AI 预设页截图（需 HEAD rebuild 或 `tauri dev`）。
+- P1 候选 Round 9：Roadmap **2.4** 生产横幅与自动执行组合提示收尾核对（H01 大半已做）；或留出集 H 题夹具化 / 审计深链边角。
+
 ## 2026-11-05 Round 7 追加
 - P2：窄栏×深浅色真机矩阵补拍（本轮 harness 已覆盖 r7-h05-stop / ai-exec-audit）。
-- P2：`test-polish-34` / styles.css M19 `var(--token, fallback)` 既有债（非 R7 引入）。
-- P1 候选 Round 8：Roadmap **2.4** 生产横幅与自动执行组合提示收尾核对（H01 已做大半）或 **2.5** 模型接入预设。
+- ~~P2：`test-polish-34` M19 token fallback~~ → Round 8 已修。
+- ~~P1 候选 Round 8：2.5 模型接入预设~~ → Round 8 已做。
 
 已完成：
 - 第 8 轮：D13、D15、D14。

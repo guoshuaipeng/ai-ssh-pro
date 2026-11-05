@@ -295,3 +295,12 @@
 - 根因：深链过滤状态未进 Tab；流式 UI 只画壳不画 partial；截图脚本默认不 rebuild。
 - 以后怎么避免：凡「打开 X 并定位」必须带 filter 种子；流式卡必须绑定 delta 内容；截图轮次先 `electron-vite build` 再 `--no-build`。
 - 验收：`test-ai-jump-audit` / `test-ai-stream-stop-retry` + Core-A 34/34；`docs/screenshots/r7/` dark/light stop + audit jump；`test-polish-34` 在 styles.css M19 仍有 token fallback（既有债，非本轮引入）。
+
+## 2026-11-05 第 72 轮（Round 8）AI 对话 — 2.5 模型预设 UX + polish-34 M19
+- 计划：约 30 分钟；高频 Roadmap 2.5 预设 UX + 小打磨 test-polish-34 M19 token fallback。
+- 实际：约 45 分钟。两项交付；Core-A 34/34；`test-ai-presets` 8 passed；`test-polish-34` ok。
+- 卡在哪：① PowerShell here-string / 引号导致补丁脚本需经 box→CopyFromBox；② ESM 测试里误用 `require`；③ 断言写死 `ai-preset-group-cloud` 而源码是模板字面量。
+- 哪里没做好：c64 把 B2「新建 Provider」改成覆盖当前编辑器，有 Key 时点芯片会清空 Key——本轮才按 B2 纠偏。
+- 根因：预设交互在两轮设计间漂移，没有用纯函数 `planApplyPreset` 固定语义；M19 新增 `.ai-run-streak` 时抄了带 fallback 的旧写法，破坏「no token fallbacks」契约。
+- 以后怎么避免：设置页关键交互先抽 shared 纯函数再接线 UI；凡写入 M19 区块的 CSS 禁止 `var(--token, fallback)`，改前先跑 `test-polish-34`。
+- 验收：宽/窄×深/浅真机截图未拍（设置页需 rebuild/`tauri dev`）→ 待用户确认；自动化：presets + polish-34 + Core-A。
