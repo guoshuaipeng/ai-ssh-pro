@@ -222,7 +222,7 @@ const zhCN = {
   'ai.contextNoneTip': '切换到已连接的 SSH 标签后，命令确认才会执行',
   'ai.placeholder': "例如：解释上面报错、给出安全的排查命令…",
   'ai.inputTip': "松开鼠标后自动复制选中文本；右键可复制/粘贴；空白时按 ↑ 调出之前的提问",
-  'ai.busy': "生成中…",
+  'ai.busy': "正在生成…",
   'ai.send': "发送 (Enter)",
   'common.copy': "复制",
   'common.paste': "粘贴",

@@ -1931,6 +1931,11 @@ export default function AIPanel({
               </div>
             ) : null}
           </div>
+          {busy ? (
+            <span className="ai-busy-chip" data-testid="ai-busy-chip" role="status" aria-live="polite">
+              {tg('ai.busy')}
+            </span>
+          ) : null}
           <span className="ai-header-shortcut" data-testid="ai-focus-shortcut-hint" title={tg('ai.focusShortcutTip')}>
             <kbd>{keysFor('focusAiPanel') ?? 'Ctrl+Shift+A'}</kbd>
           </span>

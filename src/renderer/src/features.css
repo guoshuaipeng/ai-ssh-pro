@@ -2436,3 +2436,30 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .ai-card-streaming .ai-stream-stop {
   flex: 0 0 auto;
 }
+
+/* R10: calm busy chip in AI header */
+.ai-busy-chip {
+  flex: 0 0 auto;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--muted);
+}
+.ai-busy-chip::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+  opacity: 0.85;
+}
