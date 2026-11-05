@@ -94,6 +94,15 @@ export default function AuditLogPanel({
     return list
   }, [events, host, type, source, text, since, until, focusId])
   const focusMissing = Boolean(focusId && !events.some((e) => e.id === focusId))
+  const filterEmpty = events.length > 0 && rows.length === 0
+  const clearFilters = () => {
+    setText('')
+    setType('')
+    setSource('')
+    setSince('')
+    setUntil('')
+    setRange('all')
+  }
   const wrapRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!focusId) return
@@ -224,16 +233,30 @@ export default function AuditLogPanel({
       ) : null}
       <div className="workspace-panel-body audit-table-wrap" ref={wrapRef}>
         {rows.length === 0 ? (
-          <EmptyState
-            testId="audit-empty"
-            icon="audit"
-            title={t('pf4.auditTitle')}
-            desc={t('pf4.auditDesc')}
-            primary={{
-              label: t('pf4.auditCta'),
-              onClick: () => (enabled ? document.querySelector<HTMLButtonElement>('[data-testid="audit-more"]')?.click() : onToggle(true))
-            }}
-          />
+          filterEmpty ? (
+            <EmptyState
+              testId="audit-filter-empty"
+              icon="audit"
+              title={t('au2.filterEmptyTitle')}
+              desc={t('au2.filterEmptyDesc')}
+              primary={{
+                label: t('au2.clearFilters'),
+                testId: 'audit-clear-filters',
+                onClick: clearFilters
+              }}
+            />
+          ) : (
+            <EmptyState
+              testId="audit-empty"
+              icon="audit"
+              title={t('pf4.auditTitle')}
+              desc={t('pf4.auditDesc')}
+              primary={{
+                label: t('pf4.auditCta'),
+                onClick: () => (enabled ? document.querySelector<HTMLButtonElement>('[data-testid="audit-more"]')?.click() : onToggle(true))
+              }}
+            />
+          )
         ) : (
           <table className="audit-table" data-testid="audit-table">
             <thead>

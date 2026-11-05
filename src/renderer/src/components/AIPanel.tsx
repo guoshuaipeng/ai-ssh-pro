@@ -1020,6 +1020,7 @@ export default function AIPanel({
       if (detail?.op === 'aiFailureEvidence') {
         // Round 21: pin failure evidence on a reply card (S27 visibility).
         // Round 22: do not call setTurnPending here — it is scoped to the stream handler below.
+        // Round 26: optional withMemory seeds collapsed chip so failure+memory hierarchy is testable.
         screenshotForceKeyRef.current = true
         clearShotAiOp()
         screenshotResumeLockRef.current = false
@@ -1030,6 +1031,16 @@ export default function AIPanel({
         setPendingConfirm(null)
         setRunProgress(null)
         setMemoryOpen(false)
+        if ((detail as { withMemory?: boolean }).withMemory) {
+          const mem = buildMemoryEvidenceView({
+            goal: '排查 nginx 502',
+            hostFacts: ['web-01 / 10.0.0.8'],
+            observations: ['df：/ 使用 91%'],
+            recentCommands: ['echo S27_FAIL_CMD']
+          })
+          setWorkingGoal(mem.goal)
+          setMemoryView(mem)
+        }
         const evidence =
           'command=echo S27_FAIL_CMD\nexit=1\nS27_STDERR_EVIDENCE\nS27_TIMEOUT_STUB'
         setLines([

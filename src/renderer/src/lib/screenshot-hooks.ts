@@ -57,7 +57,7 @@ export type ScreenshotOp =
   /** Round 20: working-memory / observational evidence chip (honest, capped). */
   | { op: "aiMemoryEvidence"; goal?: string; hostFacts?: string[]; observations?: string[]; recentCommands?: string[]; open?: boolean; jumpAudit?: boolean }
   /** Round 21: failed command evidence pin (S27). */
-  | { op: "aiFailureEvidence"; nextConfirm?: string }
+  | { op: "aiFailureEvidence"; nextConfirm?: string; withMemory?: boolean }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 
