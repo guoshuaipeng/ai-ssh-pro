@@ -290,6 +290,7 @@ export type AissPreload = {
       list: () => Promise<import('@shared/ai-conversation').AiArchiveSummary[]>
       add: (entry: import('@shared/ai-conversation').AiArchivedConversation) => Promise<void>
       take: (id: string) => Promise<AiChatMessage[]>
+      remove: (id: string) => Promise<boolean>
     }
     onStream: (cb: (ev: AiStreamEvent) => void) => () => void
   }

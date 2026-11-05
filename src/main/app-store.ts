@@ -1,5 +1,5 @@
 import { normalizeTags } from '../shared/workspace-features'
-import { pushArchive, type AiArchivedConversation, type AiArchiveSummary } from '../shared/ai-conversation'
+import { pushArchive, removeArchiveById, type AiArchivedConversation, type AiArchiveSummary } from '../shared/ai-conversation'
 import { DEFAULT_AI_POLICY, migrateAiPolicy, policyTier } from '../shared/ai-policy'
 import { normalizeAiMaxSteps } from '../shared/ai-run-control'
 import Store from 'electron-store'
@@ -582,6 +582,19 @@ export function takeAiChatArchive(id: string): AiChatMessage[] {
   appStore.set('aiChatArchive', list.filter((e) => e.id !== id))
   return normalizeAiChatHistory(hit.messages)
 }
+
+/** Delete an archived conversation without restoring it. */
+export function removeAiChatArchive(id: string): boolean {
+  const key = String(id ?? '').trim()
+  if (!key) return false
+  const all = appStore.get('aiChatArchive') ?? []
+  const list = Array.isArray(all) ? all : []
+  const next = removeArchiveById(list, key)
+  if (next.length === list.length) return false
+  appStore.set('aiChatArchive', next)
+  return true
+}
+
 
 export function getCommandHistory(): string[] {
   return normalizeHistory(appStore.get('commandHistory'))

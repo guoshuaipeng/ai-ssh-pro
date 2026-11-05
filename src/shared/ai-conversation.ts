@@ -132,3 +132,14 @@ export function groupArchives(
   })
   return rows
 }
+
+/** Drop one archived conversation by id (no restore). */
+export function removeArchiveById<T extends { id: string }>(
+  list: ReadonlyArray<T>,
+  id: string
+): T[] {
+  const key = String(id ?? "")
+  if (!key) return [...list]
+  return list.filter((e) => e.id !== key)
+}
+

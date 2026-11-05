@@ -1518,6 +1518,24 @@ export default function AIPanel({
     })()
   }
 
+  const deleteArchived = (id: string) => {
+    if (busy || !window.aiss.ai.chatArchive?.remove) return
+    void (async () => {
+      const ok = await confirmDialog({
+        title: tg('ai.deleteHistoryTitle'),
+        body: tg('ai.deleteHistoryBody'),
+        confirmText: tg('ai.deleteHistory'),
+        danger: true
+      })
+      if (!ok) return
+      const removed = await window.aiss.ai.chatArchive!.remove!(id)
+      if (!removed) return
+      setArchives((prev) => prev.filter((a) => a.id !== id))
+      setResumeHit((prev) => (prev?.id === id ? null : prev))
+      showToast(tg('ai.historyDeleted'))
+    })()
+  }
+
   const [targetOpen, setTargetOpen] = useState(false)
   const targetRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -1848,18 +1866,34 @@ export default function AIPanel({
                     <section key={g.group} className="ai-history-group" data-testid="ai-history-group" data-group={g.group}>
                       <div className="ai-pop-head">{g.hostLabel}</div>
                       {g.items.map((it) => (
-                        <button
-                          key={it.id}
-                          type="button"
-                          className="ai-history-item"
-                          data-testid="ai-history-item"
-                          disabled={busy}
-                          title={it.title}
-                          onClick={() => restoreArchived(it.id)}
-                        >
-                          <span className="ai-history-title">{it.title}</span>
-                          <span className="ai-history-meta">{new Date(it.savedAt).toLocaleString()} · {it.count}</span>
-                        </button>
+                        <div key={it.id} className="ai-history-row" data-testid="ai-history-item">
+                          <button
+                            type="button"
+                            className="ai-history-item"
+                            disabled={busy}
+                            title={it.title}
+                            onClick={() => restoreArchived(it.id)}
+                          >
+                            <span className="ai-history-title">{it.title}</span>
+                            <span className="ai-history-meta">
+                              {new Date(it.savedAt).toLocaleString()} · {it.count}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="ai-history-del"
+                            data-testid="ai-history-del"
+                            disabled={busy || !window.aiss.ai.chatArchive?.remove}
+                            title={tg('ai.deleteHistory')}
+                            aria-label={tg('ai.deleteHistory')}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteArchived(it.id)
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
                       ))}
                     </section>
                   ))

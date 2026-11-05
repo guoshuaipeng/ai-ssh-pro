@@ -406,6 +406,14 @@ export async function installTauriBridge(): Promise<void> {
           await invoke('store_set', { path: ['aiChatArchive'], value: next })
           return hit
         },
+        remove: async (id: string) => {
+          const v = (await invoke<any>('store_get', { path: ['aiChatArchive'] })) || []
+          const list = Array.isArray(v) ? v : []
+          const next = list.filter((e: any) => e?.id !== id)
+          if (next.length === list.length) return false
+          await invoke('store_set', { path: ['aiChatArchive'], value: next })
+          return true
+        },
         getChatHistory: async (key: string) => {
           const all = (await invoke<any>('store_get', { path: ['aiChatHistory'] })) || {}
           return Array.isArray(all[key]) ? all[key] : []

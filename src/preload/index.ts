@@ -389,7 +389,8 @@ const api = {
     chatArchive: {
       list: (): Promise<AiArchiveSummary[]> => ipcRenderer.invoke('ai:chatArchive:list'),
       add: (entry: AiArchivedConversation): Promise<void> => ipcRenderer.invoke('ai:chatArchive:add', entry),
-      take: (id: string): Promise<AiChatMessage[]> => ipcRenderer.invoke('ai:chatArchive:take', id)
+      take: (id: string): Promise<AiChatMessage[]> => ipcRenderer.invoke('ai:chatArchive:take', id),
+      remove: (id: string): Promise<boolean> => ipcRenderer.invoke('ai:chatArchive:remove', id)
     },
     getWorkingMemory: (key: string): Promise<string | null> => ipcRenderer.invoke('ai:workingMemory:get', key),
     onStream: (cb: (ev: AiStreamEvent) => void): (() => void) => {

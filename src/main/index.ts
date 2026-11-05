@@ -33,6 +33,7 @@ import {
   listAiChatArchive,
   addAiChatArchive,
   takeAiChatArchive,
+  removeAiChatArchive,
   recordRecentConnection
 } from './app-store'
 import { registerWorkspaceIpc, setLocaleChangedHandler } from './workspace-ipc'
@@ -1227,6 +1228,7 @@ function registerIpc(): void {
   ipcMain.handle('ai:chatArchive:list', () => listAiChatArchive())
   ipcMain.handle('ai:chatArchive:add', (_e, entry: AiArchivedConversation) => addAiChatArchive(entry))
   ipcMain.handle('ai:chatArchive:take', (_e, id: string) => takeAiChatArchive(String(id ?? '')))
+  ipcMain.handle('ai:chatArchive:remove', (_e, id: string) => removeAiChatArchive(String(id ?? '')))
   ipcMain.handle('ai:workingMemory:get', (_e, key: string) => getWorkingMemoryGoal(String(key ?? '')))
 
   ipcMain.handle('debug:openWindow', () => {

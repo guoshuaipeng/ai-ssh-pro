@@ -6722,6 +6722,38 @@ button.primary.danger:focus-visible {
   max-height: 360px;
   overflow: auto;
 }
+
+.ai-history-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+}
+.ai-history-row .ai-history-item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ai-history-del {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-top: 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.ai-history-del:hover:not(:disabled) {
+  color: var(--color-danger);
+  background: var(--color-danger-muted);
+}
+.ai-history-del:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .ai-history-item {
   display: flex;
   flex-direction: column;
