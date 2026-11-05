@@ -6441,12 +6441,13 @@ button.primary.danger:focus-visible {
 }
 .ai-panel .ai-memory-chip {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-1);
   min-width: 0;
   max-width: 100%;
+  min-height: 28px;
   margin: 0;
-  padding: 0 var(--space-1);
+  padding: var(--space-1) var(--space-2);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -6454,6 +6455,7 @@ button.primary.danger:focus-visible {
   font-size: var(--fs-xs);
   line-height: 1.3;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .ai-panel .ai-memory-chip:hover,
 .ai-panel .ai-memory-chip.is-open,
@@ -6519,6 +6521,58 @@ button.primary.danger:focus-visible {
   .ai-panel .ai-memory-chip-count {
     flex: 0 0 auto;
   }
+}
+
+/* R25 Round25: working-memory expand UX */
+.ai-panel .ai-memory-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ai-panel .ai-memory-pop-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-panel .ai-memory-close {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-xs);
+}
+.ai-panel .ai-memory-item.is-jumpable .ai-memory-jump-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: var(--space-1) 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ai-panel .ai-memory-item.is-jumpable .ai-memory-jump-btn:hover,
+.ai-panel .ai-memory-item.is-jumpable .ai-memory-jump-btn:focus-visible {
+  background: var(--color-fill-muted);
+  outline: none;
+}
+.ai-panel .ai-memory-jump-label {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.ai-panel .ai-memory-item.is-jumpable .ai-memory-jump-btn:hover .ai-memory-jump-label,
+.ai-panel .ai-memory-item.is-jumpable .ai-memory-jump-btn:focus-visible .ai-memory-jump-label {
+  color: var(--color-text);
 }
 
 .ai-panel .ai-header-shortcut kbd {

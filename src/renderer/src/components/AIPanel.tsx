@@ -2647,20 +2647,66 @@ export default function AIPanel({
                     data-testid="ai-memory-pop"
                     aria-label={tg('wm.memoryTitle')}
                   >
-                    <div className="ai-pop-head">{tg('wm.memoryTitle')}</div>
+                    <div className="ai-pop-head ai-memory-pop-head">
+                      <span className="ai-memory-pop-title">{tg('wm.memoryTitle')}</span>
+                      <button
+                        type="button"
+                        className="link-btn ai-memory-close"
+                        data-testid="ai-memory-close"
+                        aria-label={tg('wm.close')}
+                        onClick={() => setMemoryOpen(false)}
+                      >
+                        {tg('wm.close')}
+                      </button>
+                    </div>
                     <ul className="ai-memory-list" data-testid="ai-memory-list">
-                      {memoryView.items.map((it, idx) => (
-                        <li key={`${it.kind}-${idx}`} className="ai-memory-item" data-kind={it.kind} title={it.text}>
-                          <span className="ai-memory-kind">
-                            {it.kind === 'hostFact'
-                              ? tg('wm.hostFact')
-                              : it.kind === 'observation'
-                                ? tg('wm.observation')
-                                : tg('wm.recentCommand')}
-                          </span>
-                          <span className="ai-memory-text">{it.text}</span>
-                        </li>
-                      ))}
+                      {memoryView.items.map((it, idx) => {
+                        const canJump = it.kind === 'recentCommand'
+                        const full = (it.query || it.text || '').trim()
+                        const jump = () => {
+                          if (!canJump || !full) return
+                          const host = conversation
+                            ? conversationLabel(conversation.hostLabel, conversation.n)
+                            : hostName || undefined
+                          window.dispatchEvent(
+                            new CustomEvent(OPEN_AUDIT_EVENT, {
+                              detail: { host, source: 'AI', type: 'command', text: full }
+                            })
+                          )
+                          setMemoryOpen(false)
+                        }
+                        return (
+                          <li
+                            key={`${it.kind}-${idx}`}
+                            className={`ai-memory-item${canJump ? ' is-jumpable' : ''}`}
+                            data-kind={it.kind}
+                            data-testid={canJump ? 'ai-memory-jump' : 'ai-memory-item'}
+                            title={canJump ? tg('wm.jumpAuditTip') : full || it.text}
+                          >
+                            <span className="ai-memory-kind">
+                              {it.kind === 'hostFact'
+                                ? tg('wm.hostFact')
+                                : it.kind === 'observation'
+                                  ? tg('wm.observation')
+                                  : tg('wm.recentCommand')}
+                            </span>
+                            {canJump ? (
+                              <button
+                                type="button"
+                                className="ai-memory-jump-btn"
+                                data-testid="ai-memory-jump-btn"
+                                title={tg('wm.jumpAuditTip')}
+                                onClick={jump}
+                              >
+                                <span className="ai-memory-text">{it.text}</span>
+                                <span className="ai-memory-jump-label">{tg('wm.jumpAudit')}</span>
+                              </button>
+                            ) : (
+                              <span className="ai-memory-text">{it.text}</span>
+                            )}
+                          </li>
+                        )
+                      })}
                     </ul>
                   </div>
                 ) : null}

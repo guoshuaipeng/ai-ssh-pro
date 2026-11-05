@@ -10,6 +10,8 @@ export type MemoryEvidenceKind = 'hostFact' | 'observation' | 'recentCommand'
 export type MemoryEvidenceItem = {
   kind: MemoryEvidenceKind
   text: string
+  /** Full (untruncated) text for audit filter / title. */
+  query?: string
 }
 
 export type MemoryEvidenceView = {
@@ -54,10 +56,12 @@ export function buildMemoryEvidenceView(input: MemorySnapshotInput): MemoryEvide
 
   const push = (kind: MemoryEvidenceKind, raw: string | null | undefined) => {
     if (items.length >= maxItems) return
-    const text = cleanLine(raw, maxChars)
+    const full = (raw ?? '').replace(/\s+/g, ' ').trim()
+    if (!full) return
+    const text = cleanLine(full, maxChars)
     if (!text) return
-    if (items.some((it) => it.text === text)) return
-    items.push({ kind, text })
+    if (items.some((it) => it.text === text || it.query === full)) return
+    items.push({ kind, text, query: full })
   }
 
   for (const fact of input.hostFacts ?? []) push('hostFact', fact)
