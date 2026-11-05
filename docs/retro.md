@@ -387,3 +387,12 @@
 - 验收：`test-ai-jump-from-audit` / `test-r17-ai-shot-harness` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r17/` dark/light × ask-progress / batch-sticky / narrow。
 - 提交：`59251dc7`（回跳）、`10b45719`（harness）。
 
+## Round 18 — 2026-11-05（计划步对齐 suggestionStepNo + 审计↔对话截图矩阵）
+- 计划：约 30 分钟；1 高频：进度芯片 / 确认卡高亮 / 「步骤 n」共用 suggestionStepNo；1 小打磨：双向深链补进截图矩阵。
+- 实际：本机完成两项；Core-A 34/34；held-out H01–H08 绿；r18 截图 8/8 expect true。
+- 卡住点：① agent `runProgress.step` 与可见建议卡序号本就不是同一坐标系（snapshot/end 占 loop）；② held-out H07 把 `action === 'command' || …` 绑在 panel 字符串上，抽 shared 后要改 wiring 而非硬绕。
+- 根因/预防：UI 步号以 `buildSuggestionStepNos` 为源，`alignPlanStepDisplay` 在有待确认卡时优先 suggestion；新 screenshot op 同步 hooks + App 开面板列表 + AIPanel stash/replay + matrix JSON。
+- UX 验收：主 CTA 仍是 Agree；芯片/badge/`ai-step-index` 同 n；审计「对话」与 ExecReplay「审计」对称；空匹配仍 toast（R17 债未扩）。
+- 验收：`test-r18-plan-step-align` / `test-r18-ai-shot-harness` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r18/` dark/light × 4 态。
+- 提交：`c3550de0`（对齐）、`a64d52dc`（矩阵）。
+
