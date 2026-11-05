@@ -378,3 +378,12 @@
 - 返工：R15→R16 把批量条从 tail 改 sticky/首卡，说明 R15 视觉债记对了；R14 harness 后真机矩阵仍未闭环。
 - 重复 3+ 次：① PowerShell 内联补丁引号炸 → 已倾向 `.cjs`/文件写入；② 真机宽窄×深浅欠交付 → 应默认扩 `ai-shot-matrix` 场景而非每轮口头「待 rebuild」；③ 新测未进 `test:parts`（R14/R15）→ R16 已补线。
 - 抽象候选：截图场景表 config-driven（op → expect 图）；composer/batch chrome 共享「≥2 步才出条」纯函数已有，继续沿用。
+
+## Round 17 — 2026-11-05（审计→对话回跳 + R17 截图矩阵）
+- 计划：约 30 分钟；1 高频：审计行「对话」回跳 AI 步骤（R7 反向）；1 小打磨：扩 R14 harness 拍 ask 进度 + sticky batch。
+- 实际：本机完成两项；Core-A 34/34；held-out H01–H08 绿；截图 6 张 expect 全 true。
+- 卡住点：Windows 本机无 `rg`、PowerShell 花括号转义；改用 tools/r17 Python 补丁。机器短暂 unreachable 重试即可。
+- 根因/预防：双向深链事件对称放在 ExecReplay 旁（`OPEN_AUDIT_EVENT` / `OPEN_AI_FROM_AUDIT_EVENT`）；新 screenshot op 必须同步 App 开面板列表 + AIPanel stash/replay + matrix JSON。
+- 验收：`test-ai-jump-from-audit` / `test-r17-ai-shot-harness` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r17/` dark/light × ask-progress / batch-sticky / narrow。
+- 提交：`59251dc7`（回跳）、`10b45719`（harness）。
+

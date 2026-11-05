@@ -1,3 +1,15 @@
+## 2026-11-05 Round 17 追加
+- 已完成：审计行内 **跳回 AI 对话步骤**（`OPEN_AI_FROM_AUDIT_EVENT`；AI 来源 command/ai.action 行「对话」；按 auditId/命令高亮卡片；主机标签尽量切会话）；R14 harness 扩拍 ask 进度 + sticky 批量条 → `docs/screenshots/r17/`（`aiAskProgress` / `aiBatchSticky`）。
+- P2：真机宽窄×深浅仍欠（R6–R16 遗留）；审计「对话」在无匹配 turn 时仅 toast——可考虑弱提示「在当前主机新开对话」但不造历史。
+- P1 候选 Round 18：保持 AI 对话——计划步与 `suggestionStepNo` 更紧对齐 / 或 composer 策略菜单触控可读（R15 视觉债）/ 或审计↔对话双向深链补截图矩阵；默认不接端口转发。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+
+### Round 17 UX 验收（编码后）
+- 主 CTA：审计表筛选/导出仍是主 chrome；行内「对话」次要链接权重（对仗 ExecReplay「审计」）。
+- 绑定：host 用写入审计时的 conversationLabel；焦点优先 auditId，其次 command 文本。
+- 空/错：无匹配 → 仍开面板 + toast「未在当前对话找到该步骤」；非 AI 行无按钮。
+- 矩阵：`docs/screenshots/r17/README.md`（ask-progress / batch-sticky / narrow）。
+
 ## 2026-11-05 Round 16 追加
 - 已完成：多轮计划进度可见（ask/suggest/auto 均显示 `ai-run-steps`；streak 仍仅 auto；待确认卡 `is-active-plan-step` + 当前第 n/max）；批量条改贴首张建议卡并 sticky，加「逐条填入」(`ai-batch-fill-next` → `startScript`)。
 - P2：Electron harness 扩拍 —— plan-progress 芯片（ask）/ active-plan badge / sticky batch+fill 窄栏；真机宽窄×深浅仍欠（R6–R15 遗留）。
