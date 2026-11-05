@@ -1,7 +1,7 @@
 import { normalizeTags } from '../shared/workspace-features'
 import { pushArchive, removeArchiveById, type AiArchivedConversation, type AiArchiveSummary } from '../shared/ai-conversation'
 import { DEFAULT_AI_POLICY, migrateAiPolicy, policyTier } from '../shared/ai-policy'
-import { normalizeAiMaxSteps } from '../shared/ai-run-control'
+import { normalizeAiAutoStreak, normalizeAiMaxSteps } from '../shared/ai-run-control'
 import Store from 'electron-store'
 import type {
   SavedSessionProfile,
@@ -328,6 +328,7 @@ function normalizeAi(merged: AiSettings): AiSettings {
       : anyMerged.aiPolicy === undefined && anyMerged.safetyTier === 'autopilot' && autopilotAllowHighRisk
 
   const aiMaxSteps = normalizeAiMaxSteps(anyMerged.aiMaxSteps)
+  const aiAutoStreak = normalizeAiAutoStreak(anyMerged.aiAutoStreak)
   const aiExitCapture = anyMerged.aiExitCapture === false ? false : undefined
 
   return {
@@ -342,6 +343,7 @@ function normalizeAi(merged: AiSettings): AiSettings {
     aiPolicy,
     ...(aiAutoHighRisk ? { aiAutoHighRisk } : {}),
     ...(aiMaxSteps != null ? { aiMaxSteps } : {}),
+    ...(aiAutoStreak != null ? { aiAutoStreak } : {}),
     ...(aiExitCapture === false ? { aiExitCapture } : {}),
     ...(safetyTierHosts ? { safetyTierHosts } : {}),
     ...(safetyTierSessions ? { safetyTierSessions } : {}),

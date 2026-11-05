@@ -530,8 +530,14 @@ export default function AIPanel({
   const [pasteBlocks, setPasteBlocks] = useState<PasteBlock[]>([])
   const [openBlock, setOpenBlock] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  /** 2.2: auto-run progress shown in the composer ("step n / limit"). */
-  const [runProgress, setRunProgress] = useState<{ step: number; max: number } | null>(null)
+  /** 2.2: auto-run progress shown in the composer ("step n / limit" + optional streak). */
+  const [runProgress, setRunProgress] = useState<{
+    step: number
+    max: number
+    streak?: number
+    streakCap?: number
+    forced?: boolean
+  } | null>(null)
   useEffect(() => {
     if (!busy) setRunProgress(null)
   }, [busy])
@@ -944,7 +950,17 @@ export default function AIPanel({
         return
       }
       if (ev.type === 'progress') {
-        setRunProgress(ev.policy === 'auto' ? { step: ev.step, max: ev.maxSteps } : null)
+        setRunProgress(
+          ev.policy === 'auto'
+            ? {
+                step: ev.step,
+                max: ev.maxSteps,
+                streak: ev.autoStreak,
+                streakCap: ev.autoStreakCap,
+                forced: ev.forcedConfirm === true
+              }
+            : null
+        )
         return
       }
       if (ev.type === 'status') {
@@ -2899,6 +2915,17 @@ export default function AIPanel({
             {busy && runProgress ? (
               <span className="ai-run-steps" data-testid="ai-run-steps" title={tg('ai.runStepsTip')}>
                 {tg('ai.runSteps', { n: runProgress.step, max: runProgress.max })}
+                {typeof runProgress.streak === 'number' && typeof runProgress.streakCap === 'number' && runProgress.streakCap > 0 ? (
+                  <span
+                    className={`ai-run-streak${runProgress.forced ? ' is-forced' : ''}`}
+                    data-testid="ai-run-streak"
+                    title={runProgress.forced ? tg('ai.runStreakForced') : tg('ai.runStreakTip')}
+                  >
+                    {runProgress.forced
+                      ? tg('ai.runStreakForced')
+                      : tg('ai.runStreak', { n: runProgress.streak, max: runProgress.streakCap })}
+                  </span>
+                ) : null}
               </span>
             ) : null}
             {busy ? (

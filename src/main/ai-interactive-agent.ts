@@ -53,7 +53,13 @@ import {
 import { createInFlightBook, isInteractiveCommand, planCommandConfirm, safetyTierEngaged, type SafetyMode } from '../shared/safety-tier'
 import { getInventoryStore } from './inventory-store'
 import { isAiPolicy, policyTier, resolveAiPolicy } from '../shared/ai-policy'
-import { resolveAiMaxSteps, writeUnlessStopped } from '../shared/ai-run-control'
+import {
+  bumpAutoWriteStreak,
+  resolveAiAutoStreak,
+  resolveAiMaxSteps,
+  shouldForceConfirmAfterAutoStreak,
+  writeUnlessStopped
+} from '../shared/ai-run-control'
 import { execStatusFrom, exitWaitMs, summarizeExecOutput, type NoExitReason } from '../shared/ai-exec-replay'
 import { aiWriteVerdict, capSafetyModeForProtection, aiEffectiveLevel, protectionFromSafetyContext, stricterProtection } from '../shared/ai-write-guard'
 import { blockSilentHighRiskOnProd } from '../shared/prod-auto-hint'
@@ -871,6 +877,7 @@ export async function runOpenClawCoreAgentChat(
 
   // 2.2: the step limit is a setting; AISS_MAX_POLLS remains a fallback for older setups.
   const maxSteps = resolveAiMaxSteps(settings.aiMaxSteps, process.env.AISS_MAX_POLLS)
+  const autoStreakCap = resolveAiAutoStreak(settings.aiAutoStreak)
 
   const pollWaitMs = (() => {
     const raw = process.env.AISS_POLL_WAIT_MS
@@ -925,6 +932,8 @@ export async function runOpenClawCoreAgentChat(
   let prevSnapFingerprint: string | null = null
   let sameSnapshotRepeat = 0
   let consecutiveSnapshotTools = 0
+  let autoWriteStreak = 0
+  let forcedConfirmPending = false
   let evidenceGateUsed = false
   const MAX_SAME_SNAPSHOT_REPEAT = 2
   const MAX_CONSECUTIVE_SNAPSHOT_TOOLS = 6
@@ -946,8 +955,18 @@ export async function runOpenClawCoreAgentChat(
   }
 
   // 2.1: the last resolved policy + protection, attached to every AI command audit event.
-  let lastPolicy: ReturnType<typeof resolveAiPolicy> | null = null
-  let lastProtectionLevel: 'normal' | 'production' | 'readonly' | undefined
+  // 2.2: seed policy before the loop so progress shows 「第 n / 上限」from step 1 under auto.
+  const bootProtection = stricterProtection(
+    protectionFromSafetyContext(payload.safetyContext),
+    getSessionProtection(targetSessionId)
+  )
+  let lastPolicy: ReturnType<typeof resolveAiPolicy> | null = resolveAiPolicy({
+    settings,
+    hostPolicy: payload.safetyContext?.hostPolicy,
+    tempOverride: payload.safetyContext?.tempPolicy,
+    protection: bootProtection
+  })
+  let lastProtectionLevel: 'normal' | 'production' | 'readonly' | undefined = aiEffectiveLevel(bootProtection)
   const emitAudit = (command: string, outcome: 'allowed' | 'blocked', reason?: 'readonly'): void => {
     send(wc, {
       type: 'audit',
@@ -976,7 +995,16 @@ export async function runOpenClawCoreAgentChat(
       }
 
       send(wc, { type: 'status', text: mt(`正在生成第 ${step} 步...`, `Generating step ${step}...`) })
-      send(wc, { type: 'progress', step, maxSteps, policy: lastPolicy?.effective })
+      send(wc, {
+        type: 'progress',
+        step,
+        maxSteps,
+        policy: lastPolicy?.effective,
+        autoStreak: autoWriteStreak,
+        autoStreakCap,
+        forcedConfirm: forcedConfirmPending
+      })
+      forcedConfirmPending = false
       if (sessionState.failureStreak >= 2) {
         rememberNote(sessionState, mt('检测到连续失败，下一步应优先选择低风险证据命令或直接结束并说明缺失信息。', "Repeated failures detected; next prefer a low-risk evidence command or end and explain what is missing."))
       }
@@ -1238,6 +1266,32 @@ export async function runOpenClawCoreAgentChat(
           mode: safetyMode
         })
         if (forced) safetyMode = forced
+        // 2.2: after N consecutive auto non-read writes, force Agree once (clear Chinese note).
+        if (
+          safetyMode === 'auto' &&
+          decision.kind !== 'read' &&
+          shouldForceConfirmAfterAutoStreak(autoWriteStreak, autoStreakCap)
+        ) {
+          safetyMode = 'agree'
+          forcedConfirmPending = true
+          const streakNote = mt(
+            `已连续自动执行 ${autoWriteStreak} 步（上限 ${autoStreakCap}），请确认是否继续。之后可在「设置 → AI 执行策略」调整连续自动上限。`,
+            `Auto-ran ${autoWriteStreak} steps in a row (limit ${autoStreakCap}); confirm to continue. Change the consecutive auto limit in Settings → AI execution policy.`
+          )
+          const note = parsed.notes?.includes(streakNote)
+            ? parsed.notes
+            : [parsed.notes, streakNote].filter(Boolean).join('\n')
+          parsed = { ...parsed, notes: note }
+          send(wc, {
+            type: 'progress',
+            step,
+            maxSteps,
+            policy: lastPolicy?.effective,
+            autoStreak: autoWriteStreak,
+            autoStreakCap,
+            forcedConfirm: true
+          })
+        }
         if (decision.alternative) {
           const note = parsed.notes?.includes(decision.alternative)
             ? parsed.notes
@@ -1331,6 +1385,7 @@ export async function runOpenClawCoreAgentChat(
       // A missing safety tier keeps the legacy confirm path, including read-only commands.
       if (needsInterrupt && safetyMode === 'auto') {
         consecutiveSnapshotTools = 0
+        autoWriteStreak = bumpAutoWriteStreak(autoWriteStreak, commandKind)
         hitl = markHitlExecuting(resumeHitl(hitl, true))
         if (!sideEffectExecutionPermitted(hitl)) {
           send(wc, { type: 'error', message: mt('内部错误：安全档自动执行未进入执行态', 'Internal error: safety-tier auto-run did not enter executing') })
@@ -1383,11 +1438,12 @@ export async function runOpenClawCoreAgentChat(
           return
         }
         hitl = resumeHitl(hitl, decision === 'approve')
+        if (decision === 'approve') autoWriteStreak = 0
         emitDebug({
           kind: 'execution',
           round: step,
           label: 'HITL resume',
-          detail: `phase=${hitl.phase} decision=${hitl.resume ?? 'deny'}`
+          detail: `phase=${hitl.phase} decision=${hitl.resume ?? 'deny'} autoStreakReset=${String(decision === 'approve')}`
         })
         if (hitl.phase !== 'resumed') {
           emitDebug({

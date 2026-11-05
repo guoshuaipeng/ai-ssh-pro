@@ -6483,11 +6483,25 @@ button.primary.danger:focus-visible {
 }
 .ai-run-steps {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   padding: 0 var(--space-1);
   color: var(--color-text-secondary);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.ai-run-streak {
+  flex: 0 0 auto;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-bg-muted, transparent);
+  color: var(--color-text-secondary);
+}
+.ai-run-streak.is-forced {
+  color: var(--color-warning, #b45309);
+  background: color-mix(in srgb, var(--color-warning, #b45309) 12%, transparent);
 }
 .policy-steps {
   display: flex;

@@ -346,7 +346,8 @@ export async function installTauriBridge(): Promise<void> {
           safetyTierHosts: s?.safetyTierHosts || {},
           safetyTierSessions: s?.safetyTierSessions || {},
           autopilotAllowHosts: Array.isArray(s?.autopilotAllowHosts) ? s.autopilotAllowHosts : [],
-          aiMaxSteps: s?.aiMaxSteps
+          aiMaxSteps: s?.aiMaxSteps,
+          aiAutoStreak: s?.aiAutoStreak
         }
       },
       setSettings: (s: unknown) => invoke('store_set', { path: ['ai'], value: s }),

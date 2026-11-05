@@ -2,7 +2,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { AI_POLICIES, DEFAULT_AI_POLICY, globalAiPolicy, isAiPolicy, policyTier, type AiPolicy } from '@shared/ai-policy'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import { tg, type MessageKey } from '../lib/i18n'
-import { DEFAULT_AI_MAX_STEPS, MAX_AI_MAX_STEPS, MIN_AI_MAX_STEPS, resolveAiMaxSteps } from '@shared/ai-run-control'
+import {
+  DEFAULT_AI_AUTO_STREAK,
+  DEFAULT_AI_MAX_STEPS,
+  MAX_AI_AUTO_STREAK,
+  MAX_AI_MAX_STEPS,
+  MIN_AI_AUTO_STREAK,
+  MIN_AI_MAX_STEPS,
+  resolveAiAutoStreak,
+  resolveAiMaxSteps
+} from '@shared/ai-run-control'
 
 const POLICY_KEY: Record<AiPolicy, MessageKey> = {
   suggest: 'policy.suggest',
@@ -26,6 +35,7 @@ export default function SafetyTierSettings() {
   const [policy, setPolicy] = useState<AiPolicy>(DEFAULT_AI_POLICY)
   const [autoHigh, setAutoHigh] = useState(false)
   const [maxSteps, setMaxSteps] = useState(String(DEFAULT_AI_MAX_STEPS))
+  const [autoStreak, setAutoStreak] = useState(String(DEFAULT_AI_AUTO_STREAK))
   const [exitCapture, setExitCapture] = useState(true)
   const [overrides, setOverrides] = useState<HostOverride[]>([])
   const [showOverrides, setShowOverrides] = useState(false)
@@ -36,6 +46,7 @@ export default function SafetyTierSettings() {
       setPolicy(globalAiPolicy(s))
       setAutoHigh(s.aiAutoHighRisk === true)
       setMaxSteps(String(resolveAiMaxSteps(s.aiMaxSteps)))
+      setAutoStreak(String(resolveAiAutoStreak(s.aiAutoStreak)))
       setExitCapture(s.aiExitCapture !== false)
     })
     void window.aiss.sessions
@@ -104,6 +115,25 @@ export default function SafetyTierSettings() {
             {tg('policy.autoHighRisk')}
           </label>
           <p className="l7-muted">{tg('policy.autoHighRiskHint')}</p>
+          <label className="settings-row policy-steps" data-testid="ai-auto-streak-row">
+            <span>{tg('policy.autoStreak')}</span>
+            <input
+              type="number"
+              className="policy-steps-input"
+              data-testid="ai-auto-streak"
+              min={MIN_AI_AUTO_STREAK}
+              max={MAX_AI_AUTO_STREAK}
+              step={1}
+              value={autoStreak}
+              onChange={(e) => setAutoStreak(e.target.value)}
+              onBlur={() => {
+                const next = resolveAiAutoStreak(autoStreak)
+                setAutoStreak(String(next))
+                void window.aiss.ai.setSettings({ aiAutoStreak: next }).then(flash)
+              }}
+            />
+          </label>
+          <p className="l7-muted">{tg('policy.autoStreakHint', { min: MIN_AI_AUTO_STREAK, max: MAX_AI_AUTO_STREAK })}</p>
         </div>
       ) : null}
       <label className="settings-row policy-steps" data-testid="ai-max-steps-row">

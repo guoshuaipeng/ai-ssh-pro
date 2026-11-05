@@ -560,7 +560,7 @@ export type AiStreamEvent =
   | { type: 'error'; message: string }
   | { type: 'debug'; payload: AiDebugStreamPayload }
   /** 2.2: loop progress for the composer ("step n / limit"). */
-  | { type: 'progress'; step: number; maxSteps: number; policy?: 'suggest' | 'ask' | 'auto' }
+  | { type: 'progress'; step: number; maxSteps: number; policy?: 'suggest' | 'ask' | 'auto'; autoStreak?: number; autoStreakCap?: number; forcedConfirm?: boolean }
   /** 2.1: one AI command reached the terminal (allowed) or was stopped by read-only protection (blocked). */
   | { type: 'audit'; payload: AiAuditPayload }
   /** 2.3: a command finished (or was blocked); the renderer attaches it to the matching step for replay. */
@@ -633,6 +633,8 @@ export type AiSettings = {
   aiAutoHighRisk?: boolean
   /** 2.2: maximum planner steps per AI run (1–30, default 10). */
   aiMaxSteps?: number
+  /** 2.2: consecutive auto non-read writes before the next must Agree (1–30, default 5). */
+  aiAutoStreak?: number
   /** B1: append an exit-code marker to AI commands (default on; stored only when false). */
   aiExitCapture?: boolean
 }
