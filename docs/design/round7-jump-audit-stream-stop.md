@@ -26,3 +26,12 @@
 3. History 「审计」→ audit filtered host + text=command.
 4. Screenshot / harness: real `[data-testid=ai-stop]` without createElement inject; streaming card shows partial + stop.
 5. Core-A 34/34; new unit tests green.
+
+
+## UX review (after)
+
+- ExecReplay jump carries host + AI + command; muted-but-useful when id missing (filter tip).
+- Confirm dock 「本机审计」 is secondary ghost next to Decline; Agree stays sole primary.
+- History 「审计」 badge mirrors 「问 AI」 weight on suggest / Ctrl+R rows.
+- Streaming card: label + Stop + partial; composer Stop still present. Harness eval all-true without createElement.
+- Wide Electron harness dark/light OK; narrow×深浅真机矩阵未全拍（本轮以 harness 为准），记入 backlog。

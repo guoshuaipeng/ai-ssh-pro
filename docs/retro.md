@@ -288,3 +288,10 @@
 - 重复信号：真机截图矩阵已连续 4+ 轮欠交付 → 应标准成「开工后台 build + harness 场景表」而不是每轮临时补。
 - 规则候选：① 需要截图的轮次开工即 `--no-bundle` debug build 或 Electron harness；② Tauri-only 模块必须可在无 internals 时 no-op；③ 截图 eval 走单引号/DOM API，禁止嵌套双引号。
 
+## 2026-11-05 第 71 轮（Round 7）AI 对话 — 2.3 跳转审计 + H04/H05 真流式停止
+- 计划：约 30 分钟；高频 Roadmap 2.3 对话内跳转审计 + 小打磨 H04/H05 真停止态（禁 DOM 注入）。
+- 实际：约 55 分钟。两项交付；Electron harness 重建后截图证据齐全。
+- 卡在哪：① `openAudit` 原先只传 id，已有审计页的 host 过滤会藏掉目标行；② delta 累积了文本却不画进 streaming 卡；③ `--no-build` 拍到旧 out/ 假阴性。
+- 根因：深链过滤状态未进 Tab；流式 UI 只画壳不画 partial；截图脚本默认不 rebuild。
+- 以后怎么避免：凡「打开 X 并定位」必须带 filter 种子；流式卡必须绑定 delta 内容；截图轮次先 `electron-vite build` 再 `--no-build`。
+- 验收：`test-ai-jump-audit` / `test-ai-stream-stop-retry` + Core-A 34/34；`docs/screenshots/r7/` dark/light stop + audit jump；`test-polish-34` 在 styles.css M19 仍有 token fallback（既有债，非本轮引入）。
