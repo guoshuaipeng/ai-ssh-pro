@@ -19,3 +19,10 @@
 - Active-plan badge + run-steps/streak tighten gaps/margins; streak may wrap under steps.
 - Tokens instead of raw 8/10px where touched.
 - Guard: test-r19-confirm-dock-narrow.ts
+
+## UX review (post-code)
+- Hierarchy: Agree remains sole primary on pending dock; policy chip short label is status chrome; menu option for effective policy is the selection CTA.
+- Binding: chip/menu still resolveAiPolicy for this tab; dock still pendingConfirm on current conversation.
+- Narrow: chip 需确认/仅建议/自动 never mystery-ellipsis; options 40px + links 32px + is-open/focus-visible without hover; dock stacks at 280px; streak wraps under run-steps at 230px.
+- Empty/error: needSession note + need-session CTA unchanged.
+- Verify on device: open policy menu with keyboard only; touch option height; narrow pending Agree+Decline+审计 wrap; ask-policy active badge + composer 第 n/max.

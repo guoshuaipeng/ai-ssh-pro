@@ -1,3 +1,16 @@
+## 2026-11-05 Round 19 追加
+- 已完成：composer 策略芯片短中文（需确认/仅建议/自动）+ 菜单触控/焦点（R15 债；`is-open`、打开聚焦当前项、40px option / 32px link）；确认坞 + 计划进度窄栏再收一档（pending dock `@container` 280px 堆叠、预览 2 行、badge/streak ellipsis）。
+- P2：真机宽窄×深浅仍欠（R6–R18 遗留；R19 态可扩 harness：policy-menu-open / pending-dock-narrow）。
+- P3（本轮轻扫，非整页审计——下一次整页在 Round 21）：safety pop 标题「AI 执行策略（此标签页）」在极窄仍可能两行——可接受；英文 chip Confirm/Suggest/Auto 与菜单全称并存需真机确认不混淆；pending 三按钮（Agree/Decline/审计）在 280px 折行后 Decline 次级权重可再降一档。
+- P1 候选 Round 20：保持 AI 对话——扩 R14 harness 拍 policy-open + pending-dock 窄态 / 或 Roadmap 迭代 3 前扫对话缺口（工作记忆可见性、失败证据卡）；或英文 chip 短标签抽检。默认不接端口转发。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+
+### Round 19 UX 验收（编码后）
+- 主 CTA：待确认仍是 Agree；策略菜单选当前生效项；短标签不抢 CTA。
+- 绑定：策略/确认坞均绑本标签页会话。
+- 空/错：无会话仍 needSession / need-session CTA。
+- 守卫：`test-r19-policy-menu-touch` / `test-r19-confirm-dock-narrow`；Core-A 34/34；held-out H01–H08 绿。
+
 ## 2026-11-05 Round 18 追加
 - 已完成：计划步与 `suggestionStepNo` 对齐（`alignPlanStepDisplay`；芯片 `data-aligned-step` / badge 与「步骤 n」一致）；审计↔对话双向深链进截图矩阵 → `docs/screenshots/r18/`（plan-step-align / ai-to-audit / audit-to-ai / audit-open-ai）。
 - P2：真机宽窄×深浅仍欠（R6–R17 遗留，harness 已覆盖 R18 态）；审计「对话」无匹配时仅 toast——可考虑弱提示「在当前主机新开对话」但不造历史（R17 债）。

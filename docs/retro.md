@@ -396,3 +396,10 @@
 - 验收：`test-r18-plan-step-align` / `test-r18-ai-shot-harness` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r18/` dark/light × 4 态。
 - 提交：`c3550de0`（对齐）、`a64d52dc`（矩阵）。
 
+## Round 19 — 2026-11-05（策略菜单触控可读 + 确认坞/计划进度窄栏）
+- 计划：约 30 分钟；1 高频 R15 债（composer 策略菜单触控/无悬停可读）+ 1 小打磨确认坞与计划进度窄栏再收；编码前 UX 评审。
+- 实际：本机两项交付；Core-A 34/34；held-out H01–H08 绿；真机矩阵仍欠。
+- 卡住点：PowerShell 内联引号易炸 → 继续 `tools/r19/*.py`；`package.json` 接线同法。
+- 根因/预防：窄栏 ellipsis 长中文（执行前确认）在无悬停设备变成谜 → 芯片用短标签、全称留给 aria/title/菜单；触控目标与 focus-visible 必须不依赖 :hover；确认坞应用自己的 `container-type` 而不是假定 `.ai-panel` 是 container。
+- 验收：`test-r19-policy-menu-touch` / `test-r19-confirm-dock-narrow` + Core-A 34/34 + held-out 全绿；提交 `d5fe6cb5` / `a8f87455`。
+- 逢 3 轮整页视觉：本轮非整页（上一整页债在 R18 节奏，下一目标 Round 21）；本轮轻扫记入 backlog P3。
