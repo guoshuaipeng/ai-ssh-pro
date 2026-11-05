@@ -32,7 +32,13 @@ import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
 import { releaseSessionInFlight, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
 import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } from '@shared/ai-policy'
-import { collectSuggestionCommands, formatSuggestionCommandsForCopy } from '@shared/ai-suggestion-steps'
+import {
+  alignPlanStepDisplay,
+  buildSuggestionStepNos,
+  collectSuggestionCommands,
+  findConfirmableLineIndex,
+  formatSuggestionCommandsForCopy
+} from '@shared/ai-suggestion-steps'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import ExecReplay, { OPEN_AUDIT_EVENT, type OpenAiFromAuditDetail } from './ExecReplay'
@@ -2106,20 +2112,18 @@ export default function AIPanel({
     return -1
   }, [lines])
 
-  // H07: number consecutive command/tool suggestion cards so steps stay readable.
-  const suggestionStepNo = useMemo(() => {
-    const map = new Map<number, number>()
-    let n = 0
-    lines.forEach((row, idx) => {
-      if (row.role !== 'assistant' || !row.structured) return
-      const action = row.structured.action
-      if (action === 'command' || action === 'tool_call') {
-        n += 1
-        map.set(idx, n)
-      }
+  // H07/R18: number consecutive command/tool suggestion cards; chip+badge share this map.
+  const suggestionStepNo = useMemo(() => buildSuggestionStepNos(lines), [lines])
+  const alignedPlan = useMemo(() => {
+    const confirmIdx = findConfirmableLineIndex(lines, pendingConfirm?.requestId)
+    const sugStep = confirmIdx >= 0 ? suggestionStepNo.get(confirmIdx) : undefined
+    return alignPlanStepDisplay({
+      runStep: runProgress?.step,
+      runMax: runProgress?.max,
+      suggestionStep: sugStep,
+      suggestionCount: suggestionStepNo.size
     })
-    return map
-  }, [lines])
+  }, [lines, pendingConfirm?.requestId, suggestionStepNo, runProgress])
 
   // M21: the chip shows the policy that actually applies (global / host, capped by protection).
   const aiPolicy = resolveAiPolicy({
@@ -2827,8 +2831,13 @@ export default function AIPanel({
                 data-exec-command={s.command || undefined}
               >
                 {isConfirmable ? (
-                  <span className="ai-active-plan-badge" data-testid="ai-active-plan-step">
-                    {tg('ai.activePlanStep', { n: runProgress?.step ?? suggestionStepNo.get(i) ?? 1, max: Math.max(runProgress?.max ?? 0, suggestionStepNo.size, suggestionStepNo.get(i) ?? 1, 1) })}
+                  <span
+                    className="ai-active-plan-badge"
+                    data-testid="ai-active-plan-step"
+                    data-aligned-step={suggestionStepNo.get(i) ?? alignedPlan.step}
+                    data-aligned-max={Math.max(alignedPlan.max, suggestionStepNo.get(i) ?? alignedPlan.step, 1)}
+                  >
+                    {tg('ai.activePlanStep', { n: suggestionStepNo.get(i) ?? alignedPlan.step, max: Math.max(alignedPlan.max, suggestionStepNo.get(i) ?? alignedPlan.step, 1) })}
                   </span>
                 ) : null}
                 <div className="ai-card-body">
@@ -3398,9 +3407,12 @@ export default function AIPanel({
                 className="ai-run-steps"
                 data-testid="ai-run-steps"
                 data-policy={runProgress.policy || undefined}
+                data-aligned-step={alignedPlan.step}
+                data-aligned-max={alignedPlan.max}
+                data-step-source={alignedPlan.source}
                 title={runProgress.policy === 'auto' ? tg('ai.runStepsTip') : tg('ai.planStepsTip')}
               >
-                {tg('ai.runSteps', { n: runProgress.step, max: runProgress.max })}
+                {tg('ai.runSteps', { n: alignedPlan.step, max: alignedPlan.max })}
                 {runProgress.policy === 'auto' &&
                 typeof runProgress.streak === 'number' &&
                 typeof runProgress.streakCap === 'number' &&

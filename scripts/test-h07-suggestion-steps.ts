@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs'
 
 const panel = readFileSync('src/renderer/src/components/AIPanel.tsx', 'utf8').replace(/\r\n/g, '\n')
 assert.ok(panel.includes('const suggestionStepNo = useMemo'), 'step map useMemo')
-assert.ok(panel.includes("action === 'command' || action === 'tool_call'"))
+assert.ok(panel.includes('buildSuggestionStepNos(lines)') || panel.includes("action === 'command' || action === 'tool_call'"))
+const sharedSteps = readFileSync('src/shared/ai-suggestion-steps.ts', 'utf8')
+assert.ok(sharedSteps.includes("action === 'command' || action === 'tool_call'"))
 assert.ok(panel.includes('data-testid="ai-step-index"'))
 assert.ok(panel.includes("tg('ai.stepIndex', { n:"))
 assert.ok(panel.includes('ai-tool-strip--plan'))

@@ -44,6 +44,7 @@ type H07Fix = {
     panelMustInclude: string[]
     cssMustInclude: string[]
     copyMustInclude: string[]
+    sharedMustInclude?: string[]
   }
 }
 
@@ -93,6 +94,8 @@ assert.equal(h07.id, 'H07')
 for (const s of h07.wiring.panelMustInclude) assert.ok(panel.includes(s), `H07 panel: ${s}`)
 for (const s of h07.wiring.cssMustInclude) assert.ok(css.includes(s), `H07 css: ${s}`)
 for (const s of h07.wiring.copyMustInclude) assert.ok(i18n.includes(s), `H07 copy: ${s}`)
+const sharedSteps = norm('src/shared/ai-suggestion-steps.ts')
+for (const s of h07.wiring.sharedMustInclude || []) assert.ok(sharedSteps.includes(s), `H07 shared: ${s}`)
 assert.equal(
   (panel.match(/data-testid="ai-step-index"/g) || []).length >= h07.minStepIndexMarks,
   true,

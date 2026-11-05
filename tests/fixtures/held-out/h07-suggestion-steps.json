@@ -7,13 +7,14 @@
   "wiring": {
     "panelMustInclude": [
       "const suggestionStepNo = useMemo",
-      "action === 'command' || action === 'tool_call'",
+      "buildSuggestionStepNos(lines)",
       "data-testid=\"ai-step-index\"",
       "tg('ai.stepIndex', { n:",
       "ai-tool-strip--plan",
       "ai-tool-step--wrap",
       "<RiskBadge level={s.riskLevel} />",
-      "data-testid=\"ai-tool-meta\""
+      "data-testid=\"ai-tool-meta\"",
+      "alignPlanStepDisplay"
     ],
     "cssMustInclude": [
       ".ai-step-index",
@@ -24,6 +25,11 @@
     "copyMustInclude": [
       "'ai.stepIndex': '步骤 {n}'",
       "'ai.stepIndex': 'Step {n}'"
+    ],
+    "sharedMustInclude": [
+      "action === 'command' || action === 'tool_call'",
+      "export function buildSuggestionStepNos",
+      "export function alignPlanStepDisplay"
     ]
   }
 }
