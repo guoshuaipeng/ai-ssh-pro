@@ -2437,6 +2437,29 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
   flex: 0 0 auto;
 }
 
+/* H05: cancelled mid-stream — calm head + primary Retry */
+.ai-card-cancelled .ai-stream-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ai-card-cancelled .ai-stream-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ai-card-cancelled .ai-stream-partial {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 9em;
+  overflow: auto;
+  opacity: 0.85;
+}
+
 /* R10: calm busy chip in AI header */
 .ai-busy-chip {
   flex: 0 0 auto;

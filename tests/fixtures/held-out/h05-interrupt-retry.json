@@ -1,0 +1,108 @@
+{
+  "id": "H05",
+  "title": "Interruptible mid-stream + retry as new turn",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H05",
+  "scenarios": [
+    {
+      "id": "H05-stop-mid-then-retry",
+      "note": "生成到一半 Stop，再重试同一问题 → 新 turn；旧 turn 保持 stopped + cancelled",
+      "events": [
+        { "op": "begin", "turn": "t1", "user": "nginx 502 怎么查" },
+        { "op": "delta", "turn": "t1", "chunk": "先看" },
+        { "op": "delta", "turn": "t1", "chunk": "错误日志" },
+        { "op": "stop", "turn": "t1" },
+        { "op": "retry", "turn": "t2", "from": "t1" },
+        { "op": "delta", "turn": "t2", "chunk": "完整" },
+        { "op": "complete", "turn": "t2", "text": "完整排查步骤" }
+      ],
+      "expect": {
+        "t1Stopped": true,
+        "t1Cancelled": true,
+        "t1AssistantContains": "先看错误日志",
+        "t1AssistantNotContains": "完整排查",
+        "t2User": "nginx 502 怎么查",
+        "t2": "完整排查步骤",
+        "t2Stopped": false,
+        "liveId": null,
+        "composerReady": true,
+        "busy": false
+      }
+    },
+    {
+      "id": "H05-late-delta-after-stop-before-retry",
+      "note": "Stop 后迟到 delta 不得污染；随后 retry 仍用原问",
+      "events": [
+        { "op": "begin", "turn": "t1", "user": "磁盘满了吗" },
+        { "op": "delta", "turn": "t1", "chunk": "正在写" },
+        { "op": "stop", "turn": "t1" },
+        { "op": "delta", "turn": "t1", "chunk": "STOP后还来" },
+        { "op": "retry", "turn": "t2", "from": "t1" },
+        { "op": "complete", "turn": "t2", "text": "df -h 显示 40%" }
+      ],
+      "expect": {
+        "t1Stopped": true,
+        "t1AssistantNotContains": "STOP后还来",
+        "t1Streaming": false,
+        "t2User": "磁盘满了吗",
+        "t2": "df -h 显示 40%",
+        "liveId": null,
+        "composerReady": true
+      }
+    },
+    {
+      "id": "H05-retry-blocked-while-busy",
+      "note": "未 Stop 时 retry 必须失败（对齐 busyWait）",
+      "events": [
+        { "op": "begin", "turn": "t1", "user": "查负载" },
+        { "op": "delta", "turn": "t1", "chunk": "半" }
+      ],
+      "retryAttempt": { "turn": "t2", "from": "t1" },
+      "expect": {
+        "retryOk": false,
+        "retryReason": "busy",
+        "liveId": "t1",
+        "busy": true,
+        "composerReady": false
+      }
+    },
+    {
+      "id": "H05-double-stop-idempotent",
+      "note": "连续 Stop 不追加第二张取消卡；composer 仍就绪",
+      "events": [
+        { "op": "begin", "turn": "t1", "user": "长回答" },
+        { "op": "delta", "turn": "t1", "chunk": "abc" },
+        { "op": "stop", "turn": "t1" },
+        { "op": "stop", "turn": "t1" }
+      ],
+      "expect": {
+        "t1Stopped": true,
+        "t1Cancelled": true,
+        "t1AssistantCount": 1,
+        "composerReady": true,
+        "busy": false,
+        "liveId": null
+      }
+    }
+  ],
+  "wiring": {
+    "panelMustInclude": [
+      "H05: unlock composer right away",
+      "H05: free the composer immediately",
+      "H05: only clear busy for this turn",
+      "void submitToAi(row.content)",
+      "data-testid=\"ai-cancelled-retry\"",
+      "l.cancelled",
+      "cur.stopped = true"
+    ],
+    "isoModuleExports": [
+      "retryIsoTurn",
+      "isIsoComposerReady",
+      "turnHasCancelled",
+      "stopIsoTurn",
+      "beginIsoTurn"
+    ],
+    "stopMarksCancelled": true,
+    "retryStartsNewTurn": true
+  }
+}

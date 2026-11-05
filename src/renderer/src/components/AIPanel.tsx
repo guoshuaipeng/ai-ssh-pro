@@ -128,6 +128,8 @@ type AssistantLine = {
   elapsedMs?: number
   /** 2.3: execution replay (persisted). */
   exec?: ExecRecord
+  /** H05: Stop finalized this card — show cancelled + Retry (new turn). */
+  cancelled?: boolean
 }
 
 type Line = UserLine | AssistantLine
@@ -2304,6 +2306,37 @@ export default function AIPanel({
                 </div>
                 {partial ? (
                   <pre className="ai-stream-partial" data-testid="ai-stream-partial">
+                    {partial}
+                  </pre>
+                ) : null}
+              </div>
+            )
+          }
+          if (l.cancelled) {
+            const partial = (l.content || '').trim()
+            const onlyCancel = !partial || partial === tg('ai.cancelled')
+            return (
+              <div
+                key={i}
+                className="msg assistant ai-structured ai-dark-card ai-card-cancelled"
+                data-testid="ai-reply-card"
+                data-card="cancelled"
+              >
+                <div className="ai-stream-head">
+                  <span className="ai-stream-label" data-testid="ai-cancelled-label">{tg('ai.cancelled')}</span>
+                  <button
+                    type="button"
+                    className="ai-fill-cmd-btn ai-btn-agree"
+                    data-testid="ai-cancelled-retry"
+                    disabled={busy}
+                    title={tg('ux64.retry')}
+                    onClick={retryLastUser}
+                  >
+                    <span className="ai-btn-text">{tg('ux64.retry')}</span>
+                  </button>
+                </div>
+                {!onlyCancel ? (
+                  <pre className="ai-stream-partial" data-testid="ai-cancelled-partial">
                     {partial}
                   </pre>
                 ) : null}

@@ -1,4 +1,4 @@
-/** H04: rapid multi-turn stream isolation (pure model for held-out tests). */
+/** H04/H05: rapid multi-turn stream isolation (pure model for held-out tests). */
 import { applyStreamDelta, finalizeStoppedLines, type StreamStopLine } from './ai-stream-stop'
 
 export type IsoLine = StreamStopLine
@@ -13,10 +13,12 @@ export type IsoTurn = {
 export type IsoState = {
   liveId: string | null
   turns: Record<string, IsoTurn>
+  /** H05: mirrors panel busy — Stop clears it so Retry can start a new turn. */
+  busy?: boolean
 }
 
 export function createIsoState(): IsoState {
-  return { liveId: null, turns: {} }
+  return { liveId: null, turns: {}, busy: false }
 }
 
 /** Whether a stream event for `turnId` may mutate the live transcript. */
@@ -45,6 +47,7 @@ export function beginIsoTurn(state: IsoState, id: string, userText: string): Iso
   }
   return {
     liveId: id,
+    busy: true,
     turns: { ...state.turns, [id]: turn }
   }
 }
@@ -56,6 +59,7 @@ export function stopIsoTurn(state: IsoState, id?: string | null, cancelledMessag
   const lines = finalizeStoppedLines(t.lines, cancelledMessage, { ensureCancelledRow: true })
   return {
     liveId: state.liveId === target ? null : state.liveId,
+    busy: false,
     turns: {
       ...state.turns,
       [target]: { ...t, stopped: true, lines }
@@ -101,6 +105,7 @@ export function completeIsoTurn(state: IsoState, turnId: string, text: string): 
   }
   return {
     liveId: state.liveId === turnId ? null : state.liveId,
+    busy: state.liveId === turnId ? false : state.busy,
     turns: {
       ...state.turns,
       [turnId]: { ...t, lines: nextLines }
@@ -108,11 +113,50 @@ export function completeIsoTurn(state: IsoState, turnId: string, text: string): 
   }
 }
 
+/** User text of a turn (first user line). */
+export function isoUserText(turn: IsoTurn | undefined): string {
+  if (!turn) return ''
+  const u = turn.lines.find((l) => l.role === 'user')
+  return (u?.content || '').trim()
+}
+
+/**
+ * H05: Retry after Stop — starts a *new* turn with the same user ask.
+ * Refuses while busy (mirrors retryLastUser toast path).
+ */
+export function retryIsoTurn(
+  state: IsoState,
+  newId: string,
+  fromTurnId: string
+): { ok: true; state: IsoState } | { ok: false; reason: 'busy' | 'no_user' | 'same_id' } {
+  if (state.busy) return { ok: false, reason: 'busy' }
+  if (newId === fromTurnId) return { ok: false, reason: 'same_id' }
+  const text = isoUserText(state.turns[fromTurnId])
+  if (!text) return { ok: false, reason: 'no_user' }
+  return { ok: true, state: beginIsoTurn(state, newId, text) }
+}
+
+/** Composer ready: not busy, no live streaming turn. */
+export function isIsoComposerReady(state: IsoState): boolean {
+  if (state.busy) return false
+  if (state.liveId) {
+    const t = state.turns[state.liveId]
+    if (t && !t.stopped && t.lines.some((l) => l.role === 'assistant' && l.streaming)) return false
+  }
+  return state.liveId == null
+}
+
+export function turnHasCancelled(turn: IsoTurn | undefined): boolean {
+  if (!turn) return false
+  return turn.lines.some((l) => l.role === 'assistant' && l.cancelled)
+}
+
 export type IsoEvent =
   | { op: 'begin'; turn: string; user: string }
   | { op: 'delta'; turn: string; chunk: string }
   | { op: 'complete'; turn: string; text: string }
   | { op: 'stop'; turn?: string }
+  | { op: 'retry'; turn: string; from: string }
 
 /** Replay a declarative event list; returns final state. */
 export function replayIsoEvents(events: IsoEvent[], opts?: ApplyDeltaOpts): IsoState {
@@ -122,6 +166,10 @@ export function replayIsoEvents(events: IsoEvent[], opts?: ApplyDeltaOpts): IsoS
     else if (ev.op === 'delta') state = applyIsoDelta(state, ev.turn, ev.chunk, opts)
     else if (ev.op === 'complete') state = completeIsoTurn(state, ev.turn, ev.text)
     else if (ev.op === 'stop') state = stopIsoTurn(state, ev.turn)
+    else if (ev.op === 'retry') {
+      const r = retryIsoTurn(state, ev.turn, ev.from)
+      if (r.ok) state = r.state
+    }
   }
   return state
 }

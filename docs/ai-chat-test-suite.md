@@ -150,6 +150,7 @@
 - **原话**：生成到一半点停止，再点重试同一问题。
 - **期望**：停止后无继续写；重试是新 turn。
 - **通过**：UI 状态恢复可输入
+- **自动化**：`tests/fixtures/held-out/h05-interrupt-retry.json` + `scripts/test-held-out-h05.ts`（Round 12；Stop→cancelled 卡「重试」→新 turn；late delta 忽略）
 
 ### H06 · 会话历史回溯
 - **原话**：新建对话后再打开旧会话，问「我们上次磁盘结论是什么」。
