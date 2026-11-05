@@ -44,6 +44,7 @@ import AiConfigCard from './AiConfigCard'
 import ExecReplay, { OPEN_AUDIT_EVENT, type OpenAiFromAuditDetail } from './ExecReplay'
 import { OPEN_AI_POLICY_EVENT, prodAutoHint } from '@shared/prod-auto-hint'
 import type { ExecRecord } from '@shared/ai-exec-replay'
+import { buildAuditOpenAiMissToast, hasFailedExecPin } from '@shared/ai-audit-miss'
 import { applyStreamDelta, finalizeStoppedLines } from '@shared/ai-stream-stop'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
@@ -1032,6 +1033,32 @@ export default function AIPanel({
             }
           }
         ])
+        const nextCmd =
+          typeof (detail as { nextConfirm?: string }).nextConfirm === 'string'
+            ? (detail as { nextConfirm?: string }).nextConfirm!.trim()
+            : ''
+        if (nextCmd) {
+          // Round 22: failure pin + next confirm dock (plan-step link visual).
+          setRunProgress({ step: 2, max: 3, policy: 'ask' })
+          setPendingConfirm({ requestId: 'shot-r22-next', action: 'command' })
+          setPendingPreviewHold(nextCmd)
+          setLines((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `下一步建议：${nextCmd}`,
+              structured: {
+                description: `下一步建议：${nextCmd}`,
+                action: 'command',
+                command: nextCmd,
+                riskLevel: 'medium',
+                completed: false
+              },
+              requestId: 'shot-r22-next',
+              fresh: true
+            }
+          ])
+        }
         return
       }
       if (detail?.op === 'aiMemoryEvidence') {
@@ -1896,7 +1923,24 @@ export default function AIPanel({
     }
     root.querySelectorAll('.is-audit-focus').forEach((n) => n.classList.remove('is-audit-focus'))
     if (!el) {
-      showToast(tg('au2.openAiMiss'))
+      // Round 22: calm info toast + scroll-to-top action (R17 weak-toast debt).
+      const miss = buildAuditOpenAiMissToast()
+      showToast(tg(miss.messageKey), {
+        kind: miss.kind,
+        theme: miss.theme,
+        ms: miss.ms,
+        action: {
+          label: tg(miss.actionKey),
+          run: () => {
+            const list = document.querySelector<HTMLElement>('.ai-panel .ai-messages, .ai-panel [data-testid="ai-messages"]')
+            if (list) list.scrollTo({ top: 0, behavior: 'smooth' })
+            else {
+              const root = document.querySelector('.ai-panel') as HTMLElement | null
+              root?.scrollTo?.({ top: 0, behavior: 'smooth' })
+            }
+          }
+        }
+      })
       return
     }
     const card = el.closest('[data-testid="ai-reply-card"]') || el
@@ -3316,13 +3360,38 @@ export default function AIPanel({
                   </div>
                 ) : null}
                 {l.exec ? (
-                  <ExecReplay
-                    exec={l.exec}
-                    host={conversation ? conversationLabel(conversation.hostLabel, conversation.n) : hostName || undefined}
-                    command={s.command}
-                    busy={busy}
-                    onRetryWithEvidence={retryWithFailureEvidence}
-                  />
+                  <>
+                    <ExecReplay
+                      exec={l.exec}
+                      host={conversation ? conversationLabel(conversation.hostLabel, conversation.n) : hostName || undefined}
+                      command={s.command}
+                      busy={busy}
+                      onRetryWithEvidence={retryWithFailureEvidence}
+                    />
+                    {pendingConfirm && l.exec.status === 'failed' ? (
+                      <button
+                        type="button"
+                        className="link-btn ai-failure-next-confirm"
+                        data-testid="ai-failure-next-confirm"
+                        title={tg('fail.nextConfirmTip')}
+                        onClick={() => {
+                          const dock = document.querySelector<HTMLElement>('[data-testid="ai-pending-confirm"]')
+                          if (!dock) return
+                          dock.classList.add('is-after-failure-focus')
+                          dock.setAttribute('data-after-failure-focus', '1')
+                          dock.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                          window.setTimeout(() => {
+                            dock.classList.remove('is-after-failure-focus')
+                            dock.removeAttribute('data-after-failure-focus')
+                          }, 4200)
+                          pendingAgreeRef.current?.focus()
+                        }}
+                      >
+                        {tg('fail.nextConfirm')}
+                        {alignedPlan.step ? ` · ${tg('ai.activePlanStep', { n: alignedPlan.step, max: Math.max(alignedPlan.max, alignedPlan.step, 1) })}` : ''}
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
                 {s.action === 'end' || s.action === 'command' ? <ReplyMeta text={metaText} elapsedMs={l.elapsedMs} /> : null}
               </div>
@@ -3365,13 +3434,14 @@ export default function AIPanel({
 
       {pendingConfirm ? (
         <div
-          className="ai-pending-confirm"
+          className={`ai-pending-confirm${hasFailedExecPin(lines) ? ' is-after-failure' : ''}`}
           role="region"
           tabIndex={-1}
           aria-label={tg('ux64.pendingTitle')}
           data-testid="ai-pending-confirm"
           data-action={pendingConfirm.action}
           data-r19-narrow="1"
+          data-after-failure={hasFailedExecPin(lines) ? '1' : undefined}
         >
           <div className="ai-pending-confirm-main">
             <div className="ai-pending-confirm-title">{tg('ux64.pendingTitle')}</div>

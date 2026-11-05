@@ -6271,6 +6271,41 @@ button.primary.danger:focus-visible {
 }
 
 
+
+/* R22 Round22: failure→next-confirm link + after-failure dock */
+.ai-panel .ai-failure-next-confirm {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  text-align: left;
+}
+.ai-panel .ai-failure-next-confirm:hover,
+.ai-panel .ai-failure-next-confirm:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+.ai-panel .ai-pending-confirm.is-after-failure {
+  border-left: 3px solid var(--color-accent);
+}
+.ai-panel .ai-pending-confirm.is-after-failure-focus {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+@container (max-width: 230px) {
+  .ai-panel .ai-failure-next-confirm {
+    display: block;
+    width: 100%;
+  }
+}
+
 /* R21 Round21: pinned failure evidence on reply card (S27) */
 .ai-panel .ai-failure-evidence {
   display: flex;

@@ -27,10 +27,12 @@ assert.ok(panel.includes('focusExecToken'))
 assert.ok(panel.includes('data-exec-audit-id='))
 assert.ok(panel.includes('data-exec-command='))
 assert.ok(panel.includes('is-audit-focus'))
-assert.ok(panel.includes("tg('au2.openAiMiss')"))
+assert.ok(panel.includes('buildAuditOpenAiMissToast'))
+assert.ok(panel.includes('miss.messageKey'))
+assert.ok(norm('src/shared/ai-audit-miss.ts').includes('au2.openAiMiss'))
 
 const i18n = norm('src/renderer/src/lib/i18n.tsx')
-for (const k of ['au2.openAi', 'au2.openAiTip', 'au2.openAiMiss']) {
+for (const k of ['au2.openAi', 'au2.openAiTip', 'au2.openAiMiss', 'au2.openAiMissAction']) {
   assert.equal(i18n.split(`'${k}':`).length - 1, 2, `${k} zh+en`)
 }
 

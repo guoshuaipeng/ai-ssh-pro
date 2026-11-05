@@ -1,4 +1,4 @@
-/** R22: aiFailureEvidence wide/narrow screenshot matrix wired. */
+/** R22: aiFailureEvidence wide/narrow + next-confirm link screenshot matrix wired. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { r22AiShots, R22_AI_SHOT_NAMES } from './ai-shot-matrix-r22.mjs'
@@ -22,12 +22,21 @@ assert.equal(narrow?.narrow, true)
 assert.ok(narrow?.steps?.some((st) => st.op === 'aiFailureEvidence'))
 assert.ok(narrow?.expect?.includes('has-failure-pin'))
 
+const linked = shots.find((s) => s.name === 'r22-failure-next-confirm')
+assert.ok(linked?.steps?.some((st) => st.op === 'aiFailureEvidence' && st.nextConfirm))
+assert.ok(linked?.expect?.includes('ai-failure-next-confirm'))
+assert.ok(linked?.expect?.includes('data-after-failure'))
+
 const hooks = norm('src/renderer/src/lib/screenshot-hooks.ts')
 assert.ok(hooks.includes('aiFailureEvidence'))
+assert.ok(hooks.includes('nextConfirm'))
 
 const panel = norm('src/renderer/src/components/AIPanel.tsx')
 assert.ok(panel.includes("detail?.op === 'aiFailureEvidence'"))
 assert.ok(panel.includes('shot-r21-fail') || panel.includes('S27_FAIL_CMD'))
+assert.ok(panel.includes('ai-failure-next-confirm'))
+assert.ok(panel.includes('buildAuditOpenAiMissToast'))
+assert.ok(panel.includes('data-after-failure'))
 
 const app = norm('src/renderer/src/App.tsx')
 assert.ok(app.includes("detail.op === 'aiFailureEvidence'"))
