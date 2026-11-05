@@ -6482,8 +6482,15 @@ button.primary.danger:focus-visible {
   flex: 0 0 auto;
   white-space: nowrap;
 }
+/* R14 Round14: card left accents — streaming=accent, cancelled=muted, error=danger */
+.ai-panel .msg.assistant.ai-card-streaming {
+  border-left: 2px solid var(--color-accent);
+}
 .ai-panel .ai-card-cancelled {
   border-left: 2px solid var(--color-text-muted);
+}
+.ai-panel .msg.assistant.ai-card-error {
+  border-left: 2px solid var(--color-danger);
 }
 .ai-panel .ai-stream-partial {
   margin: var(--space-2) 0 0;
