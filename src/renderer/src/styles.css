@@ -6533,13 +6533,13 @@ button.primary.danger:focus-visible {
 .ai-run-streak {
   flex: 0 0 auto;
   padding: 0 var(--space-1);
-  border-radius: var(--radius-sm, 4px);
-  background: var(--color-bg-muted, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
   color: var(--color-text-secondary);
 }
 .ai-run-streak.is-forced {
-  color: var(--color-warning, #b45309);
-  background: color-mix(in srgb, var(--color-warning, #b45309) 12%, transparent);
+  color: var(--color-warn);
+  background: color-mix(in srgb, var(--color-warn) 12%, transparent);
 }
 .policy-steps {
   display: flex;
