@@ -536,10 +536,11 @@ export default function AIPanel({
   const [pasteBlocks, setPasteBlocks] = useState<PasteBlock[]>([])
   const [openBlock, setOpenBlock] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  /** 2.2: auto-run progress shown in the composer ("step n / limit" + optional streak). */
+  /** 2.2/R16: planner run progress in the composer ("step n / limit"; streak only under auto). */
   const [runProgress, setRunProgress] = useState<{
     step: number
     max: number
+    policy?: 'suggest' | 'ask' | 'auto'
     streak?: number
     streakCap?: number
     forced?: boolean
@@ -1145,17 +1146,15 @@ export default function AIPanel({
         return
       }
       if (ev.type === 'progress') {
-        setRunProgress(
-          ev.policy === 'auto'
-            ? {
-                step: ev.step,
-                max: ev.maxSteps,
-                streak: ev.autoStreak,
-                streakCap: ev.autoStreakCap,
-                forced: ev.forcedConfirm === true
-              }
-            : null
-        )
+        // R16: ask/suggest/auto all show plan step n/max; streak chip stays auto-only in the UI.
+        setRunProgress({
+          step: ev.step,
+          max: ev.maxSteps,
+          policy: ev.policy,
+          streak: ev.autoStreak,
+          streakCap: ev.autoStreakCap,
+          forced: ev.forcedConfirm === true
+        })
         return
       }
       if (ev.type === 'status') {
@@ -2643,11 +2642,17 @@ export default function AIPanel({
             return (
               <div
                 key={i}
-                className="msg assistant ai-structured ai-dark-card"
+                className={`msg assistant ai-structured ai-dark-card${isConfirmable ? ' is-active-plan-step' : ''}`}
                 data-testid="ai-reply-card"
                 data-card={card}
                 data-confirm-id={l.requestId || undefined}
+                data-active-plan={isConfirmable ? '1' : undefined}
               >
+                {isConfirmable ? (
+                  <span className="ai-active-plan-badge" data-testid="ai-active-plan-step">
+                    {tg('ai.activePlanStep', { n: runProgress?.step ?? suggestionStepNo.get(i) ?? 1, max: Math.max(runProgress?.max ?? 0, suggestionStepNo.size, suggestionStepNo.get(i) ?? 1, 1) })}
+                  </span>
+                ) : null}
                 <div className="ai-card-body">
                   <OpsReply text={s.description} confirm={false} skipCommand={s.command} />
                 </div>
@@ -3227,9 +3232,17 @@ export default function AIPanel({
             </button>
             <span className="ai-composer-spacer" />
             {busy && runProgress ? (
-              <span className="ai-run-steps" data-testid="ai-run-steps" title={tg('ai.runStepsTip')}>
+              <span
+                className="ai-run-steps"
+                data-testid="ai-run-steps"
+                data-policy={runProgress.policy || undefined}
+                title={runProgress.policy === 'auto' ? tg('ai.runStepsTip') : tg('ai.planStepsTip')}
+              >
                 {tg('ai.runSteps', { n: runProgress.step, max: runProgress.max })}
-                {typeof runProgress.streak === 'number' && typeof runProgress.streakCap === 'number' && runProgress.streakCap > 0 ? (
+                {runProgress.policy === 'auto' &&
+                typeof runProgress.streak === 'number' &&
+                typeof runProgress.streakCap === 'number' &&
+                runProgress.streakCap > 0 ? (
                   <span
                     className={`ai-run-streak${runProgress.forced ? ' is-forced' : ''}`}
                     data-testid="ai-run-streak"

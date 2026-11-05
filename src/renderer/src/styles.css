@@ -6523,6 +6523,25 @@ button.primary.danger:focus-visible {
   }
 }
 
+/* R16 Round16: active plan step highlight (align with ai-run-steps) */
+.ai-panel .ai-structured.is-active-plan-step {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+.ai-panel .ai-active-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: var(--space-2) var(--space-3) 0;
+  padding: 0 var(--space-2);
+  min-height: 1.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* R15 Round15: multi-step batch copy bar */
 .ai-panel .ai-batch-copy-bar {
   display: flex;

@@ -85,6 +85,8 @@ for (const k of [
   'ai.runStreak',
   'ai.runStreakTip',
   'ai.runStreakForced',
+  'ai.planStepsTip',
+  'ai.activePlanStep',
   'policy.maxSteps',
   'policy.maxStepsHint',
   'policy.autoStreak',
