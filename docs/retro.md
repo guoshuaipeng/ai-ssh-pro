@@ -254,3 +254,12 @@
 - 根因：`modeFor` 对 interactive 短路在 tier 分支之前；测试只覆盖了 rm/restart，没覆盖 top/vim。
 - 以后怎么避免：仅建议回归用例必须含 write + high + interactive；真机截图若二进制落后于 HEAD，在 retro 标明「待 rebuild」，不要用旧包冒充验收。
 - 验收：单元 `test-h02-suggest-only` / `test-h07-suggestion-steps` 通过；Core-A 34/34；宽/窄×深/浅真机截图待 `tauri dev`。
+
+## 2026-11-05 第 68 轮：H03 策略诚实文案 + P2 窄栏布局
+- 计划：约 30 分钟；1 高频（H03）+ 1 小打磨（P2）；编码前 UX 评审。
+- 实际：约 35 分钟。两项交付；Core-A 34/34；未 rebuild tauri，真机截图未拍。
+- 卡在哪：H03 留出集仍写「一律确认」，与 M21 三档自动路径打架；需先 grep 分清 `confirmBypassAllowed`（旧旗标）vs `planCommandConfirm`（产品自动）。
+- 哪里没做好：空态 `ux64.emptyHint` 长期写「需确认后才执行」，与自动执行芯片并存。
+- 根因：Core-A 评测协议文案被误当成产品全局面板口径。
+- 以后怎么避免：凡策略文案改动先对照 `resolveAiPolicy` 三档；空态 hint 按 effective 分叉或写「由策略决定」；留出集过时期望当文档债修，不要反向把产品改成假确认。
+- 验收：`test-h03-tab-auto-policy` / `test-p2-narrow-ai-panel` / H02 / H07 通过；Core-A 34/34；宽/窄×深/浅真机截图待 `tauri dev`。

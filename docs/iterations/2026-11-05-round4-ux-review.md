@@ -31,3 +31,8 @@ Adapted from dataai-ux-design-review. Written before code.
 - [ ] Suggest-only card at ~220px width: Copy+Fill on one row under status.
 - [ ] Multi-step plan: 「步骤 n」+ risk pill stay paired when panel narrows.
 - [ ] Wide/narrow × dark/light if tauri available.
+
+## After (acceptance)
+- H03: empty hint branches on effective policy; ladderHint no longer says high-risk always confirms; H03 suite text matches gated auto.
+- P2: `ai-tool-meta` + suggest-only CSS landed; unit tests green.
+- Real UI wide/narrow × dark/light: **blocked** — release `ai-ssh-pro.exe` is v0.8.0 without HEAD; no `tauri dev` rebuild this round.

@@ -425,4 +425,12 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 
 下一步（Round 4）：H03 标签策略与 Core-A「一律确认」对齐文档/行为；或补真机截图矩阵（H01/H05/H02/H07）；P2 窄栏 suggest 行折行。
 
+## 2026-11-05 第 68 轮（Round 4）AI 对话
+已完成：
+- H03：标签/主机「自动执行」与 Core-A `confirmBypassAllowed=false` 诚实对齐——产品走 resolveAiPolicy+planCommandConfirm；空态/ladder 不再假「一律确认」（1838d48a）。
+- P2：窄侧栏 suggest 行状态独占一行 + Copy/Fill 成对；步骤+风险 `ai-tool-meta` 成对 nowrap（2a2f3708）。
 
+下一步（Round 5，先 grep）：
+- P3 真机宽/窄×深/浅截图矩阵（H01/H05/H02/H07/H03/P2）— 需 `tauri dev` 含 HEAD。
+- Roadmap 2.1 AI 执行审计补全（chosen/effective/source/cappedBy）或 2.2 自动执行步数可见控制。
+- 留出集 H04 快速连发串流（若未覆盖）。
