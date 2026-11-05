@@ -1747,6 +1747,16 @@ export default function AIPanel({
       tempPolicy={tempPolicy}
       protection={{ level: protection, elevated }}
       settings={safetySettings}
+      onCopy={(cmd) => copyText(cmd)}
+      onFill={
+        activeSessionId
+          ? (cmd) => {
+              aiOrigins.mark(activeSessionId, cmd)
+              fillCommandBar(activeSessionId, cmd)
+              showToast(tg('d15.filled'))
+            }
+          : undefined
+      }
     />
   )
 

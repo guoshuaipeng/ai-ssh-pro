@@ -270,6 +270,8 @@ function autopilotPermitted(scope: SafetyScope): { ok: boolean; warn: boolean } 
 function modeFor(applied: SafetyTier, kind: CommandKind, scope: SafetyScope): SafetyMode {
   if (kind === 'interactive') {
     if (scope.book?.holds(scope.command)) return 'hold'
+    // H02: suggest-only (observe) never offers Agree/write for interactive either — copy/fill only.
+    if (applied === 'observe') return 'suggest'
     return 'agree'
   }
   if (kind === 'high') {

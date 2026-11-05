@@ -36,6 +36,9 @@ type Props = {
   onDecline: () => void
   /** Stale Core-A confirm: fill composer with the prior ask (parent handles). */
   onAskAgain?: () => void
+  /** H02 suggest-only: copy / fill — never write via Agree. */
+  onCopy?: (command: string) => void
+  onFill?: (command: string) => void
 }
 
 function AutoRunOnce({ command, onRun }: { command: string; onRun: (command: string) => void }) {
@@ -75,7 +78,9 @@ export default function SafetyCommandBar({
   agreeLabel,
   onAgree,
   onDecline,
-  onAskAgain
+  onAskAgain,
+  onCopy,
+  onFill
 }: Props) {
   const book = sessionInFlightBook(sessionKey)
   const engaged = safetyTierEngaged(settings) || isAiPolicy(settings.aiPolicy)
@@ -113,8 +118,28 @@ export default function SafetyCommandBar({
   }
   if (mode === 'suggest') {
     return (
-      <div className="ai-decision" data-testid="safety-suggest">
-        {tg('safety.suggest')}
+      <div className="ai-reply-actions ai-suggest-only" data-testid="safety-suggest" data-safety="suggest">
+        <span className="ai-decision">{tg('safety.suggest')}</span>
+        {onCopy ? (
+          <button
+            type="button"
+            className="ai-fill-cmd-btn ai-btn-suggest-copy"
+            data-testid="safety-suggest-copy"
+            onClick={() => onCopy(command)}
+          >
+            {tg('safety.suggestCopy')}
+          </button>
+        ) : null}
+        {onFill ? (
+          <button
+            type="button"
+            className="ai-fill-cmd-btn"
+            data-testid="safety-suggest-fill"
+            onClick={() => onFill(command)}
+          >
+            {tg('safety.suggestFill')}
+          </button>
+        ) : null}
       </div>
     )
   }
