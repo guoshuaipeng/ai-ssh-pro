@@ -4,6 +4,17 @@
 
 
 
+## Round 32 — 2026-11-05（迭代 3 前 AI 对话缺口扫 + EN 策略芯片短标签）
+- 计划：约 30 分钟；1 高频：Roadmap 迭代 3 前再扫 AI 对话缺口并交付最高影响项（端口转发不接）；1 小打磨：EN policy chip 短标签 / i18n 一致性；编码前 UX。
+- 实际：~35 分钟；两项各一提交 + design/retro/backlog；Core-A 34/34 + held-out H01–H08 全绿。
+- Gap scan：Iter 2（2.1–2.5）与 H01–H08 已齐。最高影响未做 = 审计→对话未命中仍只有「回到顶部」（R17/R22 债）。其次 EN chip「Confirm」像 CTA 与 Agree 撞车；真机 Tauri 矩阵 / Decline 权重可接受。
+- 卡住点：miss toast 的 useEffect 写在 `startNewChat` 之前 → 用 `startNewChatRef` 接线，不整段搬 hook。
+- 根因：R22 只把 miss 从 error 改成 info+scroll，未落到「本主机新开对话」恢复路径；EN 短标签沿用 Confirm 与菜单全称/同意按钮语义重叠。
+- 预防：深链 miss 必须给可执行恢复（新开对话），禁止只滚动；chip 短标签用状态词/策略 id（Ask），勿用 Agree 动词。
+- 验收：`test-r32-audit-miss-new-chat` / `test-r32-en-policy-chip` + R19/R22/jump；Core-A 34/34；held-out 全绿。
+- 提交：`00015dd8`（miss→新开对话）、`3447db18`（EN chip Ask/Suggest/Auto）；docs 同轮。
+- 下一整页视觉目标：**Round 33**。
+
 ## Round 31 — 2026-11-05（H08 空/错窄栏矩阵 + model-missing 抑横幅）
 - 计划：约 30 分钟；1 高频：空/错态窄栏进 `docs/screenshots/r31/`；1 小打磨：R30 P3 model-missing↔横幅叠放；编码前 UX。
 - 实际：~45 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r31 截图 14/14 expect true。

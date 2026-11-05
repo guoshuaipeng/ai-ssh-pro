@@ -1,3 +1,18 @@
+## 2026-11-05 Round 32 追加
+- **Gap scan（Roadmap 迭代 3 前）**：2.1–2.5 + H01–H08 已交付；最高影响缺口 = 审计→对话 miss 仅「回到顶部」→ 本轮改为「新开对话」。其余：EN chip Confirm CTA 撞车（本轮 Ask）、真机 Tauri 矩阵 P2、Decline/pop 标题 P3；端口转发仍不接。
+- **已完成**：miss toast 动作「新开对话 / New chat」→ `startNewChat`（归档现有；不编造匹配历史）；文案提示可在本主机新开。
+- **已完成**：EN `policy.chip.*` = Ask / Suggest / Auto；菜单全称不变；aria/title 仍用完整 `policy.*` + source。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R31）。
+- P3：pending Decline 权重 / 策略 pop 标题窄栏两行 — 可接受。
+- P1 候选 Round 33：**逢 3 轮整页视觉审计**（上一拍 Round 30）——AI 对话整页扫层级/空错态/窄栏/深链 miss 新开对话 / EN chip Ask；发现入 backlog。默认不接端口转发。
+- 下一整页视觉目标：**Round 33（本轮注明，下轮执行）**。
+
+### Round 32 UX 验收（编码后）
+- 主 CTA：miss toast 动作 = 新开对话；待确认仍 Agree；失败钉仍「带证据重试」。
+- 绑定：新开对话绑当前主机/会话 key；不切标签、不伪造历史行。
+- 空/错：miss ≠ filter-empty ≠ true-empty；chip 短标签 ≠ Agree。
+- 守卫：`test-r32-audit-miss-new-chat` / `test-r32-en-policy-chip`；Core-A 34/34；held-out H01–H08 绿。
+
 
 ## 2026-11-05 Round 31 追加
 - **已完成**：H08 空/错态窄栏进截图矩阵 `docs/screenshots/r31/`（empty / model-missing / error settings+retry；宽基线 + 窄栏；深/浅 14 expect true，含 vs-prod 冲突态）。
