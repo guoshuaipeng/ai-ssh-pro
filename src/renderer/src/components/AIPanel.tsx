@@ -991,6 +991,7 @@ export default function AIPanel({
       }
       if (detail?.op === 'aiFailureEvidence') {
         // Round 21: pin failure evidence on a reply card (S27 visibility).
+        // Round 22: do not call setTurnPending here — it is scoped to the stream handler below.
         screenshotForceKeyRef.current = true
         clearShotAiOp()
         screenshotResumeLockRef.current = false
@@ -998,7 +999,6 @@ export default function AIPanel({
         setScreenshotAuditFocusId(null)
         setHasApiKey(true)
         setBusy(false)
-        setTurnPending(null)
         setPendingConfirm(null)
         setRunProgress(null)
         setMemoryOpen(false)
