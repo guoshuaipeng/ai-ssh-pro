@@ -33,3 +33,9 @@
 1. Core-A 34/34; held-out H01–H08 green.
 2. `test-r33-*` + wired R31/R32 green; r33 shots expect true after rebuild.
 3. Designer: miss toast readable with action; EN chip Ask ≠ Agree; narrow chip ellipsis calm.
+
+## After code
+- Item1 `4ffcc351`: visual-audit design/backlog table; toast message wrap + `toast-action` testid.
+- Item2 `1d2b0606`: `locale` / `aiMissToast` ops; clear prior toasts; matrix `docs/screenshots/r33/` 12/12 expect true; wire R31–R33 into `test:parts`.
+- Docs: retro Round 33; next full-page **Round 36**.
+- Round 34 suggestion: AI-dialog — EN/zh policy chip对照抽检, or failure-pin+memory hierarchy polish, or pre–iter-3 dialog gap rescan (port-forward deferred).

@@ -11,6 +11,21 @@
 | P3 | EN chip「Ask」与口语 ask 同形——R32 有意避开 Confirm CTA | 可接受；矩阵固化 Ask/Suggest/Auto |
 | ok | 双横幅互斥；model-missing 藏横幅；miss→startNewChat；chip 短标签 zh/en | R29–R32 已做 |
 
+## 2026-11-05 Round 33 追加
+- **逢 3 轮整页视觉审计完成**（设计 `docs/design/r33-full-page-visual-audit.md`）：扫层级/空错态/窄栏/miss→新开对话/EN Ask；发现入表并修快 P2。
+- **已完成**：toast 长文案 wrap + `toast-action`；miss toast / EN Ask chip（+safety pop）截图矩阵 `docs/screenshots/r33/` 12/12；`locale` + `aiMissToast` ops；miss op 内 `clearToasts()`。
+- **已完成**：`package.json` `test:parts` 补接线 R31/R32/R33。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R33）。
+- P3：pending Decline 权重 / 策略 pop 标题窄栏两行 / EN Ask 口语同形 — 可接受。
+- P1 候选 Round 34：保持 AI 对话——composer EN chip 真机抽检后的中文策略菜单对照 / 或失败钉+记忆同屏再收一档 / 或 Roadmap 迭代 3 前对话缺口再扫（端口转发仍默认不接）。
+- 下一整页视觉目标：**Round 36**。
+
+### Round 33 UX 验收（编码后）
+- 主 CTA：miss toast = 新开对话；待确认仍 Agree；失败钉仍「带证据重试」；chip 短标签 Ask ≠ Agree。
+- 绑定：locale 截图 op 只改本窗；新开对话仍绑当前主机；clearToasts 不碰会话历史。
+- 空/错：miss toast ≠ demoHost toast ≠ filter-empty。
+- 守卫：`test-r33-*` + R31/R32；Core-A 34/34；held-out H01–H08 绿；截图 12/12。
+
 ## 2026-11-05 Round 32 追加
 - **Gap scan（Roadmap 迭代 3 前）**：2.1–2.5 + H01–H08 已交付；最高影响缺口 = 审计→对话 miss 仅「回到顶部」→ 本轮改为「新开对话」。其余：EN chip Confirm CTA 撞车（本轮 Ask）、真机 Tauri 矩阵 P2、Decline/pop 标题 P3；端口转发仍不接。
 - **已完成**：miss toast 动作「新开对话 / New chat」→ `startNewChat`（归档现有；不编造匹配历史）；文案提示可在本主机新开。

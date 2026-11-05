@@ -4,6 +4,16 @@
 
 
 
+## Round 33 — 2026-11-05（逢 3 轮整页视觉审计：miss→新开对话 / EN Ask chip）
+- 计划：约 30 分钟；1 高频：宽窄×深浅整页审计（含 R32 miss→新开对话、EN Ask chip）入 backlog 并修 1–2 快 P2；1 小打磨：审计头名快修；编码前 UX。
+- 实际：~45 分钟；两项各一提交 + docs/截图；Core-A 34/34 + held-out 全绿；r33 截图 12/12 expect true。
+- 卡住点：① miss toast expect 首跑红——`demoHost` 残留「已添加并打开演示主机」toast 抢 `querySelector` 首位；② 须 `clearToasts()` 后再 `showToast`，expect 改 `querySelectorAll`。
+- 根因：截图矩阵开 demo 主机必出 info toast；miss 矩阵若不清栈，断言会打到错误 toast。
+- 预防：凡 `toasts:true` 的 AI 态截图，op 内先 `clearToasts()`；expect 按文案/动作筛选，勿假定栈顶唯一。
+- 验收：`test-r33-visual-audit-toast` / `test-r33-miss-en-chip-shots` + 接线 R31/R32；Core-A 34/34；held-out 全绿；`docs/screenshots/r33/`。
+- 提交：`4ffcc351`（审计+toast wrap）、`1d2b0606`（矩阵+locale/aiMissToast+截图）；docs 同轮。
+- 逢 3 轮整页视觉：本轮完成（上一拍 Round 30）→ **下一目标 Round 36**。
+
 ## Round 32 — 2026-11-05（迭代 3 前 AI 对话缺口扫 + EN 策略芯片短标签）
 - 计划：约 30 分钟；1 高频：Roadmap 迭代 3 前再扫 AI 对话缺口并交付最高影响项（端口转发不接）；1 小打磨：EN policy chip 短标签 / i18n 一致性；编码前 UX。
 - 实际：~35 分钟；两项各一提交 + design/retro/backlog；Core-A 34/34 + held-out H01–H08 全绿。
