@@ -34,7 +34,7 @@ import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } f
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import ExecReplay from './ExecReplay'
-import { OPEN_AI_POLICY_EVENT } from '@shared/prod-auto-hint'
+import { OPEN_AI_POLICY_EVENT, prodAutoHint } from '@shared/prod-auto-hint'
 import type { ExecRecord } from '@shared/ai-exec-replay'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
@@ -1723,6 +1723,11 @@ export default function AIPanel({
   const policyCap = aiPolicy.cappedBy ? policyCapNote(aiPolicy.cappedBy) : ''
   const policyChipTitle = `${tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}${policyCap} · ${tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}`
   const ladderBand = safetyLadderBand(policyTier(aiPolicy.effective))
+  const panelProdAuto = prodAutoHint({
+    level: production ? 'production' : 'normal',
+    paused: false,
+    policy: aiPolicy
+  })
   const currentModel = modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''
   /** M25: the policy without the tab override; picking it clears the override. */
   const hostOrGlobalPolicy = resolveAiPolicy({ settings: safetySettings, hostPolicy, protection: null }).chosen
@@ -2048,6 +2053,25 @@ export default function AIPanel({
           {tg('ai.generalHint')}
         </div>
       ) : null}
+      {panelProdAuto ? (
+        <button
+          type="button"
+          className={`ai-prod-auto-banner${panelProdAuto.autoHighRisk ? ' is-high' : ''}`}
+          data-testid="ai-prod-auto-banner"
+          title={tg('prodAuto.tip', {
+            source: tg(`policy.source.${panelProdAuto.source}` as 'policy.source.global'),
+            high: panelProdAuto.autoHighRisk ? tg('prodAuto.high') : tg('prodAuto.highOff')
+          })}
+          onClick={() => setSafetyOpen(true)}
+        >
+          <span className="ai-prod-auto-dot" aria-hidden="true" />
+          <span className="ai-prod-auto-text">
+            {panelProdAuto.autoHighRisk ? tg('prodAuto.chipHigh') : tg('prodAuto.chip')}
+          </span>
+          <span className="ai-prod-auto-hint">{tg('prodAuto.panelHint')}</span>
+        </button>
+      ) : null}
+
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">

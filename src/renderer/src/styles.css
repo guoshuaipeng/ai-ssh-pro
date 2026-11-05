@@ -7327,3 +7327,46 @@ body.platform-darwin .window-controls {
   box-shadow: var(--shadow-menu);
   padding: var(--space-1) 0;
 }
+
+/* Round 2 H01: production + auto reminder inside AI panel */
+.ai-prod-auto-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-warn) 35%, transparent);
+  background: color-mix(in srgb, var(--color-warn) 12%, transparent);
+  color: var(--color-fg);
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.ai-prod-auto-banner:hover {
+  background: color-mix(in srgb, var(--color-warn) 20%, transparent);
+}
+.ai-prod-auto-banner.is-high {
+  border-bottom-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+.ai-prod-auto-banner.is-high:hover {
+  background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+}
+.ai-prod-auto-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warn);
+  flex: 0 0 auto;
+}
+.ai-prod-auto-banner.is-high .ai-prod-auto-dot { background: var(--color-danger); }
+.ai-prod-auto-text { font-weight: 600; white-space: nowrap; }
+.ai-prod-auto-hint {
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}

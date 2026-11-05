@@ -23,3 +23,15 @@ export function prodAutoHint(input: {
 
 /** AI 面板监听此事件，打开输入框上的执行策略菜单 */
 export const OPEN_AI_POLICY_EVENT = 'aiss-open-ai-policy'
+
+/** Production + high-risk must never auto-write (H01). Banner may still show for low/medium auto. */
+export function blockSilentHighRiskOnProd(input: {
+  level: 'normal' | 'production' | 'readonly'
+  kind?: string | null
+  mode?: string | null
+}): 'strong' | null {
+  if (input.level !== 'production') return null
+  if (input.kind !== 'high') return null
+  if (input.mode !== 'auto') return null
+  return 'strong'
+}

@@ -56,6 +56,7 @@ import { isAiPolicy, policyTier, resolveAiPolicy } from '../shared/ai-policy'
 import { resolveAiMaxSteps, writeUnlessStopped } from '../shared/ai-run-control'
 import { execStatusFrom, exitWaitMs, summarizeExecOutput, type NoExitReason } from '../shared/ai-exec-replay'
 import { aiWriteVerdict, capSafetyModeForProtection, aiEffectiveLevel, protectionFromSafetyContext, stricterProtection } from '../shared/ai-write-guard'
+import { blockSilentHighRiskOnProd } from '../shared/prod-auto-hint'
 import { getSessionProtection } from './ai-protection-registry'
 import type { HostServiceKind } from '../shared/inventory'
 import {
@@ -1230,6 +1231,13 @@ export async function runOpenClawCoreAgentChat(
         })
         commandKind = decision.kind
         safetyMode = capSafetyModeForProtection(decision.mode, hostProtection, decision.kind)
+        // H01: production + high-risk never silent auto-write (M25 still allows low/medium auto with banner).
+        const forced = blockSilentHighRiskOnProd({
+          level: aiEffectiveLevel(hostProtection),
+          kind: commandKind,
+          mode: safetyMode
+        })
+        if (forced) safetyMode = forced
         if (decision.alternative) {
           const note = parsed.notes?.includes(decision.alternative)
             ? parsed.notes

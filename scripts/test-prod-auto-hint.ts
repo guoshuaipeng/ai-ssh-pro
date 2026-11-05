@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { prodAutoHint } from '../src/shared/prod-auto-hint'
+import { blockSilentHighRiskOnProd, prodAutoHint } from '../src/shared/prod-auto-hint'
 import { resolveAiPolicy } from '../src/shared/ai-policy'
 
 const pol = (o: Parameters<typeof resolveAiPolicy>[0]) => resolveAiPolicy(o)
@@ -17,6 +17,14 @@ assert.equal(prodAutoHint({ level: 'readonly', paused: false, policy: pol({ sett
 // reminder only: production never caps the policy (M25)
 assert.equal(pol({ settings: { aiPolicy: 'auto' }, protection: { level: 'production' } }).effective, 'auto')
 
+
+// H01: high-risk never silent auto on production
+assert.equal(blockSilentHighRiskOnProd({ level: 'production', kind: 'high', mode: 'auto' }), 'strong')
+assert.equal(blockSilentHighRiskOnProd({ level: 'production', kind: 'write', mode: 'auto' }), null)
+assert.equal(blockSilentHighRiskOnProd({ level: 'production', kind: 'high', mode: 'agree' }), null)
+assert.equal(blockSilentHighRiskOnProd({ level: 'normal', kind: 'high', mode: 'auto' }), null)
+assert.equal(blockSilentHighRiskOnProd({ level: 'readonly', kind: 'high', mode: 'auto' }), null)
+
 // wiring
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 assert.ok(app.includes('const autoHint = prodAutoHint({'))
@@ -25,6 +33,13 @@ assert.ok(app.includes("window.addEventListener('aiss-ai-settings-saved', refres
 assert.ok(app.includes('data-testid="banner-ai-auto"'))
 const panel = readFileSync('src/renderer/src/components/AIPanel.tsx', 'utf8')
 assert.ok(panel.includes('window.addEventListener(OPEN_AI_POLICY_EVENT, onOpenPolicy)'))
+
+assert.ok(panel.includes('prodAutoHint({'))
+assert.ok(panel.includes('data-testid="ai-prod-auto-banner"'))
+assert.ok(panel.includes("tg('prodAuto.panelHint')"))
+const agent = readFileSync('src/main/ai-interactive-agent.ts', 'utf8')
+assert.ok(agent.includes('blockSilentHighRiskOnProd'))
+
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
-for (const k of ['prodAuto.chip', 'prodAuto.chipHigh', 'prodAuto.chipShort', 'prodAuto.tip', 'prodAuto.high', 'prodAuto.highOff']) assert.equal(i18n.split(`'${k}':`).length - 1, 2, k)
+for (const k of ['prodAuto.chip', 'prodAuto.chipHigh', 'prodAuto.chipShort', 'prodAuto.tip', 'prodAuto.high', 'prodAuto.highOff', 'prodAuto.panelHint']) assert.equal(i18n.split(`'${k}':`).length - 1, 2, k)
 console.log('test-prod-auto-hint: ok')
