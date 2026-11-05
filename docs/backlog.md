@@ -70,12 +70,24 @@
 - P1 候选 Round 22：保持 AI 对话——把 `aiFailureEvidence` 纳入截图矩阵 / 或失败卡与下一张确认卡的步骤高亮联动 / 或 Roadmap 迭代 3 前扫对话缺口（审计无匹配弱提示）；默认不接端口转发。
 - 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
 
+
+## 2026-11-05 Round 23 追加
+- 已完成：失败钉存在时 ExecReplay 状态安静为「执行输出」（不再「失败 · 退出码」双报；行内审计 CTA 隐藏，钉卡持有审计）；「带证据重试」后新确认卡/坞自动居中滚动并短暂高亮（与「下一步待确认」共用 helper）。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R22；本轮未扩拍）。
+- P3：极窄栏失败钉 + 安静状态行叠在一起时可读性再抽检（Round 24 整页视觉一并看）。
+- P1 候选 Round 24：保持 AI 对话——**逢 3 轮整页视觉审计**（R21 后下一拍）/ 或失败重试后确认卡与计划步号芯片再对齐 / 或 Roadmap 迭代 3 前扫对话缺口；默认不接端口转发。
+
+### Round 23 UX 验收（编码后）
+- 一条失败故事：钉卡标题/kind/证据/主 CTA；下方仅「执行输出」+ 耗时/行数，无第二句「失败」。
+- 带证据重试 → 新确认出现后坞/卡进入视口并 `data-after-evidence-retry`；预算用尽仍只填输入框。
+- 守卫：`test-r23-failure-status-dedupe` / `test-r23-retry-scroll-confirm`；Core-A 34/34；held-out H01–H08 绿。
+
 ### Round 22 收口（AI 对话）
 - 已完成：`aiFailureEvidence` 纳入截图矩阵（宽/窄×深/浅 + next-confirm 联动态）；失败卡「下一步待确认」→ 确认坞高亮；审计空匹配改为冷静 info toast +「回到顶部」。
-- P2：失败钉存在时弱化 ExecReplay「失败 · exit」双报（R21 视觉债仍在）。
+- ~~P2~~：~~失败钉存在时弱化 ExecReplay「失败 · exit」双报~~ → ✅ Round 23 安静「执行输出」。
 - P2：真机 Tauri 宽窄矩阵仍欠（Electron harness 已覆盖 R14–R22 主态）。
 - P3：失败→下一步按钮文案「下一步待确认 · 当前第 n/max 步」在极窄栏可能略长——可再收成「下一步 · n」。
-- P1 候选 Round 23：保持 AI 对话——**失败钉与 ExecReplay 状态行去重** / 或 **带证据重试后自动滚到新确认卡** / 或 Roadmap 迭代 3 对话缺口扫（模型预设后续步、流式 partial 引用失败证据）。
+- ~~P1 候选 Round 23~~：失败钉去重 + 带证据重试滚动 → ✅ Round 23 fbea4ec / 73ae9801。
 
 ## Round 21 全页轻量视觉审计（逢 3 轮，R14–R20 矩阵 + AI 面板 chrome）→ backlog
 依据：`docs/screenshots/r14|r17|r18|r20` README 矩阵与当前 AI 面板结构（未新开 Electron 全量重拍；本轮以既有矩阵 + 代码审查）。
