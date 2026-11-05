@@ -379,6 +379,17 @@
 - 重复 3+ 次：① PowerShell 内联补丁引号炸 → 已倾向 `.cjs`/文件写入；② 真机宽窄×深浅欠交付 → 应默认扩 `ai-shot-matrix` 场景而非每轮口头「待 rebuild」；③ 新测未进 `test:parts`（R14/R15）→ R16 已补线。
 - 抽象候选：截图场景表 config-driven（op → expect 图）；composer/batch chrome 共享「≥2 步才出条」纯函数已有，继续沿用。
 
+## Round 28 — 2026-11-05（Gap scan + Core-A safetyContext + filter-empty / Decline）
+- 计划：约 30 分钟；1 高频：迭代 3 前 AI 对话缺口扫描并交付最高影响项；1 小打磨：filter-empty 进矩阵 / Decline 降权；编码前 UX。
+- 实际：~45 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r28 截图 8/8。
+- Gap scan 摘要：Roadmap 2.1–2.5 与 H01–H08 已齐；最高影响未做 = Core-A 未传 safetyContext；其次 filter-empty 矩阵与 Decline 权重。
+- 卡住点：① PowerShell 内联引号 → `tools/r28/*.py`；② App screenshot effect 须把 `openAudit` 列入 deps。
+- 根因：S12 仅命名 prod 不足以走 production 路径；filter-empty 文案 R26 已有但无故意态截图。
+- 预防：凡「主机名暗示保护级」的夹具必须显式 `safetyContext`；空态截图成对拍 true-empty / filter-empty / hit。
+- 验收：`test-r28-core-a-safety-context` / `test-r28-filter-empty-decline` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r28/`。
+- 提交：`36d970a2`（safetyContext）、polish（filter-empty+Decline）；docs 同轮。
+- 逢 3 轮整页视觉：上一拍 Round 27 → **下一目标 Round 30**。
+
 ## Round 17 — 2026-11-05（审计→对话回跳 + R17 截图矩阵）
 - 计划：约 30 分钟；1 高频：审计行「对话」回跳 AI 步骤（R7 反向）；1 小打磨：扩 R14 harness 拍 ask 进度 + sticky batch。
 - 实际：本机完成两项；Core-A 34/34；held-out H01–H08 绿；截图 6 张 expect 全 true。

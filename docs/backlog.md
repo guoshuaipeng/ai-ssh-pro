@@ -1,3 +1,18 @@
+## 2026-11-05 Round 28 追加
+- **Gap scan（Roadmap 迭代 3 前）**：迭代 2（2.1–2.5）与 H01–H08 均已交付；最高影响缺口 = Core-A 未传 `safetyContext`（S12 主机名 prod 但保护级仍默认 normal）。其余：filter-empty 未进矩阵、Decline 权重、真机 Tauri 矩阵、英文 chip P3；策略题继续 held-out。
+- 已完成：Core-A fixture `safetyContext` 透传；S12 `protection=production`（主集仍 34，不并入 H01）。
+- 已完成：审计 **filter-empty** 故意态进截图矩阵 + pending Decline 降权 → `docs/screenshots/r28/`（8/8）。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R28）。
+- P1 候选 Round 29：保持 AI 对话——readonly 冷静横幅（对称 prod-auto）/ 或 Core-A 可选 readonly fixture 冒烟（仍不并 held-out 策略题）/ 或英文 chip 短标签抽检；默认不接端口转发。
+- 未做：策略题继续 held-out（H01 不进 Core-A 调参）。
+- 下一整页视觉目标：**Round 30**。
+
+### Round 28 UX 验收（编码后）
+- 主 CTA：待确认仍 Agree；Decline 透明次要；审计 filter-empty 主 CTA=清空筛选。
+- 绑定：safetyContext 属本轮 fixture 主机；filter-empty 属本地面板筛选。
+- 空/错：filter-empty ≠ true-empty（R26 文案）。
+- 守卫：`test-r28-core-a-safety-context` / `test-r28-filter-empty-decline`；Core-A 34/34；held-out H01–H08 绿；截图 8/8。
+
 ## 2026-11-05 Round 19 追加
 - 已完成：composer 策略芯片短中文（需确认/仅建议/自动）+ 菜单触控/焦点（R15 债；`is-open`、打开聚焦当前项、40px option / 32px link）；确认坞 + 计划进度窄栏再收一档（pending dock `@container` 280px 堆叠、预览 2 行、badge/streak ellipsis）。
 - P2：真机宽窄×深浅仍欠（R6–R18 遗留；R19 态可扩 harness：policy-menu-open / pending-dock-narrow）。
