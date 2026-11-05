@@ -304,3 +304,12 @@
 - 根因：预设交互在两轮设计间漂移，没有用纯函数 `planApplyPreset` 固定语义；M19 新增 `.ai-run-streak` 时抄了带 fallback 的旧写法，破坏「no token fallbacks」契约。
 - 以后怎么避免：设置页关键交互先抽 shared 纯函数再接线 UI；凡写入 M19 区块的 CSS 禁止 `var(--token, fallback)`，改前先跑 `test-polish-34`。
 - 验收：宽/窄×深/浅真机截图未拍（设置页需 rebuild/`tauri dev`）→ 待用户确认；自动化：presets + polish-34 + Core-A。
+
+## 2026-11-05 第 73 轮（Round 9）AI 对话 — 2.4/H01 收尾 + 留出 H01/H03 夹具化
+- 计划：约 30 分钟；1 高频 Roadmap 2.4/H01 文案与边角收尾 + 1 小打磨留出题夹具化。
+- 实际：约 35 分钟。两项交付；Core-A 34/34；未拍真机矩阵（沿用 R6–R8 债）。
+- 卡在哪：① `prodAutoHint` 曾把 `settings.aiAutoHighRisk` 原样展示在生产横幅，与 `blockSilentHighRiskOnProd` 打架；② 设置 hint 写「对生产同样生效」误导；③ Core-A harness 未接 `safetyContext.protection`，不宜硬塞 S34 多轮剧本。
+- 哪里没做好：R2 上 H01 闸门时未同步改 tip/chipHigh/settings 三处文案。
+- 根因：策略「设置位」与「生产机实际生效」混在同一字段展示。
+- 以后怎么避免：凡生产横幅/chip 只反映 *effective* 行为；设置文案写清「非生产 vs 生产」分叉；留出策略题优先 declarative JSON + 脚本，不必强行塞进 Core-A Sxx。
+- 验收：`test-prod-auto-hint` + `test-held-out-h01-h03` + Core-A 34/34；宽/窄×深/浅真机截图仍待 rebuild/`tauri dev`。

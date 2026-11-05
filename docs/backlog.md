@@ -2,10 +2,26 @@
 
 > 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
 
+# Backlog（2026-10-20 第 9 轮之后，按日常使用频率排序）
+
+> 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
+
+## 2026-11-05 Round 9 追加
+- 已完成：Roadmap **2.4** / H01 生产横幅收尾（诚实文案、settings 联动、面板 protection+elevated）；留出 **H01/H03** 夹具化（`tests/fixtures/held-out/` + `test-held-out-h01-h03`）。
+- P2：窄栏×深浅色真机矩阵 / 生产横幅 + 设置→AI 策略页截图（需 HEAD rebuild 或 `tauri dev`）。
+- P1 候选 Round 10：留出 **H04** 快速连发串流夹具化；或 Roadmap 迭代 3 端口转发（3.1/3.2）；或 D22 系终端高频债若用户改优先级。
+- 未做 Core-A S34：eval harness 未接生产 `safetyContext`，本轮用 held-out JSON 覆盖策略闸门。
+
+## 2026-11-05 Round 9 追加
+- 已完成：Roadmap **2.4** / H01 生产横幅收尾（诚实文案、settings 联动、面板 protection+elevated）；留出 **H01/H03** 夹具化（`tests/fixtures/held-out/` + `test-held-out-h01-h03`）。
+- P2：窄栏×深浅色真机矩阵 / 生产横幅 + 设置→AI 策略页截图（需 HEAD rebuild 或 `tauri dev`）。
+- P1 候选 Round 10：留出 **H04** 快速连发串流夹具化；或 Roadmap 迭代 3 端口转发（3.1/3.2）；或 D22 系终端高频债若用户改优先级。
+- 未做 Core-A S34：eval harness 未接生产 `safetyContext`，本轮用 held-out JSON 覆盖策略闸门。
+
 ## 2026-11-05 Round 8 追加
 - 已完成：Roadmap **2.5** 模型接入预设 UX（分组芯片 / 下一步文案 / 不覆盖有 Key 的 Provider）；`test-polish-34` M19 token fallback 债已清。
 - P2：窄栏×深浅色真机矩阵 / 设置→AI 预设页截图（需 HEAD rebuild 或 `tauri dev`）。
-- P1 候选 Round 9：Roadmap **2.4** 生产横幅与自动执行组合提示收尾核对（H01 大半已做）；或留出集 H 题夹具化 / 审计深链边角。
+- ~~P1 候选 Round 9：Roadmap **2.4** / 留出 H 题夹具化~~ → Round 9 已做。
 
 ## 2026-11-05 Round 7 追加
 - P2：窄栏×深浅色真机矩阵补拍（本轮 harness 已覆盖 r7-h05-stop / ai-exec-audit）。
