@@ -263,3 +263,12 @@
 - 根因：Core-A 评测协议文案被误当成产品全局面板口径。
 - 以后怎么避免：凡策略文案改动先对照 `resolveAiPolicy` 三档；空态 hint 按 effective 分叉或写「由策略决定」；留出集过时期望当文档债修，不要反向把产品改成假确认。
 - 验收：`test-h03-tab-auto-policy` / `test-p2-narrow-ai-panel` / H02 / H07 通过；Core-A 34/34；宽/窄×深/浅真机截图待 `tauri dev`。
+
+## 2026-11-05 第 69 轮（Round 5）AI 对话 — 2.2 连续自动上限
+- 计划：约 30 分钟；高频 Roadmap 2.2 连续自动步数控制 + 真机截图矩阵。
+- 实际：约 40 分钟。功能交付；截图砍成 release 冒烟 1 张（二进制仍为 0.8.0，不含 HEAD）。
+- 卡在哪：CopyFromBox 不能写仓库子目录；PowerShell heredoc 不可用 → box 落盘 + 用户主目录中转；progress 强制确认时序需二次 emit。
+- 哪里没做好：真机宽/窄矩阵仍未含 HEAD（与 R2–R4 同债）。
+- 根因：release exe 嵌入前端，仅 uild:web 不够；完整 	auri build 超本轮时限。
+- 以后怎么避免：需要真机验收的轮次开工即后台 	auri build；或提供「仅刷新 frontend 资源」的调试启动；截图矩阵单独一轮。
+- 验收：	est-ai-run-control + Core-A 34/34 + R1–R4 回归通过；HEAD debug 二进制已编出（见 docs/screenshots/r5/）；因桌面焦点被浏览器占用未拍到面板态；矩阵→R6。
