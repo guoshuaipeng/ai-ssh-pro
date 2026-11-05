@@ -422,6 +422,25 @@
 - 下轮候选：失败证据卡 / 记忆芯片窄栏真机抽检 / Roadmap 迭代 3 前扫对话缺口；整页视觉审计目标 Round 21。
 
 
+
+## Round 24 — 2026-11-05（重试步号对齐 + 逢 3 轮整页视觉 / 下一步短文案）
+- 计划：约 30 分钟；1 高频：post-retry confirm ↔ plan-step chip；1 小打磨：整页视觉审计入 backlog + 修一处快 P2；附 R19–R24 过程复盘。
+- 实际：~30 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿。
+- 卡住点：① CopyToBox/Read 截图路径在 allowed root 外 → 改代码+harness 态审计；② R16/R18 wiring 断言需随 `planStepDisplayMax` / optional chaining 同步。
+- 根因：R23 滚到确认坞后坞上无步号、芯片仅 `busy&&runProgress`、徽章仍 `suggestionStepNo.get(i)??` → 重试路径可短暂/持久不一致。
+- 预防：凡 pending 路径坞/芯片/徽章强制 `alignedPlan`；新 helper 同步改旧 wiring 测试；逢 3 轮整页必须把可修 P2 当场修掉。
+- 验收：`test-r24-retry-plan-align` / `test-r24-next-confirm-short` + Core-A 34/34 + held-out 全绿。
+- 提交：`d1baa4b1`（对齐）、`f6c76678`（短文案）；docs 同轮。
+- 逢 3 轮整页视觉：本轮完成（上一拍 Round 21）→ **下一目标 Round 27**。
+
+### 过程复盘（R19–R24，逢约 6 轮）
+- 节奏：每轮约 25–55 分钟；均 1 高频 + 1 小打磨；本地 commit、不推远程。
+- 主题链：R19 策略/确认坞触控 → R20 记忆可见 → R21 失败证据+整页审计 → R22 失败矩阵/下一步 → R23 失败去重/重试滚动 → R24 重试步号对齐+整页审计。
+- 返工：R22「下一步·activePlanStep」过长拖到 R24 才短文化；R18 步号对齐在重试路径仍有坞/芯片缺口 → R24 补齐说明「对齐」要覆盖所有 pending 表面。
+- 重复 3+ 次：① PowerShell 引号 → `tools/rXX/*.py` 已成默认；② 真机宽窄×深浅口头债 → 应默认扩 matrix 而非每轮「待 rebuild」；③ 改 panel wiring 必同步旧 R16/R18 断言。
+- 抽象已落地：`alignPlanStepDisplay` + `planStepDisplayMax`；`focusAiPendingAfterFailure`；config-driven shot matrix。继续沿用。
+- 下轮候选：失败「下一步 · n」进 harness / 记忆展开交互 / Roadmap 迭代 3 前对话缺口；整页视觉目标 Round 27。
+
 ## Round 23 — 2026-11-05（失败故事去重 + 带证据重试后滚到确认）
 - 计划：约 30 分钟；1 高频：失败钉 vs ExecReplay「失败 · exit」双报 → 一条冷静失败故事；1 小打磨：带证据重试后自动滚到新确认卡。
 - 实际：~25 分钟；两项各一提交；Core-A 34/34 + held-out 全绿。
