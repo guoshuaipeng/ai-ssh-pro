@@ -32,6 +32,8 @@ type Props = {
   hostLabel?: string
   hostKey?: string
   onOpenAiSettings?: () => void
+  /** 2.3: open audit filtered to a recent command from history suggestions */
+  onOpenAudit?: (command: string) => void
   /** S2: return false to cancel the send. When set, this replaces the local danger dialog. */
   beforeSend?: (command: string, dangerous: boolean) => Promise<boolean>
   sendGuard?: {
@@ -60,7 +62,7 @@ function loadDraft(key: string, sessionId: string): string {
   return pending
 }
 
-export default function SessionCommandBar({ sessionId, draftKey, hostLabel, hostKey = '', onOpenAiSettings, beforeSend, sendGuard }: Props) {
+export default function SessionCommandBar({ sessionId, draftKey, hostLabel, hostKey = '', onOpenAiSettings, onOpenAudit, beforeSend, sendGuard }: Props) {
   const { t, locale } = useI18n()
   const [open, setOpen] = useState(() => {
     try {
@@ -365,6 +367,7 @@ export default function SessionCommandBar({ sessionId, draftKey, hostLabel, host
         onAskFailed={(cmd, code) => {
           if (sessionId) askAboutHistoryFailure(sessionId, cmd, code)
         }}
+        onOpenAudit={onOpenAudit}
         snippets={snippets.map((s) => ({ command: s.body }))}
         className={inAi ? 'command-input--ai' : undefined}
         placeholder={inAi ? t('a2.placeholder') : undefined}

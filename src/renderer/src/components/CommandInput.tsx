@@ -34,6 +34,8 @@ type Props = {
   stopping?: boolean
   /** D22b: ask AI about a history item that failed last time */
   onAskFailed?: (command: string, code: number) => void
+  /** 2.3: open audit filtered to this recent command */
+  onOpenAudit?: (command: string) => void
   /** D34: current session folder; a suggestion that last ran elsewhere offers "in its folder" */
   currentCwd?: string | null
 }
@@ -55,6 +57,7 @@ export default function CommandInput({
   hostKey = '',
   snippets = [],
   onAskFailed,
+  onOpenAudit,
   currentCwd,
   submitLabel,
   onStop,
@@ -323,6 +326,26 @@ export default function CommandInput({
                             </>
                           ) : null
                         })()}
+                        {onOpenAudit ? (
+                          <span
+                            role="button"
+                            tabIndex={-1}
+                            className="cmd-src cmd-ask-failed"
+                            data-testid="suggest-open-audit"
+                            title={t('exec.recentAuditTip')}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              onOpenAudit(cmd)
+                            }}
+                          >
+                            {t('exec.recentAudit')}
+                          </span>
+                        ) : null}
                       {meta.count > 0 ? <span>{meta.count}</span> : null}
                     </span>
                   ) : null}

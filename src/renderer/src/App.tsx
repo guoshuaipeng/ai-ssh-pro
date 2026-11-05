@@ -451,6 +451,10 @@ type Tab = {
   auditHost?: string
   /** 2.3: audit row to scroll to and highlight (from AI execution replay). Not persisted. */
   auditFocusId?: string
+  /** 2.3 deep-link filters (not persisted). */
+  auditSource?: import('@shared/audit-log').AuditSource | ''
+  auditType?: import('@shared/audit-log').AuditType | ''
+  auditText?: string
   playbookId?: string
   recordingFile?: string
   syncPlan?: SyncPreviewPlan
@@ -3242,13 +3246,29 @@ export default function App() {
   const openWorkbenchRef = useRef(openWorkbench)
   openWorkbenchRef.current = openWorkbench
 
-  const openAudit = useCallback((host?: string, focusId?: string) => {
+  const openAudit = useCallback((
+    host?: string,
+    focusId?: string,
+    filters?: {
+      source?: import('@shared/audit-log').AuditSource | ''
+      type?: import('@shared/audit-log').AuditType | ''
+      text?: string
+    }
+  ) => {
     ensureMainVisible()
     setAuditEvents(loadAudit())
     const title = host ? `${tg('l4.auditTitle')} · ${host}` : tg('l4.auditTitle')
+    const patch = {
+      title,
+      auditHost: host,
+      auditFocusId: focusId,
+      auditSource: filters?.source,
+      auditType: filters?.type,
+      auditText: filters?.text
+    }
     const ex = tabsRef.current.find((t) => t.view === 'audit')
     if (ex) {
-      setTabs((prev) => prev.map((t) => (t.tabId === ex.tabId ? { ...t, title, auditHost: host, auditFocusId: focusId } : t)))
+      setTabs((prev) => prev.map((t) => (t.tabId === ex.tabId ? { ...t, ...patch } : t)))
       setActiveTabId(ex.tabId)
       return
     }
@@ -3262,8 +3282,7 @@ export default function App() {
         connectOpts: PLACEHOLDER_CONNECT,
         status: 'connected',
         view: 'audit',
-        auditHost: host,
-        auditFocusId: focusId
+        ...patch
       }
     ])
     setActiveTabId(tabId)
@@ -3280,11 +3299,21 @@ export default function App() {
     return () => window.removeEventListener('aiss-ai-settings-saved', refresh)
   }, [])
 
-  // 2.3: "审计记录" in an AI execution replay row
+  // 2.3: jump from ExecReplay / confirm dock / recent-command → filtered audit
   useEffect(() => {
     const onOpen = (e: Event) => {
-      const id = (e as CustomEvent<{ id?: string }>).detail?.id
-      openAudit(undefined, id || undefined)
+      const d = (e as CustomEvent<{
+        id?: string
+        host?: string
+        source?: import('@shared/audit-log').AuditSource | ''
+        type?: import('@shared/audit-log').AuditType | ''
+        text?: string
+      }>).detail || {}
+      openAudit(d.host || undefined, d.id || undefined, {
+        source: d.source,
+        type: d.type,
+        text: d.text
+      })
     }
     window.addEventListener(OPEN_AUDIT_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_AUDIT_EVENT, onOpen)
@@ -8990,6 +9019,10 @@ export default function App() {
               hostLabel={activeTab.connectOpts.label?.trim() || activeTab.title}
               hostKey={sessionHostKey(activeTab)}
               onOpenAiSettings={() => openUnifiedSettings('ai')}
+              onOpenAudit={(cmd) => {
+                const host = activeTab.connectOpts.label?.trim() || activeTab.connectOpts.host || activeTab.title
+                openAudit(host || undefined, undefined, { text: cmd, type: 'command' })
+              }}
               sendGuard={(() => {
                 const g = guardForSession(activeTab.sessionId)
                 return { level: g.level, hostName: g.hostName || activeTab.connectOpts.host, elevated: g.elevated, profileId: g.profile?.id }
@@ -9759,6 +9792,9 @@ export default function App() {
                     events={auditEvents}
                     host={t.auditHost}
                     focusId={t.auditFocusId}
+                    seedSource={t.auditSource}
+                    seedType={t.auditType}
+                    seedText={t.auditText}
                     enabled={auditOn}
                     onToggle={(on) => {
                       setAuditEnabled(on)
@@ -10911,6 +10947,10 @@ export default function App() {
         }}
         onAskFailed={(it) => {
           if (activeSessionId && typeof it.failed === 'number') askAboutHistoryFailure(activeSessionId, it.value, it.failed)
+        }}
+        onOpenAudit={(it) => {
+          const host = activeTab ? (activeTab.connectOpts.label?.trim() || activeTab.connectOpts.host || activeTab.title) : undefined
+          openAudit(host || undefined, undefined, { text: it.value, type: 'command' })
         }}
         onForget={(it) => {
           // D43: app history only (the shell's own history file is untouched); undo restores the rows

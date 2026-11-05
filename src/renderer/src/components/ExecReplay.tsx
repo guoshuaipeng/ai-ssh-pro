@@ -5,8 +5,26 @@ import Icon from './Icon'
 
 export const OPEN_AUDIT_EVENT = 'aiss-open-audit'
 
+export type OpenAuditDetail = {
+  id?: string
+  host?: string
+  source?: 'AI' | 'user' | 'terminal' | 'snippet' | 'batch' | 'broadcast' | 'playbook' | 'sftp' | ''
+  type?: string
+  text?: string
+}
+
 /** 2.3 对话内执行回放：命令卡片下的一行状态，可展开查看输出摘要，并跳转到审计记录。 */
-export default function ExecReplay({ exec }: { exec: ExecRecord }) {
+export default function ExecReplay({
+  exec,
+  host,
+  command
+}: {
+  exec: ExecRecord
+  /** Bound host label used when the audit row was written (filters the audit tab). */
+  host?: string
+  /** Command text for text filter when auditId is missing. */
+  command?: string
+}) {
   const { locale } = useI18n()
   const [open, setOpen] = useState(false)
   const blocked = exec.status === 'blocked'
@@ -15,7 +33,19 @@ export default function ExecReplay({ exec }: { exec: ExecRecord }) {
   const statusLabel = tg(`exec.status.${exec.status}` as 'exec.status.ok')
   const statusText =
     exec.status === 'failed' && typeof exec.exitCode === 'number' ? `${statusLabel} · ${tg('exec.exit', { code: exec.exitCode })}` : statusLabel
-  const auditTip = exec.auditId ? tg('exec.auditTip') : tg('exec.auditMissing')
+  const canJump = Boolean(exec.auditId || host || (command && command.trim()))
+  const auditTip = exec.auditId ? tg('exec.auditTip') : canJump ? tg('exec.auditFilterTip') : tg('exec.auditMissing')
+  const openAudit = () => {
+    if (!canJump) return
+    const detail: OpenAuditDetail = {
+      id: exec.auditId,
+      host: host || undefined,
+      source: 'AI',
+      type: 'command',
+      text: command?.trim() || undefined
+    }
+    window.dispatchEvent(new CustomEvent(OPEN_AUDIT_EVENT, { detail }))
+  }
   return (
     <div className={`ai-exec-replay is-${exec.status}${open ? ' is-open' : ''}`} data-testid="ai-exec-replay" data-status={exec.status}>
       <div className="ai-exec-row">
@@ -35,11 +65,11 @@ export default function ExecReplay({ exec }: { exec: ExecRecord }) {
         </button>
         <button
           type="button"
-          className={`ai-exec-audit${exec.auditId ? '' : ' is-muted'}`}
+          className={`ai-exec-audit${canJump ? '' : ' is-muted'}`}
           data-testid="ai-exec-audit"
-          aria-disabled={exec.auditId ? undefined : true}
+          aria-disabled={canJump ? undefined : true}
           title={auditTip}
-          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_AUDIT_EVENT, { detail: { id: exec.auditId } }))}
+          onClick={openAudit}
         >
           <Icon name="scroll-text" size={12} />
           <span>{tg('exec.audit')}</span>

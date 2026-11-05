@@ -33,7 +33,7 @@ import { releaseSessionInFlight, type SafetyMode, type SafetySettings } from '@s
 import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } from '@shared/ai-policy'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
-import ExecReplay from './ExecReplay'
+import ExecReplay, { OPEN_AUDIT_EVENT } from './ExecReplay'
 import { OPEN_AI_POLICY_EVENT, prodAutoHint } from '@shared/prod-auto-hint'
 import type { ExecRecord } from '@shared/ai-exec-replay'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
@@ -2501,7 +2501,13 @@ export default function AIPanel({
                     })}
                   </div>
                 ) : null}
-                {l.exec ? <ExecReplay exec={l.exec} /> : null}
+                {l.exec ? (
+                  <ExecReplay
+                    exec={l.exec}
+                    host={conversation ? conversationLabel(conversation.hostLabel, conversation.n) : hostName || undefined}
+                    command={s.command}
+                  />
+                ) : null}
                 {s.action === 'end' || s.action === 'command' ? <ReplyMeta text={metaText} elapsedMs={l.elapsedMs} /> : null}
               </div>
             )
@@ -2605,6 +2611,25 @@ export default function AIPanel({
               onClick={() => void confirmStep(pendingConfirm.requestId, false)}
             >
               <span className="ai-btn-text">{tg('ux64.disagree')}</span>
+            </button>
+            <button
+              type="button"
+              className="ai-fill-cmd-btn"
+              data-testid="ai-pending-open-audit"
+              title={tg('exec.openHostAuditTip')}
+              onClick={() => {
+                const host = conversation
+                  ? conversationLabel(conversation.hostLabel, conversation.n)
+                  : hostName || undefined
+                const cmd = pendingLine?.structured?.command?.trim() || pendingPreviewRaw?.trim() || undefined
+                window.dispatchEvent(
+                  new CustomEvent(OPEN_AUDIT_EVENT, {
+                    detail: { host, source: 'AI', type: 'command', text: cmd }
+                  })
+                )
+              }}
+            >
+              <span className="ai-btn-text">{tg('exec.openHostAudit')}</span>
             </button>
           </div>
         </div>

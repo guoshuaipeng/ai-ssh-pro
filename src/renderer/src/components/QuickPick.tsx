@@ -19,6 +19,8 @@ type Props = {
   onClose: () => void
   /** D22b: ask AI about a failed history item */
   onAskFailed?: (item: PickItem) => void
+  /** 2.3: open audit filtered to this recent command */
+  onOpenAudit?: (item: PickItem) => void
   /** D31: fill `cd <dir> && cmd` for a history item that last ran elsewhere */
   onRunInCwd?: (item: PickItem) => void
   /** D31: current session cwd (hides the action when it already matches) */
@@ -42,7 +44,8 @@ const BADGE_KEY: Record<NonNullable<PickItem['badge']>, Parameters<typeof tg>[0]
 }
 
 /** D3 / D4: themed fuzzy picker (reuses the command palette chrome). */
-export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed, onRunInCwd, currentCwd, chord, onChord, scopeToggle, onForget }: Props) {
+export default function QuickPick({ open, testId, title, placeholder, footer, emptyTitle, emptyDesc, rank, onPick, onClose, onAskFailed,
+  onOpenAudit, onRunInCwd, currentCwd, chord, onChord, scopeToggle, onForget }: Props) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -197,6 +200,23 @@ export default function QuickPick({ open, testId, title, placeholder, footer, em
                   }}
                 >
                   {tg('d22b.ask')}
+                </span>
+              ) : null}
+              {onOpenAudit && (it.kind === 'history' || it.kind === 'snippet') ? (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  className="qp-badge qp-ask-failed"
+                  data-testid="qp-open-audit"
+                  title={tg('exec.recentAuditTip')}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClose()
+                    window.setTimeout(() => onOpenAudit(it), 0)
+                  }}
+                >
+                  {tg('exec.recentAudit')}
                 </span>
               ) : null}
               {it.badge ? <span className={`qp-badge qp-badge--${it.badge}`}>{tg(BADGE_KEY[it.badge])}</span> : null}

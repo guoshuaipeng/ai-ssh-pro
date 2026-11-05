@@ -33,12 +33,19 @@ export default function AuditLogPanel({
   onClose,
   onClear,
   onExport,
-  focusId
+  focusId,
+  seedSource,
+  seedType,
+  seedText
 }: {
   events: AuditEvent[]
   host?: string
   /** 2.3: row to scroll to and highlight */
   focusId?: string
+  /** 2.3 deep-link filters from AI panel / confirm / recent command */
+  seedSource?: AuditSource | ''
+  seedType?: AuditType | ''
+  seedText?: string
   enabled: boolean
   onToggle: (on: boolean) => void
   onClose: () => void
@@ -46,9 +53,9 @@ export default function AuditLogPanel({
   onExport: (seed: AuditExportSeed) => void
 }) {
   const { t } = useI18n()
-  const [text, setText] = useState('')
-  const [type, setType] = useState<AuditType | ''>('')
-  const [source, setSource] = useState<AuditSource | ''>('')
+  const [text, setText] = useState(seedText ?? '')
+  const [type, setType] = useState<AuditType | ''>(seedType ?? '')
+  const [source, setSource] = useState<AuditSource | ''>(seedSource ?? '')
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
   const [range, setRange] = useState<AuditRange>('all')
@@ -58,6 +65,13 @@ export default function AuditLogPanel({
     setSince(auditRangeSince(r, new Date()))
     setUntil('')
   }
+
+  // 2.3: re-apply deep-link filters whenever the jump target changes
+  useEffect(() => {
+    if (seedSource !== undefined) setSource(seedSource)
+    if (seedType !== undefined) setType(seedType)
+    if (seedText !== undefined) setText(seedText)
+  }, [seedSource, seedType, seedText, focusId, host])
   useEffect(() => {
     setAuditExportContext({
       host: host || '',
