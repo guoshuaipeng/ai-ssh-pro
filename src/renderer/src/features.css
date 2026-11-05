@@ -2269,6 +2269,18 @@ body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
 .l2-filters .au2-search { flex: 1 1 200px; min-width: 160px; }
 .au2-dates { display: inline-flex; align-items: center; gap: var(--space-1); }
 .au2-count { margin-left: auto; white-space: nowrap; }
+.au2-chip { display: inline-flex; align-items: center; flex: none; padding: 0 6px; height: 20px; border-radius: 999px; background: var(--color-bg-muted, var(--bg-muted)); color: var(--color-text-secondary, var(--muted)); font-size: 11px; font-variant-numeric: tabular-nums; }
+.au2-chip.is-ai, .au2-src.is-ai { background: color-mix(in srgb, var(--accent, #3b82f6) 18%, transparent); color: var(--accent, #3b82f6); }
+.au2-outcome { font-weight: 600; }
+.au2-outcome.is-allowed { color: var(--success, #16a34a); }
+.au2-outcome.is-blocked { color: var(--danger, #dc2626); }
+.au2-outcome.is-cancelled { color: var(--color-text-muted, var(--muted)); }
+.audit-table td.au2-policy, .audit-table td.au2-detail { white-space: normal; overflow-wrap: anywhere; max-width: 320px; }
+.audit-table th:nth-child(5), .audit-table td:nth-child(5) { width: 48px; }
+@media (max-width: 1100px) {
+  .audit-table th:nth-child(2), .audit-table td:nth-child(2) { display: none; }
+}
+
 
 /* HK2 host keys modal: rows never shrink into each other */
 .kh-panel > * { flex-shrink: 0; }

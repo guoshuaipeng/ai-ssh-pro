@@ -1,7 +1,13 @@
 import Select from './ui/Select'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { auditWindowBounds, setAuditExportContext, type AuditExportSeed } from '@shared/audit-export'
-import { filterAudit, type AuditEvent, type AuditType, auditPolicyText } from '@shared/audit-log'
+import {
+  filterAudit,
+  type AuditEvent,
+  type AuditSource,
+  type AuditType,
+  auditPolicyText
+} from '@shared/audit-log'
 import { useI18n } from '../lib/i18n'
 import EmptyState from './EmptyState'
 import PanelHeader from './ui/PanelHeader'
@@ -9,6 +15,15 @@ import Button from './ui/Button'
 import { openContextMenu } from './ContextMenu'
 import DateField from './ui/DateField'
 import { auditRangeSince, type AuditRange } from '@shared/audit-range'
+
+const SOURCE_OPTS: Array<AuditSource | ''> = ['', 'AI', 'user', 'terminal', 'snippet', 'batch', 'broadcast', 'playbook', 'sftp']
+
+function outcomeKey(e: AuditEvent): 'allowed' | 'blocked' | 'cancelled' {
+  const r = e.gateResult ?? e.outcome
+  if (r === 'blocked' || r === 'denied') return 'blocked'
+  if (r === 'cancelled') return 'cancelled'
+  return 'allowed'
+}
 
 export default function AuditLogPanel({
   events,
@@ -33,6 +48,7 @@ export default function AuditLogPanel({
   const { t } = useI18n()
   const [text, setText] = useState('')
   const [type, setType] = useState<AuditType | ''>('')
+  const [source, setSource] = useState<AuditSource | ''>('')
   const [since, setSince] = useState('')
   const [until, setUntil] = useState('')
   const [range, setRange] = useState<AuditRange>('all')
@@ -54,20 +70,37 @@ export default function AuditLogPanel({
   }, [host, type, since, until])
   const rows = useMemo(() => {
     const bounds = since || until ? auditWindowBounds({ range: 'custom', since, until }) : {}
-    const list = filterAudit(events, { host, type, text, since: bounds.since, until: bounds.until })
+    const list = filterAudit(events, { host, type, source, text, since: bounds.since, until: bounds.until })
     // keep the focused row visible even past the 200-row cap
     if (focusId) {
       const k = list.findIndex((e) => e.id === focusId)
       if (k >= 200) return [list[k], ...list.slice(0, k), ...list.slice(k + 1)]
     }
     return list
-  }, [events, host, type, text, since, until, focusId])
+  }, [events, host, type, source, text, since, until, focusId])
   const focusMissing = Boolean(focusId && !events.some((e) => e.id === focusId))
   const wrapRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!focusId) return
     wrapRef.current?.querySelector(`[data-audit-id="${CSS.escape(focusId)}"]`)?.scrollIntoView({ block: 'center' })
   }, [focusId, rows])
+  const policyLabel = (e: AuditEvent) => {
+    const parts: string[] = []
+    if (typeof e.tabNo === 'number') parts.push(`#${e.tabNo}`)
+    if (e.policyChosen || e.policyEffective) {
+      const a = e.policyChosen ? t(`policy.${e.policyChosen}` as 'policy.ask') : ''
+      const b = e.policyEffective ? t(`policy.${e.policyEffective}` as 'policy.ask') : ''
+      parts.push(a && b && a !== b ? `${a}→${b}` : a || b)
+    }
+    if (e.policySource) {
+      const short =
+        e.policySource === 'global' ? t('au2.srcGlobal') : e.policySource === 'host' ? t('au2.srcHost') : t('au2.srcTemp')
+      parts.push(short)
+    }
+    if (e.policyCappedBy) parts.push(t('au2.capped', { by: t(`l4.${e.policyCappedBy}` as 'l4.readonly') }))
+    if (e.protection && e.protection !== 'normal') parts.push(t(`l4.${e.protection}` as 'l4.production'))
+    return parts.join(' · ') || '—'
+  }
   return (
     <div className="workspace-panel" data-testid="audit-log">
       <PanelHeader
@@ -122,11 +155,24 @@ export default function AuditLogPanel({
           onChange={(v) => setType(v as AuditType | '')}
           options={[
             { value: '', label: t('l2.all') },
+            { value: 'command', label: 'command' },
+            { value: 'gate', label: 'gate' },
+            { value: 'ai.action', label: 'ai.action' },
             { value: 'alert.execute', label: 'alert.execute' },
             { value: 'danger', label: 'danger' },
             { value: 'playbook.run', label: 'playbook.run' },
             { value: 'forward.remote', label: 'forward.remote' }
           ]}
+        />
+        <Select
+          testId="audit-source"
+          ariaLabel={t('au2.source')}
+          value={source}
+          onChange={(v) => setSource(v as AuditSource | '')}
+          options={SOURCE_OPTS.map((v) => ({
+            value: v,
+            label: v === '' ? t('au2.sourceAll') : v === 'AI' ? t('au2.sourceAi') : v
+          }))}
         />
         <input className="au2-search" value={text} onChange={(e) => setText(e.target.value)} placeholder={t('m2.search')} aria-label={t('m2.search')} />
         <Select
@@ -174,26 +220,61 @@ export default function AuditLogPanel({
             }}
           />
         ) : (
-          <table className="audit-table">
+          <table className="audit-table" data-testid="audit-table">
             <thead>
               <tr>
                 <th>{t('l4.colTime')}</th>
                 <th>{t('l4.colType')}</th>
                 <th>{t('l2.host')}</th>
+                <th>{t('au2.colSource')}</th>
+                <th>{t('au2.colTab')}</th>
                 <th>{t('l4.colOutcome')}</th>
+                <th>{t('au2.colPolicy')}</th>
                 <th>{t('l4.colDetail')}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.slice(0, 200).map((e) => (
-                <tr key={e.id} data-audit-id={e.id} className={e.id === focusId ? 'is-focus' : undefined} aria-current={e.id === focusId ? 'true' : undefined}>
-                  <td>{new Date(e.at).toLocaleString()}</td>
-                  <td>{e.type}</td>
-                  <td title={e.host}>{e.host}</td>
-                  <td>{e.outcome}</td>
-                  <td title={[e.detail, auditPolicyText(e)].filter(Boolean).join('\n')}>{e.detail}</td>
-                </tr>
-              ))}
+              {rows.slice(0, 200).map((e) => {
+                const out = outcomeKey(e)
+                return (
+                  <tr
+                    key={e.id}
+                    data-audit-id={e.id}
+                    data-audit-source={e.source || ''}
+                    data-audit-tab={typeof e.tabNo === 'number' ? String(e.tabNo) : ''}
+                    data-audit-outcome={out}
+                    className={e.id === focusId ? 'is-focus' : undefined}
+                    aria-current={e.id === focusId ? 'true' : undefined}
+                  >
+                    <td>{new Date(e.at).toLocaleString()}</td>
+                    <td>{e.type}</td>
+                    <td title={e.host}>{e.host}</td>
+                    <td>
+                      <span className={`au2-chip au2-src${e.source === 'AI' ? ' is-ai' : ''}`} data-testid="audit-row-source">
+                        {e.source === 'AI' ? t('au2.sourceAi') : e.source || '—'}
+                      </span>
+                    </td>
+                    <td>
+                      {typeof e.tabNo === 'number' ? (
+                        <span className="au2-chip au2-tab" data-testid="audit-row-tab">{`#${e.tabNo}`}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      <span className={`au2-outcome is-${out}`} data-testid="audit-row-outcome">
+                        {t(`au2.out.${out}` as 'au2.out.allowed')}
+                      </span>
+                    </td>
+                    <td className="au2-policy" title={auditPolicyText(e)} data-testid="audit-row-policy">
+                      {policyLabel(e)}
+                    </td>
+                    <td className="au2-detail" title={e.detail}>
+                      {e.detail}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

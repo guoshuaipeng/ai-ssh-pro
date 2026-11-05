@@ -176,12 +176,13 @@ export function loadGateEvents(store: Pick<Storage, 'getItem'> = globalThis.loca
 
 export function filterAudit(
   list: AuditEvent[],
-  q: { host?: string; type?: AuditType | ''; text?: string; since?: number; until?: number }
+  q: { host?: string; type?: AuditType | ''; text?: string; since?: number; until?: number; source?: AuditSource | '' }
 ): AuditEvent[] {
   const text = (q.text ?? '').trim().toLowerCase()
   return list.filter((e) => {
     if (q.host && e.host !== q.host && e.profileId !== q.host) return false
     if (q.type && e.type !== q.type) return false
+    if (q.source && (e.source ?? '') !== q.source) return false
     if (q.since != null && e.at < q.since) return false
     if (q.until != null && e.at > q.until) return false
     if (text && !`${e.host} ${e.type} ${e.detail} ${e.outcome} ${e.source ?? ''} ${auditPolicyText(e)}`.toLowerCase().includes(text)) return false
