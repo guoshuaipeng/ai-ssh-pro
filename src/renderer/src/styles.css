@@ -6415,10 +6415,18 @@ button.primary.danger:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* R21: memory chip ultra-narrow — count only, label via aria-label/title */
 @container (max-width: 230px) {
   .ai-panel .ai-memory-wrap {
-    max-width: 100%;
-    flex-basis: 100%;
+    max-width: 4.5rem;
+    flex: 0 0 auto;
+    flex-basis: auto;
+  }
+  .ai-panel .ai-memory-chip-label {
+    display: none;
+  }
+  .ai-panel .ai-memory-chip-count {
+    flex: 0 0 auto;
   }
 }
 

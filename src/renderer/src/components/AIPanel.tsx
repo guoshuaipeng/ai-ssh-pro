@@ -2546,6 +2546,7 @@ export default function AIPanel({
                   data-testid="ai-memory-chip"
                   aria-expanded={memoryOpen}
                   aria-controls="ai-memory-pop"
+                  aria-label={`${tg('wm.memory')} · ${memoryView.count}`}
                   title={memoryView.summaryLine || tg('wm.memoryTitle')}
                   onClick={() => setMemoryOpen((v) => !v)}
                 >
