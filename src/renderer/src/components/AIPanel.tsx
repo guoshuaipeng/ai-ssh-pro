@@ -114,7 +114,7 @@ type AssistantLine = {
   safetyMode?: SafetyMode
   /** Arrived this turn. History reload is not fresh, so it does not auto-run again. */
   fresh?: boolean
-  /** 本卡确认结果。命令不会因 low 风险自动执行。 */
+  /** Per-card Agree/Decline result. Auto-write follows resolveAiPolicy + planCommandConfirm, not the low-risk badge alone. */
   decision?: 'agreed' | 'skipped'
   /** 非结构化回复：仍用卡片壳，并提示未能识别步骤 */
   parseMiss?: boolean
@@ -2137,7 +2137,13 @@ export default function AIPanel({
       <div className="ai-messages">
         {lines.length === 0 && (
           <div className="ai-reply-empty" data-testid="ai-reply-empty" role="status">
-            <p>{tg('ux64.emptyHint')}</p>
+            <p>{tg(
+              aiPolicy.effective === 'auto'
+                ? 'ux64.emptyHintAuto'
+                : aiPolicy.effective === 'suggest'
+                  ? 'ux64.emptyHintSuggest'
+                  : 'ux64.emptyHintAsk'
+            )}</p>
             {resumeHit ? (
               <button
                 type="button"

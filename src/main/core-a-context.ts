@@ -234,6 +234,9 @@ export function actionNeedsHumanInterrupt(action: string, toolName?: string | nu
 }
 
 /** Always false. `autoApproveLowRisk` must not skip the confirm interrupt. */
+/** Legacy flag gate only. Always false so autoApproveLowRisk cannot skip HITL.
+ * Product auto-run uses resolveAiPolicy + planCommandConfirm — not a product-wide always-confirm rule.
+ */
 export function confirmBypassAllowed(_autoApproveLowRisk?: boolean): false {
   return false
 }
