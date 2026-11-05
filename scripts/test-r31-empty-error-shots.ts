@@ -7,7 +7,7 @@ const norm = (p: string) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n')
 
 const shots = r31AiShots()
 assert.deepEqual(shots.map((s) => s.name), R31_AI_SHOT_NAMES)
-assert.equal(R31_AI_SHOT_NAMES.length, 6)
+assert.equal(R31_AI_SHOT_NAMES.length, 7)
 
 const emptyN = shots.find((s) => s.name === 'r31-empty-narrow')
 assert.equal(emptyN?.narrow, true)
@@ -64,4 +64,6 @@ const app = norm('src/renderer/src/App.tsx')
 assert.ok(app.includes('aiEmptyConfig'))
 assert.ok(app.includes('aiModelMissing'))
 
+const conflict = shots.find((s) => s.name === 'r31-model-missing-vs-prod-narrow')
+assert.ok(conflict?.steps?.some((st) => st.op === 'aiModelMissing'))
 console.log('test-r31-empty-error-shots: ok', R31_AI_SHOT_NAMES.length)

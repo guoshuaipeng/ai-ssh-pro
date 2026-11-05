@@ -10,9 +10,10 @@ Narrow-first visual QA for empty config, model-missing, and HTTP error primary C
 | `*-r31-model-missing-narrow.png` | Same narrow | text wraps; CTA full-width ≤280px |
 | `*-r31-error-settings-narrow.png` | `http_401` | `data-primary=settings` |
 | `*-r31-error-retry-narrow.png` | `http_429` | `data-primary=retry` |
+| `*-r31-model-missing-vs-prod-narrow.png` | model-missing + prod override | model-missing only; **no** prod banner |
 
 Ops: `aiEmptyConfig` / `aiModelMissing` / `aiError`.
 
 ```bash
-node scripts/screenshot-key-screens.mjs docs/screenshots/r31 --set chrome --only r31-empty,r31-empty-narrow,r31-model-missing,r31-model-missing-narrow,r31-error-settings-narrow,r31-error-retry-narrow --themes dark,light
+node scripts/screenshot-key-screens.mjs docs/screenshots/r31 --set chrome --only r31-empty,r31-empty-narrow,r31-model-missing,r31-model-missing-narrow,r31-error-settings-narrow,r31-error-retry-narrow,r31-model-missing-vs-prod-narrow --themes dark,light
 ```

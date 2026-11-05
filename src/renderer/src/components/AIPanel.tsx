@@ -3100,7 +3100,7 @@ export default function AIPanel({
           {tg('ai.generalHint')}
         </div>
       ) : null}
-      {panelProdAuto ? (
+      {panelProdAuto && !needsModelPick ? (
         <button
           type="button"
           className={`ai-prod-auto-banner${panelProdAuto.autoHighRisk ? ' is-high' : ''}`}
@@ -3118,7 +3118,7 @@ export default function AIPanel({
         </button>
       ) : null}
 
-      {panelReadonly && !panelProdAuto ? (
+      {panelReadonly && !panelProdAuto && !needsModelPick ? (
         <button
           type="button"
           className="ai-readonly-banner"

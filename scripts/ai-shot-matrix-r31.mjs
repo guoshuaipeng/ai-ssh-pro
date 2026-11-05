@@ -5,7 +5,8 @@ export const R31_AI_SHOT_NAMES = [
   'r31-model-missing',
   'r31-model-missing-narrow',
   'r31-error-settings-narrow',
-  'r31-error-retry-narrow'
+  'r31-error-retry-narrow',
+  'r31-model-missing-vs-prod-narrow'
 ]
 
 /** @returns {Array<{name:string,narrow?:boolean,wait?:number,steps:Array<object>,expect?:string}>} */
@@ -62,6 +63,13 @@ export function r31AiShots() {
       wait: 1500,
       steps: [...open, { op: 'aiError', errorCode: 'AI_HTTP_429', message: '请求过于频繁，请稍后重试。' }],
       expect: expectErrRetry
+    },
+    {
+      name: 'r31-model-missing-vs-prod-narrow',
+      narrow: true,
+      wait: 1500,
+      steps: [...open, { op: 'aiModelMissing', withProdBanner: true }],
+      expect: expectMissing
     }
   ]
 }
