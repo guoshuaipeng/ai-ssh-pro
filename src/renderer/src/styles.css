@@ -6542,18 +6542,25 @@ button.primary.danger:focus-visible {
   white-space: nowrap;
 }
 
-/* R15 Round15: multi-step batch copy bar */
+/* R15/R16: multi-step batch copy + fill; sticky near first suggestion */
 .ai-panel .ai-batch-copy-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-2);
-  margin: var(--space-2) 0 0;
+  margin: var(--space-2) 0;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-border-muted);
   border-radius: var(--radius-md);
   background: var(--color-bg-elevated);
   min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.ai-panel .ai-btn-batch-fill {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .ai-panel .ai-batch-copy-count {
   flex: 1 1 auto;

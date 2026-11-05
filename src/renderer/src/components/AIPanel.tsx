@@ -2,7 +2,7 @@ import { hasUsableKey } from '@shared/ai-presets'
 import AiActionCard from './AiActionCard'
 import type { ActionResult } from '@shared/ai-actions'
 import { recallStep, userPrompts } from '@shared/ai-recall'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
 import { friendlyError, friendlyErrorMessage } from '../lib/friendly-error'
@@ -1966,9 +1966,18 @@ export default function AIPanel({
     />
   )
 
-  // R15: multi-step plan — batch-copy all shell commands when 2+.
+  // R15/R16: multi-step plan — batch-copy + 逐条填入; sticky bar anchors at first suggestion.
   const suggestionCommands = useMemo(() => collectSuggestionCommands(lines), [lines])
   const batchCopyText = useMemo(() => formatSuggestionCommandsForCopy(suggestionCommands), [suggestionCommands])
+  const firstSuggestionIdx = useMemo(() => {
+    for (let idx = 0; idx < lines.length; idx++) {
+      const row = lines[idx]
+      if (row.role !== 'assistant' || !row.structured) continue
+      if (row.structured.action !== 'command') continue
+      if (row.structured.command?.trim()) return idx
+    }
+    return -1
+  }, [lines])
 
   // H07: number consecutive command/tool suggestion cards so steps stay readable.
   const suggestionStepNo = useMemo(() => {
@@ -2639,9 +2648,49 @@ export default function AIPanel({
             const card =
               s.action === 'command' ? 'command' : s.action === 'tool_call' ? 'tool' : 'conclusion'
             const metaText = [s.description, s.notes, s.action === 'command' ? s.command : ''].filter(Boolean).join('\n')
+            const showBatchBar = Boolean(batchCopyText) && i === firstSuggestionIdx
             return (
+              <Fragment key={i}>
+              {showBatchBar ? (
+                <div
+                  className="ai-batch-copy-bar"
+                  data-testid="ai-batch-copy-bar"
+                  role="region"
+                  aria-label={tg('ai.copyAllSteps')}
+                >
+                  <span className="ai-batch-copy-count" data-testid="ai-batch-copy-count">
+                    {tg('ai.stepsCount', { n: suggestionCommands.length })}
+                  </span>
+                  <button
+                    type="button"
+                    className="ai-fill-cmd-btn ai-btn-batch-fill"
+                    data-testid="ai-batch-fill-next"
+                    title={tg('d16b.tip')}
+                    aria-label={tg('d16b.fill', { n: suggestionCommands.length })}
+                    onClick={() => {
+                      const sid = activeSessionId
+                      if (!sid) {
+                        showToast(tg('d16.noSession'))
+                        return
+                      }
+                      startScript(sid, suggestionCommands)
+                    }}
+                  >
+                    {tg('d16b.fill', { n: suggestionCommands.length })}
+                  </button>
+                  <button
+                    type="button"
+                    className="ai-fill-cmd-btn ai-btn-batch-copy"
+                    data-testid="ai-batch-copy"
+                    title={tg('ai.copyAllStepsTip')}
+                    aria-label={tg('ai.copyAllSteps')}
+                    onClick={() => copyText(batchCopyText)}
+                  >
+                    {tg('ai.copyAllSteps')}
+                  </button>
+                </div>
+              ) : null}
               <div
-                key={i}
                 className={`msg assistant ai-structured ai-dark-card${isConfirmable ? ' is-active-plan-step' : ''}`}
                 data-testid="ai-reply-card"
                 data-card={card}
@@ -2787,6 +2836,7 @@ export default function AIPanel({
                 ) : null}
                 {s.action === 'end' || s.action === 'command' ? <ReplyMeta text={metaText} elapsedMs={l.elapsedMs} /> : null}
               </div>
+              </Fragment>
             )
           }
           return (
@@ -2820,23 +2870,6 @@ export default function AIPanel({
             </div>
           )
         })}
-        {batchCopyText ? (
-          <div className="ai-batch-copy-bar" data-testid="ai-batch-copy-bar" role="region" aria-label={tg('ai.copyAllSteps')}>
-            <span className="ai-batch-copy-count" data-testid="ai-batch-copy-count">
-              {tg('ai.stepsCount', { n: suggestionCommands.length })}
-            </span>
-            <button
-              type="button"
-              className="ai-fill-cmd-btn ai-btn-batch-copy"
-              data-testid="ai-batch-copy"
-              title={tg('ai.copyAllStepsTip')}
-              aria-label={tg('ai.copyAllSteps')}
-              onClick={() => copyText(batchCopyText)}
-            >
-              {tg('ai.copyAllSteps')}
-            </button>
-          </div>
-        ) : null}
         <div ref={tailRef} />
       </div>
 

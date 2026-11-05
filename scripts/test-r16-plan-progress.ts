@@ -22,7 +22,7 @@ assert.ok(css.includes('R16 Round16: active plan step highlight'))
 assert.ok(css.includes('.ai-panel .ai-structured.is-active-plan-step'))
 assert.ok(css.includes('.ai-panel .ai-active-plan-badge'))
 const start = css.indexOf('R16 Round16: active plan step highlight')
-const end = css.indexOf('R15 Round15: multi-step batch copy bar', start)
+const end = Math.max(css.indexOf('R15/R16: multi-step batch copy + fill', start), css.indexOf('R15 Round15: multi-step batch copy bar', start))
 assert.ok(start >= 0 && end > start)
 assert.equal(/var\(--[^,)]+,\s*[^)]+\)/.test(css.slice(start, end)), false, 'no token fallbacks in R16 plan CSS')
 
