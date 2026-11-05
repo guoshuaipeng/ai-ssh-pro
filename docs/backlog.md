@@ -62,6 +62,21 @@
 
 # Backlog（2026-10-20 第 9 轮之后，按日常使用频率排序）
 
+
+## 2026-11-05 Round 20 追加
+- 已完成：AI 面板 **工作记忆/观测证据可见**（`记忆 · n` 芯片 + 最多 3 条主机线索/观测/近令；`ai:workingMemory:snapshot` + `buildMemoryEvidenceView`）；R19 债截图进矩阵 → `docs/screenshots/r20/`（policy-menu-open / pending-dock-narrow）。
+- P2：真机宽窄×深浅仍欠（R6–R19 遗留；R20 harness 已覆盖本轮两态）；记忆芯片在极窄栏与目标行争宽——可再收（ellipsis / 仅 count）。
+- P2（R17 遗留）：审计「对话」无匹配时仅 toast——弱提示「在当前主机新开对话」但不造历史。
+- P1 候选 Round 21：保持 AI 对话——**失败证据卡**（命令失败后把证据钉在卡内，对齐 Core-A S27 可见性）/ 或整页视觉审计（逢 3 轮目标）/ 或记忆芯片窄栏再收；默认不接端口转发。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+
+### Round 20 UX 验收（编码后）
+- 主 CTA：发送 / Agree 不变；记忆芯片为次要披露，不抢 CTA。
+- 绑定：snapshot 与 goal 同 `persistKey`；新对话/清空清 evidence。
+- 空/错：无证据不渲染「记忆 · 0」；不做「没有匹配」空态。
+- 矩阵：`docs/screenshots/r20/README.md`（policy-open / pending-dock-narrow）。
+- 守卫：`test-r20-memory-visibility` / `test-r20-ai-shot-harness`；Core-A 34/34；held-out H01–H08 绿。
+
 ## 2026-11-05 Round 15 追加
 - 已完成：composer 策略菜单窄栏（chips wrap + 标签 ellipsis + safety pop 全宽可读，`test-r15-composer-policy-narrow`）；多步建议 **复制全部步骤**（`ai-suggestion-steps` + `ai-batch-copy`，≥2 命令才出现）。
 - P2：真机/ Electron harness 补拍策略菜单窄栏开合 + 批量复制条（可扩 r14 matrix）；Tauri rebuild 对照抽检（可选）。

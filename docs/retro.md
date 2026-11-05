@@ -403,3 +403,20 @@
 - 根因/预防：窄栏 ellipsis 长中文（执行前确认）在无悬停设备变成谜 → 芯片用短标签、全称留给 aria/title/菜单；触控目标与 focus-visible 必须不依赖 :hover；确认坞应用自己的 `container-type` 而不是假定 `.ai-panel` 是 container。
 - 验收：`test-r19-policy-menu-touch` / `test-r19-confirm-dock-narrow` + Core-A 34/34 + held-out 全绿；提交 `d5fe6cb5` / `a8f87455`。
 - 逢 3 轮整页视觉：本轮非整页（上一整页债在 R18 节奏，下一目标 Round 21）；本轮轻扫记入 backlog P3。
+
+## Round 20 — 2026-11-05（工作记忆可见性 + R19 截图债）
+- 计划：约 30 分钟；1 高频：AI 面板工作记忆/观测证据可见（诚实、非 dump）+ 1 小打磨：扩 harness 拍 policy-menu-open / pending-dock-narrow → `docs/screenshots/r20/`；编码前 UX；附 R17–R20 过程复盘（逢约 6 轮节奏下的里程碑）。
+- 实际：本机两项交付；Core-A 34/34；held-out H01–H08 绿；截图 4/4 expect true（需 rebuild，`--no-build` 首跑红）。
+- 卡住点：① `--no-build` 时 out/ 缺 R19 `is-open` / `data-r19-narrow` 与 App `aiComposerPop` 开面板 → expect 全红；② PowerShell 内联正则仍易炸 → 继续 `tools/r20/*.py`。
+- 根因/预防：截图矩阵依赖 HEAD 进 `out/`；Rxx harness 交付默认带一次 electron-vite build（或明确注明需 rebuild）；新面板态 IPC（snapshot）与 UI 裁剪函数同 commit。
+- UX 验收：主 CTA 仍是发送/Agree；「记忆 · n」次要披露；无证据不渲染；绑定 persistKey；中文标签「主机线索/观测/近令」；≤3×48 字。
+- 验收：`test-r20-memory-visibility` / `test-r20-ai-shot-harness` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r20/` dark/light × 2。
+- 提交：`46d50b9a`（记忆可见）、`c9ff7306`（截图矩阵）。
+
+### 过程复盘（R17–R20，里程碑）
+- 节奏：每轮约 35–55 分钟；均 1 高频 + 1 小打磨；本地 commit、不推远程。
+- 主题链：R17 审计↔对话回跳 → R18 计划步对齐 → R19 策略/确认坞触控窄栏 → R20 记忆可见 + 截图债收口。
+- 返工：R19 视觉债（policy-open / pending-narrow）拖到 R20 才进 harness；首跑 `--no-build` 失败说明「矩阵绿 ≠ out/ 绿」。
+- 重复 3+ 次：① PowerShell 引号 → `.py` 补丁已成默认；② 真机宽窄×深浅口头债 → 应用 declarative matrix 收口（R14–R20 模式）；③ 新 op 必须同步 App 开面板 + AIPanel stash + hooks 类型 + matrix JSON。
+- 抽象已落地：`ai-shot-matrix-rXX.mjs` config-driven；`buildMemoryEvidenceView` 纯函数裁剪；继续沿用。
+- 下轮候选：失败证据卡 / 记忆芯片窄栏真机抽检 / Roadmap 迭代 3 前扫对话缺口；整页视觉审计目标 Round 21。
