@@ -2,9 +2,17 @@
 
 > 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
 
-# Backlog（2026-10-20 第 9 轮之后，按日常使用频率排序）
+## 2026-11-05 Round 12 追加
+- 已完成：留出 **H05** 可打断可重试（`h05-interrupt-retry.json` + `test-held-out-h05`；Stop→`cancelled` 卡「重试」= 新 turn；isolation `retryIsoTurn`）；**D29** 空态续聊优先排错标题（`isTroubleshootTitle` +「继续上次排错」）。
+- P2：窄栏×深浅色真机矩阵 / 取消卡重试 + 排错续聊芯片截图（需 HEAD rebuild 或 `tauri dev`）。
+- P1 候选 Round 13：留出 **H02/H07** 夹具化（已有单元测，对齐 held-out JSON）；或取消卡窄栏折行；或 Roadmap 迭代 3 若用户改优先级——默认保持 AI 对话。
+- 未做：真机截图矩阵；Core-A 仍不接 production safetyContext。
 
-> 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
+### Round 12 轻量视觉审查（逢 3 轮）→ backlog
+- P2 取消卡（`ai-card-cancelled`）：宽栏头行「已取消」+「重试」清晰；窄侧栏（≤230px）时主 CTA 与 label 可能折成两行——核对 pill 不缩字。
+- P2 D29 芯片「继续上次排错：{长标题}」：标题截断已有 archiveTitle 48 字，但 chip 在窄栏可能撑满 starter 区；必要时 max-width + ellipsis。
+- P3 流式卡 / 取消卡 / 错误卡三种头行视觉权重接近——若显得吵，取消卡左边可加 2px muted 条区分。
+- P3 真机宽/窄×深/浅矩阵仍欠（R6–R11 遗留）：优先拍 H05 取消重试、D29 排错芯片、busy chip、生产横幅。
 
 ## 2026-11-05 Round 11 追加
 - 已完成：留出 **H06** 历史回溯隔离（`h06-history-isolation.json` + `test-held-out-h06`；新对话清 observations/recentCommands；planner session 按 historyKey/threadId；submit 读 linesRef）；留出 **H08** 空/错态（`h08-empty-error.json` + `test-held-out-h08`；emptyTitle/Action、错误主 CTA、无模型横幅）。

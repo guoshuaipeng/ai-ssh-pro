@@ -331,3 +331,12 @@
 - 根因：会话清除语义只清工作记忆，把命令观测当成跨聊天耐久事实；session 桶与 threadId 分裂。
 - 以后怎么避免：凡「新对话」必须清 prompt-facing 观测/最近命令；planner 持久化与 clear 共用 `resolveThreadId(historyKey)`；改键后同步改 Core-A harness 的 memory 读取。
 - 验收：`test-held-out-h06` / `test-held-out-h08` + Core-A 34/34；宽/窄×深浅真机截图仍待 rebuild/`tauri dev`。
+
+## 2026-11-05 第 76 轮（Round 12）AI 对话 — H05 可打断可重试 + D29 排错续聊
+- 计划：约 30 分钟；1 高频留出 H05 夹具化（Stop→重试新 turn，补 R7/R10 缺口）+ 1 小打磨 D29「继续上次排错」；编码前 UX 评审；逢 3 轮轻量视觉审查。
+- 实际：约 40 分钟。两项交付；Core-A 34/34；held-out H01–H08（含新 H05）绿；未拍真机矩阵。
+- 卡在哪：① R7/R10 已有 Stop/隔离/busy 解锁，但取消后的助手行没有「重试」主 CTA，留出题「再点重试」只能靠重输；② PowerShell/`node -e` 对 CRLF 与引号敏感，补丁需按文件换行符匹配。
+- 哪里没做好：真机宽/窄×深/浅仍欠（连续债）；视觉审查只能基于代码/既有截图债记 backlog，不能冒充 HEAD 验收。
+- 根因：Stop 路径只 `finalizeStoppedLines` 清 streaming，未把「已取消」提升为可行动卡态；D29 原先只按 newest，排错归档易被闲聊盖住。
+- 以后怎么避免：凡 Abort/Stop 定稿行必须带可行动主 CTA（重试/重新提问）；留出流式题同时覆盖 isolation 纯函数 + 面板 wiring；逢 3 轮视觉项写清「待 rebuild」不要假装拍过。
+- 验收：`test-held-out-h05` / `test-ai-stream-stop-retry` / `test-cycle17` + Core-A 34/34；宽/窄×深/浅真机截图仍待 rebuild/`tauri dev`。
