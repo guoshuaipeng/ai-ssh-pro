@@ -32,6 +32,7 @@ import { isHigherChromeOpen } from '@shared/overlay-stack'
 import { visibleWorkingGoal } from '@shared/working-memory-view'
 import { releaseSessionInFlight, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
 import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } from '@shared/ai-policy'
+import { collectSuggestionCommands, formatSuggestionCommandsForCopy } from '@shared/ai-suggestion-steps'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import ExecReplay, { OPEN_AUDIT_EVENT } from './ExecReplay'
@@ -1966,6 +1967,10 @@ export default function AIPanel({
     />
   )
 
+  // R15: multi-step plan — batch-copy all shell commands when 2+.
+  const suggestionCommands = useMemo(() => collectSuggestionCommands(lines), [lines])
+  const batchCopyText = useMemo(() => formatSuggestionCommandsForCopy(suggestionCommands), [suggestionCommands])
+
   // H07: number consecutive command/tool suggestion cards so steps stay readable.
   const suggestionStepNo = useMemo(() => {
     const map = new Map<number, number>()
@@ -2810,6 +2815,23 @@ export default function AIPanel({
             </div>
           )
         })}
+        {batchCopyText ? (
+          <div className="ai-batch-copy-bar" data-testid="ai-batch-copy-bar" role="region" aria-label={tg('ai.copyAllSteps')}>
+            <span className="ai-batch-copy-count" data-testid="ai-batch-copy-count">
+              {tg('ai.stepsCount', { n: suggestionCommands.length })}
+            </span>
+            <button
+              type="button"
+              className="ai-fill-cmd-btn ai-btn-batch-copy"
+              data-testid="ai-batch-copy"
+              title={tg('ai.copyAllStepsTip')}
+              aria-label={tg('ai.copyAllSteps')}
+              onClick={() => copyText(batchCopyText)}
+            >
+              {tg('ai.copyAllSteps')}
+            </button>
+          </div>
+        ) : null}
         <div ref={tailRef} />
       </div>
 

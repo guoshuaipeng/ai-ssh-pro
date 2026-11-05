@@ -6523,6 +6523,42 @@ button.primary.danger:focus-visible {
   }
 }
 
+/* R15 Round15: multi-step batch copy bar */
+.ai-panel .ai-batch-copy-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  min-width: 0;
+}
+.ai-panel .ai-batch-copy-count {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-panel .ai-btn-batch-copy {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-weight: var(--fw-semibold);
+}
+@container (max-width: 230px) {
+  .ai-panel .ai-batch-copy-bar {
+    align-items: stretch;
+  }
+  .ai-panel .ai-batch-copy-count {
+    flex: 1 1 100%;
+  }
+}
+
 /* R15 Round15: composer policy menu narrow — chips wrap, menu readable */
 .ai-composer-bar {
   flex-wrap: wrap;
