@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AiProvider, AiSettings } from '@shared/ipc'
 import { tg, useI18n } from '../lib/i18n'
 import Button from './ui/Button'
-import { AI_PRESETS, keyOptional, matchPreset, type AiPreset } from '@shared/ai-presets'
+import { AI_PRESETS, keyOptional, matchPreset, planApplyPreset, presetGroup, type AiPreset, type ApplyPresetHint } from '@shared/ai-presets'
 
 const MASK = '••••••••'
 
@@ -41,6 +41,7 @@ export default function AiConfigForm() {
   const [testHint, setTestHint] = useState<string | null>(null)
   const [testOk, setTestOk] = useState(false)
   const [testBusy, setTestBusy] = useState(false)
+  const [presetNext, setPresetNext] = useState<ApplyPresetHint | null>(null)
 
   const parsedModelList = useMemo(() => parseModelLines(modelListText), [modelListText])
 
@@ -141,34 +142,57 @@ export default function AiConfigForm() {
     setModel(p.modelList[0] ?? '')
   }, [commitEditorToProviders])
 
-  /** c64: apply a docs-verified preset into the current editor (create one if empty). Fields stay editable. */
+  /** R8 / 2.5: chip pick — switch same URL, fill blank slot, else create (never wipe a keyed provider). */
   const applyPreset = useCallback(
     (preset: AiPreset) => {
       const name = locale === 'en' ? preset.name.en : preset.name.zh
-      const models = [...preset.models]
       const nextProviders = commitEditorToProviders()
-      if (nextProviders.length === 0 || !activeProviderId) {
-        const id = `provider_${Date.now()}`
-        const p: AiProvider = { id, name, baseURL: preset.baseURL, apiKey: '', modelList: models }
-        setProviders([p])
-        setActiveProviderId(id)
-      } else {
-        setProviders(
-          nextProviders.map((p) =>
-            p.id === activeProviderId
-              ? { ...p, name, baseURL: preset.baseURL, apiKey: '', modelList: models }
-              : p
-          )
-        )
+      const plan = planApplyPreset({
+        providers: nextProviders,
+        activeProviderId,
+        preset,
+        localeName: name,
+        newId: `provider_${Date.now()}`
+      })
+
+      const showHint = (hint: ApplyPresetHint) => {
+        setPresetNext(hint)
+        setTestHint(null)
+        setTestOk(false)
       }
-      setProviderName(name)
-      setBaseURL(preset.baseURL)
-      setModelListText(models.join('\n'))
+
+      if (plan.action === 'switch') {
+        const p = nextProviders.find((x) => x.id === plan.providerId)
+        if (!p) return
+        setProviders(nextProviders)
+        setActiveProviderId(p.id)
+        setProviderName(p.name)
+        setBaseURL(p.baseURL)
+        setModelListText(p.modelList.join('\n'))
+        setStoredApiKey(p.apiKey)
+        setApiKey(p.apiKey ? MASK : '')
+        setModel((cur) => (p.modelList.includes(cur) ? cur : p.modelList[0] ?? cur))
+        showHint(plan.hint)
+        return
+      }
+
+      const provider = plan.provider
+      if (plan.action === 'fill') {
+        setProviders(
+          nextProviders.map((p) => (p.id === plan.providerId ? { ...p, ...provider, id: plan.providerId } : p))
+        )
+        setActiveProviderId(plan.providerId)
+      } else {
+        setProviders(plan.providers)
+        setActiveProviderId(provider.id)
+      }
+      setProviderName(provider.name)
+      setBaseURL(provider.baseURL)
+      setModelListText(provider.modelList.join('\n'))
       setStoredApiKey('')
       setApiKey('')
-      setModel(models[0] ?? '')
-      setTestHint(null)
-      setTestOk(false)
+      setModel(provider.modelList[0] ?? '')
+      showHint(plan.hint)
     },
     [activeProviderId, commitEditorToProviders, locale]
   )
@@ -287,30 +311,57 @@ export default function AiConfigForm() {
 
       <div className="field ai-preset-field">
         <label>{tg('aiPreset.pick')}</label>
-        <div className="ai-preset-grid" data-testid="ai-preset-grid" role="list">
-          {AI_PRESETS.map((p) => {
-            const on = preset?.id === p.id
-            const label = locale === 'en' ? p.name.en : p.name.zh
-            let host = ''
-            try { host = new URL(p.baseURL).host } catch { /* ignore */ }
-            return (
-              <button
-                key={p.id}
-                type="button"
-                role="listitem"
-                className={on ? 'ai-preset-chip is-on' : 'ai-preset-chip'}
-                data-testid={`ai-preset-${p.id}`}
-                aria-pressed={on}
-                title={p.baseURL}
-                onClick={() => applyPreset(p)}
-              >
-                <span className="ai-preset-chip-name">{label}</span>
-                <span className="ai-preset-chip-host">{host}</span>
-              </button>
-            )
-          })}
-        </div>
+        {(['cloud', 'local'] as const).map((group) => {
+          const items = AI_PRESETS.filter((p) => presetGroup(p) === group)
+          if (items.length === 0) return null
+          return (
+            <div key={group} className="ai-preset-group" data-testid={`ai-preset-group-${group}`}>
+              <div className="ai-preset-group-label">{group === 'cloud' ? tg('aiPreset.groupCloud') : tg('aiPreset.groupLocal')}</div>
+              <div className="ai-preset-grid" data-testid={group === 'cloud' ? 'ai-preset-grid' : 'ai-preset-grid-local'} role="list">
+                {items.map((p) => {
+                  const on = preset?.id === p.id
+                  const label = locale === 'en' ? p.name.en : p.name.zh
+                  let host = ''
+                  try {
+                    host = new URL(p.baseURL).host
+                  } catch {
+                    /* ignore */
+                  }
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="listitem"
+                      className={on ? 'ai-preset-chip is-on' : 'ai-preset-chip'}
+                      data-testid={`ai-preset-${p.id}`}
+                      aria-pressed={on}
+                      title={p.baseURL}
+                      onClick={() => applyPreset(p)}
+                    >
+                      <span className="ai-preset-chip-top">
+                        <span className="ai-preset-chip-name">{label}</span>
+                        <span className={p.keyRequired ? 'ai-preset-badge' : 'ai-preset-badge is-free'}>
+                          {p.keyRequired ? tg('aiPreset.needKey') : tg('aiPreset.noKey')}
+                        </span>
+                      </span>
+                      <span className="ai-preset-chip-host">{host}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
         <p className="ai-preset-hint">{tg('aiPreset.pickHint')}</p>
+        {presetNext ? (
+          <p className="ai-preset-next" data-testid="ai-preset-next" data-hint={presetNext}>
+            {presetNext === 'filled-need-key' || presetNext === 'switched-need-key'
+              ? tg('aiPreset.nextNeedKey')
+              : presetNext === 'filled-keyless' || presetNext === 'switched-keyless'
+                ? tg('aiPreset.nextKeyless')
+                : tg('aiPreset.switchedHasKey')}
+          </p>
+        ) : null}
       </div>
 
       <div className="field">

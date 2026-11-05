@@ -4706,8 +4706,15 @@ button.danger {
 .ai-preset-note .link-btn:hover {
   text-decoration: underline;
 }
-/* c64: always-visible vendor chips */
+/* c64 / R8: always-visible vendor chips (cloud + local) */
 .ai-preset-field { margin-top: var(--space-2); }
+.ai-preset-group { margin-top: var(--space-2); }
+.ai-preset-group-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
 .ai-preset-grid {
   display: flex;
   flex-wrap: wrap;
@@ -4723,9 +4730,9 @@ button.danger {
   max-width: 100%;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border-muted);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   background: var(--color-bg-elevated);
-  color: var(--color-text);
+  color: var(--color-text-primary);
   text-align: left;
   cursor: pointer;
   flex: 0 1 auto;
@@ -4733,13 +4740,34 @@ button.danger {
 .ai-preset-chip:hover { border-color: var(--color-accent); }
 .ai-preset-chip.is-on {
   border-color: var(--color-accent);
-  background: var(--color-accent-muted, color-mix(in srgb, var(--color-accent) 14%, transparent));
+  background: var(--color-accent-muted);
   box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+.ai-preset-chip-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  justify-content: space-between;
 }
 .ai-preset-chip-name {
   font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold, 600);
+  font-weight: var(--fw-semibold);
   line-height: 1.3;
+}
+.ai-preset-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-muted);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-surface);
+}
+.ai-preset-badge.is-free {
+  color: var(--color-ok);
+  border-color: color-mix(in srgb, var(--color-ok) 40%, transparent);
 }
 .ai-preset-chip-host {
   font-size: var(--fs-xs);
@@ -4754,6 +4782,16 @@ button.danger {
   font-size: var(--fs-xs);
   color: var(--color-text-muted);
   line-height: 1.4;
+}
+.ai-preset-next {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
 }
 /* B3: direction switch (themed, not a native control) */
 .pf-dir {

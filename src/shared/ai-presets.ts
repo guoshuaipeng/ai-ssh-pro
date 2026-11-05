@@ -156,6 +156,92 @@ export function aiAuthHeaders(apiKey: string | undefined): Record<string, string
 }
 
 /** Which preset a saved provider came from, by base URL. */
+
+export type AiProviderLite = {
+  id: string
+  name: string
+  baseURL: string
+  apiKey: string
+  modelList: string[]
+}
+
+export type ApplyPresetHint =
+  | 'filled-need-key'
+  | 'filled-keyless'
+  | 'switched-need-key'
+  | 'switched-keyless'
+  | 'switched-has-key'
+
+export type ApplyPresetPlan =
+  | { action: 'switch'; providerId: string; hint: ApplyPresetHint }
+  | { action: 'fill'; providerId: string; provider: AiProviderLite; hint: ApplyPresetHint }
+  | { action: 'create'; provider: AiProviderLite; providers: AiProviderLite[]; hint: ApplyPresetHint }
+
+function normBase(baseURL: string): string {
+  return String(baseURL ?? '').trim().replace(/\/+$/, '').toLowerCase()
+}
+
+/** Cloud vs local grouping for the settings chip grid. */
+export function presetGroup(preset: AiPreset): 'cloud' | 'local' {
+  return keyOptional(preset.baseURL) ? 'local' : 'cloud'
+}
+
+/**
+ * Decide how a chip click updates providers.
+ * Same Base URL → switch (keep Key). Blank / unkeyed preset slot → fill.
+ * Otherwise → create a new provider (B2: do not silently overwrite a keyed provider).
+ */
+export function planApplyPreset(args: {
+  providers: AiProviderLite[]
+  activeProviderId: string
+  preset: AiPreset
+  localeName: string
+  newId: string
+}): ApplyPresetPlan {
+  const { providers, activeProviderId, preset, localeName, newId } = args
+  const models = [...preset.models]
+  const target = normBase(preset.baseURL)
+  const existing = providers.find((p) => normBase(p.baseURL) === target)
+  const keyless = !preset.keyRequired
+
+  if (existing) {
+    const hasKey = Boolean(String(existing.apiKey ?? '').trim())
+    const hint: ApplyPresetHint = keyless
+      ? 'switched-keyless'
+      : hasKey
+        ? 'switched-has-key'
+        : 'switched-need-key'
+    return { action: 'switch', providerId: existing.id, hint }
+  }
+
+  const draft: AiProviderLite = {
+    id: newId,
+    name: localeName,
+    baseURL: preset.baseURL,
+    apiKey: '',
+    modelList: models
+  }
+  const hint: ApplyPresetHint = keyless ? 'filled-keyless' : 'filled-need-key'
+  const active = providers.find((p) => p.id === activeProviderId)
+  const canReuse =
+    providers.length === 0 ||
+    !activeProviderId ||
+    Boolean(
+      active &&
+        !String(active.apiKey ?? '').trim() &&
+        (!String(active.baseURL ?? '').trim() || Boolean(matchPreset(active.baseURL)))
+    )
+
+  if (canReuse && active) {
+    const provider = { ...draft, id: active.id }
+    return { action: 'fill', providerId: active.id, provider, hint }
+  }
+
+  const provider = draft
+  const next = providers.length === 0 ? [provider] : [...providers, provider]
+  return { action: 'create', provider, providers: next, hint }
+}
+
 export function matchPreset(baseURL: string): AiPreset | undefined {
   const norm = String(baseURL ?? '').trim().replace(/\/+$/, '').toLowerCase()
   return AI_PRESETS.find((p) => p.baseURL.toLowerCase() === norm)
