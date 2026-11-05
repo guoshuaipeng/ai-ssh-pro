@@ -340,3 +340,12 @@
 - 根因：Stop 路径只 `finalizeStoppedLines` 清 streaming，未把「已取消」提升为可行动卡态；D29 原先只按 newest，排错归档易被闲聊盖住。
 - 以后怎么避免：凡 Abort/Stop 定稿行必须带可行动主 CTA（重试/重新提问）；留出流式题同时覆盖 isolation 纯函数 + 面板 wiring；逢 3 轮视觉项写清「待 rebuild」不要假装拍过。
 - 验收：`test-held-out-h05` / `test-ai-stream-stop-retry` / `test-cycle17` + Core-A 34/34；宽/窄×深/浅真机截图仍待 rebuild/`tauri dev`。
+
+## 2026-11-05 第 77 轮（Round 13）AI 对话 — H02/H07 夹具 + 窄栏取消/续聊
+- 计划：约 30 分钟；1 高频留出 H02/H07 夹具化（对齐既有单元测）+ 1 小打磨 R12 视觉债（取消卡 / D29 芯片 / suggest 窄栏）；编码前 UX 评审。
+- 实际：约 40 分钟。两项交付；顺手清 H08 `ai-model-missing` 的 radius token fallback（polish-34 债）。
+- 卡在哪：① PowerShell 嵌套引号仍易炸，改走本机 `.cjs` 写文件；② `test-polish-34` 扫 M19 之后整段，R11 横幅 fallback 早先就在，本轮才暴露。
+- 哪里没做好：真机宽/窄×深/浅仍欠（连续债）；本轮 CSS 守卫锁住窄栏行为，不能冒充 HEAD 截图验收。
+- 根因：留出策略/可读性题长期只靠源码字符串单元测，缺 declarative JSON；取消/续聊卡缺专用窄栏 chrome。
+- 以后怎么避免：凡已有 held-out 单元测的题下一轮优先抽 JSON+runner；AI 面板新增 CSS 落在 M19 切片内时改完即跑 `test-polish-34`；窄栏项用 `@container (max-width: 230px)` + nowrap/ellipsis，不用缩字。
+- 验收：Core-A 34/34；held-out H01–H08（新 H02/H07 runner）绿；`test-r13-narrow-ai-chrome` / `test-polish-34` 绿；宽窄×深浅真机截图仍待 rebuild/`tauri dev`。

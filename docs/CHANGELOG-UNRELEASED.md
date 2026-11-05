@@ -1,3 +1,4 @@
+- Round 13：留出 H02/H07 夹具；窄栏取消卡 / D29 芯片 / suggest 行；polish-34 radius fallback。
 # Unreleased — local iteration 2026-10-16 (CST)
 
 ### M222 — Playbook edit open toast (0.6.36)

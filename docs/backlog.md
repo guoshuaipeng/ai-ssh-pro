@@ -1,3 +1,15 @@
+## 2026-11-05 Round 13 追加
+- 已完成：留出 **H02/H07** 夹具化（`h02-suggest-only.json` / `h07-suggestion-steps.json` + `test-held-out-h02-h07`；与单元测同源）；窄栏取消卡头行 / D29 续聊 ellipsis / suggest 行容器强化（`test-r13-narrow-ai-chrome`）；清 H08 model-missing radius fallback。
+- P2：真机宽/窄×深/浅矩阵仍欠（R6–R12 遗留）— 优先拍取消重试、D29 芯片、busy、生产横幅、suggest 窄栏。
+- P1 候选 Round 14：留出集全绿后的 **Roadmap 迭代 3** 前再扫一轮 AI 对话缺口（composer 策略菜单窄栏、或流式/取消/错误卡视觉权重区分 P3）；或补 Electron harness 截图脚本标准化——默认保持 AI 对话。
+- P3：取消卡左边 muted 条已加；流式卡若仍与错误卡权重接近，可再加 streaming 左边强调色（勿同时三色齐飞）。
+
+### Round 13 UX 验收（编码后）
+- 主 CTA：取消「重试」、仅建议「复制」、D29 整芯片可点 — 窄栏不挤掉。
+- 绑定：suggest 零写入；续聊同主机归档。
+- 空/错：取消≠错误；ellipsis + title 悬停可读全文。
+- 待真机：rebuild 后宽/窄×深/浅。
+
 # Backlog（2026-10-20 第 9 轮之后，按日常使用频率排序）
 
 > 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
