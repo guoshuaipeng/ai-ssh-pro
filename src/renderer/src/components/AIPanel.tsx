@@ -2,7 +2,7 @@ import { hasUsableKey } from '@shared/ai-presets'
 import AiActionCard from './AiActionCard'
 import type { ActionResult } from '@shared/ai-actions'
 import { recallStep, userPrompts } from '@shared/ai-recall'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
 import { friendlyError, friendlyErrorMessage } from '../lib/friendly-error'
@@ -1760,6 +1760,21 @@ export default function AIPanel({
     />
   )
 
+  // H07: number consecutive command/tool suggestion cards so steps stay readable.
+  const suggestionStepNo = useMemo(() => {
+    const map = new Map<number, number>()
+    let n = 0
+    lines.forEach((row, idx) => {
+      if (row.role !== 'assistant' || !row.structured) return
+      const action = row.structured.action
+      if (action === 'command' || action === 'tool_call') {
+        n += 1
+        map.set(idx, n)
+      }
+    })
+    return map
+  }, [lines])
+
   // M21: the chip shows the policy that actually applies (global / host, capped by protection).
   const aiPolicy = resolveAiPolicy({
     settings: safetySettings,
@@ -2283,9 +2298,22 @@ export default function AIPanel({
             const isConfirmable = Boolean(l.requestId && pendingConfirm?.requestId === l.requestId)
             const isSnapshot = !s.toolName || s.toolName === 'get_terminal_snapshot'
             if (s.action === 'tool_call' && !l.requestId) {
+              const stepNo = suggestionStepNo.get(i)
               return (
-                <div key={i} className="msg assistant ai-structured ai-dark-card ai-tool-strip" data-testid="ai-reply-card" data-card="tool">
-                  <span className="ai-tool-step">
+                <div
+                  key={i}
+                  className={`msg assistant ai-structured ai-dark-card ai-tool-strip${isSnapshot ? '' : ' ai-tool-strip--plan'}`}
+                  data-testid="ai-reply-card"
+                  data-card="tool"
+                  data-step={stepNo || undefined}
+                >
+                  {stepNo && !isSnapshot ? (
+                    <span className="ai-step-index" data-testid="ai-step-index">
+                      {tg('ai.stepIndex', { n: stepNo })}
+                    </span>
+                  ) : null}
+                  {!isSnapshot && s.riskLevel ? <RiskBadge level={s.riskLevel} /> : null}
+                  <span className={`ai-tool-step${isSnapshot ? '' : ' ai-tool-step--wrap'}`}>
                     {isSnapshot ? (
                       <>
                         {tg('ux64.toolAutoSnapshot')}
@@ -2334,6 +2362,11 @@ export default function AIPanel({
                 {s.action === 'tool_call' && l.requestId ? (
                   <div className="ai-reply-cmd">
                     <div className="ai-cmd-head">
+                      {suggestionStepNo.get(i) ? (
+                        <span className="ai-step-index" data-testid="ai-step-index">
+                          {tg('ai.stepIndex', { n: suggestionStepNo.get(i)! })}
+                        </span>
+                      ) : null}
                       <span className="ai-code-lang">tool</span>
                       <RiskBadge level={s.riskLevel} />
                     </div>
@@ -2376,8 +2409,13 @@ export default function AIPanel({
                   </div>
                 ) : null}
                 {s.action === 'command' && s.command?.trim() ? (
-                  <div className="ai-reply-cmd" data-testid="ai-cmd-block">
+                  <div className="ai-reply-cmd" data-testid="ai-cmd-block" data-step={suggestionStepNo.get(i) || undefined}>
                     <div className="ai-cmd-head">
+                      {suggestionStepNo.get(i) ? (
+                        <span className="ai-step-index" data-testid="ai-step-index">
+                          {tg('ai.stepIndex', { n: suggestionStepNo.get(i)! })}
+                        </span>
+                      ) : null}
                       <span className="ai-code-lang">shell</span>
                       <RiskBadge level={s.riskLevel} />
                       <button

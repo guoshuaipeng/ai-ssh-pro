@@ -6351,6 +6351,38 @@ button.primary.danger:focus-visible {
 }
 /* "已按安全档自动执行" etc. read as muted status text, not a widget. */
 
+
+/* H07: compact step index + wrap for planned tool strips (not auto-snapshot). */
+.ai-step-index {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-border-default) 55%, transparent);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  white-space: nowrap;
+}
+.ai-panel .ai-tool-strip--plan {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  white-space: normal;
+  min-height: 28px;
+  padding: 6px 10px;
+  gap: 6px 8px;
+}
+.ai-panel .ai-tool-step--wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: var(--lh-snug);
+}
+.ai-panel .ai-tool-strip--plan .ai-risk-badge {
+  margin: 0;
+}
 /* H02: suggest-only decision row — copy is the primary action, never Agree. */
 .ai-panel .ai-suggest-only {
   display: flex;
