@@ -3164,6 +3164,7 @@ export default function AIPanel({
           aria-label={tg('ux64.pendingTitle')}
           data-testid="ai-pending-confirm"
           data-action={pendingConfirm.action}
+          data-r19-narrow="1"
         >
           <div className="ai-pending-confirm-main">
             <div className="ai-pending-confirm-title">{tg('ux64.pendingTitle')}</div>

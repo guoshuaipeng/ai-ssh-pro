@@ -3056,6 +3056,83 @@ button.statusbar-slot:focus-visible {
   line-height: var(--lh-tight);
 }
 
+/* R19 Round19: confirm dock + plan progress narrow */
+.ai-pending-confirm {
+  container-type: inline-size;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+  background: var(--color-bg-elevated);
+}
+.ai-pending-confirm-main {
+  flex: 1 1 140px;
+  gap: var(--space-1);
+}
+.ai-pending-confirm-preview {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+}
+.ai-pending-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ai-pending-confirm-actions .ai-fill-cmd-btn {
+  min-height: 28px;
+}
+.ai-pending-need-hint {
+  max-width: min(140px, 100%);
+}
+@container (max-width: 280px) {
+  .ai-pending-confirm-main {
+    flex: 1 1 100%;
+  }
+  .ai-pending-confirm-actions {
+    flex: 1 1 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+  .ai-pending-need-hint {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+  .ai-pending-confirm-preview {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+/* Plan progress: tighten badge + streak on narrow cards / composer */
+.ai-panel .ai-active-plan-badge {
+  margin: var(--space-1) var(--space-2) 0;
+  max-width: calc(100% - var(--space-4));
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@container (max-width: 230px) {
+  .ai-panel .ai-active-plan-badge {
+    margin-left: var(--space-2);
+    margin-right: var(--space-2);
+  }
+  .ai-composer-bar .ai-run-steps {
+    flex-wrap: wrap;
+    row-gap: 0;
+    white-space: normal;
+  }
+  .ai-composer-bar .ai-run-streak {
+    flex: 1 1 100%;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+
 .ai-input-row {
   padding: 10px;
   border-top: 1px solid var(--border);
