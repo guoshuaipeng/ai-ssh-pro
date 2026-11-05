@@ -379,6 +379,16 @@
 - 重复 3+ 次：① PowerShell 内联补丁引号炸 → 已倾向 `.cjs`/文件写入；② 真机宽窄×深浅欠交付 → 应默认扩 `ai-shot-matrix` 场景而非每轮口头「待 rebuild」；③ 新测未进 `test:parts`（R14/R15）→ R16 已补线。
 - 抽象候选：截图场景表 config-driven（op → expect 图）；composer/batch chrome 共享「≥2 步才出条」纯函数已有，继续沿用。
 
+## Round 29 — 2026-11-05（只读主机冷静横幅 + 截图矩阵）
+- 计划：约 30 分钟；1 高频：readonly calm banner 对称 prod-auto；1 小打磨：r29 截图矩阵；编码前 UX；注明 Round 30=整页视觉。
+- 实际：~35 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r29 截图 4/4。
+- 卡住点：① `test-prod-auto-hint` 仍断言旧 `protection ===` 而面板已用 `protectionForUi`（HEAD 已漂移）→ 本轮顺手修好；② PowerShell 引号 → `tools/r29/*.py`。
+- 根因：AI 面板生产横幅已可见，只读仅终端/策略 chip 有感 → 用户以为只读「可能还会写」；elevate 解锁终端也不应暗示 AI 可写。
+- 预防：主机保护级每加一档，AI 面板必须有对称冷静条；接线断言跟 `protectionForUi` 同源；Rxx 截图默认 rebuild。
+- 验收：`test-readonly-host-hint` / `test-r29-readonly-banner-shots` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r29/`。
+- 提交：item1 readonly banner；item2 shot matrix；docs 同轮。
+- 逢 3 轮整页视觉：上一拍 Round 27 → **下一目标 Round 30**。
+
 ## Round 28 — 2026-11-05（Gap scan + Core-A safetyContext + filter-empty / Decline）
 - 计划：约 30 分钟；1 高频：迭代 3 前 AI 对话缺口扫描并交付最高影响项；1 小打磨：filter-empty 进矩阵 / Decline 降权；编码前 UX。
 - 实际：~45 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r28 截图 8/8。

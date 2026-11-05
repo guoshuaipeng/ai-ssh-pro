@@ -1,3 +1,18 @@
+## 2026-11-05 Round 29 追加
+- **已完成**：只读主机冷静横幅（对称 prod-auto）——`readonlyHostHint` + AI 面板 `ai-readonly-banner`（ok 色）；中文「只读主机 · AI 不会写入」；点击开策略；临时解锁终端时横幅仍在（AI 永不写）。
+- **已完成**：截图矩阵 `docs/screenshots/r29/`（宽/窄 × 深/浅，4/4 expect true；op `aiReadonlyBanner`）。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R29）。
+- P3：英文 chip Confirm/Suggest/Auto（R19）仍可真机抽检；策略题继续 held-out。
+- P1 候选 Round 30：**逢 3 轮整页视觉审计**（上一拍 Round 27）——AI 对话整页扫层级/空错态/窄栏（含只读/生产双横幅同屏不会出现、记忆/失败钉），发现入 backlog；可选顺手扩 harness 拍「生产横幅 vs 只读横幅」对照。默认不接端口转发。
+- 未做：策略题继续 held-out（H01 不进 Core-A 调参）。
+- 下一整页视觉目标：**Round 30（本轮注明，下轮执行）**。
+
+### Round 29 UX 验收（编码后）
+- 主 CTA：横幅是提醒条，点开策略；待确认仍 Agree。
+- 绑定：横幅绑本会话 `protection` / screenshot override；与 prod-auto 互斥。
+- 空/错：横幅 ≠ model-missing / reconnect。
+- 守卫：`test-readonly-host-hint` / `test-r29-readonly-banner-shots`；Core-A 34/34；held-out H01–H08 绿；截图 4/4。
+
 ## 2026-11-05 Round 28 追加
 - **Gap scan（Roadmap 迭代 3 前）**：迭代 2（2.1–2.5）与 H01–H08 均已交付；最高影响缺口 = Core-A 未传 `safetyContext`（S12 主机名 prod 但保护级仍默认 normal）。其余：filter-empty 未进矩阵、Decline 权重、真机 Tauri 矩阵、英文 chip P3；策略题继续 held-out。
 - 已完成：Core-A fixture `safetyContext` 透传；S12 `protection=production`（主集仍 34，不并入 H01）。
