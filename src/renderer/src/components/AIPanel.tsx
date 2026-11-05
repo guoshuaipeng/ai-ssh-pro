@@ -864,7 +864,9 @@ export default function AIPanel({
       const onScreen = () => persistKeyRef.current === turn.key
       /** Apply an update to this turn's conversation, on screen or off. */
       const applyTurn = (fn: (prev: Line[]) => Line[]) => {
-        if (onScreen()) {
+        // H04/H05: once a newer turn owns turnRef, do not paint into the live transcript.
+        const live = turnRef.current === turn
+        if (live && onScreen()) {
           setLines((prev) => {
             const next = fn(prev)
             turn.lines = next
@@ -1001,12 +1003,26 @@ export default function AIPanel({
           const msg = ev.message?.trim() ? ev.message.trim() : tg('ai.cancelled')
           const last = next[next.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
-            next[next.length - 1] = { role: 'assistant', content: msg }
+            next[next.length - 1] = { role: 'assistant', content: msg, streaming: false }
             return next
           }
+          for (let i = next.length - 1; i >= 0; i--) {
+            const row = next[i]
+            if (row.role === 'assistant' && row.streaming) {
+              next[i] = { role: 'assistant', content: msg, streaming: false }
+              return next
+            }
+          }
+          if (last?.role === 'assistant' && last.content === msg) return next
           next.push({ role: 'assistant', content: msg })
           return next
         })
+        // H05: free the composer immediately; do not wait for chat() finally.
+        if (turnRef.current === turn) {
+          setBusy(false)
+          setRunProgress(null)
+          queueMicrotask(() => inputRef.current?.focus())
+        }
         return
       }
       if (ev.type === 'error') {
@@ -1097,11 +1113,16 @@ export default function AIPanel({
         next[next.length - 1] = { ...last, elapsedMs }
         return next
       })
-      setBusy(false)
-      setTurnPending(null)
+      // H05: only clear busy for this turn — a quick retry after Stop must keep its busy flag.
+      if (turnRef.current === turn) {
+        setBusy(false)
+        setRunProgress(null)
+        setTurnPending(null)
+        turnRef.current = null
+      }
       refreshWorkingGoal(persistKey)
       // Persist user + assistant text after the turn completes — under the turn's own key.
-      queueMicrotask(() => {
+      voidMicrotask(() => {
         persistTurn(turn.lines)
         if (turnRef.current === turn) turnRef.current = null
         setTurnElsewhere(null)
@@ -1387,6 +1408,22 @@ export default function AIPanel({
 
   const stopGeneration = useCallback(() => {
     void window.aiss.ai.abortChat()
+    // H05: unlock composer right away; the cancelled stream event finalizes the card text.
+    setBusy(false)
+    setRunProgress(null)
+    setPendingConfirm(null)
+    setLines((prev) => {
+      let changed = false
+      const next = prev.map((row) => {
+        if (row.role === 'assistant' && row.streaming) {
+          changed = true
+          return { role: 'assistant' as const, content: row.content?.trim() || tg('ai.cancelled'), streaming: false }
+        }
+        return row
+      })
+      return changed ? next : prev
+    })
+    queueMicrotask(() => inputRef.current?.focus())
   }, [])
   // 2.2: Ctrl+Shift+Backspace (⌘⇧⌫ on macOS) stops the run from anywhere while the AI is working.
   useEffect(() => {
