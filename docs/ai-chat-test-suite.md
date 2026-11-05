@@ -155,6 +155,7 @@
 - **原话**：新建对话后再打开旧会话，问「我们上次磁盘结论是什么」。
 - **期望**：旧会话可回溯；新会话不污染。
 - **通过**：历史隔离正确
+- **自动化**：`tests/fixtures/held-out/h06-history-isolation.json` + `scripts/test-held-out-h06.ts`（Round 11；新对话清观测/最近命令；session 按 historyKey）
 
 ### H07 · 工具建议可读
 - **原话**：我想看 Docker 里哪个容器 CPU 最高，你打算怎么查？
@@ -165,6 +166,7 @@
 - **原话**：（未配置模型 / API 失败）随便问一句。
 - **期望**：空态引导或可读错误；可重试；不白屏。
 - **通过**：错误文案可行动
+- **自动化**：`tests/fixtures/held-out/h08-empty-error.json` + `scripts/test-held-out-h08.ts`（Round 11；空态 CTA / 错态主按钮 / 无模型横幅）
 
 ---
 

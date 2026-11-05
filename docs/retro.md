@@ -323,3 +323,11 @@
 - 以后怎么避免：凡 abort/Stop 路径必须 `turn.stopped = true`（或清空 turnRef）且 stream apply 入口先看 stopped；留出流式题用 declarative JSON + 纯函数 replay，不要只靠源码字符串断言。
 - 验收：`test-held-out-h04` + `test-ai-busy-chip` + `test-ai-stream-stop-retry` + Core-A 34/34；宽/窄×深/浅真机截图仍待 rebuild/`tauri dev`。
 
+## 2026-11-05 第 75 轮（Round 11）AI 对话 — H06 历史隔离 + H08 空/错态
+- 计划：约 30 分钟；1 高频留出 H06 历史回溯隔离夹具化 + 1 小打磨 H08 空/错态收口；编码前 UX 评审。
+- 实际：约 45 分钟。两项交付；Core-A 34/34；未拍真机矩阵（沿用 R6–R10 债）。
+- 卡在哪：① `archiveAndClearRecord` 原先保留 observations/recentCommands，新对话仍能靠静默记忆回答「上次磁盘结论」；② planner `getSessionState` 按 SSH `targetSessionId` 键存，clear 走 `historyKey`，桶不一致；③ Core-A 评测仍按 sessionId 读 recentCommands，改键后 S21/S26 红。
+- 哪里没做好：R1 的 H06 只做了历史删除，未覆盖「新对话 vs 恢复」的请求体/静默记忆隔离。
+- 根因：会话清除语义只清工作记忆，把命令观测当成跨聊天耐久事实；session 桶与 threadId 分裂。
+- 以后怎么避免：凡「新对话」必须清 prompt-facing 观测/最近命令；planner 持久化与 clear 共用 `resolveThreadId(historyKey)`；改键后同步改 Core-A harness 的 memory 读取。
+- 验收：`test-held-out-h06` / `test-held-out-h08` + Core-A 34/34；宽/窄×深浅真机截图仍待 rebuild/`tauri dev`。
