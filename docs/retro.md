@@ -3,6 +3,17 @@
 每轮结束、每修完一个 bug 追加一条。格式：日期 + 事项；耗时（计划 / 实际）；卡在哪；哪里没做好；根因；以后怎么避免（可执行规则）。通用规则同步到 docs/dev-rules.md。
 
 
+
+## Round 31 — 2026-11-05（H08 空/错窄栏矩阵 + model-missing 抑横幅）
+- 计划：约 30 分钟；1 高频：空/错态窄栏进 `docs/screenshots/r31/`；1 小打磨：R30 P3 model-missing↔横幅叠放；编码前 UX。
+- 实际：~45 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r31 截图 14/14 expect true。
+- 卡住点：① `needsModelPick` 插在 `currentModel` 之前 → TDZ `Cannot access 'currentModel' before initialization`，整页白屏 expect 全红；② 错误码曾用 `http_401`，`aiErrorWantsSettings` 只认 `AI_HTTP_*`；③ PowerShell 内联引号 → `tools/r31/*.py`。
+- 根因：截图态派生变量必须放在依赖 state/派生之后；harness errorCode 必须与生产 `fe.code` 同形。
+- 预防：新 panel 派生一律紧跟其依赖声明；Rxx 错误卡 shot 默认 `AI_HTTP_401/429`；Rxx 截图默认 rebuild。
+- 验收：`test-r31-empty-error-shots` / `test-r31-model-missing-banner` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r31/`。
+- 提交：`ecfbccf5`（矩阵+折行）、`f2de9460`（抑横幅）；docs 同轮。
+- 逢 3 轮整页视觉：上一拍 Round 30 → **下一目标 Round 33**。
+
 ## Round 30 — 2026-11-05（逢 3 轮整页视觉审计 + R25–R30 过程复盘）
 - 计划：约 30 分钟；1 高频：AI 面板整页视觉审计（宽窄×深浅 / 双横幅 / 记忆·失败 / 空错）入 backlog 并修 1–2 快 P2；1 小打磨：审计头号快修 + 可选 prod↔readonly 对照截图；编码前 UX。
 - 实际：~35 分钟；两项各一提交 + docs/截图；Core-A 34/34 + held-out 全绿；r30 截图 8/8 expect true。

@@ -1,3 +1,19 @@
+
+## 2026-11-05 Round 31 追加
+- **已完成**：H08 空/错态窄栏进截图矩阵 `docs/screenshots/r31/`（empty / model-missing / error settings+retry；宽基线 + 窄栏；深/浅 14 expect true，含 vs-prod 冲突态）。
+- **已完成**：空态/配置卡/model-missing/错误 CTA ≤280px 折行收紧；`aiEmptyConfig` / `aiModelMissing` harness ops。
+- **已完成（R30 P3 快修）**：model-missing 时隐藏生产/只读主机横幅，避免双条叠放。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R31）。
+- P3：英文 chip Confirm/Suggest/Auto（R19）仍可真机抽检；策略题继续 held-out；pending Decline 权重可接受。
+- P1 候选 Round 32：保持 AI 对话——Roadmap 迭代 3 前对话缺口扫（端口转发默认不接）/ 或 composer EN chip 短标签抽检 / 或审计↔对话深链窄栏再收一档。
+- 下一整页视觉目标：**Round 33**。
+
+### Round 31 UX 验收（编码后）
+- 主 CTA：空态「配置 AI」；model-missing「去设置」；401 类错误 settings；429 类 retry。
+- 绑定：截图 op 不改真实 Key/模型设置；横幅仍绑本会话 protection（model-missing 时让位）。
+- 空/错：needs_config ≠ model-missing ≠ reply-empty ≠ error card。
+- 守卫：`test-r31-empty-error-shots` / `test-r31-model-missing-banner`；Core-A 34/34；held-out H01–H08 绿；截图 14/14。
+
 ## Round 30 全页轻量视觉审计（逢 3 轮，R27 后下一拍；R14–R29 矩阵 + 代码审查）→ backlog
 依据：`docs/screenshots/r14|r27|r28|r29` README 矩阵与当前 AI 面板双横幅 / 记忆·失败钉 / 空错态结构（Electron harness；未新开 Tauri 真机全量）。
 

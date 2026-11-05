@@ -25,3 +25,9 @@
 1. Core-A 34/34; held-out H01–H08 green.
 2. `test-r31-*` green; r31 expect true after rebuild.
 3. Designer: narrow empty/error readable; no model-missing+banner stack.
+
+## After code
+- Item1 `ecfbccf5`: ops + wrap CSS + matrix 6 core states × dark/light (+ vs-prod pngs staged).
+- Item2 `f2de9460`: `needsModelPick` hides host banners; conflict shot `r31-model-missing-vs-prod-narrow`.
+- Tests: Core-A 34/34; held-out H01–H08; `test-r31-*` green; screenshots 14/14.
+- Round 32 suggestion: AI-dialog gap scan before Roadmap iter-3, or EN chip short-label check (port-forward still deferred). Next full-page visual: **Round 33**.
