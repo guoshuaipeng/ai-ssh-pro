@@ -229,6 +229,31 @@ export function getWorkingMemoryGoal(sessionKey: string): string | null {
   return visibleWorkingGoal(coerceRecord(row).workingMemory?.goal)
 }
 
+/** Panel-facing snapshot: goal + host facts + observational bullets + recent commands (raw; UI caps). */
+export function getWorkingMemorySnapshot(sessionKey: string): {
+  goal: string | null
+  hostFacts: string[]
+  observations: string[]
+  recentCommands: string[]
+} | null {
+  const key = sessionKey.trim()
+  if (!key) return null
+  const row = readAll()[key]
+  if (!row || typeof row !== 'object') return null
+  const rec = coerceRecord(row)
+  const goal = visibleWorkingGoal(rec.workingMemory?.goal)
+  const hostFacts = (rec.workingMemory?.hostFacts ?? []).filter((x) => typeof x === 'string' && x.trim())
+  const observations = (rec.observationalMemory ?? [])
+    .map((b) => (typeof b?.text === 'string' ? b.text.trim() : ''))
+    .filter(Boolean)
+  // Fall back to planner scratch observations when OM bullets are empty.
+  const scratch = (rec.observations ?? []).filter((x) => typeof x === 'string' && x.trim())
+  const mergedObs = observations.length > 0 ? observations : scratch
+  const recentCommands = (rec.recentCommands ?? []).filter((x) => typeof x === 'string' && x.trim())
+  if (!goal && hostFacts.length === 0 && mergedObs.length === 0 && recentCommands.length === 0) return null
+  return { goal, hostFacts, observations: mergedObs, recentCommands }
+}
+
 export function loadThreadContext(sessionKey: string): { ctx: ThreadContext; epoch: number } {
   const key = normalizeKey(sessionKey)
   const row = coerceRecord(readAll()[key])

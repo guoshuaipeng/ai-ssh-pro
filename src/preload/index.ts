@@ -393,6 +393,12 @@ const api = {
       remove: (id: string): Promise<boolean> => ipcRenderer.invoke('ai:chatArchive:remove', id)
     },
     getWorkingMemory: (key: string): Promise<string | null> => ipcRenderer.invoke('ai:workingMemory:get', key),
+    getMemorySnapshot: (key: string): Promise<{
+      goal: string | null
+      hostFacts: string[]
+      observations: string[]
+      recentCommands: string[]
+    } | null> => ipcRenderer.invoke('ai:workingMemory:snapshot', key),
     onStream: (cb: (ev: AiStreamEvent) => void): (() => void) => {
       const fn = (_e: IpcRendererEvent, ...args: unknown[]) => cb(args[0] as AiStreamEvent)
       ipcRenderer.on('ai:stream', fn)

@@ -54,6 +54,8 @@ export type ScreenshotOp =
   | { op: "aiExecAuditLink" }
   /** Round 18: AI card highlighted as if arrived from audit row. */
   | { op: "aiAuditFocus"; auditId?: string; command?: string }
+  /** Round 20: working-memory / observational evidence chip (honest, capped). */
+  | { op: "aiMemoryEvidence"; goal?: string; hostFacts?: string[]; observations?: string[]; recentCommands?: string[] }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

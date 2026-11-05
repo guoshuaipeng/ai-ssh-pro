@@ -42,7 +42,7 @@ import { registerSyncIpc } from './sync-ipc'
 import { registerSnapshotIpc } from './snapshot-ipc'
 import { registerServerToolsIpc } from './server-tools-ipc'
 import { abortAiChat, resolveAiConfirmStep, runOpenClawCoreAgentChat } from './ai-interactive-agent'
-import { getWorkingMemoryGoal } from './core-a-memory'
+import { getWorkingMemoryGoal, getWorkingMemorySnapshot } from './core-a-memory'
 import { streamOpenAICompatibleChat } from './ai-stream'
 import { setDebugWindowWebContents } from './debug-window-broadcast'
 import { parseSshFormWithAi } from './ai-parse-ssh'
@@ -1230,6 +1230,7 @@ function registerIpc(): void {
   ipcMain.handle('ai:chatArchive:take', (_e, id: string) => takeAiChatArchive(String(id ?? '')))
   ipcMain.handle('ai:chatArchive:remove', (_e, id: string) => removeAiChatArchive(String(id ?? '')))
   ipcMain.handle('ai:workingMemory:get', (_e, key: string) => getWorkingMemoryGoal(String(key ?? '')))
+  ipcMain.handle('ai:workingMemory:snapshot', (_e, key: string) => getWorkingMemorySnapshot(String(key ?? '')))
 
   ipcMain.handle('debug:openWindow', () => {
     openDebugWindow()

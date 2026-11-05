@@ -6269,6 +6269,88 @@ button.primary.danger:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* R20 Round20: working-memory / observational evidence (honest, not a dump) */
+.ai-panel .ai-memory-wrap {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 42%;
+}
+.ai-panel .ai-memory-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+  cursor: pointer;
+}
+.ai-panel .ai-memory-chip:hover,
+.ai-panel .ai-memory-chip.is-open,
+.ai-panel .ai-memory-chip:focus-visible {
+  color: var(--color-text);
+  background: var(--color-fill-muted);
+  outline: none;
+}
+.ai-panel .ai-memory-chip-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ai-panel .ai-memory-chip-count {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-panel .ai-memory-pop {
+  min-width: 200px;
+  max-width: min(320px, 90vw);
+  padding: var(--space-2);
+  z-index: 40;
+}
+.ai-panel .ai-memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ai-panel .ai-memory-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  color: var(--color-text);
+}
+.ai-panel .ai-memory-kind {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.ai-panel .ai-memory-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 230px) {
+  .ai-panel .ai-memory-wrap {
+    max-width: 100%;
+    flex-basis: 100%;
+  }
+}
+
 .ai-panel .ai-header-shortcut kbd {
   border: 0;
   background: transparent;

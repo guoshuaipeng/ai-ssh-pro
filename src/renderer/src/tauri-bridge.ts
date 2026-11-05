@@ -380,6 +380,33 @@ export async function installTauriBridge(): Promise<void> {
           return null
         }
       },
+      getMemorySnapshot: async (key: string) => {
+        try {
+          const row = await invoke<any>('core_memory_get', { sessionKey: key })
+          if (!row || typeof row !== 'object') return null
+          const goalRaw = row?.workingMemory?.goal
+          const goal = typeof goalRaw === 'string' && goalRaw.trim() ? goalRaw.trim() : null
+          const hostFacts = Array.isArray(row?.workingMemory?.hostFacts)
+            ? row.workingMemory.hostFacts.filter((x: unknown) => typeof x === 'string' && String(x).trim())
+            : []
+          const om = Array.isArray(row?.observationalMemory)
+            ? row.observationalMemory
+                .map((b: any) => (typeof b?.text === 'string' ? b.text.trim() : ''))
+                .filter(Boolean)
+            : []
+          const scratch = Array.isArray(row?.observations)
+            ? row.observations.filter((x: unknown) => typeof x === 'string' && String(x).trim())
+            : []
+          const observations = om.length > 0 ? om : scratch
+          const recentCommands = Array.isArray(row?.recentCommands)
+            ? row.recentCommands.filter((x: unknown) => typeof x === 'string' && String(x).trim())
+            : []
+          if (!goal && hostFacts.length === 0 && observations.length === 0 && recentCommands.length === 0) return null
+          return { goal, hostFacts, observations, recentCommands }
+        } catch {
+          return null
+        }
+      },
       getChatHistory: async (key: string) => {
         const all = (await invoke<any>('store_get', { path: ['aiChatHistory'] })) || {}
         return Array.isArray(all[key]) ? all[key] : []
@@ -575,6 +602,9 @@ export async function installTauriBridge(): Promise<void> {
   const ai = api.ai || (api.ai = {})
   if (typeof ai.getWorkingMemory !== 'function') {
     ai.getWorkingMemory = async () => null
+  }
+  if (typeof ai.getMemorySnapshot !== 'function') {
+    ai.getMemorySnapshot = async () => null
   }
   if (typeof ai.confirmStep !== 'function' && typeof ai.resolveConfirm === 'function') {
     ai.confirmStep = ai.resolveConfirm.bind(ai)

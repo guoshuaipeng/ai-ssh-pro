@@ -7500,7 +7500,8 @@ export default function App() {
         detail.op === 'aiBatchSticky' ||
         detail.op === 'aiPlanStepAlign' ||
         detail.op === 'aiExecAuditLink' ||
-        detail.op === 'aiAuditFocus'
+        detail.op === 'aiAuditFocus' ||
+        detail.op === 'aiMemoryEvidence'
       ) {
         setQuickOpen(false)
         setTourOpen(false)

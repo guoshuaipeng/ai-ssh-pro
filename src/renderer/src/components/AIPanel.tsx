@@ -29,7 +29,7 @@ import { blocksEnabled } from '@shared/terminal-blocks'
 import { aiOrigins, aiPanelSession } from '../lib/ai-origin'
 import { confirmDialog, isDialogOpen } from '../lib/dialogs'
 import { isHigherChromeOpen } from '@shared/overlay-stack'
-import { visibleWorkingGoal } from '@shared/working-memory-view'
+import { buildMemoryEvidenceView, visibleWorkingGoal, type MemoryEvidenceView } from '@shared/working-memory-view'
 import { releaseSessionInFlight, type SafetyMode, type SafetySettings } from '@shared/safety-tier'
 import { AI_POLICIES, isAiPolicy, policyTier, resolveAiPolicy, type AiPolicy } from '@shared/ai-policy'
 import {
@@ -590,7 +590,8 @@ export default function AIPanel({
         detail?.op === 'aiBatchSticky' ||
         detail?.op === 'aiPlanStepAlign' ||
         detail?.op === 'aiExecAuditLink' ||
-        detail?.op === 'aiAuditFocus'
+        detail?.op === 'aiAuditFocus' ||
+        detail?.op === 'aiMemoryEvidence'
       ) {
         ;(window as unknown as { __aissShotAiOp?: typeof detail }).__aissShotAiOp = detail
       }
@@ -987,6 +988,26 @@ export default function AIPanel({
         ])
         return
       }
+      if (detail?.op === 'aiMemoryEvidence') {
+        screenshotForceKeyRef.current = true
+        setHasApiKey(true)
+        const d = detail as {
+          goal?: string
+          hostFacts?: string[]
+          observations?: string[]
+          recentCommands?: string[]
+        }
+        const view = buildMemoryEvidenceView({
+          goal: d.goal ?? '排查 nginx 502',
+          hostFacts: d.hostFacts ?? ['web-01 / 10.0.0.8'],
+          observations: d.observations ?? ['df：/ 使用 91%', 'nginx inactive (dead)'],
+          recentCommands: d.recentCommands ?? ['systemctl status nginx --no-pager']
+        })
+        setWorkingGoal(view.goal)
+        setMemoryView(view)
+        setMemoryOpen(true)
+        return
+      }
       if (detail?.op !== 'aiComposerPop') {
         ;(window as unknown as { __aissShotPop?: string }).__aissShotPop = undefined
         setModelOpen(false)
@@ -1080,6 +1101,9 @@ export default function AIPanel({
   const modelRef = useRef<HTMLDivElement | null>(null)
   const safetyRef = useRef<HTMLDivElement | null>(null)
   const [workingGoal, setWorkingGoal] = useState<string | null>(null)
+  const [memoryView, setMemoryView] = useState<MemoryEvidenceView | null>(null)
+  const [memoryOpen, setMemoryOpen] = useState(false)
+  const memoryRef = useRef<HTMLDivElement | null>(null)
   const [safetySettings, setSafetySettings] = useState<SafetySettings>({ safetyTier: 'confirm' })
   const seenConfirm = useRef(new Set<string>())
   const moreRef = useRef<HTMLDivElement>(null)
@@ -1155,20 +1179,56 @@ export default function AIPanel({
   const refreshWorkingGoal = useCallback((key: string | null) => {
     if (!key) {
       setWorkingGoal(null)
+      setMemoryView(null)
+      setMemoryOpen(false)
       return
     }
-    const getter = window.aiss?.ai?.getWorkingMemory
-    if (typeof getter !== 'function') {
+    const snapFn = window.aiss?.ai?.getMemorySnapshot
+    const goalFn = window.aiss?.ai?.getWorkingMemory
+    const applyView = (raw: {
+      goal?: string | null
+      hostFacts?: string[]
+      observations?: string[]
+      recentCommands?: string[]
+    } | null) => {
+      if (persistKeyRef.current !== key) return
+      const view = buildMemoryEvidenceView(raw ?? {})
+      setWorkingGoal(view.goal)
+      setMemoryView(view.count > 0 ? view : view.goal ? view : null)
+      if (!(view.count > 0)) setMemoryOpen(false)
+    }
+    if (typeof snapFn === 'function') {
+      void Promise.resolve(snapFn(key))
+        .then((snap) => applyView(snap))
+        .catch(() => {
+          if (typeof goalFn === 'function') {
+            void Promise.resolve(goalFn(key))
+              .then((goal) => applyView({ goal }))
+              .catch(() => {
+                if (persistKeyRef.current === key) {
+                  setWorkingGoal(null)
+                  setMemoryView(null)
+                }
+              })
+          } else if (persistKeyRef.current === key) {
+            setWorkingGoal(null)
+            setMemoryView(null)
+          }
+        })
+      return
+    }
+    if (typeof goalFn !== 'function') {
       setWorkingGoal(null)
+      setMemoryView(null)
       return
     }
-    void Promise.resolve(getter(key))
-      .then((goal) => {
-        if (persistKeyRef.current !== key) return
-        setWorkingGoal(visibleWorkingGoal(goal))
-      })
+    void Promise.resolve(goalFn(key))
+      .then((goal) => applyView({ goal }))
       .catch(() => {
-        if (persistKeyRef.current === key) setWorkingGoal(null)
+        if (persistKeyRef.current === key) {
+          setWorkingGoal(null)
+          setMemoryView(null)
+        }
       })
   }, [])
 
@@ -1224,6 +1284,23 @@ export default function AIPanel({
   useEffect(() => {
     refreshWorkingGoal(persistKey)
   }, [persistKey, refreshWorkingGoal])
+
+  useEffect(() => {
+    if (!memoryOpen) return
+    const close = (e: MouseEvent) => {
+      if (memoryRef.current?.contains(e.target as Node)) return
+      setMemoryOpen(false)
+    }
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMemoryOpen(false)
+    }
+    window.addEventListener('mousedown', close, true)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', close, true)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [memoryOpen])
 
   const persistHistory = useCallback(
     (nextLines: Line[]) => {
@@ -1930,6 +2007,8 @@ export default function AIPanel({
       setLines([])
       setPendingConfirm(null)
       setWorkingGoal(null)
+      setMemoryView(null)
+      setMemoryOpen(false)
       if (persistKey) {
         await window.aiss.ai.setChatHistory(persistKey, [])
         refreshWorkingGoal(persistKey)
@@ -1967,6 +2046,8 @@ export default function AIPanel({
       setLines([])
       setPendingConfirm(null)
       setWorkingGoal(null)
+      setMemoryView(null)
+      setMemoryOpen(false)
       if (persistKey) {
         await window.aiss.ai.setChatHistory(persistKey, [])
         refreshWorkingGoal(persistKey)
@@ -2376,6 +2457,49 @@ export default function AIPanel({
                 <span className="ai-working-goal-label">{tg('wm.goal')}</span>
                 <span className="ai-working-goal-text">{workingGoal}</span>
               </span>
+            ) : null}
+            {memoryView && memoryView.count > 0 ? (
+              <div className="ai-memory-wrap" ref={memoryRef} data-testid="ai-memory-wrap">
+                <button
+                  type="button"
+                  className={`ai-memory-chip${memoryOpen ? ' is-open' : ''}`}
+                  data-testid="ai-memory-chip"
+                  aria-expanded={memoryOpen}
+                  aria-controls="ai-memory-pop"
+                  title={memoryView.summaryLine || tg('wm.memoryTitle')}
+                  onClick={() => setMemoryOpen((v) => !v)}
+                >
+                  <span className="ai-memory-chip-label">{tg('wm.memory')}</span>
+                  <span className="ai-memory-chip-count" data-testid="ai-memory-count">
+                    · {memoryView.count}
+                  </span>
+                </button>
+                {memoryOpen ? (
+                  <div
+                    id="ai-memory-pop"
+                    className="titlebar-popover ai-memory-pop"
+                    role="dialog"
+                    data-testid="ai-memory-pop"
+                    aria-label={tg('wm.memoryTitle')}
+                  >
+                    <div className="ai-pop-head">{tg('wm.memoryTitle')}</div>
+                    <ul className="ai-memory-list" data-testid="ai-memory-list">
+                      {memoryView.items.map((it, idx) => (
+                        <li key={`${it.kind}-${idx}`} className="ai-memory-item" data-kind={it.kind} title={it.text}>
+                          <span className="ai-memory-kind">
+                            {it.kind === 'hostFact'
+                              ? tg('wm.hostFact')
+                              : it.kind === 'observation'
+                                ? tg('wm.observation')
+                                : tg('wm.recentCommand')}
+                          </span>
+                          <span className="ai-memory-text">{it.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             {targetOpen ? (
               <div className="titlebar-popover ai-target-menu" role="menu" data-testid="ai-target-menu" aria-label={tg('ai.targetSwitch')}>
