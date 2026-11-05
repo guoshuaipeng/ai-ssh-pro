@@ -5684,6 +5684,19 @@ button.titlebar-overflow-btn:hover:not(:disabled) {
   padding: 2px var(--space-2);
   cursor: pointer;
 }
+/* R33 Round33: miss toast long copy wraps; action stays */
+.toast:has(.toast-actions) {
+  align-items: flex-start;
+}
+.toast > span:first-of-type {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: var(--lh-snug);
+}
+.toast:has(.toast-actions) .toast-actions {
+  margin-top: 1px;
+}
+
 
 /* PNG-6: in-flow info strip. One row at 1366; text ellipsizes, actions do not wrap or scroll. */
 .value-moment {

@@ -1,3 +1,16 @@
+## Round 33 全页轻量视觉审计（逢 3 轮，R30 后下一拍；R14–R32 矩阵 + 代码审查）→ backlog
+依据：`docs/screenshots/r14|r30|r31` 与 R32 miss→新开对话 / EN Ask chip 代码（Electron harness；未新开 Tauri 真机全量）。
+
+| 级别 | 问题 | 处置 |
+|------|------|------|
+| P2 | R32 miss→新开对话 + EN Ask chip 未进截图矩阵 | 本轮 `docs/screenshots/r33/` |
+| P2 | 长 miss toast 文案 + 动作按钮：message 缺 `min-width:0` | 本轮 toast wrap + `toast-action` |
+| P2 | `test-r31-*` / `test-r32-*` 未接入 `package.json` `test:parts` | 本轮一并接线 |
+| P2 | 真机 Tauri 宽/窄×深/浅全量矩阵仍口头债（R6 起） | 继续 declarative matrix；勿再口头延期 |
+| P3 | pending Decline 权重 / 策略 pop 标题窄栏两行 | 可接受 |
+| P3 | EN chip「Ask」与口语 ask 同形——R32 有意避开 Confirm CTA | 可接受；矩阵固化 Ask/Suggest/Auto |
+| ok | 双横幅互斥；model-missing 藏横幅；miss→startNewChat；chip 短标签 zh/en | R29–R32 已做 |
+
 ## 2026-11-05 Round 32 追加
 - **Gap scan（Roadmap 迭代 3 前）**：2.1–2.5 + H01–H08 已交付；最高影响缺口 = 审计→对话 miss 仅「回到顶部」→ 本轮改为「新开对话」。其余：EN chip Confirm CTA 撞车（本轮 Ask）、真机 Tauri 矩阵 P2、Decline/pop 标题 P3；端口转发仍不接。
 - **已完成**：miss toast 动作「新开对话 / New chat」→ `startNewChat`（归档现有；不编造匹配历史）；文案提示可在本主机新开。

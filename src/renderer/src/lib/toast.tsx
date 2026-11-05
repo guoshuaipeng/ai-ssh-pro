@@ -76,6 +76,7 @@ export function ToastHost() {
                 <button
                   key={action.label}
                   type="button"
+                  data-testid="toast-action"
                   onClick={() => {
                     setItems((prev) => prev.filter((x) => x.id !== t.id))
                     action.run()
