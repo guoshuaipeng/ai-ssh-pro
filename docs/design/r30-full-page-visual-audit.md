@@ -34,5 +34,7 @@
 3. Designer: banners ≥32px; narrow chip readable without crushed hint; prod warn ≠ readonly ok tone.
 
 ## After code
-- (filled by docs commit)
-- Next full-page visual: **Round 33**. Round 31 suggestion: AI-dialog — empty/error narrow matrix or Roadmap iter-3 gap (port-forward still deferred).
+- Item1 `f2244676`: visual-audit backlog + design; banner `min-height: 32px` + ≤230px hide hint / chip ellipsis.
+- Item2 `a72ffe9c`: contrast matrix `docs/screenshots/r30/` 8/8 expect true (prod/readonly × wide/narrow × dark/light).
+- Docs: retro Round 30 + process note R25–R30; next full-page **Round 33**.
+- Round 31 suggestion: AI-dialog empty/error narrow matrix, or Roadmap iter-3 dialog gap scan (port-forward still deferred).

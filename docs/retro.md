@@ -2,6 +2,26 @@
 
 每轮结束、每修完一个 bug 追加一条。格式：日期 + 事项；耗时（计划 / 实际）；卡在哪；哪里没做好；根因；以后怎么避免（可执行规则）。通用规则同步到 docs/dev-rules.md。
 
+
+## Round 30 — 2026-11-05（逢 3 轮整页视觉审计 + R25–R30 过程复盘）
+- 计划：约 30 分钟；1 高频：AI 面板整页视觉审计（宽窄×深浅 / 双横幅 / 记忆·失败 / 空错）入 backlog 并修 1–2 快 P2；1 小打磨：审计头号快修 + 可选 prod↔readonly 对照截图；编码前 UX。
+- 实际：~35 分钟；两项各一提交 + docs/截图；Core-A 34/34 + held-out 全绿；r30 截图 8/8 expect true。
+- 卡住点：① CopyToBox 截图路径仍在 allowed root 外 → 代码审查 + harness expect（沿用 R24/R27）；② R14 prod 历来无窄栏对照，本轮一并补进 r30。
+- 根因：双态安全横幅分属 R14/R29 文件夹，逢 3 轮审计若不对拍就难以验收「互斥 + 语气对称」；横幅触控高度未跟上 R27 记忆 32px 规则。
+- 预防：同类互斥 UI 态（prod↔readonly）对照矩阵放同一 `docs/screenshots/rXX/`；新 chrome 条默认 `min-height: 32px` + 窄栏 `@container` 藏次要 hint。
+- 验收：`test-r30-visual-audit-banner` / `test-r30-contrast-shots` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r30/`。
+- 提交：`f2244676`（审计+触控/窄栏）、`a72ffe9c`（对照矩阵）；docs 同轮。
+- 逢 3 轮整页视觉：本轮完成（上一拍 Round 27）→ **下一目标 Round 33**。
+
+### 过程复盘（R25–R30，逢约 6 轮）
+- 节奏：每轮约 25–45 分钟；均 1 高频 + 1 小打磨；本地 commit、不推远程。
+- 主题链：R25 失败下一步/记忆展开 → R26 记忆矩阵+层级 → R27 整页审计+seed jump → R28 safetyContext/filter-empty → R29 只读横幅 → R30 整页审计+双横幅对照。
+- 返工：R26 jump 空库冒充命中 → R27 seed；R14 prod 无窄栏拖到 R30 才对照；R29 测试接线已在 test:parts 中段（非链尾）——接线检查勿只扫文件末尾。
+- 重复 3+ 次：① PowerShell 引号 → `tools/rXX/*.py`；② CopyToBox 截图根外 → harness expect；③ 逢 3 轮必须当场修可修 P2。
+- 抽象已落地：declarative `ai-shot-matrix-rXX`；banner helpers `prodAutoHint` / `readonlyHostHint`；互斥 JSX。继续沿用。
+- 下轮候选：空/错态窄栏矩阵 / Roadmap 迭代 3 对话缺口；整页视觉目标 Round 33；端口转发仍默认不接。
+
+
 ## 2026-10-21 分屏按钮读到旧状态
 - 耗时：计划 20 分钟 / 实际约 40 分钟
 - 卡在哪：复现依赖「切换标签后再点击」「连续快速点击」，单次点击一切正常。
