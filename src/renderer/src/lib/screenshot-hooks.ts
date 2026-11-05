@@ -44,6 +44,10 @@ export type ScreenshotOp =
   | { op: "aiError"; message?: string; errorCode?: string }
   /** Round 14: streaming + cancelled + error stacked for accent QA. */
   | { op: "aiAccentStack" }
+  /** Round 17: ask-policy plan progress chip + active plan step badge. */
+  | { op: "aiAskProgress"; step?: number; max?: number; preview?: string }
+  /** Round 17: sticky batch bar with >=2 suggestion commands. */
+  | { op: "aiBatchSticky" }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

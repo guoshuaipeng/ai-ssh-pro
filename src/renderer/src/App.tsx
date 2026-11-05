@@ -7495,7 +7495,9 @@ export default function App() {
         detail.op === 'aiProdBanner' ||
         detail.op === 'aiSuggestCard' ||
         detail.op === 'aiError' ||
-        detail.op === 'aiAccentStack'
+        detail.op === 'aiAccentStack' ||
+        detail.op === 'aiAskProgress' ||
+        detail.op === 'aiBatchSticky'
       ) {
         setQuickOpen(false)
         setTourOpen(false)

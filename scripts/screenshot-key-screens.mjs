@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path'
 import { startE2eSshd, freePort, stablePort, E2E_USER, E2E_PASS } from './e2e-sshd.mjs'
 import { stdAiScenarios, aiTableScenarioNames, AI_E2E_TABLE } from './e2e-ai-table.mjs'
 import { r14AiShots } from './ai-shot-matrix-r14.mjs'
+import { r17AiShots } from './ai-shot-matrix-r17.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -319,6 +320,14 @@ const chrome = [
   { name: 'r7-h05-stop', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiStreaming' }, { eval: "(()=>{const stop=document.querySelector('[data-testid=ai-stop]'); const cardStop=document.querySelector('[data-testid=ai-stream-stop]'); const partial=document.querySelector('[data-testid=ai-stream-partial]'); const stream=document.querySelector('[data-card=streaming]'); return JSON.stringify({stop:!!stop,cardStop:!!cardStop,partial:!!(partial&&partial.textContent&&partial.textContent.trim()),stream:!!stream})})()" }], wait: 1000 },
   // Round 14: standardized AI state matrix (declarative — see scripts/ai-shot-matrix-r14.mjs)
   ...${JSON.stringify(r14AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
+    steps: s.steps,
+    expect: s.expect || undefined
+  })),
+  // Round 17: ask progress + sticky batch bar
+  ...${JSON.stringify(r17AiShots())}.map((s) => ({
     name: s.name,
     size: s.narrow ? N : W,
     wait: s.wait || 1000,

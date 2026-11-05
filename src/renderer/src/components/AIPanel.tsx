@@ -577,7 +577,9 @@ export default function AIPanel({
         detail?.op === 'aiProdBanner' ||
         detail?.op === 'aiSuggestCard' ||
         detail?.op === 'aiError' ||
-        detail?.op === 'aiAccentStack'
+        detail?.op === 'aiAccentStack' ||
+        detail?.op === 'aiAskProgress' ||
+        detail?.op === 'aiBatchSticky'
       ) {
         ;(window as unknown as { __aissShotAiOp?: typeof detail }).__aissShotAiOp = detail
       }
@@ -766,6 +768,81 @@ export default function AIPanel({
             content: '请求失败：上游超时。',
             variant: 'error',
             errorCode: 'http_504'
+          }
+        ])
+        return
+      }
+      if (detail?.op === 'aiAskProgress') {
+        // R17: ask policy + composer run-steps + active plan badge on pending card
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setBusy(true)
+        setSafetySettings((prev) => ({ ...prev, aiPolicy: 'ask', safetyTier: 'confirm' }))
+        const step = typeof (detail as { step?: number }).step === 'number' ? (detail as { step?: number }).step! : 2
+        const max = typeof (detail as { max?: number }).max === 'number' ? (detail as { max?: number }).max! : 10
+        const preview =
+          typeof (detail as { preview?: string }).preview === 'string' && (detail as { preview?: string }).preview!.trim()
+            ? (detail as { preview?: string }).preview!.trim()
+            : 'systemctl status nginx --no-pager'
+        setRunProgress({ step, max, policy: 'ask' })
+        setPendingConfirm({ requestId: 'shot-r17-ask', action: 'command' })
+        setPendingPreviewHold(preview)
+        setLines([
+          { role: 'user', content: '生产机 nginx 502，按步骤确认执行' },
+          {
+            role: 'assistant',
+            content: preview,
+            requestId: 'shot-r17-ask',
+            fresh: true,
+            structured: {
+              action: 'command',
+              description: '查看 nginx 状态（当前规划步骤，需确认）。',
+              command: preview,
+              riskLevel: 'low'
+            }
+          }
+        ])
+        return
+      }
+      if (detail?.op === 'aiBatchSticky') {
+        // R17: >=2 suggestion commands → sticky batch bar near first suggestion
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        setRunProgress(null)
+        setSafetySettings((prev) => ({ ...prev, aiPolicy: 'suggest', safetyTier: 'confirm' }))
+        setLines([
+          { role: 'user', content: '给我两步只读排查命令，方便批量填入' },
+          {
+            role: 'assistant',
+            content: '查看磁盘占用。',
+            fresh: true,
+            safetyMode: 'suggest',
+            structured: {
+              action: 'command',
+              description: '查看磁盘占用（只读）。',
+              command: 'df -h',
+              riskLevel: 'low'
+            }
+          },
+          {
+            role: 'assistant',
+            content: '查看内存占用最高的进程。',
+            fresh: true,
+            safetyMode: 'suggest',
+            structured: {
+              action: 'command',
+              description: '按内存占用列出前 10 个进程（只读）。',
+              command: 'ps aux --sort=-%mem | head -n 11',
+              riskLevel: 'low'
+            }
           }
         ])
         return
