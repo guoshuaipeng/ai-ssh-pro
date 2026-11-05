@@ -82,3 +82,8 @@ export function alignPlanStepDisplay(opts: {
   return { step, max, source }
 }
 
+/** Display max for chip / badge / dock — never below step. */
+export function planStepDisplayMax(aligned: { step: number; max: number }): number {
+  return Math.max(aligned.max, aligned.step, 1)
+}
+

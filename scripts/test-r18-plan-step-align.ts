@@ -63,9 +63,15 @@ assert.ok(panel.includes('alignPlanStepDisplay('))
 assert.ok(panel.includes('findConfirmableLineIndex(lines, pendingConfirm?.requestId)'))
 assert.ok(panel.includes('data-aligned-step={alignedPlan.step}'))
 assert.ok(panel.includes('data-step-source={alignedPlan.source}'))
-assert.ok(panel.includes('{tg(\'ai.runSteps\', { n: alignedPlan.step, max: alignedPlan.max })}'))
+assert.ok(
+  panel.includes("tg('ai.runSteps'") &&
+    (panel.includes('planStepDisplayMax(alignedPlan)') || panel.includes('max: alignedPlan.max')),
+  'chip uses alignedPlan step/max'
+)
 assert.equal(panel.includes('runProgress?.step ?? suggestionStepNo.get(i)'), false, 'badge must not prefer raw runProgress over suggestion step')
-assert.ok(panel.includes('suggestionStepNo.get(i) ?? alignedPlan.step'))
+assert.ok(panel.includes('data-testid="ai-active-plan-step"'))
+assert.ok(panel.includes('data-aligned-step={alignedPlan.step}'), 'confirmable badge uses alignedPlan')
+assert.ok(panel.includes('planStepDisplayMax(alignedPlan)'), 'shared display max')
 
 const shared = norm('src/shared/ai-suggestion-steps.ts')
 assert.ok(shared.includes("action === 'command' || action === 'tool_call'"))

@@ -3267,10 +3267,11 @@ export default function AIPanel({
                   <span
                     className="ai-active-plan-badge"
                     data-testid="ai-active-plan-step"
-                    data-aligned-step={suggestionStepNo.get(i) ?? alignedPlan.step}
-                    data-aligned-max={Math.max(alignedPlan.max, suggestionStepNo.get(i) ?? alignedPlan.step, 1)}
+                    data-aligned-step={alignedPlan.step}
+                    data-aligned-max={planStepDisplayMax(alignedPlan)}
+                    data-step-source={alignedPlan.source}
                   >
-                    {tg('ai.activePlanStep', { n: suggestionStepNo.get(i) ?? alignedPlan.step, max: Math.max(alignedPlan.max, suggestionStepNo.get(i) ?? alignedPlan.step, 1) })}
+                    {tg('ai.activePlanStep', { n: alignedPlan.step, max: planStepDisplayMax(alignedPlan) })}
                   </span>
                 ) : null}
                 <div className="ai-card-body">
@@ -3416,7 +3417,7 @@ export default function AIPanel({
                         onClick={() => focusAiPendingAfterFailure(pendingConfirm?.requestId)}
                       >
                         {tg('fail.nextConfirm')}
-                        {alignedPlan.step ? ` · ${tg('ai.activePlanStep', { n: alignedPlan.step, max: Math.max(alignedPlan.max, alignedPlan.step, 1) })}` : ''}
+                        {alignedPlan.step ? ` · ${tg('ai.activePlanStep', { n: alignedPlan.step, max: planStepDisplayMax(alignedPlan) })}` : ''}
                       </button>
                     ) : null}
                   </>
@@ -3470,9 +3471,26 @@ export default function AIPanel({
           data-action={pendingConfirm.action}
           data-r19-narrow="1"
           data-after-failure={hasFailedExecPin(lines) ? '1' : undefined}
+          data-aligned-step={alignedPlan.step}
+          data-aligned-max={planStepDisplayMax(alignedPlan)}
+          data-step-source={alignedPlan.source}
         >
           <div className="ai-pending-confirm-main">
-            <div className="ai-pending-confirm-title">{tg('ux64.pendingTitle')}</div>
+            <div className="ai-pending-confirm-title">
+              <span>{tg('ux64.pendingTitle')}</span>
+              {alignedPlan.step ? (
+                <span
+                  className="ai-pending-plan-step"
+                  data-testid="ai-pending-plan-step"
+                  data-aligned-step={alignedPlan.step}
+                  data-aligned-max={planStepDisplayMax(alignedPlan)}
+                  data-step-source={alignedPlan.source}
+                  title={tg('ai.planStepsTip')}
+                >
+                  {tg('ai.activePlanStep', { n: alignedPlan.step, max: planStepDisplayMax(alignedPlan) })}
+                </span>
+              ) : null}
+            </div>
             {pendingPreview ? (
               <code className="ai-pending-confirm-preview" title={pendingPreviewRaw}>
                 {pendingPreview}
@@ -3856,18 +3874,20 @@ export default function AIPanel({
               <span>{snapshotBusy ? tg('ai.readingTerm') : tg('ai.consoleChip')}</span>
             </button>
             <span className="ai-composer-spacer" />
-            {busy && runProgress ? (
+            {(busy && runProgress) || pendingConfirm ? (
               <span
                 className="ai-run-steps"
                 data-testid="ai-run-steps"
-                data-policy={runProgress.policy || undefined}
+                data-policy={runProgress?.policy || undefined}
                 data-aligned-step={alignedPlan.step}
-                data-aligned-max={alignedPlan.max}
+                data-aligned-max={planStepDisplayMax(alignedPlan)}
                 data-step-source={alignedPlan.source}
-                title={runProgress.policy === 'auto' ? tg('ai.runStepsTip') : tg('ai.planStepsTip')}
+                data-pending-align={pendingConfirm ? '1' : undefined}
+                title={runProgress?.policy === 'auto' ? tg('ai.runStepsTip') : tg('ai.planStepsTip')}
               >
-                {tg('ai.runSteps', { n: alignedPlan.step, max: alignedPlan.max })}
-                {runProgress.policy === 'auto' &&
+                {tg('ai.runSteps', { n: alignedPlan.step, max: planStepDisplayMax(alignedPlan) })}
+                {runProgress &&
+                runProgress.policy === 'auto' &&
                 typeof runProgress.streak === 'number' &&
                 typeof runProgress.streakCap === 'number' &&
                 runProgress.streakCap > 0 ? (

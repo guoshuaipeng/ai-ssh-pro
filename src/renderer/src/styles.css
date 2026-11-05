@@ -6272,6 +6272,34 @@ button.primary.danger:focus-visible {
 
 
 
+/* R24 Round24: pending dock plan step shares alignPlanStepDisplay with chip/badge */
+.ai-panel .ai-pending-confirm-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.ai-panel .ai-pending-plan-step {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  min-height: 1.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+  color: var(--color-accent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-composer-bar .ai-run-steps[data-pending-align='1'] {
+  opacity: 1;
+}
+
 /* R23 Round23 polish: confirm dock mark after evidence-retry auto-scroll */
 .ai-panel .ai-pending-confirm[data-after-evidence-retry='1'] {
   border-left-color: var(--color-accent);
