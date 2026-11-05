@@ -61,6 +61,10 @@ export type ScreenshotOp =
   | { op: "aiFailureEvidence"; nextConfirm?: string; withMemory?: boolean }
   /** Round 28: seed audit + open with non-matching filter → filter-empty (not true-empty). */
   | { op: "auditFilterEmpty"; host?: string; query?: string; seedDetail?: string }
+  /** Round 31 H08: force needs_config empty (no API key UI). */
+  | { op: "aiEmptyConfig" }
+  /** Round 31 H08: force model-missing banner (key ok, no model). */
+  | { op: "aiModelMissing"; withProdBanner?: boolean }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

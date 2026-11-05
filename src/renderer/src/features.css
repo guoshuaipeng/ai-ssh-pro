@@ -1282,6 +1282,48 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .ai-config-head { padding: 8px 12px; font-weight: 600; align-self: stretch; text-align: left; }
 .ai-empty-state { display: flex; flex-direction: column; min-height: 100%; }
 
+/* R31 Round31: H08 empty/error narrow wrap */
+.ai-empty-state {
+  container-type: inline-size;
+  min-width: 0;
+}
+.ai-config-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.ai-config-title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.ai-config-actions {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+}
+.ai-config-note {
+  max-width: min(280px, 100%);
+  overflow-wrap: anywhere;
+}
+@container (max-width: 280px) {
+  .ai-config-card {
+    padding: 20px 10px;
+    gap: 6px;
+  }
+  .ai-config-mark {
+    font-size: 36px;
+  }
+  .ai-config-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .ai-config-actions .link-btn {
+    text-align: center;
+  }
+}
+
 /* UX-38 */
 .tour-bubble--right::before, .tour-bubble--left::before, .tour-bubble--bottom::before, .tour-bubble--top::before {
   content: '';

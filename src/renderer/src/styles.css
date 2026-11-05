@@ -8230,6 +8230,44 @@ body.platform-darwin .window-controls {
   min-width: 0;
 }
 
+/* R31 Round31: model-missing + error CTA narrow */
+.ai-model-missing {
+  min-width: 0;
+  container-type: inline-size;
+}
+.ai-model-missing-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.ai-panel .ai-card-error .ai-reply-actions {
+  max-width: 100%;
+}
+.ai-panel .ai-card-error .ai-reply-desc {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+@container (max-width: 280px) {
+  .ai-model-missing {
+    align-items: stretch;
+  }
+  .ai-model-missing-text {
+    flex: 1 1 100%;
+  }
+  .ai-model-missing [data-testid="ai-model-missing-settings"] {
+    align-self: stretch;
+    width: 100%;
+  }
+  .ai-panel .ai-card-error .ai-reply-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ai-panel .ai-card-error .ai-fill-cmd-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Round 17: highlight AI card after jump-from-audit */
 .ai-panel .ai-structured.is-audit-focus,
 .ai-panel [data-testid="ai-reply-card"].is-audit-focus {

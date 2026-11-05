@@ -599,6 +599,10 @@ export default function AIPanel({
   const screenshotForceKeyRef = useRef(false)
   /** Round 14: screenshot-only protection override for prod banner (hooks on). */
   const [screenshotProtectionOverride, setScreenshotProtectionOverride] = useState<ProtectionLevel | null>(null)
+  /** Round 31: force needs_config empty / model-missing for harness (do not mutate settings). */
+  const [screenshotEmptyConfig, setScreenshotEmptyConfig] = useState(false)
+  const [screenshotModelMissing, setScreenshotModelMissing] = useState(false)
+  const screenshotEmptyConfigRef = useRef(false)
   /** Round 18: screenshot-only audit→AI focus id (keeps is-audit-focus for harness). */
   const [screenshotAuditFocusId, setScreenshotAuditFocusId] = useState<string | null>(null)
   /** Round 14: keep D29 resume chip from being cleared by archive list effect. */
@@ -621,7 +625,10 @@ export default function AIPanel({
         detail?.op === 'aiExecAuditLink' ||
         detail?.op === 'aiAuditFocus' ||
         detail?.op === 'aiMemoryEvidence' ||
-        detail?.op === 'aiFailureEvidence'
+        detail?.op === 'aiFailureEvidence' ||
+        detail?.op === 'aiEmptyConfig' ||
+        detail?.op === 'aiModelMissing' ||
+        detail?.op === 'aiReadonlyBanner'
       ) {
         ;(window as unknown as { __aissShotAiOp?: typeof detail }).__aissShotAiOp = detail
       }
@@ -630,6 +637,9 @@ export default function AIPanel({
       }
       if (detail?.op === 'aiChat') {
         screenshotForceKeyRef.current = true
+        setScreenshotEmptyConfig(false)
+        screenshotEmptyConfigRef.current = false
+        setScreenshotModelMissing(false)
         setHasApiKey(true)
         setPendingConfirm(null)
         setLines(
@@ -697,6 +707,9 @@ export default function AIPanel({
         clearShotAiOp()
         screenshotResumeLockRef.current = true
         setScreenshotProtectionOverride(null)
+        setScreenshotEmptyConfig(false)
+        screenshotEmptyConfigRef.current = false
+        setScreenshotModelMissing(false)
         setHasApiKey(true)
         setPendingConfirm(null)
         setBusy(false)
@@ -720,6 +733,9 @@ export default function AIPanel({
         screenshotForceKeyRef.current = true
         clearShotAiOp()
         screenshotResumeLockRef.current = false
+        setScreenshotEmptyConfig(false)
+        screenshotEmptyConfigRef.current = false
+        setScreenshotModelMissing(false)
         setScreenshotProtectionOverride('production')
         setHasApiKey(true)
         setPendingConfirm(null)
@@ -744,6 +760,9 @@ export default function AIPanel({
         screenshotForceKeyRef.current = true
         clearShotAiOp()
         screenshotResumeLockRef.current = false
+        setScreenshotEmptyConfig(false)
+        screenshotEmptyConfigRef.current = false
+        setScreenshotModelMissing(false)
         setScreenshotProtectionOverride('readonly')
         setHasApiKey(true)
         setPendingConfirm(null)
@@ -795,11 +814,49 @@ export default function AIPanel({
         ])
         return
       }
+      if (detail?.op === 'aiEmptyConfig') {
+        // H08: needs_config empty — no key UI (harness only)
+        screenshotForceKeyRef.current = false
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setScreenshotEmptyConfig(true)
+        screenshotEmptyConfigRef.current = true
+        setScreenshotModelMissing(false)
+        setHasApiKey(false)
+        setPendingConfirm(null)
+        setBusy(false)
+        setLines([])
+        setResumeHit(null)
+        return
+      }
+      if (detail?.op === 'aiModelMissing') {
+        // H08: key ok but no model — calm strip (+ optional prod banner for conflict QA)
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotEmptyConfig(false)
+        setScreenshotModelMissing(true)
+        const withProd = (detail as { withProdBanner?: boolean }).withProdBanner === true
+        setScreenshotProtectionOverride(withProd ? 'production' : null)
+        if (withProd) {
+          setSafetySettings((prev) => ({ ...prev, aiPolicy: 'auto', safetyTier: 'confirm' }))
+        }
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        setLines([])
+        setResumeHit(null)
+        return
+      }
       if (detail?.op === 'aiError') {
         screenshotForceKeyRef.current = true
         clearShotAiOp()
         screenshotResumeLockRef.current = false
         setScreenshotProtectionOverride(null)
+        setScreenshotEmptyConfig(false)
+        screenshotEmptyConfigRef.current = false
+        setScreenshotModelMissing(false)
         setHasApiKey(true)
         setPendingConfirm(null)
         setBusy(false)
@@ -810,7 +867,7 @@ export default function AIPanel({
         const errorCode =
           typeof (detail as { errorCode?: string }).errorCode === 'string'
             ? (detail as { errorCode?: string }).errorCode
-            : 'http_401'
+            : 'AI_HTTP_401'
         setLines([
           { role: 'user', content: '帮我看看负载' },
           { role: 'assistant', content: message, variant: 'error', errorCode: errorCode || undefined }
@@ -1323,7 +1380,9 @@ export default function AIPanel({
         setActiveProviderId(s?.activeProviderId || providers[0]?.id || '')
         setActiveModel(s?.model || '')
         setSafetySettings(s)
-        const ready = (p ? hasUsableKey(p.baseURL, p.apiKey) : false) || screenshotForceKeyRef.current
+        const ready = screenshotEmptyConfigRef.current
+          ? false
+          : (p ? hasUsableKey(p.baseURL, p.apiKey) : false) || screenshotForceKeyRef.current
         setHasApiKey(ready)
         if (sawSettings.current && !hadKey.current && ready && !screenshotForceKeyRef.current) showToast(tg('ux37.ready'))
         hadKey.current = ready
@@ -2618,6 +2677,10 @@ export default function AIPanel({
     policy: aiPolicy
   })
   const currentModel = modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''
+  const needsModelPick = aiNeedsModelPick(
+    screenshotModelMissing ? '' : currentModel,
+    screenshotModelMissing ? [] : modelList
+  )
   /** M25: the policy without the tab override; picking it clears the override. */
   const hostOrGlobalPolicy = resolveAiPolicy({ settings: safetySettings, hostPolicy, protection: null }).chosen
   /** M25: why an option cannot apply on this host (protection cap), or '' when it can. */
@@ -2657,7 +2720,7 @@ export default function AIPanel({
 
   return (
     <aside className="ai-panel" style={{ minWidth: 280 }}>
-      {aiEmptyGate(hasApiKey) === 'needs_config' ? (
+      {aiEmptyGate(screenshotEmptyConfig ? false : hasApiKey) === 'needs_config' ? (
         <div className="ai-empty-state" data-testid="ai-empty-state">
           <div className="ai-config-head">{tg('ai.title')}</div>
           <AiConfigCard context={configContext} flash={configFlash} onConfigure={() => onOpenSettings?.()} />
@@ -3072,7 +3135,7 @@ export default function AIPanel({
       ) : null}
 
       
-      {aiNeedsModelPick(currentModel, modelList) ? (
+      {needsModelPick ? (
         <div className="ai-model-missing" data-testid="ai-model-missing" role="status">
           <span className="ai-model-missing-text">{tg('ai.modelMissing')}</span>
           {onOpenSettings ? (
