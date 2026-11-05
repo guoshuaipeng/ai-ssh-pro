@@ -7570,7 +7570,7 @@ body.platform-darwin .window-controls {
   flex-wrap: wrap;
   margin: 8px 12px 0;
   padding: 8px 10px;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   color: var(--fg-secondary);
