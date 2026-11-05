@@ -14,6 +14,18 @@
 
 > 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
 
+## 2026-11-05 Round 14 追加
+- 已完成：Electron AI 态截图 harness 标准化（`scripts/ai-shot-matrix-r14.mjs` + hooks `aiCancelled`/`aiEmptyResume`/`aiProdBanner`/`aiSuggestCard`/`aiAccentStack` + App stash/replay）；`docs/screenshots/r14/` 宽窄×深浅矩阵；streaming/cancelled/error 左边条层级（accent / muted / danger）。
+- P2：composer 策略菜单窄栏折行（Roadmap 视觉债）；真机 Tauri 与 Electron harness 对照抽检（可选）。
+- P1 候选 Round 15：保持 AI 对话——composer 策略菜单窄栏 / 或 Roadmap 迭代 3 前再扫 AI 对话缺口（多轮进度可见性、建议卡批量复制）；默认不接端口转发除非用户改优先级。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out JSON）。
+
+### Round 14 UX 验收（编码后）
+- 主 CTA：取消「重试」、仅建议「复制」、D29 整芯片、生产横幅可点开策略——截图 expect 覆盖。
+- 层级：流式=accent 左边条（进行中）、取消=muted、错误=danger；三色不同时齐飞背景。
+- 绑定：prod banner 仅 screenshot override，不改主机档案。
+- 矩阵：`docs/screenshots/r14/README.md`。
+
 ## 2026-11-05 Round 12 追加
 - 已完成：留出 **H05** 可打断可重试（`h05-interrupt-retry.json` + `test-held-out-h05`；Stop→`cancelled` 卡「重试」= 新 turn；isolation `retryIsoTurn`）；**D29** 空态续聊优先排错标题（`isTroubleshootTitle` +「继续上次排错」）。
 - P2：窄栏×深浅色真机矩阵 / 取消卡重试 + 排错续聊芯片截图（需 HEAD rebuild 或 `tauri dev`）。

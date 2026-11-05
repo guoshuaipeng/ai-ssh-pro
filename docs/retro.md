@@ -349,3 +349,10 @@
 - 根因：留出策略/可读性题长期只靠源码字符串单元测，缺 declarative JSON；取消/续聊卡缺专用窄栏 chrome。
 - 以后怎么避免：凡已有 held-out 单元测的题下一轮优先抽 JSON+runner；AI 面板新增 CSS 落在 M19 切片内时改完即跑 `test-polish-34`；窄栏项用 `@container (max-width: 230px)` + nowrap/ellipsis，不用缩字。
 - 验收：Core-A 34/34；held-out H01–H08（新 H02/H07 runner）绿；`test-r13-narrow-ai-chrome` / `test-polish-34` 绿；宽窄×深浅真机截图仍待 rebuild/`tauri dev`。
+## 2026-11-05 第 78 轮（Round 14）AI 对话 — 截图 harness 标准化 + 卡片左边条
+- 计划：约 30 分钟；1 高频标准化 Electron AI 态截图矩阵（cancel-retry / D29 / busy / prod banner / suggest narrow）→ `docs/screenshots/r14/`；1 小打磨 streaming/cancelled/error 左边条层级。
+- 实际：约 55 分钟。矩阵 12/12 expect 绿；Core-A 34/34；held-out H01–H08 绿（H01 wiring 随 `protectionForUi` 更新）。
+- 卡在哪：① 首跑 expect 全红——`reset` 关 AI 面板后直接发 `aiCancelled` 等，AIPanel 未挂载丢事件；② 仅面板内 stash 不够，必须 App 侧 `__aissShotAiOp` + 挂载回放；③ H01 夹具写死 `protection === 'production'`，被 R14 override 改写打断。
+- 根因：截图 op 假定面板已挂载；双监听（App 开面板 / Panel 填态）无 pending 契约；held-out wiring 绑死旧标识符。
+- 以后怎么避免：AI 态截图一律 `demoHost → aiChat(empty) → stateOp` 或 App stash+replay；新 screenshot op 同步改 App 开面板列表；改 panel 保护字段时同步 held-out wiring 字符串；矩阵场景放 `ai-shot-matrix-r14.mjs` JSON 注入，禁止在 chrome 模板里手写嵌套 eval。
+- 验收：`test-r14-ai-shot-harness` / `test-r14-card-accents` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r14/` dark/light × 6 态。
