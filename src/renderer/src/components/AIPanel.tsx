@@ -37,7 +37,8 @@ import {
   buildSuggestionStepNos,
   collectSuggestionCommands,
   findConfirmableLineIndex,
-  formatSuggestionCommandsForCopy
+  formatSuggestionCommandsForCopy,
+  planStepDisplayMax
 } from '@shared/ai-suggestion-steps'
 import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
