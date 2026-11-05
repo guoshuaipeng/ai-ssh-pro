@@ -239,3 +239,11 @@
 - 以后怎么避免：对本机 `.tsx` 补丁先探测 `\r\n`；用小 Python 脚本落盘；新增测试立即用套件同款 `--tsconfig`。
 - 验收：宽/窄、深/浅色真机截图本轮未拍（`tauri dev` UI 验收未开）→ 标为待用户确认；Core-A 34/34；`test-ai-http-error` / `test-ai-history-delete` 通过。
 
+## 2026-11-05 第 66 轮：H01 生产安全提示 + H05 流式停止可恢复
+- 计划：约 30 分钟；1 高频（H01）+ 1 小打磨（H04/H05）；编码前 UX 评审。
+- 实际：约 45 分钟（本机 Windows 无 rg、PowerShell 引号限制，改用 Python 补丁）。略超 40 分钟砍项线，两项已交付。
+- 卡在哪：确认 M25「生产不压策略」与 H01「高危禁止静默写」的边界；停止后 finally 误清新 turn 的 busy。
+- 根因：主进程 `planCommandConfirm` 传 `production: false` 以允许中低风险自动执行，连带放开了 high+autoHighRisk；busy 清理未绑定 turn 身份。
+- 以后怎么避免：生产机自动执行只覆盖中低风险；任何 clearBusy 必须 `turnRef.current === turn`；跨平台补丁优先小 Python 脚本。
+- 验收：宽/窄、深/浅色真机截图本轮未拍（未开 tauri UI）→ 待用户确认；Core-A 34/34；`test-prod-auto-hint` / `test-ai-stream-stop-retry` 通过。
+
