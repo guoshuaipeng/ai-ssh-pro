@@ -74,7 +74,17 @@ export type AiArchiveSummary = Omit<AiArchivedConversation, 'messages'> & { coun
 
 /** D29: newest archived conversation of this host group, if recent enough to offer "continue". */
 export const RESUME_WINDOW_MS = 7 * 24 * 3600 * 1000
-export function resumeCandidate<T extends { group: string; savedAt: number; count?: number }>(
+
+/** Titles that look like troubleshooting — prefer these for the empty-state resume chip. */
+const TROUBLESHOOT_TITLE_RE =
+  /报错|失败|错误|排错|排查|挂了|宕机|502|503|504|OOM|磁盘满|permission denied|\berror\b|\bfail(?:ed|ure)?\b|\bcrash\b|\bdown\b|nginx|systemd|journal/i
+
+export function isTroubleshootTitle(title: string | null | undefined): boolean {
+  const t = String(title ?? '').trim()
+  return t.length > 0 && TROUBLESHOOT_TITLE_RE.test(t)
+}
+
+export function resumeCandidate<T extends { group: string; savedAt: number; count?: number; title?: string }>(
   archives: ReadonlyArray<T>,
   group: string | null | undefined,
   now: number,
@@ -82,11 +92,16 @@ export function resumeCandidate<T extends { group: string; savedAt: number; coun
 ): T | null {
   if (!group || group === GENERAL_CONVERSATION_KEY) return null
   let best: T | null = null
+  let bestTrouble: T | null = null
   for (const a of archives) {
     if (a.group !== group || now - a.savedAt > windowMs || a.count === 0) continue
     if (!best || a.savedAt > best.savedAt) best = a
+    if (isTroubleshootTitle(a.title) && (!bestTrouble || a.savedAt > bestTrouble.savedAt)) {
+      bestTrouble = a
+    }
   }
-  return best
+  // Prefer the newest troubleshoot archive in-window; else newest overall.
+  return bestTrouble ?? best
 }
 
 /** Title for an archived conversation: the first user ask, trimmed. */

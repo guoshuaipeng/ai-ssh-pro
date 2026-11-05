@@ -45,6 +45,7 @@ import {
   conversationLabel,
   GENERAL_CONVERSATION_KEY,
   groupArchives,
+  isTroubleshootTitle,
   resumeCandidate,
   type AiArchiveSummary
 } from '@shared/ai-conversation'
@@ -2208,10 +2209,11 @@ export default function AIPanel({
                 type="button"
                 className="ai-starter-prompt ai-resume-last"
                 data-testid="ai-resume-last"
+                data-resume-kind={isTroubleshootTitle(resumeHit.title) ? 'troubleshoot' : 'chat'}
                 title={tg('d29.tip')}
                 onClick={() => restoreArchived(resumeHit.id)}
               >
-                {tg('d29.resume', { title: resumeHit.title || tg('ai.untitledChat') })}
+                {tg(isTroubleshootTitle(resumeHit.title) ? 'd29.resumeTroubleshoot' : 'd29.resume', { title: resumeHit.title || tg('ai.untitledChat') })}
               </button>
             ) : null}
             <div className="ai-starter-prompts" data-testid="ai-starter-prompts">
