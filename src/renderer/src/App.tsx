@@ -7513,6 +7513,30 @@ export default function App() {
         // AIPanel listens for the same event to seed / clear the demo conversation / streaming state.
         return
       }
+      if (detail.op === 'auditFilterEmpty') {
+        // Round 28: deliberate filter-empty — seed one AI command, open audit with a non-matching query.
+        setQuickOpen(false)
+        setTourOpen(false)
+        const d = detail as { host?: string; query?: string; seedDetail?: string }
+        const hostKey = (d.host || 'demo').trim() || 'demo'
+        const seedDetail = (d.seedDetail || 'systemctl status nginx --no-pager').trim()
+        const miss = (d.query || 'zzz-r28-no-match').trim()
+        appendAudit({
+          type: 'command',
+          host: hostKey,
+          source: 'AI',
+          outcome: 'allowed',
+          detail: seedDetail,
+          demo: true,
+          tabNo: 1,
+          policyChosen: 'ask',
+          policyEffective: 'ask',
+          policySource: 'temp'
+        })
+        window.dispatchEvent(new Event('aiss-audit-changed'))
+        openAudit(hostKey, undefined, { source: 'AI', type: 'command', text: miss })
+        return
+      }
       if (detail.op === 'menu') {
         handleTitlebarMenuAction(detail.action as TitlebarMenuAction)
         return
@@ -7565,7 +7589,7 @@ export default function App() {
     }
     window.addEventListener(SCREENSHOT_EVENT, onShot)
     return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
-  }, [ensureAiVisible, openSftpFromHost, openSftpTransfer, persistSessionState, folders, locale, handleTitlebarMenuAction])
+  }, [ensureAiVisible, openAudit, openSftpFromHost, openSftpTransfer, persistSessionState, folders, locale, handleTitlebarMenuAction])
   const closeTour = useCallback(() => {
     try {
       localStorage.setItem(TOUR_DONE_KEY, '1')

@@ -58,6 +58,8 @@ export type ScreenshotOp =
   | { op: "aiMemoryEvidence"; goal?: string; hostFacts?: string[]; observations?: string[]; recentCommands?: string[]; open?: boolean; jumpAudit?: boolean; seedAudit?: boolean }
   /** Round 21: failed command evidence pin (S27). */
   | { op: "aiFailureEvidence"; nextConfirm?: string; withMemory?: boolean }
+  /** Round 28: seed audit + open with non-matching filter → filter-empty (not true-empty). */
+  | { op: "auditFilterEmpty"; host?: string; query?: string; seedDetail?: string }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 
