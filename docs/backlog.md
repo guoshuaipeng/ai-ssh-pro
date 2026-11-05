@@ -1,3 +1,18 @@
+
+## 2026-11-05 Round 34 追加（收束停轮）
+- **已完成**：ZH/EN 策略芯片对比矩阵 `docs/screenshots/r34/`（需确认/仅建议/自动 × Ask/Suggest/Auto + 窄栏 + pop）；`aiPolicy` 截图 op；band tint CSS；标签 max-width 给 Suggest/仅建议留空。
+- **已完成**：失败钉同屏记忆再降权（opacity 0.58、宽栏也藏 label、wrap 收窄）；failure-memory 截图进同目录。
+- **停轮声明**：用户要求测完收尾 → **停止持续迭代，不再开 Round 35 / 36**。原「下一整页视觉 Round 36」**取消**。
+- P2 遗留（不自动开轮）：真机 Tauri 宽窄×深浅全量矩阵（R6 起 Electron harness 已覆盖 R14–R34）。
+- P3 遗留：pending Decline 权重 / 策略 pop 标题窄栏两行 / EN Ask 口语同形 — 可接受。
+- 未做（记债、不开轮）：端口转发默认不接；全仓 ui-n6 token fallback 债。
+
+### Round 34 UX 验收（编码后）
+- 主 CTA：待确认仍 Agree；失败钉仍「带证据重试」；chip 短标签 Ask ≠ Confirm。
+- 绑定：`aiPolicy` 只写本标签 temp；locale 只改本窗；失败钉仍绑当前会话。
+- 空/错：失败钉主叙事，记忆 count-only 降权。
+- 守卫：`test-r34-*`；Core-A 34/34；held-out H01–H08 绿；截图 24/24。
+
 ## Round 33 全页轻量视觉审计（逢 3 轮，R30 后下一拍；R14–R32 矩阵 + 代码审查）→ backlog
 依据：`docs/screenshots/r14|r30|r31` 与 R32 miss→新开对话 / EN Ask chip 代码（Electron harness；未新开 Tauri 真机全量）。
 

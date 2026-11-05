@@ -1,5 +1,17 @@
 # 复盘日志
 
+## Round 34 — 2026-11-05（ZH/EN 策略芯片对比 + 失败钉/记忆层级；**本轮收束，不再开 R35+**）
+- 计划：约 30 分钟；1 高频：ZH/EN policy chip 对比矩阵 + 对比度 CSS；1 小打磨：失败钉+记忆同屏再收一档；编码前 UX。
+- 实际：两项各一提交 + docs；Core-A 34/34 + held-out H01–H08 全绿；r34 截图 24/24（12 态 × 深/浅）。
+- 卡住点：① item1 测试误用 `tsconfig.node` 引 i18n → 改 `tsconfig.web`；② 扩 failure-memory 后 item1 硬编码 length=10 断言红 → 放宽 ≥10。
+- 根因：矩阵扩名后旧 deepEqual 未同步；i18n 仍须 web tsconfig（R20 起规则）。
+- 预防：矩阵 `Rxx_AI_SHOT_NAMES` 断言用 includes/≥n，勿锁死全表；带 translate 的守卫默认 web。
+- 验收：`test-r34-zh-en-policy-chip-contrast` / `test-r34-failure-memory-hierarchy` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r34/`。
+- 提交：`8a8927d7`（芯片对比）、item2 本提交（失败/记忆）、docs 同轮。
+- **停轮**：用户要求测完收尾，**不再开 Round 35+**；原计划 **Round 36 整页视觉取消**。
+- 逢 3 轮整页视觉：上一拍 Round 33 → 原下一目标 Round 36 → **已取消**。
+
+
 每轮结束、每修完一个 bug 追加一条。格式：日期 + 事项；耗时（计划 / 实际）；卡在哪；哪里没做好；根因；以后怎么避免（可执行规则）。通用规则同步到 docs/dev-rules.md。
 
 
