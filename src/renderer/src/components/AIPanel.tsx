@@ -44,6 +44,7 @@ import { safetyBandTone, safetyLadderBand } from '@shared/safety-visibility'
 import AiConfigCard from './AiConfigCard'
 import ExecReplay, { OPEN_AUDIT_EVENT, type OpenAiFromAuditDetail } from './ExecReplay'
 import { OPEN_AI_POLICY_EVENT, prodAutoHint } from '@shared/prod-auto-hint'
+import { readonlyHostHint } from '@shared/readonly-host-hint'
 import type { ExecRecord } from '@shared/ai-exec-replay'
 import { buildAuditOpenAiMissToast, hasFailedExecPin } from '@shared/ai-audit-miss'
 import { applyStreamDelta, finalizeStoppedLines } from '@shared/ai-stream-stop'
@@ -733,6 +734,30 @@ export default function AIPanel({
             structured: {
               action: 'end',
               description: '这是生产主机：自动执行仍会跑低/中风险只读命令，高危必须确认。',
+              riskLevel: 'low'
+            }
+          }
+        ])
+        return
+      }
+      if (detail?.op === 'aiReadonlyBanner') {
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride('readonly')
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        setSafetySettings((prev) => ({ ...prev, aiPolicy: 'ask', safetyTier: 'confirm' }))
+        setLines([
+          { role: 'user', content: '只读主机上帮我改一下配置' },
+          {
+            role: 'assistant',
+            content: '这是只读主机：AI 不会写入终端；变更步骤只会作为建议，可复制或填入命令栏。',
+            fresh: false,
+            structured: {
+              action: 'end',
+              description: '这是只读主机：AI 不会写入终端；变更步骤只会作为建议，可复制或填入命令栏。',
               riskLevel: 'low'
             }
           }
@@ -2588,6 +2613,10 @@ export default function AIPanel({
     paused: Boolean(elevated && protectionForUi === 'production'),
     policy: aiPolicy
   })
+  const panelReadonly = readonlyHostHint({
+    level: protectionForUi === 'readonly' ? 'readonly' : protectionForUi === 'production' ? 'production' : 'normal',
+    policy: aiPolicy
+  })
   const currentModel = modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''
   /** M25: the policy without the tab override; picking it clears the override. */
   const hostOrGlobalPolicy = resolveAiPolicy({ settings: safetySettings, hostPolicy, protection: null }).chosen
@@ -3023,6 +3052,22 @@ export default function AIPanel({
             {panelProdAuto.autoHighRisk ? tg('prodAuto.chipHigh') : tg('prodAuto.chip')}
           </span>
           <span className="ai-prod-auto-hint">{tg('prodAuto.panelHint')}</span>
+        </button>
+      ) : null}
+
+      {panelReadonly && !panelProdAuto ? (
+        <button
+          type="button"
+          className="ai-readonly-banner"
+          data-testid="ai-readonly-banner"
+          title={tg('roHost.tip', {
+            source: tg(`policy.source.${panelReadonly.source}` as 'policy.source.global')
+          })}
+          onClick={() => setSafetyOpen(true)}
+        >
+          <span className="ai-readonly-dot" aria-hidden="true" />
+          <span className="ai-readonly-text">{tg('roHost.chip')}</span>
+          <span className="ai-readonly-hint">{tg('roHost.panelHint')}</span>
         </button>
       ) : null}
 

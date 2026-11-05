@@ -38,6 +38,7 @@ export type ScreenshotOp =
   | { op: "aiEmptyResume"; title?: string }
   /** Round 14: force AI panel production+auto banner (screenshot override). */
   | { op: "aiProdBanner" }
+  | { op: "aiReadonlyBanner" }
   /** Round 14: fresh suggest-only command card (Copy primary). */
   | { op: "aiSuggestCard"; command?: string; description?: string }
   /** Round 14: error card for accent hierarchy. */

@@ -8148,6 +8148,42 @@ body.platform-darwin .window-controls {
   min-width: 0;
 }
 
+/* Round 29: read-only host calm banner (symmetric to prod-auto; ok/info tone) */
+.ai-readonly-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-ok) 35%, transparent);
+  background: color-mix(in srgb, var(--color-ok) 10%, transparent);
+  color: var(--color-fg);
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.ai-readonly-banner:hover {
+  background: color-mix(in srgb, var(--color-ok) 18%, transparent);
+}
+.ai-readonly-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-ok);
+  flex: 0 0 auto;
+}
+.ai-readonly-text { font-weight: 600; white-space: nowrap; }
+.ai-readonly-hint {
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+
 
 /* H08: key ok but no model — calm banner, one primary CTA */
 .ai-model-missing {
