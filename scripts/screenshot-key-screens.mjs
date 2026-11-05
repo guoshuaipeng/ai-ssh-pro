@@ -18,6 +18,7 @@ import { r29AiShots } from './ai-shot-matrix-r29.mjs'
 import { r30AiShots } from './ai-shot-matrix-r30.mjs'
 import { r31AiShots } from './ai-shot-matrix-r31.mjs'
 import { r33AiShots } from './ai-shot-matrix-r33.mjs'
+import { r34AiShots } from './ai-shot-matrix-r34.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -431,6 +432,14 @@ const chrome = [
     size: s.narrow ? N : W,
     wait: s.wait || 1000,
     toasts: !!s.toasts,
+    steps: s.steps,
+    expect: s.expect || undefined
+  })),
+  // Round 34: ZH/EN policy chip contrast (Ask/Suggest/Auto vs 需确认/仅建议/自动)
+  ...${JSON.stringify(r34AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
     steps: s.steps,
     expect: s.expect || undefined
   }))

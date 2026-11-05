@@ -7116,6 +7116,35 @@ button.primary.danger:focus-visible {
   }
 }
 
+/* R34 Round34: ZH/EN policy chip contrast — band tint + room for Suggest/仅建议 */
+/* Ask/Suggest/Auto vs 需确认/仅建议/自动 stay distinct on dark+light without CTA-like Confirm. */
+.ai-composer-bar .ai-safety-chip.safety-band-ok {
+  color: var(--color-ok);
+  background: color-mix(in srgb, var(--color-ok) 14%, transparent);
+}
+.ai-composer-bar .ai-safety-chip.safety-band-warn {
+  color: var(--color-warn);
+  background: color-mix(in srgb, var(--color-warn) 14%, transparent);
+}
+.ai-composer-bar .ai-safety-chip.safety-band-danger {
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+}
+.ai-composer-bar .ai-safety-chip.is-open.safety-band-ok,
+.ai-composer-bar .ai-safety-chip.is-open.safety-band-warn,
+.ai-composer-bar .ai-safety-chip.is-open.safety-band-danger {
+  background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+}
+.ai-composer-bar .ai-safety-chip .ai-safety-chip-label {
+  max-width: 5.75em;
+  letter-spacing: 0.01em;
+}
+@container (max-width: 230px) {
+  .ai-composer-bar .ai-safety-chip .ai-safety-chip-label {
+    max-width: 4.5em;
+  }
+}
+
 /* H02: suggest-only decision row — copy is the primary action, never Agree. */
 .ai-panel .ai-suggest-only {
   display: flex;

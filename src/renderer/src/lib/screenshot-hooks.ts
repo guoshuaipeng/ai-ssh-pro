@@ -43,6 +43,8 @@ export type ScreenshotOp =
   | { op: "aiMissToast" }
   /** Round 33: force UI locale for EN chip matrix. */
   | { op: "locale"; id: "en" | "zh-CN" }
+  /** Round 34: force tab temp AI policy for ZH/EN chip contrast matrix. */
+  | { op: "aiPolicy"; id: "ask" | "suggest" | "auto" }
   /** Round 14: fresh suggest-only command card (Copy primary). */
   | { op: "aiSuggestCard"; command?: string; description?: string }
   /** Round 14: error card for accent hierarchy. */

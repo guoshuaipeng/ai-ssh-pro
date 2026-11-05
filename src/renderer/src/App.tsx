@@ -7428,6 +7428,20 @@ export default function App() {
         setLocale(id)
         return
       }
+      if (detail.op === 'aiPolicy') {
+        // Round 34: ZH/EN policy chip contrast matrix — temp override for this tab.
+        const raw = (detail as { id?: string }).id
+        const policy = raw === 'suggest' || raw === 'auto' || raw === 'ask' ? raw : 'ask'
+        setQuickOpen(false)
+        setTourOpen(false)
+        ensureAiVisible()
+        openRightPanelRef.current('ai')
+        const tabId = activeTabIdRef.current
+        if (tabId) {
+          setTempPolicyByTab((prev) => ({ ...prev, [tabId]: policy }))
+        }
+        return
+      }
       if (detail.op === 'sftp' || detail.op === 'sftpDual') {
         setQuickOpen(false)
         setTourOpen(false)
