@@ -425,6 +425,17 @@
 
 
 
+
+## Round 27 — 2026-11-05（逢 3 轮整页视觉审计 + jump-audit 种子命中）
+- 计划：约 30 分钟；1 高频：AI 面板整页视觉审计（宽窄×深浅 harness + 代码审查）入 backlog 并修 1–2 快 P2；1 小打磨：种子审计后重拍 jump-audit；编码前 UX。
+- 实际：~40 分钟；两项各一提交 + docs/截图；Core-A 34/34 + held-out 全绿；r27 截图 8/8。
+- 卡住点：① R27 CSS 若插在 R25 之前会被 `min-height: 28px` 盖掉 → 直接改 R25 源并在其后留 R27 marker；② package.json 缺 R26 测试接线（本轮一并补）；③ CopyToBox 截图路径仍在 allowed root 外（沿用 harness expect）。
+- 根因：同选择器后写覆盖前写；逢 3 轮审计若不把「快 P2」当场修掉会口头债化。
+- 预防：改触控尺寸改「定义处」而非仅追加；Rxx 截图默认 rebuild；jump 深链截图必须 seed 或显式拍 empty/filter-empty。
+- 验收：`test-r27-visual-audit-touch` / `test-r27-seed-jump-audit` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r27/`。
+- 提交：`9640ed06`（审计+触控）、`ae6209ad`（seed+矩阵）；docs 同轮。
+- 逢 3 轮整页视觉：本轮完成（上一拍 Round 24）→ **下一目标 Round 30**。
+
 ## Round 26 — 2026-11-05（记忆展开截图矩阵 + 失败/记忆层级与审计空筛选）
 - 计划：约 30 分钟；1 高频：记忆 open/collapse/jump-audit 进 `docs/screenshots/r26/`；1 小打磨：失败钉同屏记忆层级 + 审计 filter-empty 冷静文案；编码前 UX。
 - 实际：~35 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r26 截图 12/12。

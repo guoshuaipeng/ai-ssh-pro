@@ -34,3 +34,9 @@
 1. Core-A 34/34; held-out H01–H08 green.
 2. `test-r27-*` wiring green; r27 shots expect true after rebuild.
 3. Designer: memory jump/close ≥32px; jump-audit shows a row, not empty state.
+
+
+## After code
+- Item1 `9640ed06`: visual-audit backlog table + memory touch ≥32px; r26 tests wired into test:parts.
+- Item2 `ae6209ad`: jumpAudit seeds matching audit row; `docs/screenshots/r27/` 8/8 expect true (jump-hit + failure/memory × dark/light × wide/narrow).
+- Next full-page visual: **Round 30**. Round 28 suggestion: AI-dialog gap scan before Roadmap iter 3 / or intentional filter-empty matrix shot / Decline weight.
