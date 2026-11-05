@@ -8,6 +8,7 @@ import { stdAiScenarios, aiTableScenarioNames, AI_E2E_TABLE } from './e2e-ai-tab
 import { r14AiShots } from './ai-shot-matrix-r14.mjs'
 import { r17AiShots } from './ai-shot-matrix-r17.mjs'
 import { r18AiShots } from './ai-shot-matrix-r18.mjs'
+import { r20AiShots } from './ai-shot-matrix-r20.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -337,6 +338,14 @@ const chrome = [
   })),
   // Round 18: plan-step align + audit↔dialog deep links
   ...${JSON.stringify(r18AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
+    steps: s.steps,
+    expect: s.expect || undefined
+  })),
+  // Round 20: policy menu open + pending dock narrow (R19 debt)
+  ...${JSON.stringify(r20AiShots())}.map((s) => ({
     name: s.name,
     size: s.narrow ? N : W,
     wait: s.wait || 1000,

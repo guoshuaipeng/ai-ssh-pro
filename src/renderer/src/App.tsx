@@ -7538,6 +7538,15 @@ export default function App() {
         // Handled by SftpPanel listeners; App no-ops so the event can still bubble.
         return
       }
+      if (detail.op === 'aiComposerPop') {
+        setQuickOpen(false)
+        setTourOpen(false)
+        ensureAiVisible()
+        openRightPanelRef.current('ai')
+        ;(window as unknown as { __aissShotPop?: string }).__aissShotPop =
+          detail.which === 'model' ? 'model' : 'safety'
+        return
+      }
       if (detail.op === 'aiConfirm') {
         setQuickOpen(false)
         setTourOpen(false)
