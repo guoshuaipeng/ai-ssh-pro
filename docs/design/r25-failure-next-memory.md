@@ -19,3 +19,8 @@
 1. `docs/screenshots/r25/` dark/light × failure / failure-narrow / next-confirm / next-confirm-narrow green.
 2. Chip tap area comfortable; close collapses; 近令 jumps audit then closes pop.
 3. Core-A 34/34 + held-out H01–H08 green.
+
+
+## After code
+- Item1 `d423b291`: matrix 8/8 green after fixing missing `planStepDisplayMax` import.
+- Item2 `07335696`: chip ≥28px; 「收起」; 近令 → audit filter via `query`.

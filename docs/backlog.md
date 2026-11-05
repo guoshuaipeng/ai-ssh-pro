@@ -72,6 +72,21 @@
 
 
 
+
+## 2026-11-05 Round 25 追加
+- 已完成：失败证据截图矩阵扩「下一步 · n」态 → `docs/screenshots/r25/`（宽/窄 × 深/浅 × failure / next-confirm；expect 校验 `data-aligned-step=2` + 短文案）；顺带修 R24 漏 import 的 `planStepDisplayMax`（next-confirm 截图路径会崩）。
+- 已完成：工作记忆展开 UX——芯片触控 ≥28px；弹层「收起」；近令行跳转审计（全文 `query` 筛选，不执行命令）。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R25）；记忆展开态可另扩 harness 拍 close/jump。
+- P3：hostFact/observation 仍只读（不跳审计）— 可接受；极窄 count-only 与主机 chip 间距真机抽检可关。
+- P1 候选 Round 26：保持 AI 对话——记忆展开态进截图矩阵 / 或 Roadmap 迭代 3 前扫对话缺口（失败钉+记忆同屏层级、审计空筛选冷静文案）；默认不接端口转发。整页视觉目标仍 Round 27。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+
+### Round 25 UX 验收（编码后）
+- 主 CTA：失败钉仍「带证据重试」；「下一步 · 2」次要；Agree 唯一确认主 CTA；记忆仍是次要披露。
+- 绑定：next-confirm `data-aligned-step` 与计划芯片同源；近令审计筛选绑当前主机标签。
+- 空/错：无证据不渲染记忆芯片；审计无匹配沿用既有冷静空态，不造「没有匹配」误用。
+- 守卫：`test-r25-ai-shot-harness` / `test-r25-memory-expand`；Core-A 34/34；held-out H01–H08 绿；截图 8/8。
+
 ## 2026-11-05 Round 24 追加
 - 已完成：带证据重试后确认坞/芯片/可确认卡徽章共用 `alignPlanStepDisplay` + `planStepDisplayMax`；pending 时芯片仍可见；确认坞显示「当前第 n/max 步」。整页视觉审计后快捷修：失败→下一步改为「下一步 · n」。
 - P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R22；R24 未扩拍）。
