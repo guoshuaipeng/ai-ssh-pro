@@ -12,11 +12,31 @@
 
 # Backlog（2026-10-20 第 9 轮之后，按日常使用频率排序）
 
+## 2026-11-05 Round 15 追加
+- 已完成：composer 策略菜单窄栏（chips wrap + 标签 ellipsis + safety pop 全宽可读，`test-r15-composer-policy-narrow`）；多步建议 **复制全部步骤**（`ai-suggestion-steps` + `ai-batch-copy`，≥2 命令才出现）。
+- P2：真机/ Electron harness 补拍策略菜单窄栏开合 + 批量复制条（可扩 r14 matrix）；Tauri rebuild 对照抽检（可选）。
+- P1 候选 Round 16：保持 AI 对话——多轮计划进度条（与 `ai-run-steps`/streak 对齐可见性）/ 或批量「填入下一条」；或 Roadmap 迭代 3 前再扫对话缺口。默认不接端口转发。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+
+### Round 15 轻量视觉审查（逢 3 轮）→ backlog
+- P2 窄栏 composer：策略芯片「执行前确认」ellipsis 后依赖 title 读全文——核对 tooltip 在触控/无悬停场景是否够用；必要时图标-only + aria-label。
+- P2 批量复制条：出现在消息尾、靠近 composer；多轮很长时可能需滚到底才看见——候选「贴顶 sticky」或紧挨第一张建议卡。
+- P3 策略 pop 标题「AI 执行策略（此标签页）」窄栏折两行可接受；若仍挤，可短标题 + tip。
+- P3 真机宽/窄×深/浅矩阵仍欠（R6–R14 遗留）：优先拍 safety pop 开合、batch-copy 条、R14 六态对照。
+
+### Round 15 UX 验收（编码后）
+- 主 CTA：策略选项仍是菜单主操作；批量复制为次要（单卡 Copy 保留）。
+- 窄栏：chips wrap；menu label 可换行；`@container 230px` 收紧 model/chip，隐藏 spacer，run-steps 整行。
+- 绑定：batch copy 只读当前对话 lines，不跨主机。
+- 空态：<2 命令不显示条。
+- 待真机：rebuild / Electron harness 矩阵。
+
+
 > 没有埋点数据。排序依据核心日常路径推断：连接/重连 → 终端输入与输出 → 历史/查找 → SFTP → AI 对话 → 多主机切换。每项开工前先盘点已有功能，只做缺口。
 
 ## 2026-11-05 Round 14 追加
 - 已完成：Electron AI 态截图 harness 标准化（`scripts/ai-shot-matrix-r14.mjs` + hooks `aiCancelled`/`aiEmptyResume`/`aiProdBanner`/`aiSuggestCard`/`aiAccentStack` + App stash/replay）；`docs/screenshots/r14/` 宽窄×深浅矩阵；streaming/cancelled/error 左边条层级（accent / muted / danger）。
-- P2：composer 策略菜单窄栏折行（Roadmap 视觉债）；真机 Tauri 与 Electron harness 对照抽检（可选）。
+- ~~P2：composer 策略菜单窄栏折行~~ → Round 15 已做；真机 Tauri 与 Electron harness 对照抽检（可选）仍欠。
 - P1 候选 Round 15：保持 AI 对话——composer 策略菜单窄栏 / 或 Roadmap 迭代 3 前再扫 AI 对话缺口（多轮进度可见性、建议卡批量复制）；默认不接端口转发除非用户改优先级。
 - 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out JSON）。
 

@@ -356,3 +356,11 @@
 - 根因：截图 op 假定面板已挂载；双监听（App 开面板 / Panel 填态）无 pending 契约；held-out wiring 绑死旧标识符。
 - 以后怎么避免：AI 态截图一律 `demoHost → aiChat(empty) → stateOp` 或 App stash+replay；新 screenshot op 同步改 App 开面板列表；改 panel 保护字段时同步 held-out wiring 字符串；矩阵场景放 `ai-shot-matrix-r14.mjs` JSON 注入，禁止在 chrome 模板里手写嵌套 eval。
 - 验收：`test-r14-ai-shot-harness` / `test-r14-card-accents` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r14/` dark/light × 6 态。
+
+## 2026-11-05 第 79 轮（Round 15）AI 对话 — composer 策略菜单窄栏 + 多步批量复制
+- 计划：约 30 分钟；1 高频 composer 策略菜单窄栏折行 + 1 小打磨多步建议「复制全部步骤」。
+- 实际：约 40 分钟。两项交付；Core-A 34/34；held-out H01–H08 绿；真机矩阵仍欠（沿用 R6–R14 债，R14 harness 可补拍）。
+- 卡在哪：① PowerShell 内联 `node -e` 模板字符串被转义炸；② 测 i18n 须 `--tsconfig tsconfig.web.json` 才能解析 `@shared/*`。
+- 根因：窄栏 composer 只给了 console chip 的 300px 规则，策略/模型芯片与 safety pop 未按 wrap+ellipsis 收口；多步建议只有单卡 Copy。
+- 以后怎么避免：composer chrome 新增芯片一律挂 `@container (max-width: 230px)` wrap/ellipsis；多步计划类能力先抽 shared 纯函数再接线 UI；本机补丁优先 `.cjs` 文件。
+- 验收：`test-r15-composer-policy-narrow` / `test-r15-batch-copy-steps` + Core-A 34/34 + held-out 全绿；宽窄×深浅真机截图仍待 harness/rebuild。
