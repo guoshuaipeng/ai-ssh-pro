@@ -1,0 +1,56 @@
+{
+  "id": "H08",
+  "title": "Empty / error states — actionable CTAs",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H08",
+  "gates": [
+    { "hasApiKey": false, "expect": "needs_config" },
+    { "hasApiKey": true, "expect": "ready" }
+  ],
+  "errorPrimary": [
+    { "code": "AI_HTTP_401", "expect": "settings" },
+    { "code": "AI_HTTP_403", "expect": "settings" },
+    { "code": "AI_HTTP_404", "expect": "settings" },
+    { "code": "AI_HTTP_0", "expect": "settings" },
+    { "code": "AI_PROVIDER", "expect": "settings" },
+    { "code": "AI_HTTP_429", "expect": "retry" },
+    { "code": "AI_HTTP_503", "expect": "retry" },
+    { "code": "AI_HTTP_500", "expect": "retry" },
+    { "code": null, "expect": "retry" }
+  ],
+  "modelMissing": [
+    { "activeModel": "", "modelList": [], "expect": true },
+    { "activeModel": "  ", "modelList": [], "expect": true },
+    { "activeModel": "", "modelList": ["qwen-plus"], "expect": false },
+    { "activeModel": "qwen-plus", "modelList": ["qwen-plus"], "expect": false }
+  ],
+  "wiring": {
+    "emptyState": [
+      "data-testid=\"ai-empty-state\"",
+      "data-testid=\"ai-config-card\"",
+      "data-testid=\"ai-config-setup\"",
+      "ai.emptyTitle",
+      "ai.emptyAction"
+    ],
+    "configuredEmpty": [
+      "data-testid=\"ai-reply-empty\"",
+      "data-testid=\"ai-starter-prompts\""
+    ],
+    "errorCard": [
+      "data-testid=\"ai-error-open-settings\"",
+      "data-testid=\"ai-error-retry\"",
+      "data-primary={openSettings ? 'settings' : 'retry'}",
+      "aiErrorPrimaryCta"
+    ],
+    "modelMissingBanner": [
+      "data-testid=\"ai-model-missing\"",
+      "aiNeedsModelPick"
+    ],
+    "moduleExports": [
+      "aiEmptyGate",
+      "aiErrorPrimaryCta",
+      "aiNeedsModelPick",
+      "resolveAiModelLabel"
+    ]
+  }
+}

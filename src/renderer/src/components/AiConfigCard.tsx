@@ -21,14 +21,14 @@ export default function AiConfigCard({ context, flash, onConfigure }: Props) {
       <div className="ai-config-mark" aria-hidden>
         <Icon name="sparkles" size={CHROME_ICON_SIZE} strokeWidth={CHROME_ICON_STROKE} />
       </div>
-      <div className="ai-config-title">{tg('ux37.can')}</div>
+      <div className="ai-config-title">{tg('ai.emptyTitle')}</div>
       <ul className="ai-config-list">
         <li>{tg('ux37.explain')}</li>
         <li>{tg('ux37.generate')}</li>
       </ul>
       <div className="ai-config-actions">
         <Button variant="primary" data-testid="ai-config-setup" onClick={onConfigure}>
-          {tg('ux37.setup')}
+          {tg('ai.emptyAction')}
         </Button>
         <button
           type="button"

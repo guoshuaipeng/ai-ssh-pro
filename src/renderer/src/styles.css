@@ -7506,3 +7506,24 @@ body.platform-darwin .window-controls {
   white-space: nowrap;
   min-width: 0;
 }
+
+
+/* H08: key ok but no model — calm banner, one primary CTA */
+.ai-model-missing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--fg-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ai-model-missing-text {
+  flex: 1 1 140px;
+  min-width: 0;
+}
