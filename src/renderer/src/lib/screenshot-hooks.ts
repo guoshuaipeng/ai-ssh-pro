@@ -39,6 +39,10 @@ export type ScreenshotOp =
   /** Round 14: force AI panel production+auto banner (screenshot override). */
   | { op: "aiProdBanner" }
   | { op: "aiReadonlyBanner" }
+  /** Round 33: show audit→AI miss toast (New chat action). */
+  | { op: "aiMissToast" }
+  /** Round 33: force UI locale for EN chip matrix. */
+  | { op: "locale"; id: "en" | "zh-CN" }
   /** Round 14: fresh suggest-only command card (Copy primary). */
   | { op: "aiSuggestCard"; command?: string; description?: string }
   /** Round 14: error card for accent hierarchy. */

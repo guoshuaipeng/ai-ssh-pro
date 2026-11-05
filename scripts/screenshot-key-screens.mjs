@@ -17,6 +17,7 @@ import { r28AiShots } from './ai-shot-matrix-r28.mjs'
 import { r29AiShots } from './ai-shot-matrix-r29.mjs'
 import { r30AiShots } from './ai-shot-matrix-r30.mjs'
 import { r31AiShots } from './ai-shot-matrix-r31.mjs'
+import { r33AiShots } from './ai-shot-matrix-r33.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -421,6 +422,15 @@ const chrome = [
     name: s.name,
     size: s.narrow ? N : W,
     wait: s.wait || 1000,
+    steps: s.steps,
+    expect: s.expect || undefined
+  })),
+  // Round 33: miss→New chat toast + EN Ask chip (every-3 visual audit)
+  ...${JSON.stringify(r33AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
+    toasts: !!s.toasts,
     steps: s.steps,
     expect: s.expect || undefined
   }))

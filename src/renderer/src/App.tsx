@@ -7423,6 +7423,11 @@ export default function App() {
         applyUiTheme(detail.id as UiThemeId)
         return
       }
+      if (detail.op === 'locale') {
+        const id = (detail as { id?: string }).id === 'en' ? 'en' : 'zh-CN'
+        setLocale(id)
+        return
+      }
       if (detail.op === 'sftp' || detail.op === 'sftpDual') {
         setQuickOpen(false)
         setTourOpen(false)
@@ -7503,7 +7508,7 @@ export default function App() {
         detail.op === 'aiAuditFocus' ||
         detail.op === 'aiMemoryEvidence' || detail.op === 'aiFailureEvidence' ||
         detail.op === 'aiEmptyConfig' || detail.op === 'aiModelMissing' ||
-        detail.op === 'aiReadonlyBanner'
+        detail.op === 'aiReadonlyBanner' || detail.op === 'aiMissToast'
       ) {
         setQuickOpen(false)
         setTourOpen(false)

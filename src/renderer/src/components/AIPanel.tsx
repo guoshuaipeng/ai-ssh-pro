@@ -14,7 +14,7 @@ import { parseAiAssistantReply } from '@shared/ipc'
 import { appendAudit } from '@shared/audit-log'
 import { commandBundle, highlightKeyNumbers, layoutOpsReply, splitFences, splitInlineCode, type OpsLayout } from '@shared/ai-reply-cards'
 import { dispatchInjectTerminal } from '../lib/terminal-inject'
-import { showToast } from '../lib/toast'
+import { clearToasts, showToast } from '../lib/toast'
 import { chatToMarkdown } from '@shared/ai-chat-markdown'
 import { addPrompt, loadPrompts, savePrompts, AI_PROMPTS_MAX } from '@shared/ai-prompts'
 import { buildPasteBlock, composeWithBlocks, shouldCollapsePaste, type PasteBlock } from '@shared/paste-block'
@@ -628,7 +628,8 @@ export default function AIPanel({
         detail?.op === 'aiFailureEvidence' ||
         detail?.op === 'aiEmptyConfig' ||
         detail?.op === 'aiModelMissing' ||
-        detail?.op === 'aiReadonlyBanner'
+        detail?.op === 'aiReadonlyBanner' ||
+        detail?.op === 'aiMissToast'
       ) {
         ;(window as unknown as { __aissShotAiOp?: typeof detail }).__aissShotAiOp = detail
       }
@@ -754,6 +755,46 @@ export default function AIPanel({
             }
           }
         ])
+        return
+      }
+      if (detail?.op === 'aiMissToast') {
+        // Round 33: calm miss toast with New chat action (visual audit matrix).
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotEmptyConfig(false)
+        screenshotEmptyConfigRef.current = false
+        setScreenshotModelMissing(false)
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        setLines([
+          { role: 'user', content: '从审计跳回这一步' },
+          {
+            role: 'assistant',
+            content: '当前对话里另有步骤；审计指向的那条不在这里。',
+            fresh: false,
+            structured: {
+              action: 'end',
+              description: '当前对话里另有步骤；审计指向的那条不在这里。',
+              riskLevel: 'low'
+            }
+          }
+        ])
+        clearToasts()
+        const miss = buildAuditOpenAiMissToast()
+        showToast(tg(miss.messageKey), {
+          kind: miss.kind,
+          theme: miss.theme,
+          ms: miss.ms,
+          action: {
+            label: tg(miss.actionKey),
+            run: () => {
+              startNewChatRef.current?.()
+            }
+          }
+        })
         return
       }
       if (detail?.op === 'aiReadonlyBanner') {
