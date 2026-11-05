@@ -1115,6 +1115,7 @@ export default function AIPanel({
           recentCommands?: string[]
           open?: boolean
           jumpAudit?: boolean
+          seedAudit?: boolean
         }
         const view = buildMemoryEvidenceView({
           goal: d.goal ?? '排查 nginx 502',
@@ -1133,9 +1134,28 @@ export default function AIPanel({
           const host = conversation
             ? conversationLabel(conversation.hostLabel, conversation.n)
             : hostName || undefined
+          // Round 27: seed a matching audit row so jump-audit shots show a hit,
+          // not true-empty / filter-empty. Screenshot/QA only path (op handler).
+          const seed = d.seedAudit !== false
+          if (seed && full) {
+            const hostKey = (host || hostName || 'demo').trim() || 'demo'
+            appendAudit({
+              type: 'command',
+              host: hostKey,
+              source: 'AI',
+              outcome: 'allowed',
+              detail: full,
+              demo: true,
+              tabNo: conversation?.n,
+              policyChosen: 'ask',
+              policyEffective: 'ask',
+              policySource: 'temp'
+            })
+            window.dispatchEvent(new Event('aiss-audit-changed'))
+          }
           window.dispatchEvent(
             new CustomEvent(OPEN_AUDIT_EVENT, {
-              detail: { host, source: 'AI', type: 'command', text: full }
+              detail: { host: host || undefined, source: 'AI', type: 'command', text: full }
             })
           )
         }
