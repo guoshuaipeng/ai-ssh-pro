@@ -1,24 +1,55 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+
+type TauriWindow = {
+  isMaximized: () => Promise<boolean>
+  onResized: (cb: () => void) => Promise<() => void>
+  minimize: () => Promise<void>
+  toggleMaximize: () => Promise<void>
+  close: () => Promise<void>
+}
+
+function hasTauri(): boolean {
+  try {
+    return Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__)
+  } catch {
+    return false
+  }
+}
 
 /**
  * Custom min / max / close for undecorated Tauri windows (Windows/Linux).
- * Sits in the reserved titlebar padding where Electron titleBarOverlay buttons lived.
+ * No-ops in Electron / screenshot harness where Tauri internals are absent.
  */
 export default function WindowControls() {
   const [maximized, setMaximized] = useState(false)
+  const [win, setWin] = useState<TauriWindow | null>(null)
 
-  const refresh = useCallback(async () => {
-    try {
-      setMaximized(await getCurrentWindow().isMaximized())
-    } catch {
-      /* ignore */
+  useEffect(() => {
+    if (!hasTauri()) return
+    let cancelled = false
+    void import('@tauri-apps/api/window')
+      .then((mod) => {
+        if (cancelled) return
+        setWin(mod.getCurrentWindow() as unknown as TauriWindow)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
     }
   }, [])
 
+  const refresh = useCallback(async () => {
+    if (!win) return
+    try {
+      setMaximized(await win.isMaximized())
+    } catch {
+      /* ignore */
+    }
+  }, [win])
+
   useEffect(() => {
+    if (!win) return
     void refresh()
-    const win = getCurrentWindow()
     let un: (() => void) | undefined
     void win
       .onResized(() => {
@@ -35,19 +66,21 @@ export default function WindowControls() {
         /* ignore */
       }
     }
-  }, [refresh])
+  }, [win, refresh])
+
+  if (!win) return null
 
   const minimize = () => {
-    void getCurrentWindow().minimize().catch(() => {})
+    void win.minimize().catch(() => {})
   }
   const toggleMax = () => {
-    void getCurrentWindow()
+    void win
       .toggleMaximize()
       .then(() => refresh())
       .catch(() => {})
   }
   const close = () => {
-    void getCurrentWindow().close().catch(() => {})
+    void win.close().catch(() => {})
   }
 
   return (

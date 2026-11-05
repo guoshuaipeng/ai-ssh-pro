@@ -444,3 +444,7 @@ D42 核对：AI 多行逐条填入、执行和进度条已由 D16b/D16c/D16d 覆
 - P0 真机宽/窄×深/浅截图矩阵（H01/H05/H02/H07/H03/P2 + 本轮 streak 芯片）— 先 tauri build / tauri dev 含 HEAD。
 - Roadmap 2.1 AI 执行审计补全（chosen/effective/source/cappedBy）字段可见性若有缺口。
 - 留出集 H04 快速连发串流（若未覆盖）。
+
+## 2026-11-05 Round 6（AI 对话）
+已完成：Roadmap 2.1 审计 UI 切片（来源筛选、标签#、策略列、允/拦/消中文；数据/导出此前已有）；WindowControls Electron 守卫；`docs/screenshots/r6/` 矩阵。
+下一轮建议：2.3 对话内跳转审计 / 真机 Tauri 置前脚本修好后补拍 HEAD debug；或 H04 流式停止真态（非 DOM 注入）。
