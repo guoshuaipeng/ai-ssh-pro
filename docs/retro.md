@@ -420,3 +420,12 @@
 - 重复 3+ 次：① PowerShell 引号 → `.py` 补丁已成默认；② 真机宽窄×深浅口头债 → 应用 declarative matrix 收口（R14–R20 模式）；③ 新 op 必须同步 App 开面板 + AIPanel stash + hooks 类型 + matrix JSON。
 - 抽象已落地：`ai-shot-matrix-rXX.mjs` config-driven；`buildMemoryEvidenceView` 纯函数裁剪；继续沿用。
 - 下轮候选：失败证据卡 / 记忆芯片窄栏真机抽检 / Roadmap 迭代 3 前扫对话缺口；整页视觉审计目标 Round 21。
+
+## Round 21 — 2026-11-05（失败证据卡 + 记忆芯片窄栏 + 逢 3 轮全页视觉审计）
+- 计划：约 30 分钟；1 高频：确认命令失败后钉证据卡（对齐 S27）+ 1 小打磨：记忆芯片极窄收／或整页视觉审计入 backlog；编码前 UX。
+- 实际：本机两项代码 + docs 视觉审计；Core-A 34/34；held-out H01–H08 绿。
+- 卡住点：① exec 原先先 emit 再 classify → 改为先 classify 再带 failureKind/evidence/retryBudget；② PowerShell 仍用 `tools/r21/*.py`；③ ExecReplay 注释含 confirmStep 词触发守卫误报。
+- 根因/预防：失败可见性要以 UI 钉住为准，不能只靠 end description；流事件字段与 normalizeExecRecord / 历史持久化同 commit；守卫断言避开注释里的禁词。
+- UX 验收：失败卡主 CTA「带证据重试」= 新提问，不写 SSH；预算用尽 → 填入输入框「换个问法」；记忆芯片 ≤230px 仅 count + aria。
+- 验收：`test-r21-failure-evidence` / `test-r21-memory-chip-narrow` + Core-A 34/34 + held-out 全绿。
+- 提交：`ad36c3f4`（失败证据）、`3274c6da`（记忆窄栏）；docs 同轮 `docs: Round 21 retro + full-page visual audit backlog`。
