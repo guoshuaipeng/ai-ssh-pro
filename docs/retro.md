@@ -424,6 +424,17 @@
 
 
 
+
+## Round 26 — 2026-11-05（记忆展开截图矩阵 + 失败/记忆层级与审计空筛选）
+- 计划：约 30 分钟；1 高频：记忆 open/collapse/jump-audit 进 `docs/screenshots/r26/`；1 小打磨：失败钉同屏记忆层级 + 审计 filter-empty 冷静文案；编码前 UX。
+- 实际：~35 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r26 截图 12/12。
+- 卡住点：① `test-ui-n6` 全仓 `var(--x, #)` 断言本就红（与 R26 无关，基线复现）；② PowerShell 引号 → `tools/r26/*.py`。
+- 根因：ui-n6 扫整个 styles+features，历史 fallback 债未清；不应用本轮范围去「修全仓」。
+- 预防：新 CSS 块仍禁 token fallback；全仓 ui-n6 债记 backlog 非整轮硬拦；Rxx 截图默认 rebuild。
+- 验收：`test-r26-ai-shot-harness` / `test-r26-hierarchy-audit-empty` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r26/`。
+- 提交：`2173bf19`（矩阵）、`0e2b6b88`（层级+空筛选）；docs 同轮。
+- 逢 3 轮整页视觉：上一拍 Round 24 → **下一目标 Round 27（本轮注明，下轮执行）**。
+
 ## Round 25 — 2026-11-05（失败「下一步 · n」截图矩阵 + 工作记忆展开 UX）
 - 计划：约 30 分钟；1 高频：失败证据矩阵补短「下一步 · n」/narrow；1 小打磨：记忆触控/收起/近令跳审计；编码前 UX。
 - 实际：~40 分钟；两项各一提交 + docs；Core-A 34/34 + held-out 全绿；r25 截图 8/8。

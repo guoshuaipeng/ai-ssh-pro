@@ -21,3 +21,9 @@ Op: extend `aiMemoryEvidence` with `open?: boolean` (default true) and `jumpAudi
 
 ## Round 27 note
 Next full-page visual audit (every 3 rounds; last was R24).
+
+
+## After code
+- Item1 `2173bf19`: matrix 12/12 green (open / collapsed / jump-audit × dark/light × wide/narrow).
+- Item2 `0e2b6b88`: memory muted beside failure pin; audit filter-empty ≠ true-empty.
+- Round 27: full-page visual audit (AI dialog).

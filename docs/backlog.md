@@ -73,6 +73,22 @@
 
 
 
+
+## 2026-11-05 Round 26 追加
+- 已完成：记忆展开态进截图矩阵 → `docs/screenshots/r26/`（宽/窄 × 深/浅 × open / collapsed / jump-audit；`aiMemoryEvidence.open|jumpAudit`）。
+- 已完成：失败钉同屏时记忆芯片进一步 muted（`:has(ai-failure-evidence)`）；审计「真·无记录」与「有筛选无命中」分开——冷静「没有符合筛选的记录」+「清空筛选」。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R26）；jump-audit 在空审计库仍走 true-empty（有事件无命中才 filter-empty）— 可在 R27 种子一条审计再重拍。
+- P3：`aiFailureEvidence.withMemory` 仅截图/QA 用；host 深链筛选清空不改 tab host（可接受）。
+- **Round 27 = 逢 3 轮整页视觉审计**（上一拍 Round 24）：AI 对话整页扫层级/空错态/窄栏，发现入 backlog；可选顺手种子审计后重拍 jump-audit filter-empty。
+- P1 候选 Round 27 之外：保持 AI 对话——Roadmap 迭代 3 前扫对话缺口；默认不接端口转发。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+
+### Round 26 UX 验收（编码后）
+- 主 CTA：失败钉仍「带证据重试」；记忆仍次要；审计 filter-empty 主 CTA=清空筛选；true-empty 仍「了解审计…」。
+- 绑定：近令跳转审计仍绑会话 host + 全文 query；清空筛选只清本地面板筛选。
+- 空/错：禁止筛选无命中时误用「还没有审计记录」。
+- 守卫：`test-r26-ai-shot-harness` / `test-r26-hierarchy-audit-empty`；Core-A 34/34；held-out H01–H08 绿；截图 12/12。
+
 ## 2026-11-05 Round 25 追加
 - 已完成：失败证据截图矩阵扩「下一步 · n」态 → `docs/screenshots/r25/`（宽/窄 × 深/浅 × failure / next-confirm；expect 校验 `data-aligned-step=2` + 短文案）；顺带修 R24 漏 import 的 `planStepDisplayMax`（next-confirm 截图路径会崩）。
 - 已完成：工作记忆展开 UX——芯片触控 ≥28px；弹层「收起」；近令行跳转审计（全文 `query` 筛选，不执行命令）。
