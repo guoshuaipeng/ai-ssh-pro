@@ -15,6 +15,7 @@ import { r26AiShots } from './ai-shot-matrix-r26.mjs'
 import { r27AiShots } from './ai-shot-matrix-r27.mjs'
 import { r28AiShots } from './ai-shot-matrix-r28.mjs'
 import { r29AiShots } from './ai-shot-matrix-r29.mjs'
+import { r30AiShots } from './ai-shot-matrix-r30.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -400,6 +401,14 @@ const chrome = [
   })),
   // Round 29: readonly host calm banner
   ...${JSON.stringify(r29AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
+    steps: s.steps,
+    expect: s.expect || undefined
+  })),
+  // Round 30: prod↔readonly contrast (visual audit)
+  ...${JSON.stringify(r30AiShots())}.map((s) => ({
     name: s.name,
     size: s.narrow ? N : W,
     wait: s.wait || 1000,
