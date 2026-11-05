@@ -9086,7 +9086,7 @@ export default function App() {
                     })
                   })
                   const autoTip = autoHint
-                    ? tg('prodAuto.tip', { source: tg(`policy.source.${autoHint.source}` as 'policy.source.global'), high: autoHint.autoHighRisk ? tg('prodAuto.high') : tg('prodAuto.highOff') })
+                    ? tg('prodAuto.tip', { source: tg(`policy.source.${autoHint.source}` as 'policy.source.global') })
                     : ''
                   const baseTip = paused ? tg('l4.bannerPaused', { time: `${mm}:${ss}` }) : g.level === 'readonly' ? tg('s4.banner') : tg('l4.bannerProd')
                   return (

@@ -18,7 +18,9 @@ export function prodAutoHint(input: {
 }): ProdAutoHint | null {
   if (input.level !== 'production' || input.paused) return null
   if (input.policy.effective !== 'auto') return null
-  return { source: input.policy.source, autoHighRisk: input.policy.autoHighRisk }
+  // H01 / blockSilentHighRiskOnProd: production never silent-autos high-risk,
+  // even when settings.aiAutoHighRisk is on. Banner must not claim otherwise.
+  return { source: input.policy.source, autoHighRisk: false }
 }
 
 /** AI 面板监听此事件，打开输入框上的执行策略菜单 */

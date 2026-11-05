@@ -1805,9 +1805,11 @@ export default function AIPanel({
   const policyCap = aiPolicy.cappedBy ? policyCapNote(aiPolicy.cappedBy) : ''
   const policyChipTitle = `${tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}${policyCap} · ${tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}`
   const ladderBand = safetyLadderBand(policyTier(aiPolicy.effective))
+  // 2.4: match terminal banner — raw protection level + elevate pause, not the
+  // flattened `production` prop (which already drops elevated sessions).
   const panelProdAuto = prodAutoHint({
-    level: production ? 'production' : 'normal',
-    paused: false,
+    level: protection === 'production' ? 'production' : protection === 'readonly' ? 'readonly' : 'normal',
+    paused: Boolean(elevated && protection === 'production'),
     policy: aiPolicy
   })
   const currentModel = modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''
@@ -2141,8 +2143,7 @@ export default function AIPanel({
           className={`ai-prod-auto-banner${panelProdAuto.autoHighRisk ? ' is-high' : ''}`}
           data-testid="ai-prod-auto-banner"
           title={tg('prodAuto.tip', {
-            source: tg(`policy.source.${panelProdAuto.source}` as 'policy.source.global'),
-            high: panelProdAuto.autoHighRisk ? tg('prodAuto.high') : tg('prodAuto.highOff')
+            source: tg(`policy.source.${panelProdAuto.source}` as 'policy.source.global')
           })}
           onClick={() => setSafetyOpen(true)}
         >
