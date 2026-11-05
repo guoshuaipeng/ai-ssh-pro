@@ -7501,7 +7501,7 @@ export default function App() {
         detail.op === 'aiPlanStepAlign' ||
         detail.op === 'aiExecAuditLink' ||
         detail.op === 'aiAuditFocus' ||
-        detail.op === 'aiMemoryEvidence'
+        detail.op === 'aiMemoryEvidence' || detail.op === 'aiFailureEvidence'
       ) {
         setQuickOpen(false)
         setTourOpen(false)

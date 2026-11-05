@@ -8,6 +8,16 @@ import { redactAuditText } from './audit-log'
 export type ExecStatus = 'ok' | 'failed' | 'sent' | 'blocked'
 export const EXEC_STATUSES: readonly ExecStatus[] = ['ok', 'failed', 'sent', 'blocked']
 
+export type ExecFailureKind = 'nonzero' | 'stderr' | 'timeout' | 'write'
+export const EXEC_FAILURE_KINDS: readonly ExecFailureKind[] = ['nonzero', 'stderr', 'timeout', 'write']
+
+/** Round 21: retry budget signal pinned with a failed exec (align Core-A S27). */
+export type ExecRetryBudget = {
+  count: number
+  cap: number
+  exhausted: boolean
+}
+
 export type ExecRecord = {
   status: ExecStatus
   /** 写入终端的时间（ms） */
@@ -24,6 +34,92 @@ export type ExecRecord = {
   auditId?: string
   /** B1：状态为「已执行」时没有退出码的原因 */
   noExit?: NoExitReason
+  /** Round 21: classified failure kind when status=failed */
+  failureKind?: ExecFailureKind
+  /** Round 21: citeable evidence lines (command=/exit=/stderr/timeout); already redacted upstream */
+  evidence?: string
+  /** Round 21: consecutive confirmed failures for this command path */
+  retryBudget?: ExecRetryBudget
+}
+
+/** Cap evidence shown on the pinned failure card (Chinese UI). */
+export const FAILURE_EVIDENCE_MAX_CHARS = 600
+
+/** Build a stable evidence block from structured fields when the agent omitted `evidence`. */
+export function buildFailureEvidenceText(input: {
+  command?: string
+  exitCode?: number | null
+  stderr?: string
+  timedOut?: boolean
+  timeoutMark?: string
+  writeOk?: boolean
+  summary?: string
+}): string {
+  const lines: string[] = []
+  const cmd = (input.command ?? '').trim()
+  if (cmd) lines.push(`command=${cmd}`)
+  if (typeof input.exitCode === 'number' && Number.isFinite(input.exitCode) && input.exitCode !== 0) {
+    lines.push(`exit=${input.exitCode}`)
+  }
+  const stderr = (input.stderr ?? '').replace(/\r/g, '').trim()
+  if (stderr) lines.push(stderr)
+  if (input.timedOut === true) lines.push((input.timeoutMark ?? '').trim() || 'timeout')
+  if (input.writeOk === false) lines.push('writeOk=false')
+  if (!lines.length) {
+    const sum = (input.summary ?? '').trim()
+    if (sum) lines.push(sum)
+  }
+  return lines.join('\n')
+}
+
+export function clipFailureEvidence(text: string, max = FAILURE_EVIDENCE_MAX_CHARS): string {
+  const t = String(text ?? '').replace(/\r/g, '').trim()
+  if (!t) return ''
+  if (t.length <= max) return t
+  return t.slice(0, Math.max(0, max - 1)) + '…'
+}
+
+/** View model for the pinned failure evidence card (S27 visibility). */
+export function buildFailureEvidenceView(
+  exec: Pick<ExecRecord, 'status' | 'exitCode' | 'summary' | 'failureKind' | 'evidence' | 'retryBudget'>,
+  command?: string
+): {
+  kind: ExecFailureKind | null
+  evidence: string
+  budget: ExecRetryBudget | null
+  exhausted: boolean
+} | null {
+  if (exec.status !== 'failed') return null
+  const raw =
+    (exec.evidence && exec.evidence.trim()) ||
+    buildFailureEvidenceText({
+      command,
+      exitCode: exec.exitCode,
+      summary: exec.summary,
+      timedOut: exec.failureKind === 'timeout',
+      writeOk: exec.failureKind === 'write' ? false : undefined
+    })
+  const evidence = clipFailureEvidence(raw)
+  if (!evidence) return null
+  const kind =
+    exec.failureKind && (EXEC_FAILURE_KINDS as readonly string[]).includes(exec.failureKind)
+      ? exec.failureKind
+      : typeof exec.exitCode === 'number' && exec.exitCode !== 0
+        ? 'nonzero'
+        : null
+  const budget = exec.retryBudget
+    ? {
+        count: Math.max(0, Math.floor(Number(exec.retryBudget.count) || 0)),
+        cap: Math.max(1, Math.floor(Number(exec.retryBudget.cap) || 2)),
+        exhausted: exec.retryBudget.exhausted === true
+      }
+    : null
+  return {
+    kind,
+    evidence,
+    budget,
+    exhausted: budget?.exhausted === true
+  }
 }
 
 export type NoExitReason = 'disabled' | 'ineligible' | 'timeout' | 'unsupported'
@@ -98,6 +194,26 @@ export function normalizeExecRecord(raw: unknown): ExecRecord | undefined {
   if (r.outputLines != null && Number.isInteger(n) && n >= 0) out.outputLines = n
   if (typeof r.auditId === 'string' && r.auditId.trim()) out.auditId = r.auditId.trim().slice(0, 96)
   if (out.status === 'sent' && typeof r.noExit === 'string' && (NO_EXIT as readonly string[]).includes(r.noExit)) out.noExit = r.noExit as NoExitReason
+  if (out.status === 'failed') {
+    if (typeof r.failureKind === 'string' && (EXEC_FAILURE_KINDS as readonly string[]).includes(r.failureKind)) {
+      out.failureKind = r.failureKind as ExecFailureKind
+    }
+    if (typeof r.evidence === 'string' && r.evidence.trim()) {
+      out.evidence = clipFailureEvidence(r.evidence)
+    }
+    if (r.retryBudget && typeof r.retryBudget === 'object') {
+      const b = r.retryBudget as Record<string, unknown>
+      const count = Number(b.count)
+      const cap = Number(b.cap)
+      if (Number.isFinite(count) && count >= 0 && Number.isFinite(cap) && cap >= 1) {
+        out.retryBudget = {
+          count: Math.floor(count),
+          cap: Math.floor(cap),
+          exhausted: b.exhausted === true || Math.floor(count) >= Math.floor(cap)
+        }
+      }
+    }
+  }
   return out
 }
 

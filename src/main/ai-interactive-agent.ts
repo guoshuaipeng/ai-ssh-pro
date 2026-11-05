@@ -1820,8 +1820,35 @@ export async function runOpenClawCoreAgentChat(
 
         const reported = readConfirmedCommandOutcome(ssh, targetSessionId, oneLineCmd)
         {
-          // 2.3: replay record for this command
+          // 2.3 + R21: classify failure before emit so the reply card can pin evidence (S27).
           const sum = summarizeExecOutput(execSnapshot, oneLineCmd)
+          const failure =
+            reported || lastWriteOk === false
+              ? classifyCommandFailure(oneLineCmd, {
+                  exitCode: reported?.exitCode,
+                  stderr: reported?.stderr,
+                  timedOut: reported?.timedOut,
+                  timeoutMark: reported?.timeoutMark,
+                  writeOk: lastWriteOk === true
+                })
+              : null
+          let failedBudget: ReturnType<typeof observeRetryBudget> | null = null
+          if (failure && requestId) {
+            if (lastWriteOk) sessionState.failureStreak += 1
+            const nextCount: number = lastFailure && lastFailure.command === failure.command ? lastFailure.count + 1 : 1
+            lastFailure = { ...failure, requestId, count: nextCount }
+            failedBudget = observeRetryBudget(nextCount, failure.command)
+            lastToolResult = lastToolResult?.trim() ? `${lastToolResult.trim()}\n${failure.evidence}` : failure.evidence
+            rememberNote(sessionState, failure.evidence)
+            emitDebug({
+              kind: 'execution',
+              round: step,
+              label: mt('命令失败', 'Command failed'),
+              detail: `failed=true kind=${failure.kind} autoRetry=false retryBudget count=${failedBudget.count} cap=${failedBudget.cap} exhausted=${String(failedBudget.exhausted)} nearBudget=${String(failedBudget.nearBudget)}\n${failure.evidence}`
+            })
+          } else if (lastWriteOk && lastFailure && lastFailure.command === oneLineCmd) {
+            lastFailure = null
+          }
           send(wc, {
             type: 'exec',
             requestId,
@@ -1832,36 +1859,26 @@ export async function runOpenClawCoreAgentChat(
               durationMs: Date.now() - execStartedAt,
               ...(typeof reported?.exitCode === 'number' ? { exitCode: reported.exitCode } : {}),
               ...(sum.summary ? { summary: sum.summary, outputLines: sum.outputLines } : {}),
-              ...(typeof reported?.exitCode !== 'number' && noExit ? { noExit } : {})
+              ...(typeof reported?.exitCode !== 'number' && noExit ? { noExit } : {}),
+              ...(failure
+                ? {
+                    failureKind: failure.kind,
+                    evidence: failure.evidence,
+                    ...(failedBudget
+                      ? {
+                          retryBudget: {
+                            count: failedBudget.count,
+                            cap: failedBudget.cap,
+                            exhausted: failedBudget.exhausted
+                          }
+                        }
+                      : {})
+                  }
+                : {})
             }
           })
         }
-        const failure =
-          reported || lastWriteOk === false
-            ? classifyCommandFailure(oneLineCmd, {
-                exitCode: reported?.exitCode,
-                stderr: reported?.stderr,
-                timedOut: reported?.timedOut,
-                timeoutMark: reported?.timeoutMark,
-                writeOk: lastWriteOk === true
-              })
-            : null
-        if (failure && requestId) {
-          if (lastWriteOk) sessionState.failureStreak += 1
-          const nextCount: number = lastFailure && lastFailure.command === failure.command ? lastFailure.count + 1 : 1
-          lastFailure = { ...failure, requestId, count: nextCount }
-          const failedBudget = observeRetryBudget(nextCount, failure.command)
-          lastToolResult = lastToolResult?.trim() ? `${lastToolResult.trim()}\n${failure.evidence}` : failure.evidence
-          rememberNote(sessionState, failure.evidence)
-          emitDebug({
-            kind: 'execution',
-            round: step,
-            label: mt('命令失败', 'Command failed'),
-            detail: `failed=true kind=${failure.kind} autoRetry=false retryBudget count=${failedBudget.count} cap=${failedBudget.cap} exhausted=${String(failedBudget.exhausted)} nearBudget=${String(failedBudget.nearBudget)}\n${failure.evidence}`
-          })
-        } else if (lastWriteOk && lastFailure && lastFailure.command === oneLineCmd) {
-          lastFailure = null
-        }
+
       }
 
       persistAll()

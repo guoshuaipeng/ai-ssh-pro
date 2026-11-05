@@ -591,7 +591,8 @@ export default function AIPanel({
         detail?.op === 'aiPlanStepAlign' ||
         detail?.op === 'aiExecAuditLink' ||
         detail?.op === 'aiAuditFocus' ||
-        detail?.op === 'aiMemoryEvidence'
+        detail?.op === 'aiMemoryEvidence' ||
+        detail?.op === 'aiFailureEvidence'
       ) {
         ;(window as unknown as { __aissShotAiOp?: typeof detail }).__aissShotAiOp = detail
       }
@@ -983,6 +984,51 @@ export default function AIPanel({
               outputLines: 11,
               auditId,
               summary: 'root 20517 2.1 7.5 containerd'
+            }
+          }
+        ])
+        return
+      }
+      if (detail?.op === 'aiFailureEvidence') {
+        // Round 21: pin failure evidence on a reply card (S27 visibility).
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setScreenshotAuditFocusId(null)
+        setHasApiKey(true)
+        setBusy(false)
+        setTurnPending(null)
+        setPendingConfirm(null)
+        setRunProgress(null)
+        setMemoryOpen(false)
+        const evidence =
+          'command=echo S27_FAIL_CMD\nexit=1\nS27_STDERR_EVIDENCE\nS27_TIMEOUT_STUB'
+        setLines([
+          { role: 'user', content: '请执行 echo S27_FAIL_CMD。确认后再发。' },
+          {
+            role: 'assistant',
+            content: '提议执行 echo S27_FAIL_CMD，等待确认。',
+            structured: {
+              description: '提议执行 echo S27_FAIL_CMD，等待确认。',
+              action: 'command',
+              command: 'echo S27_FAIL_CMD',
+              riskLevel: 'low',
+              completed: false
+            },
+            requestId: 'shot-r21-fail',
+            decision: 'agreed',
+            fresh: false,
+            exec: {
+              status: 'failed',
+              at: Date.now() - 1200,
+              durationMs: 420,
+              exitCode: 1,
+              summary: 'S27_STDERR_EVIDENCE',
+              outputLines: 1,
+              failureKind: 'nonzero',
+              evidence,
+              retryBudget: { count: 1, cap: 2, exhausted: false }
             }
           }
         ])
@@ -1874,6 +1920,40 @@ export default function AIPanel({
       return next
     })
   }, [persistHistory])
+
+  /**
+   * Round 21 / S27: pin-card CTA — new ask citing evidence; never silent SSH write / confirmStep.
+   * Exhausted budget still opens a composer ask so the user can change approach.
+   */
+  const retryWithFailureEvidence = useCallback(
+    (input: { command: string; evidence: string; exhausted: boolean }) => {
+      if (busy) {
+        showToast(tg('ai.busyWait'), { kind: 'error' })
+        return
+      }
+      const evidence = (input.evidence || '').trim()
+      const cmd = (input.command || '').trim()
+      if (!evidence) {
+        showToast(tg('fail.noEvidence'), { kind: 'error' })
+        return
+      }
+      if (input.exhausted) {
+        const draft = tg('fail.exhaustedAsk', { evidence })
+        setInput(draft)
+        showToast(tg('fail.budgetExhausted'), { kind: 'error' })
+        queueMicrotask(() => {
+          const el = inputRef.current
+          if (!el) return
+          el.focus()
+          el.setSelectionRange(0, el.value.length)
+        })
+        return
+      }
+      const ask = tg('fail.retryAsk', { evidence, command: cmd || '—' })
+      void submitToAi(ask)
+    },
+    [busy, submitToAi]
+  )
 
   const retryLastUser = useCallback(() => {
     if (busy) {
@@ -3239,6 +3319,8 @@ export default function AIPanel({
                     exec={l.exec}
                     host={conversation ? conversationLabel(conversation.hostLabel, conversation.n) : hostName || undefined}
                     command={s.command}
+                    busy={busy}
+                    onRetryWithEvidence={retryWithFailureEvidence}
                   />
                 ) : null}
                 {s.action === 'end' || s.action === 'command' ? <ReplyMeta text={metaText} elapsedMs={l.elapsedMs} /> : null}

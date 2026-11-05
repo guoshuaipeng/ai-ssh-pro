@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { formatExecDuration, type ExecRecord } from '@shared/ai-exec-replay'
+import {
+  buildFailureEvidenceView,
+  formatExecDuration,
+  type ExecRecord
+} from '@shared/ai-exec-replay'
 import { tg, useI18n } from '../lib/i18n'
 import Icon from './Icon'
 
@@ -27,13 +31,22 @@ export type OpenAuditDetail = {
 export default function ExecReplay({
   exec,
   host,
-  command
+  command,
+  busy = false,
+  onRetryWithEvidence
 }: {
   exec: ExecRecord
   /** Bound host label used when the audit row was written (filters the audit tab). */
   host?: string
   /** Command text for text filter when auditId is missing. */
   command?: string
+  /** Disable retry while a turn is in flight. */
+  busy?: boolean
+  /**
+   * Round 21 / S27: start a NEW ask that cites evidence.
+   * Must not write SSH or call confirmStep — retry needs a new confirm.
+   */
+  onRetryWithEvidence?: (input: { command: string; evidence: string; exhausted: boolean }) => void
 }) {
   const { locale } = useI18n()
   const [open, setOpen] = useState(false)
@@ -45,6 +58,7 @@ export default function ExecReplay({
     exec.status === 'failed' && typeof exec.exitCode === 'number' ? `${statusLabel} · ${tg('exec.exit', { code: exec.exitCode })}` : statusLabel
   const canJump = Boolean(exec.auditId || host || (command && command.trim()))
   const auditTip = exec.auditId ? tg('exec.auditTip') : canJump ? tg('exec.auditFilterTip') : tg('exec.auditMissing')
+  const failureView = buildFailureEvidenceView(exec, command)
   const openAudit = () => {
     if (!canJump) return
     const detail: OpenAuditDetail = {
@@ -56,8 +70,78 @@ export default function ExecReplay({
     }
     window.dispatchEvent(new CustomEvent(OPEN_AUDIT_EVENT, { detail }))
   }
+  const kindLabel = failureView?.kind ? tg(`fail.kind.${failureView.kind}` as 'fail.kind.nonzero') : null
   return (
-    <div className={`ai-exec-replay is-${exec.status}${open ? ' is-open' : ''}`} data-testid="ai-exec-replay" data-status={exec.status}>
+    <div className={`ai-exec-replay is-${exec.status}${open ? ' is-open' : ''}${failureView ? ' has-failure-pin' : ''}`} data-testid="ai-exec-replay" data-status={exec.status}>
+      {failureView ? (
+        <div
+          className={`ai-failure-evidence${failureView.exhausted ? ' is-exhausted' : ''}`}
+          data-testid="ai-failure-evidence"
+          data-kind={failureView.kind || undefined}
+          data-exhausted={failureView.exhausted ? '1' : '0'}
+        >
+          <div className="ai-failure-evidence-head">
+            <span className="ai-failure-evidence-title" data-testid="ai-failure-title">
+              {tg('fail.title')}
+            </span>
+            {kindLabel ? (
+              <span className="ai-failure-evidence-kind" data-testid="ai-failure-kind">
+                {kindLabel}
+              </span>
+            ) : null}
+            {failureView.budget ? (
+              <span className="ai-failure-evidence-budget" data-testid="ai-failure-budget">
+                {failureView.exhausted
+                  ? tg('fail.budgetExhausted')
+                  : tg('fail.budget', { n: failureView.budget.count, cap: failureView.budget.cap })}
+              </span>
+            ) : null}
+          </div>
+          <pre className="ai-failure-evidence-body" data-testid="ai-failure-body">
+            {failureView.evidence}
+          </pre>
+          <div className="ai-failure-evidence-note" data-testid="ai-failure-note">
+            {failureView.exhausted ? tg('fail.noRetryBudget') : tg('fail.noAutoRetry')}
+          </div>
+          <div className="ai-reply-actions ai-failure-evidence-actions">
+            <button
+              type="button"
+              className="ai-fill-cmd-btn ai-btn-agree"
+              data-testid="ai-failure-retry"
+              disabled={busy}
+              title={failureView.exhausted ? tg('fail.retryExhaustedTip') : tg('fail.retryTip')}
+              onClick={() =>
+                onRetryWithEvidence?.({
+                  command: (command || '').trim(),
+                  evidence: failureView.evidence,
+                  exhausted: failureView.exhausted
+                })
+              }
+            >
+              <span className="ai-btn-text">{failureView.exhausted ? tg('fail.askDifferent') : tg('fail.retry')}</span>
+            </button>
+            <button
+              type="button"
+              className="ai-fill-cmd-btn"
+              data-testid="ai-failure-toggle-output"
+              title={open ? tg('exec.collapse') : tg('exec.expand')}
+              onClick={() => setOpen((v) => !v)}
+            >
+              {open ? tg('fail.hideOutput') : tg('fail.showOutput')}
+            </button>
+            <button
+              type="button"
+              className={`ai-fill-cmd-btn${canJump ? '' : ' is-muted'}`}
+              data-testid="ai-failure-audit"
+              aria-disabled={canJump ? undefined : true}
+              title={auditTip}
+              onClick={openAudit}
+            >
+              {tg('exec.audit')}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="ai-exec-row">
         <button
           type="button"

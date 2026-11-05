@@ -35,6 +35,24 @@ assert.equal(execStatusFrom({ writeOk: false, exitCode: 0 }), 'failed')
 assert.equal(normalizeExecRecord({ status: 'weird', at: 1 }), undefined)
 assert.equal(normalizeExecRecord({ status: 'ok' }), undefined)
 assert.deepEqual(normalizeExecRecord({ status: 'failed', at: 5, durationMs: 12.6, exitCode: 1, summary: 'x', outputLines: 1, auditId: ' aud-1 ', extra: 1 }), { status: 'failed', at: 5, durationMs: 13, exitCode: 1, summary: 'x', outputLines: 1, auditId: 'aud-1' })
+assert.deepEqual(
+  normalizeExecRecord({
+    status: 'failed',
+    at: 9,
+    exitCode: 1,
+    failureKind: 'nonzero',
+    evidence: 'command=x\nexit=1',
+    retryBudget: { count: 1, cap: 2, exhausted: false }
+  }),
+  {
+    status: 'failed',
+    at: 9,
+    exitCode: 1,
+    failureKind: 'nonzero',
+    evidence: 'command=x\nexit=1',
+    retryBudget: { count: 1, cap: 2, exhausted: false }
+  }
+)
 
 // duration copy
 assert.equal(formatExecDuration(850, 'zh'), '850 ms')
@@ -58,6 +76,7 @@ assert.equal(formatExecDuration(undefined, 'en'), '—')
 {
   const main = readFileSync('src/main/ai-interactive-agent.ts', 'utf8')
   assert.ok(main.includes("type: 'exec', requestId, command: oneLineCmd, payload: { status: 'blocked'"))
+  assert.ok(main.includes('failureKind: failure.kind'))
   assert.ok(/summarizeExecOutput\(execSnapshot, oneLineCmd\)/.test(main))
   const panel = readFileSync('src/renderer/src/components/AIPanel.tsx', 'utf8')
   assert.ok(panel.includes("if (ev.type === 'exec')"))

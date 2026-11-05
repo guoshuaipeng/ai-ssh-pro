@@ -6270,6 +6270,77 @@ button.primary.danger:focus-visible {
   white-space: nowrap;
 }
 
+
+/* R21 Round21: pinned failure evidence on reply card (S27) */
+.ai-panel .ai-failure-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-left: 3px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-fill-muted);
+}
+.ai-panel .ai-failure-evidence.is-exhausted {
+  border-left-color: var(--color-warn);
+}
+.ai-panel .ai-failure-evidence-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ai-panel .ai-failure-evidence-title {
+  font-weight: 600;
+  color: var(--color-danger);
+  font-size: var(--fs-sm);
+}
+.ai-panel .ai-failure-evidence-kind,
+.ai-panel .ai-failure-evidence-budget {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.ai-panel .ai-failure-evidence-body {
+  margin: 0;
+  max-height: 9.5em;
+  overflow: auto;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-panel .ai-failure-evidence-note {
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+}
+.ai-panel .ai-failure-evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ai-panel .ai-failure-evidence-actions .ai-fill-cmd-btn.is-muted {
+  opacity: 0.55;
+}
+@container (max-width: 230px) {
+  .ai-panel .ai-failure-evidence {
+    padding: var(--space-2);
+  }
+  .ai-panel .ai-failure-evidence-actions {
+    width: 100%;
+  }
+  .ai-panel .ai-failure-evidence-actions .ai-fill-cmd-btn {
+    flex: 1 1 auto;
+  }
+}
+
 /* R20 Round20: working-memory / observational evidence (honest, not a dump) */
 .ai-panel .ai-memory-wrap {
   position: relative;
