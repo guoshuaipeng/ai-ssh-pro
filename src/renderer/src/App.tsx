@@ -7443,12 +7443,12 @@ export default function App() {
         } else showToast('No profile for SFTP screenshot')
         return
       }
-      if (detail.op === 'aiChat') {
+      if (detail.op === 'aiChat' || detail.op === 'aiStreaming') {
         setQuickOpen(false)
         setTourOpen(false)
         ensureAiVisible()
         openRightPanelRef.current('ai')
-        // AIPanel listens for the same event to seed / clear the demo conversation.
+        // AIPanel listens for the same event to seed / clear the demo conversation / streaming state.
         return
       }
       if (detail.op === 'menu') {

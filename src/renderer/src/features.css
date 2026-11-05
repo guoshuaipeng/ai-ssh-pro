@@ -2410,3 +2410,29 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .aa-ask.is-warn { font-weight: 600; }
 /* c57: resolved-target count under the batch-open fields */
 .aa-note { margin: 0; font-size: var(--fs-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+
+/* Round 7 H04/H05: streaming card with partial + stop */
+.ai-card-streaming .ai-stream-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ai-card-streaming .ai-stream-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ai-card-streaming .ai-stream-partial {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 9em;
+  overflow: auto;
+}
+.ai-card-streaming .ai-stream-stop {
+  flex: 0 0 auto;
+}

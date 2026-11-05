@@ -36,6 +36,7 @@ import AiConfigCard from './AiConfigCard'
 import ExecReplay, { OPEN_AUDIT_EVENT } from './ExecReplay'
 import { OPEN_AI_POLICY_EVENT, prodAutoHint } from '@shared/prod-auto-hint'
 import type { ExecRecord } from '@shared/ai-exec-replay'
+import { applyStreamDelta, finalizeStoppedLines } from '@shared/ai-stream-stop'
 import { SCREENSHOT_AI_CHAT_DEMO, SCREENSHOT_EVENT, screenshotHooksEnabled } from '../lib/screenshot-hooks'
 import SafetyCommandBar from './SafetyCommandBar'
 import {
@@ -553,7 +554,7 @@ export default function AIPanel({
   useEffect(() => {
     const onShot = (ev: Event) => {
       if (!screenshotHooksEnabled()) return
-      const detail = (ev as CustomEvent<{ op?: string; preview?: string; requestId?: string; action?: string; empty?: boolean }>).detail
+      const detail = (ev as CustomEvent<{ op?: string; preview?: string; requestId?: string; action?: string; empty?: boolean; partial?: string }>).detail
       if (detail?.op === 'aiChat') {
         screenshotForceKeyRef.current = true
         setHasApiKey(true)
@@ -579,6 +580,22 @@ export default function AIPanel({
                     }
               )
         )
+        return
+      }
+      if (detail?.op === 'aiStreaming') {
+        // H04/H05: real busy + streaming card (partial text + in-card Stop). No DOM inject.
+        screenshotForceKeyRef.current = true
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        const partial =
+          typeof (detail as { partial?: string }).partial === 'string' && (detail as { partial?: string }).partial!.trim()
+            ? (detail as { partial?: string }).partial!.trim()
+            : '正在分析 nginx 502…\n先看 error.log 末尾：'
+        setBusy(true)
+        setLines([
+          { role: 'user', content: 'nginx 502，帮我边生成边停一下看看' },
+          { role: 'assistant', content: partial, streaming: true }
+        ])
         return
       }
       if (detail?.op !== 'aiComposerPop') {
@@ -1003,13 +1020,8 @@ export default function AIPanel({
       if (ev.type === 'delta') {
         if (usedStepProtocol) return
         assistant += ev.text
-        applyTurn((prev) => {
-          const next = [...prev]
-          const last = next[next.length - 1]
-          if (last?.role === 'assistant' && last.streaming) return next
-          next.push({ role: 'assistant', content: '', streaming: true })
-          return next
-        })
+        // H04: paint partial text into the live streaming card (not a blank "Generating…" shell).
+        applyTurn((prev) => applyStreamDelta(prev, ev.text))
         return
       }
       if (ev.type === 'cancelled') {
@@ -1428,17 +1440,9 @@ export default function AIPanel({
     setBusy(false)
     setRunProgress(null)
     setPendingConfirm(null)
-    setLines((prev) => {
-      let changed = false
-      const next = prev.map((row) => {
-        if (row.role === 'assistant' && row.streaming) {
-          changed = true
-          return { role: 'assistant' as const, content: row.content?.trim() || tg('ai.cancelled'), streaming: false }
-        }
-        return row
-      })
-      return changed ? next : prev
-    })
+    setLines((prev) =>
+      finalizeStoppedLines(prev, tg('ai.cancelled'), { ensureCancelledRow: true }) as typeof prev
+    )
     queueMicrotask(() => inputRef.current?.focus())
   }, [])
   // 2.2: Ctrl+Shift+Backspace (⌘⇧⌫ on macOS) stops the run from anywhere while the AI is working.
@@ -2245,9 +2249,27 @@ export default function AIPanel({
             )
           }
           if (l.streaming) {
+            const partial = (l.content || '').trim()
             return (
               <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-streaming" data-testid="ai-reply-card" data-card="streaming">
-                {tg('ux64.streaming')}
+                <div className="ai-stream-head">
+                  <span className="ai-stream-label">{tg('ux64.streaming')}</span>
+                  <button
+                    type="button"
+                    className="ai-fill-cmd-btn ai-btn-decline ai-stream-stop"
+                    data-testid="ai-stream-stop"
+                    title={tg('ai.stopTip')}
+                    aria-label={tg('ai.stop')}
+                    onClick={stopGeneration}
+                  >
+                    <span className="ai-btn-text">{tg('ai.stop')}</span>
+                  </button>
+                </div>
+                {partial ? (
+                  <pre className="ai-stream-partial" data-testid="ai-stream-partial">
+                    {partial}
+                  </pre>
+                ) : null}
               </div>
             )
           }

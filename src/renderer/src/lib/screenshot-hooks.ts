@@ -30,6 +30,8 @@ export type ScreenshotOp =
   | { op: "hostSafety" }
   /** Visual QA (M25): open a composer chip popover (model menu or safety policy). */
   | { op: "aiComposerPop"; which: "model" | "safety" }
+  /** Round 7 H04/H05: put AI panel into a real busy+streaming state (no DOM inject). */
+  | { op: "aiStreaming"; partial?: string }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 
