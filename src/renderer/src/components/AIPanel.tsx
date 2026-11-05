@@ -2184,9 +2184,19 @@ export default function AIPanel({
     }
     window.addEventListener('mousedown', close, true)
     window.addEventListener('keydown', esc, true)
+    // R19: keyboard/touch — focus current policy option (no hover required to know where you are).
+    const t = window.setTimeout(() => {
+      const root = safetyRef.current
+      if (!root) return
+      const current =
+        root.querySelector<HTMLElement>('[data-testid="ai-safety-option"].is-current') ||
+        root.querySelector<HTMLElement>('[data-testid="ai-safety-option"]:not(.is-disabled)')
+      current?.focus()
+    }, 0)
     return () => {
       window.removeEventListener('mousedown', close, true)
       window.removeEventListener('keydown', esc, true)
+      window.clearTimeout(t)
     }
   }, [safetyOpen])
 
@@ -3378,12 +3388,13 @@ export default function AIPanel({
             <div className="ai-chip-wrap" ref={safetyRef}>
               <button
                 type="button"
-                className={`ai-chip ai-safety-chip safety-band-${safetyBandTone(ladderBand)}${aiPolicy.source === 'temp' ? ' is-temp' : ''}`}
+                className={`ai-chip ai-safety-chip safety-band-${safetyBandTone(ladderBand)}${aiPolicy.source === 'temp' ? ' is-temp' : ''}${safetyOpen ? ' is-open' : ''}`}
                 data-testid="ai-safety-chip"
                 data-band={ladderBand}
                 data-policy={aiPolicy.effective}
                 data-source={aiPolicy.source}
                 data-capped={aiPolicy.cappedBy ?? ''}
+                data-chip-short={tg(`policy.chip.${aiPolicy.effective}` as 'policy.chip.ask')}
                 aria-haspopup="menu"
                 aria-expanded={safetyOpen}
                 aria-label={`${tg('ai.safetyChipTip')}: ${policyChipTitle}`}
@@ -3391,7 +3402,9 @@ export default function AIPanel({
                 onClick={() => setSafetyOpen((v) => !v)}
               >
                 <Icon name="shield" size={12} />
-                <span className="ai-safety-chip-label">{tg(`policy.${aiPolicy.effective}` as 'policy.ask')}</span>
+                <span className="ai-safety-chip-label" data-testid="ai-safety-chip-label">
+                  {tg(`policy.chip.${aiPolicy.effective}` as 'policy.chip.ask')}
+                </span>
                 {aiPolicy.cappedBy ? <span className="ai-chip-cap" data-testid="ai-safety-cap" aria-hidden="true">·</span> : null}
                 <Icon name="chevron-down" size={12} />
               </button>

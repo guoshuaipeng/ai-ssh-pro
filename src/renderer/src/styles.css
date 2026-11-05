@@ -6645,6 +6645,53 @@ button.primary.danger:focus-visible {
   }
 }
 
+
+/* R19 Round19: policy menu touch / no-hover */
+.ai-composer-bar .ai-safety-chip.is-open {
+  background: color-mix(in srgb, var(--color-text-primary) 14%, transparent);
+  color: var(--color-text-primary);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.ai-composer-bar .ai-safety-chip .ai-safety-chip-label {
+  max-width: 4.5em;
+}
+.ai-composer-bar .ai-safety-pop .ai-safety-option,
+.ai-composer-bar .ai-safety-pop .ai-chip-menu-item.ai-safety-option {
+  min-height: 40px;
+  padding: var(--space-2);
+  align-items: flex-start;
+}
+.ai-composer-bar .ai-safety-pop .ai-chip-menu-item.ai-safety-option:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+  background: var(--color-row-hover-bg);
+}
+.ai-composer-bar .ai-safety-pop .ai-safety-link {
+  min-height: 32px;
+  padding: var(--space-1) var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+}
+.ai-composer-bar .ai-safety-pop .ai-safety-link:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+  text-decoration: none;
+  background: var(--color-row-hover-bg);
+}
+@container (max-width: 230px) {
+  .ai-composer-bar .ai-safety-chip .ai-safety-chip-label {
+    max-width: 3.5em;
+  }
+  .ai-composer-bar .ai-safety-chip {
+    min-height: 32px;
+    height: auto;
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+  }
+}
+
 /* H02: suggest-only decision row — copy is the primary action, never Agree. */
 .ai-panel .ai-suggest-only {
   display: flex;
