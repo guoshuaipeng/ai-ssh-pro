@@ -53,12 +53,16 @@ export default function ExecReplay({
   const blocked = exec.status === 'blocked'
   const lines = exec.outputLines ?? 0
   const shown = exec.summary ? exec.summary.split('\n').length : 0
+  const failureView = buildFailureEvidenceView(exec, command)
   const statusLabel = tg(`exec.status.${exec.status}` as 'exec.status.ok')
-  const statusText =
-    exec.status === 'failed' && typeof exec.exitCode === 'number' ? `${statusLabel} · ${tg('exec.exit', { code: exec.exitCode })}` : statusLabel
+  // Round 23: when the failure pin owns the story, do not re-shout 「失败 · exit」.
+  const statusText = failureView
+    ? tg('fail.statusQuiet')
+    : exec.status === 'failed' && typeof exec.exitCode === 'number'
+      ? `${statusLabel} · ${tg('exec.exit', { code: exec.exitCode })}`
+      : statusLabel
   const canJump = Boolean(exec.auditId || host || (command && command.trim()))
   const auditTip = exec.auditId ? tg('exec.auditTip') : canJump ? tg('exec.auditFilterTip') : tg('exec.auditMissing')
-  const failureView = buildFailureEvidenceView(exec, command)
   const openAudit = () => {
     if (!canJump) return
     const detail: OpenAuditDetail = {
@@ -72,7 +76,7 @@ export default function ExecReplay({
   }
   const kindLabel = failureView?.kind ? tg(`fail.kind.${failureView.kind}` as 'fail.kind.nonzero') : null
   return (
-    <div className={`ai-exec-replay is-${exec.status}${open ? ' is-open' : ''}${failureView ? ' has-failure-pin' : ''}`} data-testid="ai-exec-replay" data-status={exec.status}>
+    <div className={`ai-exec-replay is-${exec.status}${open ? ' is-open' : ''}${failureView ? ' has-failure-pin' : ''}`} data-testid="ai-exec-replay" data-status={exec.status} data-failure-deduped={failureView ? '1' : undefined}>
       {failureView ? (
         <div
           className={`ai-failure-evidence${failureView.exhausted ? ' is-exhausted' : ''}`}
@@ -157,17 +161,19 @@ export default function ExecReplay({
           {!blocked ? <span className="ai-exec-meta">{tg('exec.duration', { d: formatExecDuration(exec.durationMs, locale === 'en' ? 'en' : 'zh') })}</span> : null}
           {!blocked ? <span className="ai-exec-meta">{lines ? tg('exec.lines', { n: lines }) : tg('exec.noOutputShort')}</span> : null}
         </button>
-        <button
-          type="button"
-          className={`ai-exec-audit${canJump ? '' : ' is-muted'}`}
-          data-testid="ai-exec-audit"
-          aria-disabled={canJump ? undefined : true}
-          title={auditTip}
-          onClick={openAudit}
-        >
-          <Icon name="scroll-text" size={12} />
-          <span>{tg('exec.audit')}</span>
-        </button>
+        {failureView ? null : (
+          <button
+            type="button"
+            className={`ai-exec-audit${canJump ? '' : ' is-muted'}`}
+            data-testid="ai-exec-audit"
+            aria-disabled={canJump ? undefined : true}
+            title={auditTip}
+            onClick={openAudit}
+          >
+            <Icon name="scroll-text" size={12} />
+            <span>{tg('exec.audit')}</span>
+          </button>
+        )}
       </div>
       {open ? (
         <div className="ai-exec-body" data-testid="ai-exec-body">

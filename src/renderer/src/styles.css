@@ -6272,6 +6272,21 @@ button.primary.danger:focus-visible {
 
 
 
+/* R23 Round23: one calm failure story — pin owns failure; ExecReplay row stays quiet */
+.ai-exec-replay.has-failure-pin .ai-exec-status {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.ai-exec-replay.has-failure-pin .ai-exec-dot {
+  background: var(--color-text-muted);
+}
+.ai-exec-replay.has-failure-pin.is-failed .ai-exec-status {
+  color: var(--color-text-muted);
+}
+.ai-exec-replay.has-failure-pin .ai-exec-row {
+  opacity: 0.92;
+}
+
 /* R22 Round22: failure→next-confirm link + after-failure dock */
 .ai-panel .ai-failure-next-confirm {
   display: inline-flex;
