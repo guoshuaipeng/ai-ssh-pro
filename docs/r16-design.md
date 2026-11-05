@@ -19,3 +19,10 @@
 - Add secondary CTA 「逐条填入」 → `startScript(sessionId, commands)` when >=2 and session present.
 - Keep 「复制全部步骤」; primary for suggest remains per-card Copy when policy is suggest-only.
 - Tests: `test-r16-batch-fill-sticky.ts`.
+
+## UX review (post-code)
+- Hierarchy: Agree remains primary on pending cards; batch fill secondary; copy tertiary; active-plan badge is status not CTA.
+- Binding: run-steps from this turn's progress events; fill/copy from current lines + activeSessionId only.
+- Narrow: sticky bar wraps; fill+copy nowrap; count ellipsis at 230px container.
+- Empty/error: no bar if <2 commands; no-session fill toasts d16.noSession.
+- Verify on device: ask-policy run-steps chip while confirming; badge on pending card; sticky bar while scrolling long multi-step chat (wide+narrow, dark+light).

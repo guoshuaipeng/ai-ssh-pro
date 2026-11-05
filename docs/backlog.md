@@ -1,3 +1,15 @@
+## 2026-11-05 Round 16 追加
+- 已完成：多轮计划进度可见（ask/suggest/auto 均显示 `ai-run-steps`；streak 仍仅 auto；待确认卡 `is-active-plan-step` + 当前第 n/max）；批量条改贴首张建议卡并 sticky，加「逐条填入」(`ai-batch-fill-next` → `startScript`)。
+- P2：Electron harness 扩拍 —— plan-progress 芯片（ask）/ active-plan badge / sticky batch+fill 窄栏；真机宽窄×深浅仍欠（R6–R15 遗留）。
+- P1 候选 Round 17：保持 AI 对话——Roadmap 迭代 3 前扫对话缺口（审计行内「跳到对话步骤」回跳、或计划步与 suggestionStepNo 更紧对齐）；或 harness 场景扩 R16 态。默认不接端口转发。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+
+### Round 16 UX 验收（编码后）
+- 主 CTA：待确认仍是 Agree；批量「逐条填入」次要，「复制全部步骤」再次要；单卡 Copy 保留。
+- 层级：composer 步数芯片对所有策略可见；streak 仅 auto；当前步骤左边 accent + badge，不抢 Agree。
+- 绑定：progress 属本轮；batch fill/copy 只读当前对话 commands + 当前 session。
+- 空态：<2 命令无条；无 session 点填入 → toast「需要会话」。
+- 待真机：harness/rebuild 拍 ask 进度 + sticky 条。
 ## 2026-11-05 Round 13 追加
 - 已完成：留出 **H02/H07** 夹具化（`h02-suggest-only.json` / `h07-suggestion-steps.json` + `test-held-out-h02-h07`；与单元测同源）；窄栏取消卡头行 / D29 续聊 ellipsis / suggest 行容器强化（`test-r13-narrow-ai-chrome`）；清 H08 model-missing radius fallback。
 - P2：真机宽/窄×深/浅矩阵仍欠（R6–R12 遗留）— 优先拍取消重试、D29 芯片、busy、生产横幅、suggest 窄栏。

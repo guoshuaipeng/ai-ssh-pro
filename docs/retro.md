@@ -364,3 +364,17 @@
 - 根因：窄栏 composer 只给了 console chip 的 300px 规则，策略/模型芯片与 safety pop 未按 wrap+ellipsis 收口；多步建议只有单卡 Copy。
 - 以后怎么避免：composer chrome 新增芯片一律挂 `@container (max-width: 230px)` wrap/ellipsis；多步计划类能力先抽 shared 纯函数再接线 UI；本机补丁优先 `.cjs` 文件。
 - 验收：`test-r15-composer-policy-narrow` / `test-r15-batch-copy-steps` + Core-A 34/34 + held-out 全绿；宽窄×深浅真机截图仍待 harness/rebuild。
+
+## 2026-11-05 第 80 轮（Round 16）AI 对话 — 计划进度可见 + 批量逐条填入/sticky
+- 计划：约 30 分钟；1 高频多轮计划进度（与 ai-run-steps/streak 对齐）+ 1 小打磨批量「填入下一条」/ sticky 条靠近首张建议卡；编码前 UX 评审；附 R13–R16 过程复盘。
+- 实际：约 40 分钟。两项交付；Core-A 34/34；held-out H01–H08 绿；真机矩阵仍欠。
+- 卡在哪：① `progress` 事件在 ask/suggest 下被渲染层丢弃（只 auto 写 runProgress）；② R15 批量条在消息尾，长对话要滚到底；③ `npx tsx` 测 i18n 必须 `--tsconfig tsconfig.web.json`；④ Fragment 在 map 内缺 key。
+- 根因：步数进度被误当成「自动执行专用」；批量工具放在 tail 而非首张建议锚点。
+- 以后怎么避免：凡 planner `progress` 一律上屏（streak 仍可按 policy 隐藏）；多步工具条锚定 firstSuggestionIdx + sticky；新 Rxx 测试同步写入 `test:parts`。
+- 验收：`test-r16-plan-progress` / `test-r16-batch-fill-sticky` / `test-ai-run-control` + Core-A 34/34 + held-out 全绿。
+
+### 过程复盘（R13–R16，逢约 6 轮）
+- 节奏：每轮约 35–55 分钟，均 1 高频 + 1 小打磨；本地 commit、不推远程。
+- 返工：R15→R16 把批量条从 tail 改 sticky/首卡，说明 R15 视觉债记对了；R14 harness 后真机矩阵仍未闭环。
+- 重复 3+ 次：① PowerShell 内联补丁引号炸 → 已倾向 `.cjs`/文件写入；② 真机宽窄×深浅欠交付 → 应默认扩 `ai-shot-matrix` 场景而非每轮口头「待 rebuild」；③ 新测未进 `test:parts`（R14/R15）→ R16 已补线。
+- 抽象候选：截图场景表 config-driven（op → expect 图）；composer/batch chrome 共享「≥2 步才出条」纯函数已有，继续沿用。
