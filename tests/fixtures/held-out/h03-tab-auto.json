@@ -1,0 +1,46 @@
+{
+  "id": "H03",
+  "title": "Tab Auto override is real gated auto — not fake always-confirm",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H03",
+  "cases": [
+    {
+      "id": "H03-temp-wins",
+      "policy": { "settings": { "aiPolicy": "ask" }, "tempOverride": "auto", "protection": { "level": "normal" } },
+      "expect": { "source": "temp", "effective": "auto", "chosen": "auto" }
+    },
+    {
+      "id": "H03-date-auto-write",
+      "gate": { "policy": "auto", "command": "date", "risk": "low" },
+      "expectGate": { "kind": "read", "mode": "auto", "write": true, "waitForAgree": false }
+    },
+    {
+      "id": "H03-touch-ask-confirms",
+      "gate": { "policy": "ask", "command": "touch /tmp/aiss-h03", "risk": "medium" },
+      "expectGate": { "mode": "agree", "write": false, "waitForAgree": true }
+    },
+    {
+      "id": "H03-touch-auto-writes",
+      "gate": { "policy": "auto", "command": "touch /tmp/aiss-h03", "risk": "medium" },
+      "expectGate": { "mode": "auto", "write": true, "waitForAgree": false, "offerAgree": false }
+    },
+    {
+      "id": "H03-rm-auto-still-confirms",
+      "gate": { "policy": "auto", "command": "rm -rf /var/cache/*", "risk": "high" },
+      "expectGate": { "mode": "agree", "write": false }
+    }
+  ],
+  "legacy": {
+    "confirmBypassAllowedTrue": false,
+    "confirmBypassAllowedFalse": false
+  },
+  "copyMustInclude": [
+    "ux64.emptyHintAuto",
+    "当前为自动执行：中低风险会直接写入终端"
+  ],
+  "copyMustNotInclude": [
+    "建议的命令需经你确认后才会执行",
+    "Suggested commands run only after you confirm.",
+    "高风险操作始终需要确认"
+  ]
+}

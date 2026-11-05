@@ -1,0 +1,88 @@
+{
+  "id": "H01",
+  "title": "Production host + Auto run — banner honest, high-risk never silent",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H01",
+  "cases": [
+    {
+      "id": "H01-banner-global-auto",
+      "level": "production",
+      "paused": false,
+      "policy": { "settings": { "aiPolicy": "auto" }, "protection": { "level": "production" } },
+      "expectHint": { "source": "global", "autoHighRisk": false }
+    },
+    {
+      "id": "H01-banner-host-auto",
+      "level": "production",
+      "paused": false,
+      "policy": { "settings": { "aiPolicy": "ask" }, "hostPolicy": "auto", "protection": { "level": "production" } },
+      "expectHint": { "source": "host", "autoHighRisk": false }
+    },
+    {
+      "id": "H01-banner-temp-auto-high-setting-ignored",
+      "level": "production",
+      "paused": false,
+      "policy": { "settings": { "aiPolicy": "auto", "aiAutoHighRisk": true }, "tempOverride": "auto", "protection": { "level": "production" } },
+      "expectHint": { "source": "temp", "autoHighRisk": false },
+      "note": "settings.aiAutoHighRisk must not surface on the production banner"
+    },
+    {
+      "id": "H01-banner-ask-hides",
+      "level": "production",
+      "paused": false,
+      "policy": { "settings": { "aiPolicy": "auto" }, "tempOverride": "ask", "protection": { "level": "production" } },
+      "expectHint": null
+    },
+    {
+      "id": "H01-banner-paused-hides",
+      "level": "production",
+      "paused": true,
+      "policy": { "settings": { "aiPolicy": "auto" }, "protection": { "level": "production" } },
+      "expectHint": null
+    },
+    {
+      "id": "H01-banner-normal-hides",
+      "level": "normal",
+      "paused": false,
+      "policy": { "settings": { "aiPolicy": "auto" } },
+      "expectHint": null
+    },
+    {
+      "id": "H01-block-high-auto-prod",
+      "block": { "level": "production", "kind": "high", "mode": "auto" },
+      "expectBlock": "strong"
+    },
+    {
+      "id": "H01-block-write-auto-prod-ok",
+      "block": { "level": "production", "kind": "write", "mode": "auto" },
+      "expectBlock": null
+    },
+    {
+      "id": "H01-block-high-agree-ok",
+      "block": { "level": "production", "kind": "high", "mode": "agree" },
+      "expectBlock": null
+    },
+    {
+      "id": "H01-block-high-auto-normal-ok",
+      "block": { "level": "normal", "kind": "high", "mode": "auto" },
+      "expectBlock": null
+    }
+  ],
+  "copyMustInclude": [
+    "非生产主机上的高风险也可自动执行",
+    "生产主机仍强制确认高风险",
+    "non-production hosts",
+    "production hosts still require high-risk confirmation",
+    "中低风险可自动，高危仍需确认",
+    "mid/low may auto; high-risk still confirms"
+  ],
+  "copyMustNotInclude": [
+    "开启后对生产主机同样生效",
+    "Applies to production hosts too; never on read-only hosts."
+  ],
+  "wiring": {
+    "appMustInclude": ["const autoHint = prodAutoHint({", "data-testid=\"banner-ai-auto\""],
+    "panelMustInclude": ["data-testid=\"ai-prod-auto-banner\"", "protection === 'production'", "elevated && protection ==="],
+    "agentMustInclude": ["blockSilentHighRiskOnProd"]
+  }
+}
