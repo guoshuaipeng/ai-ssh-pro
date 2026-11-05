@@ -5,6 +5,16 @@ import Icon from './Icon'
 
 export const OPEN_AUDIT_EVENT = 'aiss-open-audit'
 
+/** Round 17: inverse of OPEN_AUDIT_EVENT — audit row → AI dialog step. */
+export const OPEN_AI_FROM_AUDIT_EVENT = 'aiss-open-ai-from-audit'
+
+export type OpenAiFromAuditDetail = {
+  id?: string
+  host?: string
+  text?: string
+  tabNo?: number
+}
+
 export type OpenAuditDetail = {
   id?: string
   host?: string

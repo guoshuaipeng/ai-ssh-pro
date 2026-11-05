@@ -13,6 +13,7 @@ import EmptyState from './EmptyState'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
 import { openContextMenu } from './ContextMenu'
+import { OPEN_AI_FROM_AUDIT_EVENT, type OpenAiFromAuditDetail } from './ExecReplay'
 import DateField from './ui/DateField'
 import { auditRangeSince, type AuditRange } from '@shared/audit-range'
 
@@ -284,7 +285,26 @@ export default function AuditLogPanel({
                       {policyLabel(e)}
                     </td>
                     <td className="au2-detail" title={e.detail}>
-                      {e.detail}
+                      <span className="au2-detail-text">{e.detail}</span>
+                      {e.source === 'AI' && (e.type === 'command' || e.type === 'ai.action') ? (
+                        <button
+                          type="button"
+                          className="au2-open-ai"
+                          data-testid="audit-open-ai"
+                          title={t('au2.openAiTip')}
+                          onClick={() => {
+                            const detail: OpenAiFromAuditDetail = {
+                              id: e.id,
+                              host: e.host || undefined,
+                              text: e.detail?.trim() || undefined,
+                              tabNo: typeof e.tabNo === 'number' ? e.tabNo : undefined
+                            }
+                            window.dispatchEvent(new CustomEvent(OPEN_AI_FROM_AUDIT_EVENT, { detail }))
+                          }}
+                        >
+                          {t('au2.openAi')}
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 )

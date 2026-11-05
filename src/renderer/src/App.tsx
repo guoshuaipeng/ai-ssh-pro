@@ -171,7 +171,7 @@ import { runGuardedCommand } from './lib/protection-gate'
 import OpsHomeTab, { type HomeHost } from './components/OpsHomeTab'
 import AlertWorkbenchTab from './components/AlertWorkbenchTab'
 import AuditLogPanel from './components/AuditLogPanel'
-import { OPEN_AUDIT_EVENT } from './components/ExecReplay'
+import { OPEN_AUDIT_EVENT, OPEN_AI_FROM_AUDIT_EVENT, type OpenAiFromAuditDetail } from './components/ExecReplay'
 import AuditExportModal from './components/AuditExportModal'
 import { PlaybookEditor, PlaybookList, PlaybookResult, PlaybookRun } from './components/PlaybookTabs'
 import { PlaybookImportTab, stageShareImport } from './components/PlaybookShare'
@@ -754,6 +754,9 @@ export default function App() {
   const [rightPane, setRightPane] = useState<RightPaneId>(() => loadLayoutPrefs().rightPane)
   const [aiPending, setAiPending] = useState<AiPendingInfo | null>(null)
   const [aiFocusPendingToken, setAiFocusPendingToken] = useState(0)
+  /** Round 17: focus an AI exec/command card after jumping from audit. */
+  const [aiFocusExecToken, setAiFocusExecToken] = useState(0)
+  const [aiFocusExec, setAiFocusExec] = useState<OpenAiFromAuditDetail | null>(null)
   const onAiPendingChange = useCallback((info: AiPendingInfo | null) => {
     setAiPending(info)
   }, [])
@@ -3318,6 +3321,45 @@ export default function App() {
     window.addEventListener(OPEN_AUDIT_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_AUDIT_EVENT, onOpen)
   }, [openAudit])
+
+  // Round 17: jump from audit row → AI dialog (inverse of 2.3)
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const d = ((e as CustomEvent<OpenAiFromAuditDetail>).detail || {}) as OpenAiFromAuditDetail
+      const host = (d.host || '').trim()
+      if (host) {
+        const hitTab = tabsRef.current.find((tab) => {
+          if (tab.view && tab.view !== 'session') return false
+          const label =
+            tab.customTitle ||
+            (tab.profileId ? sessionStateRef.current.profiles.find((p) => p.id === tab.profileId)?.label : undefined) ||
+            tab.connectOpts?.label?.trim() ||
+            tab.connectOpts?.host ||
+            tab.title
+          if (!label) return false
+          return label === host || host === label || host.startsWith(label) || host.includes(label)
+        })
+        // Prefer exact conversation label match (#n) via ordinals when available
+        const byConv = convTabs.find((row) => {
+          const c = convFor(row.tabId)
+          return Boolean(c && (c.label === host || c.hostLabel === host))
+        })
+        const tabId = byConv?.tabId || hitTab?.tabId
+        if (tabId) setActiveTabId(tabId)
+      }
+      updateLayout((p) => (p.showAi ? p : withPaneToggle(p, 'ai', true)))
+      openRightPanelRef.current('ai')
+      setAiFocusExec({
+        id: d.id,
+        host: d.host,
+        text: d.text,
+        tabNo: d.tabNo
+      })
+      setAiFocusExecToken((n) => n + 1)
+    }
+    window.addEventListener(OPEN_AI_FROM_AUDIT_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_AI_FROM_AUDIT_EVENT, onOpen)
+  }, [convTabs, convFor, updateLayout])
 
   const openM2 = useCallback((view: TabView, title: string, extra?: Partial<Tab>) => {
     ensureMainVisible()
@@ -10470,6 +10512,8 @@ export default function App() {
               initialPending={aiPending}
               onPendingChange={onAiPendingChange}
               focusPendingToken={aiFocusPendingToken}
+              focusExecToken={aiFocusExecToken}
+              focusExec={aiFocusExec}
             />
             ) : null}
           </div>

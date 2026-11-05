@@ -2486,3 +2486,18 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
   vertical-align: middle;
   opacity: 0.85;
 }
+
+/* Round 17: audit row → AI dialog */
+.audit-table td.au2-detail { display: flex; align-items: center; gap: 8px; }
+.audit-table .au2-detail-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.audit-table .au2-open-ai {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  white-space: nowrap;
+}
+.audit-table .au2-open-ai:hover { text-decoration: underline; }

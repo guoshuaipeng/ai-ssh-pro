@@ -7710,3 +7710,11 @@ body.platform-darwin .window-controls {
   flex: 1 1 140px;
   min-width: 0;
 }
+
+/* Round 17: highlight AI card after jump-from-audit */
+.ai-panel .ai-structured.is-audit-focus,
+.ai-panel [data-testid="ai-reply-card"].is-audit-focus {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
