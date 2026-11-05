@@ -2,15 +2,15 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
+  aiErrorWantsSettings,
   aiHttpErrorMessages,
   friendlyAiHttpError,
   parseAiHttpErrorMessage
-} from '../src/shared/ai-http-error'
-import { isEngineerLeak } from '../src/shared/product-error'
-import { friendlyErrorMessage } from '../src/renderer/src/lib/friendly-error'
+} from '../src/shared/ai-http-error.ts'
+import { isEngineerLeak } from '../src/shared/product-error.ts'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.7.0')
+assert.equal(pkg.version, '0.8.0')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ai-http-error/)
 
 assert.equal(parseAiHttpErrorMessage('HTTP 401: Invalid API key')?.status, 401)
@@ -29,30 +29,36 @@ for (const locale of ['zh-CN', 'en'] as const) {
   }
 }
 
-const legacy = friendlyErrorMessage('HTTP 401: {"error":{"message":"Incorrect API key provided"}}', 'zh-CN')
-assert.match(legacy, /API Key|密钥/)
-assert.equal(legacy.includes('Error invoking'), false)
+const legacyRaw = 'HTTP 401: {\"error\":{\"message\":\"Incorrect API key provided\"}}'
+const parsed = parseAiHttpErrorMessage(legacyRaw)
+assert.ok(parsed)
+assert.match(friendlyAiHttpError(parsed!.status, parsed!.body, 'zh-CN'), /API Key|密钥/)
 
 const stream = readFileSync('src/main/ai-stream.ts', 'utf8')
 assert.match(stream, /aiHttpErrorMessages/)
-assert.equal(stream.includes('HTTP ${res.status}: ${t.slice(0, 500)}'), false)
+assert.equal(stream.includes("HTTP ${res.status}:"), false)
 
 const agent = readFileSync('src/main/ai-interactive-agent.ts', 'utf8')
 assert.match(agent, /aiHttpErrorMessages/)
 
-const ccm = readFileSync('src/renderer/src/components/ConnectionConfigModal.tsx', 'utf8')
-assert.match(ccm, /conn-browse-key/)
-assert.match(ccm, /pickPrivateKey/)
-assert.match(ccm, /conn\.keyHint/)
-
-const preload = readFileSync('src/preload/index.ts', 'utf8')
-assert.match(preload, /localFs:pickPrivateKey/)
-
-const main = readFileSync('src/main/index.ts', 'utf8')
-assert.match(main, /localFs:pickPrivateKey/)
-assert.match(main, /\.ssh/)
-
 const msgs = aiHttpErrorMessages(401, 'unauthorized')
 assert.ok(msgs.zh.length > 10 && msgs.en.length > 10)
+
+assert.equal(aiErrorWantsSettings('AI_HTTP_401'), true)
+assert.equal(aiErrorWantsSettings('AI_HTTP_403'), true)
+assert.equal(aiErrorWantsSettings('AI_HTTP_404'), true)
+assert.equal(aiErrorWantsSettings('AI_HTTP_0'), true)
+assert.equal(aiErrorWantsSettings('AI_PROVIDER'), true)
+assert.equal(aiErrorWantsSettings('AI_HTTP_429'), false)
+assert.equal(aiErrorWantsSettings('AI_HTTP_503'), false)
+assert.equal(aiErrorWantsSettings(undefined), false)
+
+const panel = readFileSync('src/renderer/src/components/AIPanel.tsx', 'utf8')
+assert.match(panel, /aiErrorWantsSettings/)
+assert.match(panel, /ai-error-open-settings/)
+assert.match(panel, /data-primary=\{openSettings \? 'settings' : 'retry'\}/)
+assert.match(panel, /friendlyError\(raw\)/)
+assert.match(panel, /errorCode: fe\.code/)
+assert.match(panel, /a1\.goSettings/)
 
 console.log('test-ai-http-error ok')

@@ -6224,6 +6224,14 @@ button.primary.danger:focus-visible {
   border-radius: var(--radius-lg);
   background: var(--color-danger-muted);
 }
+.ai-panel .ai-card-error .ai-reply-actions {
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.ai-panel .ai-card-error .ai-fill-cmd-btn {
+  flex: none;
+}
+
 .ai-panel .msg.assistant.ai-card-streaming,
 .ai-panel .msg.assistant.ai-tool-strip {
   min-height: 0;

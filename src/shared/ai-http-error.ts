@@ -86,3 +86,13 @@ export function parseAiHttpErrorMessage(raw: string): { status: number; body: st
   return { status: Number(m[1]), body: (m[2] ?? '').trim() }
 }
 
+/** Primary CTA should open AI settings (config/auth/model/unreachable), not only retry. */
+export function aiErrorWantsSettings(code?: string | null): boolean {
+  if (!code) return false
+  if (code === 'AI_PROVIDER') return true
+  const m = /^AI_HTTP_(\d+)$/.exec(code)
+  if (!m) return false
+  const status = Number(m[1])
+  return status === 0 || status === 401 || status === 403 || status === 404
+}
+

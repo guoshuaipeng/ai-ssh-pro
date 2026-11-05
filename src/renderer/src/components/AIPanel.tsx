@@ -5,7 +5,8 @@ import { recallStep, userPrompts } from '@shared/ai-recall'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { tg } from '../lib/i18n'
 import { keysFor } from '@shared/keymap'
-import { friendlyErrorMessage } from '../lib/friendly-error'
+import { friendlyError, friendlyErrorMessage } from '../lib/friendly-error'
+import { aiErrorWantsSettings } from '@shared/ai-http-error'
 import type { AiAssistantReply, AiChatMessage, AiProvider } from '@shared/ipc'
 import { normalizeAiChatMessage } from '@shared/ai-chat-history'
 import { parseAiAssistantReply } from '@shared/ipc'
@@ -119,6 +120,8 @@ type AssistantLine = {
   parseMiss?: boolean
   variant?: 'error'
   detail?: string
+  /** Classified provider/HTTP code; drives settings vs retry primary CTA. */
+  errorCode?: string
   /** M19: wall time of the turn, shown as the muted meta line. Not persisted. */
   elapsedMs?: number
   /** 2.3: execution replay (persisted). */
@@ -1012,11 +1015,13 @@ export default function AIPanel({
           const next = [...prev]
           const last = next[next.length - 1]
           const raw = String(ev.message ?? '')
+          const fe = friendlyError(raw)
           const row: AssistantLine = {
             role: 'assistant',
-            content: tg('pf5.aiFail'),
-            detail: friendlyErrorMessage(raw),
-            variant: 'error'
+            content: fe.message || tg('pf5.aiFail'),
+            detail: fe.detail && fe.detail !== fe.message ? fe.detail : undefined,
+            variant: 'error',
+            errorCode: fe.code
           }
           if (last?.role === 'assistant' && last.streaming) {
             next[next.length - 1] = row
@@ -2105,8 +2110,16 @@ export default function AIPanel({
             )
           }
           if (l.variant === 'error') {
+            const openSettings = aiErrorWantsSettings(l.errorCode)
             return (
-              <div key={i} className="msg assistant ai-structured ai-dark-card ai-card-error" data-testid="ai-reply-card" data-card="error">
+              <div
+                key={i}
+                className="msg assistant ai-structured ai-dark-card ai-card-error"
+                data-testid="ai-reply-card"
+                data-card="error"
+                data-error-code={l.errorCode || undefined}
+                data-primary={openSettings ? 'settings' : 'retry'}
+              >
                 <div className="ai-reply-desc">{l.content}</div>
                 {l.detail && l.detail !== l.content ? (
                   <details className="pf5-details">
@@ -2115,16 +2128,51 @@ export default function AIPanel({
                   </details>
                 ) : null}
                 <div className="ai-reply-actions">
-                  <button type="button" className="ai-fill-cmd-btn ai-btn-agree" disabled={busy} onClick={retryLastUser}>
+                  {openSettings && onOpenSettings ? (
+                    <button
+                      type="button"
+                      className="ai-fill-cmd-btn ai-btn-agree"
+                      data-testid="ai-error-open-settings"
+                      disabled={busy}
+                      onClick={() => onOpenSettings()}
+                    >
+                      {tg('a1.goSettings')}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={openSettings ? 'ai-fill-cmd-btn' : 'ai-fill-cmd-btn ai-btn-agree'}
+                    data-testid="ai-error-retry"
+                    disabled={busy}
+                    onClick={retryLastUser}
+                  >
                     {tg('ux64.retry')}
                   </button>
-                  <button type="button" className="ai-fill-cmd-btn ai-btn-decline" disabled={busy} title={tg('ux64.clear')} onClick={clearConversation}>
+                  {!openSettings && onOpenSettings ? (
+                    <button
+                      type="button"
+                      className="ai-fill-cmd-btn"
+                      data-testid="ai-error-open-settings"
+                      disabled={busy}
+                      onClick={() => onOpenSettings()}
+                    >
+                      {tg('a1.goSettings')}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="ai-fill-cmd-btn ai-btn-decline"
+                    disabled={busy}
+                    title={tg('ux64.clear')}
+                    onClick={clearConversation}
+                  >
                     <span className="ai-btn-text">{tg('ux64.clear')}</span>
                   </button>
                 </div>
               </div>
             )
           }
+
           if (l.structured) {
             const s = l.structured
             const isConfirmable = Boolean(l.requestId && pendingConfirm?.requestId === l.requestId)
