@@ -8,63 +8,131 @@
       "id": "H01-banner-global-auto",
       "level": "production",
       "paused": false,
-      "policy": { "settings": { "aiPolicy": "auto" }, "protection": { "level": "production" } },
-      "expectHint": { "source": "global", "autoHighRisk": false }
+      "policy": {
+        "settings": {
+          "aiPolicy": "auto"
+        },
+        "protection": {
+          "level": "production"
+        }
+      },
+      "expectHint": {
+        "source": "global",
+        "autoHighRisk": false
+      }
     },
     {
       "id": "H01-banner-host-auto",
       "level": "production",
       "paused": false,
-      "policy": { "settings": { "aiPolicy": "ask" }, "hostPolicy": "auto", "protection": { "level": "production" } },
-      "expectHint": { "source": "host", "autoHighRisk": false }
+      "policy": {
+        "settings": {
+          "aiPolicy": "ask"
+        },
+        "hostPolicy": "auto",
+        "protection": {
+          "level": "production"
+        }
+      },
+      "expectHint": {
+        "source": "host",
+        "autoHighRisk": false
+      }
     },
     {
       "id": "H01-banner-temp-auto-high-setting-ignored",
       "level": "production",
       "paused": false,
-      "policy": { "settings": { "aiPolicy": "auto", "aiAutoHighRisk": true }, "tempOverride": "auto", "protection": { "level": "production" } },
-      "expectHint": { "source": "temp", "autoHighRisk": false },
+      "policy": {
+        "settings": {
+          "aiPolicy": "auto",
+          "aiAutoHighRisk": true
+        },
+        "tempOverride": "auto",
+        "protection": {
+          "level": "production"
+        }
+      },
+      "expectHint": {
+        "source": "temp",
+        "autoHighRisk": false
+      },
       "note": "settings.aiAutoHighRisk must not surface on the production banner"
     },
     {
       "id": "H01-banner-ask-hides",
       "level": "production",
       "paused": false,
-      "policy": { "settings": { "aiPolicy": "auto" }, "tempOverride": "ask", "protection": { "level": "production" } },
+      "policy": {
+        "settings": {
+          "aiPolicy": "auto"
+        },
+        "tempOverride": "ask",
+        "protection": {
+          "level": "production"
+        }
+      },
       "expectHint": null
     },
     {
       "id": "H01-banner-paused-hides",
       "level": "production",
       "paused": true,
-      "policy": { "settings": { "aiPolicy": "auto" }, "protection": { "level": "production" } },
+      "policy": {
+        "settings": {
+          "aiPolicy": "auto"
+        },
+        "protection": {
+          "level": "production"
+        }
+      },
       "expectHint": null
     },
     {
       "id": "H01-banner-normal-hides",
       "level": "normal",
       "paused": false,
-      "policy": { "settings": { "aiPolicy": "auto" } },
+      "policy": {
+        "settings": {
+          "aiPolicy": "auto"
+        }
+      },
       "expectHint": null
     },
     {
       "id": "H01-block-high-auto-prod",
-      "block": { "level": "production", "kind": "high", "mode": "auto" },
+      "block": {
+        "level": "production",
+        "kind": "high",
+        "mode": "auto"
+      },
       "expectBlock": "strong"
     },
     {
       "id": "H01-block-write-auto-prod-ok",
-      "block": { "level": "production", "kind": "write", "mode": "auto" },
+      "block": {
+        "level": "production",
+        "kind": "write",
+        "mode": "auto"
+      },
       "expectBlock": null
     },
     {
       "id": "H01-block-high-agree-ok",
-      "block": { "level": "production", "kind": "high", "mode": "agree" },
+      "block": {
+        "level": "production",
+        "kind": "high",
+        "mode": "agree"
+      },
       "expectBlock": null
     },
     {
       "id": "H01-block-high-auto-normal-ok",
-      "block": { "level": "normal", "kind": "high", "mode": "auto" },
+      "block": {
+        "level": "normal",
+        "kind": "high",
+        "mode": "auto"
+      },
       "expectBlock": null
     }
   ],
@@ -81,8 +149,17 @@
     "Applies to production hosts too; never on read-only hosts."
   ],
   "wiring": {
-    "appMustInclude": ["const autoHint = prodAutoHint({", "data-testid=\"banner-ai-auto\""],
-    "panelMustInclude": ["data-testid=\"ai-prod-auto-banner\"", "protection === 'production'", "elevated && protection ==="],
-    "agentMustInclude": ["blockSilentHighRiskOnProd"]
+    "appMustInclude": [
+      "const autoHint = prodAutoHint({",
+      "data-testid=\"banner-ai-auto\""
+    ],
+    "panelMustInclude": [
+      "data-testid=\"ai-prod-auto-banner\"",
+      "protectionForUi === 'production'",
+      "elevated && protectionForUi ==="
+    ],
+    "agentMustInclude": [
+      "blockSilentHighRiskOnProd"
+    ]
   }
 }

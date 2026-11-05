@@ -32,6 +32,18 @@ export type ScreenshotOp =
   | { op: "aiComposerPop"; which: "model" | "safety" }
   /** Round 7 H04/H05: put AI panel into a real busy+streaming state (no DOM inject). */
   | { op: "aiStreaming"; partial?: string }
+  /** Round 14: cancelled mid-stream card with Retry CTA. */
+  | { op: "aiCancelled"; partial?: string }
+  /** Round 14: empty state + D29 troubleshoot resume chip (screenshot override). */
+  | { op: "aiEmptyResume"; title?: string }
+  /** Round 14: force AI panel production+auto banner (screenshot override). */
+  | { op: "aiProdBanner" }
+  /** Round 14: fresh suggest-only command card (Copy primary). */
+  | { op: "aiSuggestCard"; command?: string; description?: string }
+  /** Round 14: error card for accent hierarchy. */
+  | { op: "aiError"; message?: string; errorCode?: string }
+  /** Round 14: streaming + cancelled + error stacked for accent QA. */
+  | { op: "aiAccentStack" }
 
 export const SCREENSHOT_EVENT = "aiss-screenshot"
 

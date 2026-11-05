@@ -555,10 +555,28 @@ export default function AIPanel({
   const [pendingPreviewHold, setPendingPreviewHold] = useState(() => initialPending?.preview?.trim() || '')
 
   const screenshotForceKeyRef = useRef(false)
+  /** Round 14: screenshot-only protection override for prod banner (hooks on). */
+  const [screenshotProtectionOverride, setScreenshotProtectionOverride] = useState<ProtectionLevel | null>(null)
+  /** Round 14: keep D29 resume chip from being cleared by archive list effect. */
+  const screenshotResumeLockRef = useRef(false)
   useEffect(() => {
     const onShot = (ev: Event) => {
       if (!screenshotHooksEnabled()) return
-      const detail = (ev as CustomEvent<{ op?: string; preview?: string; requestId?: string; action?: string; empty?: boolean; partial?: string }>).detail
+      const detail = (ev as CustomEvent<{ op?: string; preview?: string; requestId?: string; action?: string; empty?: boolean; partial?: string; title?: string; command?: string; description?: string; message?: string; errorCode?: string }>).detail
+      if (
+        detail?.op === 'aiStreaming' ||
+        detail?.op === 'aiCancelled' ||
+        detail?.op === 'aiEmptyResume' ||
+        detail?.op === 'aiProdBanner' ||
+        detail?.op === 'aiSuggestCard' ||
+        detail?.op === 'aiError' ||
+        detail?.op === 'aiAccentStack'
+      ) {
+        ;(window as unknown as { __aissShotAiOp?: typeof detail }).__aissShotAiOp = detail
+      }
+      const clearShotAiOp = () => {
+        ;(window as unknown as { __aissShotAiOp?: unknown }).__aissShotAiOp = undefined
+      }
       if (detail?.op === 'aiChat') {
         screenshotForceKeyRef.current = true
         setHasApiKey(true)
@@ -589,6 +607,9 @@ export default function AIPanel({
       if (detail?.op === 'aiStreaming') {
         // H04/H05: real busy + streaming card (partial text + in-card Stop). No DOM inject.
         screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
         setHasApiKey(true)
         setPendingConfirm(null)
         const partial =
@@ -599,6 +620,146 @@ export default function AIPanel({
         setLines([
           { role: 'user', content: 'nginx 502，帮我边生成边停一下看看' },
           { role: 'assistant', content: partial, streaming: true }
+        ])
+        return
+      }
+      if (detail?.op === 'aiCancelled') {
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        const partial =
+          typeof (detail as { partial?: string }).partial === 'string' && (detail as { partial?: string }).partial!.trim()
+            ? (detail as { partial?: string }).partial!.trim()
+            : '正在分析 nginx 502…\n（已停止，可点重试继续）'
+        setLines([
+          { role: 'user', content: 'nginx 502，帮我边生成边停一下看看' },
+          { role: 'assistant', content: partial, cancelled: true }
+        ])
+        return
+      }
+      if (detail?.op === 'aiEmptyResume') {
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = true
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        setLines([])
+        const title =
+          typeof (detail as { title?: string }).title === 'string' && (detail as { title?: string }).title!.trim()
+            ? (detail as { title?: string }).title!.trim()
+            : 'nginx 502 排错'
+        setResumeHit({
+          id: 'shot-r14-resume',
+          group: 'demo-host',
+          hostLabel: '演示主机',
+          key: 'demo-host',
+          title,
+          savedAt: Date.now() - 120000,
+          count: 6
+        })
+        return
+      }
+      if (detail?.op === 'aiProdBanner') {
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride('production')
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        setSafetySettings((prev) => ({ ...prev, aiPolicy: 'auto', safetyTier: 'confirm' }))
+        setLines([
+          { role: 'user', content: '生产机上帮我看一下磁盘' },
+          {
+            role: 'assistant',
+            content: '这是生产主机：自动执行仍会跑低/中风险只读命令，高危必须确认。',
+            fresh: false,
+            structured: {
+              action: 'end',
+              description: '这是生产主机：自动执行仍会跑低/中风险只读命令，高危必须确认。',
+              riskLevel: 'low'
+            }
+          }
+        ])
+        return
+      }
+      if (detail?.op === 'aiSuggestCard') {
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        setSafetySettings((prev) => ({ ...prev, aiPolicy: 'suggest', safetyTier: 'confirm' }))
+        const cmd =
+          typeof (detail as { command?: string }).command === 'string' && (detail as { command?: string }).command!.trim()
+            ? (detail as { command?: string }).command!.trim()
+            : 'systemctl status nginx --no-pager'
+        const desc =
+          typeof (detail as { description?: string }).description === 'string' &&
+          (detail as { description?: string }).description!.trim()
+            ? (detail as { description?: string }).description!.trim()
+            : '查看 nginx 服务状态（只读）。'
+        setLines([
+          { role: 'user', content: '仅建议模式下，给我一条可复制的排查命令' },
+          {
+            role: 'assistant',
+            content: desc,
+            requestId: 'shot-r14-suggest',
+            fresh: true,
+            safetyMode: 'suggest',
+            structured: { action: 'command', description: desc, command: cmd, riskLevel: 'low' }
+          }
+        ])
+        return
+      }
+      if (detail?.op === 'aiError') {
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(false)
+        const message =
+          typeof (detail as { message?: string }).message === 'string' && (detail as { message?: string }).message!.trim()
+            ? (detail as { message?: string }).message!.trim()
+            : '模型请求失败：请检查 API Key 或网络后重试。'
+        const errorCode =
+          typeof (detail as { errorCode?: string }).errorCode === 'string'
+            ? (detail as { errorCode?: string }).errorCode
+            : 'http_401'
+        setLines([
+          { role: 'user', content: '帮我看看负载' },
+          { role: 'assistant', content: message, variant: 'error', errorCode: errorCode || undefined }
+        ])
+        return
+      }
+      if (detail?.op === 'aiAccentStack') {
+        screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setHasApiKey(true)
+        setPendingConfirm(null)
+        setBusy(true)
+        setLines([
+          { role: 'user', content: '对比流式 / 取消 / 错误三种卡片左边条' },
+          { role: 'assistant', content: '正在生成排查步骤…', streaming: true },
+          { role: 'assistant', content: '已停止的半成品回复', cancelled: true },
+          {
+            role: 'assistant',
+            content: '请求失败：上游超时。',
+            variant: 'error',
+            errorCode: 'http_504'
+          }
         ])
         return
       }
@@ -656,6 +817,13 @@ export default function AIPanel({
       const pending = (window as unknown as { __aissShotPop?: string }).__aissShotPop
       setModelOpen(pending === 'model')
       setSafetyOpen(pending === 'safety')
+      const pendingAi = (window as unknown as { __aissShotAiOp?: { op?: string } }).__aissShotAiOp
+      if (pendingAi?.op) {
+        // R14: panel may mount after the op event; replay once.
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent(SCREENSHOT_EVENT, { detail: pendingAi }))
+        }, 50)
+      }
     }
     return () => window.removeEventListener(SCREENSHOT_EVENT, onShot)
   }, [])
@@ -1565,6 +1733,7 @@ export default function AIPanel({
   const [resumeHit, setResumeHit] = useState<AiArchiveSummary | null>(null)
   const resumeGroup = conversation?.group ?? null
   useEffect(() => {
+    if (screenshotResumeLockRef.current) return
     setResumeHit(null)
     if (!resumeGroup || lines.length > 0 || !window.aiss.ai.chatArchive) return
     let cancelled = false
@@ -1817,16 +1986,20 @@ export default function AIPanel({
     settings: safetySettings,
     hostPolicy,
     tempOverride: tempPolicy,
-    protection: activeSessionId ? { level: protection, elevated } : null
+    protection:
+      screenshotProtectionOverride || activeSessionId
+        ? { level: (screenshotProtectionOverride ?? protection) as ProtectionLevel, elevated: screenshotProtectionOverride ? false : elevated }
+        : null
   })
   const policyCap = aiPolicy.cappedBy ? policyCapNote(aiPolicy.cappedBy) : ''
   const policyChipTitle = `${tg('policy.effective', { policy: tg(`policy.${aiPolicy.effective}` as 'policy.ask') })}${policyCap} · ${tg(`policy.source.${aiPolicy.source}` as 'policy.source.global')}`
   const ladderBand = safetyLadderBand(policyTier(aiPolicy.effective))
   // 2.4: match terminal banner — raw protection level + elevate pause, not the
   // flattened `production` prop (which already drops elevated sessions).
+  const protectionForUi = screenshotProtectionOverride ?? protection
   const panelProdAuto = prodAutoHint({
-    level: protection === 'production' ? 'production' : protection === 'readonly' ? 'readonly' : 'normal',
-    paused: Boolean(elevated && protection === 'production'),
+    level: protectionForUi === 'production' ? 'production' : protectionForUi === 'readonly' ? 'readonly' : 'normal',
+    paused: Boolean(elevated && protectionForUi === 'production'),
     policy: aiPolicy
   })
   const currentModel = modelList.includes(activeModel) ? activeModel : modelList[0] ?? ''

@@ -7356,6 +7356,8 @@ export default function App() {
       }
       if (detail.op === 'reset') {
         // c51: screenshot isolation — close popovers, modals and the right panel before each scenario
+        ;(window as unknown as { __aissShotAiOp?: unknown; __aissShotPop?: string }).__aissShotAiOp = undefined
+        ;(window as unknown as { __aissShotPop?: string }).__aissShotPop = undefined
         closeContextMenu()
         setKnownHostsOpen(false)
         setPaletteOpen(false)
@@ -7443,11 +7445,23 @@ export default function App() {
         } else showToast('No profile for SFTP screenshot')
         return
       }
-      if (detail.op === 'aiChat' || detail.op === 'aiStreaming') {
+      if (
+        detail.op === 'aiChat' ||
+        detail.op === 'aiStreaming' ||
+        detail.op === 'aiCancelled' ||
+        detail.op === 'aiEmptyResume' ||
+        detail.op === 'aiProdBanner' ||
+        detail.op === 'aiSuggestCard' ||
+        detail.op === 'aiError' ||
+        detail.op === 'aiAccentStack'
+      ) {
         setQuickOpen(false)
         setTourOpen(false)
         ensureAiVisible()
         openRightPanelRef.current('ai')
+        if (detail.op !== 'aiChat') {
+          ;(window as unknown as { __aissShotAiOp?: typeof detail }).__aissShotAiOp = detail
+        }
         // AIPanel listens for the same event to seed / clear the demo conversation / streaming state.
         return
       }

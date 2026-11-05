@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { startE2eSshd, freePort, stablePort, E2E_USER, E2E_PASS } from './e2e-sshd.mjs'
 import { stdAiScenarios, aiTableScenarioNames, AI_E2E_TABLE } from './e2e-ai-table.mjs'
+import { r14AiShots } from './ai-shot-matrix-r14.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -315,7 +316,15 @@ const chrome = [
   { name: 'r6-h03-auto', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { eval: "(async()=>{await window.aiss.ai.setSettings({aiPolicy:'auto'});window.dispatchEvent(new Event('aiss-ai-settings-saved'));await new Promise(r=>setTimeout(r,400));return true})()" }, { op: 'aiComposerPop', which: 'safety' }], wait: 1200 },
   { name: 'r6-p2-narrow', size: N, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }], wait: 1400 },
   { name: 'r6-streak', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { eval: "(()=>{const bar=document.querySelector('.ai-composer,.ai-input-row,[data-testid=ai-composer]')||document.querySelector('[data-testid=ai-stop]')?.parentElement||document.querySelector('textarea')?.parentElement; if(!bar) return 'no-bar'; if(document.querySelector('[data-testid=ai-run-streak]')) return 'exists'; const wrap=document.createElement('div'); wrap.className='ai-run-meta'; const a=document.createElement('span'); a.className='ai-run-steps'; a.setAttribute('data-testid','ai-run-steps'); a.textContent='step 3 / 10'; const b=document.createElement('span'); b.className='ai-run-streak'; b.setAttribute('data-testid','ai-run-streak'); b.title='streak'; b.textContent='auto streak 3 / 5'; wrap.append(a,b); bar.prepend(wrap); return 'injected'})()" }], wait: 900 },
-  { name: 'r7-h05-stop', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiStreaming' }, { eval: "(()=>{const stop=document.querySelector('[data-testid=ai-stop]'); const cardStop=document.querySelector('[data-testid=ai-stream-stop]'); const partial=document.querySelector('[data-testid=ai-stream-partial]'); const stream=document.querySelector('[data-card=streaming]'); return JSON.stringify({stop:!!stop,cardStop:!!cardStop,partial:!!(partial&&partial.textContent&&partial.textContent.trim()),stream:!!stream})})()" }], wait: 1000 }
+  { name: 'r7-h05-stop', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiStreaming' }, { eval: "(()=>{const stop=document.querySelector('[data-testid=ai-stop]'); const cardStop=document.querySelector('[data-testid=ai-stream-stop]'); const partial=document.querySelector('[data-testid=ai-stream-partial]'); const stream=document.querySelector('[data-card=streaming]'); return JSON.stringify({stop:!!stop,cardStop:!!cardStop,partial:!!(partial&&partial.textContent&&partial.textContent.trim()),stream:!!stream})})()" }], wait: 1000 },
+  // Round 14: standardized AI state matrix (declarative — see scripts/ai-shot-matrix-r14.mjs)
+  ...${JSON.stringify(r14AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
+    steps: s.steps,
+    expect: s.expect || undefined
+  }))
 ]
 const ONLY = ${JSON.stringify(only)}
 const THEMES = ${JSON.stringify(themes)}
