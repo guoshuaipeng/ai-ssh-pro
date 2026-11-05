@@ -3413,11 +3413,14 @@ export default function AIPanel({
                         type="button"
                         className="link-btn ai-failure-next-confirm"
                         data-testid="ai-failure-next-confirm"
+                        data-aligned-step={alignedPlan.step || undefined}
+                        data-aligned-max={alignedPlan.step ? planStepDisplayMax(alignedPlan) : undefined}
                         title={tg('fail.nextConfirmTip')}
                         onClick={() => focusAiPendingAfterFailure(pendingConfirm?.requestId)}
                       >
-                        {tg('fail.nextConfirm')}
-                        {alignedPlan.step ? ` · ${tg('ai.activePlanStep', { n: alignedPlan.step, max: planStepDisplayMax(alignedPlan) })}` : ''}
+                        {alignedPlan.step
+                          ? tg('fail.nextConfirmStep', { n: alignedPlan.step })
+                          : tg('fail.nextConfirm')}
                       </button>
                     ) : null}
                   </>

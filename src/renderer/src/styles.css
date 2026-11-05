@@ -6320,6 +6320,14 @@ button.primary.danger:focus-visible {
   opacity: 0.92;
 }
 
+/* R24 Round24 polish: short failure→next step label on narrow */
+.ai-panel .ai-failure-next-confirm {
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* R22 Round22: failure→next-confirm link + after-failure dock */
 .ai-panel .ai-failure-next-confirm {
   display: inline-flex;
