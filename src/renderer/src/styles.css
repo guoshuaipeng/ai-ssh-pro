@@ -6272,6 +6272,11 @@ button.primary.danger:focus-visible {
 
 
 
+/* R23 Round23 polish: confirm dock mark after evidence-retry auto-scroll */
+.ai-panel .ai-pending-confirm[data-after-evidence-retry='1'] {
+  border-left-color: var(--color-accent);
+}
+
 /* R23 Round23: one calm failure story — pin owns failure; ExecReplay row stays quiet */
 .ai-exec-replay.has-failure-pin .ai-exec-status {
   color: var(--color-text-muted);

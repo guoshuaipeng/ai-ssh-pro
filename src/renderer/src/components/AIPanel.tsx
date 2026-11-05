@@ -115,6 +115,32 @@ type Props = {
   focusExec?: OpenAiFromAuditDetail | null
 }
 
+
+/** Round 23: scroll + calm highlight when a confirm appears after 「带证据重试」. */
+function focusAiPendingAfterFailure(requestId?: string | null) {
+  const dock = document.querySelector<HTMLElement>('[data-testid="ai-pending-confirm"]')
+  const card = requestId
+    ? document.querySelector(`[data-confirm-id="${CSS.escape(requestId)}"]`)
+    : null
+  if (dock) {
+    dock.classList.add('is-after-failure-focus')
+    dock.setAttribute('data-after-failure-focus', '1')
+    dock.setAttribute('data-after-evidence-retry', '1')
+  }
+  const target = dock || card
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  if (card && card !== target) card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  window.setTimeout(() => {
+    dock?.classList.remove('is-after-failure-focus')
+    dock?.removeAttribute('data-after-failure-focus')
+    dock?.removeAttribute('data-after-evidence-retry')
+  }, 4200)
+  const agree =
+    document.querySelector<HTMLButtonElement>('[data-testid="ai-pending-agree"]') ||
+    document.querySelector<HTMLButtonElement>('[data-testid="ai-pending-need-session"]')
+  agree?.focus()
+}
+
 type UserLine = { role: 'user'; content: string }
 
 type AssistantLine = {
@@ -1165,6 +1191,8 @@ export default function AIPanel({
   const tailRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const pendingAgreeRef = useRef<HTMLButtonElement>(null)
+  /** Round 23: one-shot — scroll to confirm after 带证据重试. */
+  const scrollConfirmAfterEvidenceRetryRef = useRef(false)
   const pendingNeedSessionRef = useRef<HTMLButtonElement>(null)
   const pendingDeclineRef = useRef<HTMLButtonElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
@@ -1402,9 +1430,19 @@ export default function AIPanel({
   }, [lines, busy])
 
   // Keep the waiting confirm card in view, and surface a dock above the composer.
+  // Round 23: after 「带证据重试」, force-scroll + highlight the new confirm (wins over tail scroll).
   useEffect(() => {
     if (!pendingConfirm?.requestId) return
-    const el = document.querySelector(`[data-confirm-id="${pendingConfirm.requestId}"]`)
+    const id = pendingConfirm.requestId
+    const fromEvidenceRetry = scrollConfirmAfterEvidenceRetryRef.current
+    if (fromEvidenceRetry) {
+      scrollConfirmAfterEvidenceRetryRef.current = false
+      const run = () => focusAiPendingAfterFailure(id)
+      requestAnimationFrame(() => requestAnimationFrame(run))
+      const t = window.setTimeout(run, 180)
+      return () => window.clearTimeout(t)
+    }
+    const el = document.querySelector(`[data-confirm-id="${id}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [pendingConfirm?.requestId])
 
@@ -1994,6 +2032,7 @@ export default function AIPanel({
         return
       }
       const ask = tg('fail.retryAsk', { evidence, command: cmd || '—' })
+      scrollConfirmAfterEvidenceRetryRef.current = true
       void submitToAi(ask)
     },
     [busy, submitToAi]
@@ -3374,18 +3413,7 @@ export default function AIPanel({
                         className="link-btn ai-failure-next-confirm"
                         data-testid="ai-failure-next-confirm"
                         title={tg('fail.nextConfirmTip')}
-                        onClick={() => {
-                          const dock = document.querySelector<HTMLElement>('[data-testid="ai-pending-confirm"]')
-                          if (!dock) return
-                          dock.classList.add('is-after-failure-focus')
-                          dock.setAttribute('data-after-failure-focus', '1')
-                          dock.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                          window.setTimeout(() => {
-                            dock.classList.remove('is-after-failure-focus')
-                            dock.removeAttribute('data-after-failure-focus')
-                          }, 4200)
-                          pendingAgreeRef.current?.focus()
-                        }}
+                        onClick={() => focusAiPendingAfterFailure(pendingConfirm?.requestId)}
                       >
                         {tg('fail.nextConfirm')}
                         {alignedPlan.step ? ` · ${tg('ai.activePlanStep', { n: alignedPlan.step, max: Math.max(alignedPlan.max, alignedPlan.step, 1) })}` : ''}
