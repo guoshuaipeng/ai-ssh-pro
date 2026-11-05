@@ -1,0 +1,112 @@
+{
+  "id": "H02",
+  "title": "Suggest-only policy — zero SSH write for non-read",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H02",
+  "policy": {
+    "settings": {
+      "aiPolicy": "suggest"
+    },
+    "expect": {
+      "effective": "suggest",
+      "tier": "observe"
+    }
+  },
+  "gates": [
+    {
+      "id": "H02-restart-php",
+      "command": "systemctl restart php-fpm",
+      "risk": "medium",
+      "expect": {
+        "mode": "suggest",
+        "write": false,
+        "offerAgree": false,
+        "waitForAgree": false,
+        "kind": "write"
+      }
+    },
+    {
+      "id": "H02-rm-cache",
+      "command": "rm -rf /var/cache/*",
+      "risk": "high",
+      "expect": {
+        "mode": "suggest",
+        "write": false,
+        "offerAgree": false,
+        "waitForAgree": false,
+        "kind": "high"
+      }
+    },
+    {
+      "id": "H02-reboot",
+      "command": "reboot",
+      "risk": "high",
+      "expect": {
+        "mode": "suggest",
+        "write": false,
+        "offerAgree": false,
+        "waitForAgree": false,
+        "kind": "high"
+      }
+    },
+    {
+      "id": "H02-top-interactive",
+      "command": "top",
+      "risk": "low",
+      "expect": {
+        "mode": "suggest",
+        "write": false,
+        "offerAgree": false,
+        "waitForAgree": false,
+        "kind": "interactive"
+      }
+    },
+    {
+      "id": "H02-vim-interactive",
+      "command": "vim /etc/nginx/nginx.conf",
+      "risk": "medium",
+      "expect": {
+        "mode": "suggest",
+        "write": false,
+        "offerAgree": false,
+        "waitForAgree": false,
+        "kind": "interactive"
+      }
+    },
+    {
+      "id": "H02-df-read-still-auto",
+      "command": "df -h",
+      "risk": "low",
+      "expect": {
+        "mode": "auto",
+        "write": true,
+        "kind": "read"
+      }
+    }
+  ],
+  "wiring": {
+    "agentMustInclude": [
+      "if (safetyMode === 'suggest' || safetyMode === 'hold') skipCommandWrite = true"
+    ],
+    "barMustInclude": [
+      "data-testid=\"safety-suggest\"",
+      "data-testid=\"safety-suggest-copy\"",
+      "data-testid=\"safety-suggest-fill\"",
+      "if (mode === 'suggest')"
+    ],
+    "panelMustInclude": [
+      "onCopy={(cmd) => copyText(cmd)}",
+      "onFill=",
+      "tg('d15.filled')"
+    ],
+    "copyMustInclude": [
+      "'safety.suggest': '仅建议 · 未写入终端'",
+      "'safety.suggestCopy': '复制命令'",
+      "'safety.suggestFill': '填入命令栏'"
+    ],
+    "suggestUiForbid": [
+      "onAgree(",
+      "ai-btn-agree"
+    ]
+  }
+}

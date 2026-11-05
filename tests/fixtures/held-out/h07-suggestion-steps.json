@@ -1,0 +1,29 @@
+{
+  "id": "H07",
+  "title": "Readable tool/command suggestion steps + risk",
+  "heldOut": true,
+  "source": "docs/ai-chat-test-suite.md#H07",
+  "minStepIndexMarks": 3,
+  "wiring": {
+    "panelMustInclude": [
+      "const suggestionStepNo = useMemo",
+      "action === 'command' || action === 'tool_call'",
+      "data-testid=\"ai-step-index\"",
+      "tg('ai.stepIndex', { n:",
+      "ai-tool-strip--plan",
+      "ai-tool-step--wrap",
+      "<RiskBadge level={s.riskLevel} />",
+      "data-testid=\"ai-tool-meta\""
+    ],
+    "cssMustInclude": [
+      ".ai-step-index",
+      ".ai-tool-strip--plan",
+      ".ai-tool-step--wrap",
+      ".ai-panel .ai-tool-meta"
+    ],
+    "copyMustInclude": [
+      "'ai.stepIndex': '步骤 {n}'",
+      "'ai.stepIndex': 'Step {n}'"
+    ]
+  }
+}
