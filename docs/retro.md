@@ -421,6 +421,15 @@
 - 抽象已落地：`ai-shot-matrix-rXX.mjs` config-driven；`buildMemoryEvidenceView` 纯函数裁剪；继续沿用。
 - 下轮候选：失败证据卡 / 记忆芯片窄栏真机抽检 / Roadmap 迭代 3 前扫对话缺口；整页视觉审计目标 Round 21。
 
+## Round 22 — 2026-11-05（失败证据截图矩阵 + 下一步确认联动 / 审计未匹配弱提示）
+- 计划：约 30 分钟；1 高频：扩 harness 拍 `aiFailureEvidence` 宽/窄×深/浅 → `docs/screenshots/r22/`；1 小打磨：失败卡↔下一步确认高亮 + R17 审计空匹配弱 toast；编码前 UX。
+- 实际：本机两项交付；Core-A 34/34；held-out H01–H08 绿；截图 6/6 expect true（含 next-confirm 联动态）。
+- 卡住点：① 首跑 expect 全红——R21 shot handler 误调截图作用域外的 `setTurnPending`（ReferenceError）；② `test-ai-jump-from-audit` 仍断言裸 `tg('au2.openAiMiss')`，改为 helper 后需同步夹具。
+- 根因/预防：截图 handler 只能用面板顶层 state setter；新 toast/文案抽 shared helper 时同步改旧 wiring 断言；Rxx harness 默认 rebuild。
+- UX 验收：失败主 CTA「带证据重试」；「下一步待确认」次要；确认坞 Agree 仍是唯一主 CTA；审计 miss = info +「回到顶部」，非 error 红。
+- 验收：`test-r22-ai-shot-harness` / `test-r22-failure-next-confirm` + Core-A 34/34 + held-out 全绿；`docs/screenshots/r22/` dark/light × failure / failure-narrow / failure-next-confirm。
+- 提交：`529385b5`（矩阵+修 setTurnPending）、`39eb23cd`（联动+弱 toast）。
+
 ## Round 21 — 2026-11-05（失败证据卡 + 记忆芯片窄栏 + 逢 3 轮全页视觉审计）
 - 计划：约 30 分钟；1 高频：确认命令失败后钉证据卡（对齐 S27）+ 1 小打磨：记忆芯片极窄收／或整页视觉审计入 backlog；编码前 UX。
 - 实际：本机两项代码 + docs 视觉审计；Core-A 34/34；held-out H01–H08 绿。

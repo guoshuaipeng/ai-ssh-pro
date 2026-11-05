@@ -11,3 +11,7 @@
 2. Narrow: failure actions wrap; retry still full-width-ish; no clipped title.
 3. With pending confirm after failure: dock `data-after-failure=1` + secondary chip; Agree still primary.
 4. Audit jump miss: info toast + 回到顶部; panel already open.
+
+## After code
+- Item1 `529385b5`: matrix green after removing out-of-scope `setTurnPending`.
+- Item2 `39eb23cd`: next-confirm link + audit miss helper; 6/6 shots green.
