@@ -3058,7 +3058,7 @@ export default function AIPanel({
                 onClick={() => setSafetyOpen((v) => !v)}
               >
                 <Icon name="shield" size={12} />
-                <span>{tg(`policy.${aiPolicy.effective}` as 'policy.ask')}</span>
+                <span className="ai-safety-chip-label">{tg(`policy.${aiPolicy.effective}` as 'policy.ask')}</span>
                 {aiPolicy.cappedBy ? <span className="ai-chip-cap" data-testid="ai-safety-cap" aria-hidden="true">·</span> : null}
                 <Icon name="chevron-down" size={12} />
               </button>
