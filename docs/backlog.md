@@ -74,6 +74,29 @@
 
 
 
+
+## Round 27 全页轻量视觉审计（逢 3 轮，R24 后下一拍；R14–R26 矩阵 + 代码审查）→ backlog
+依据：`docs/screenshots/r14|r17|r18|r20|r22|r25|r26` README 矩阵与当前 AI 面板 / 审计空态结构（Electron harness；未新开 Tauri 真机全量）。
+
+| 级别 | 问题 | 处置 |
+|------|------|------|
+| ~~P2~~ | ~~R26 jump-audit 空审计库 → true-empty，不是命中态~~ | ✅ Round 27 polish：jump 前 seed 匹配 `appendAudit` 再重拍 |
+| ~~P2~~ | ~~记忆 close / jump-btn `min-height: 28px` 触控偏紧（对照 `--list-row-height: 32px`）~~ | ✅ Round 27 `32px` |
+| P2 | 真机 Tauri 宽/窄×深/浅全量矩阵仍口头债（R6 起） | 继续 declarative matrix；勿再口头延期 |
+| P3 | pending Agree/Decline/审计在 280px Decline 权重（R19） | 可接受；若仍抢再降一档 |
+| P3 | 策略 pop 标题「AI 执行策略（此标签页）」窄栏两行（R19） | 可接受 |
+| P3 | 英文 chip Confirm/Suggest/Auto vs 菜单全称（R19） | 真机不混淆即可 |
+| ok | 失败钉同屏记忆 muted；filter-empty ≠ true-empty | R26 已做 |
+| ok | 失败「下一步 · n」+ 计划步对齐 | R22–R24 已做 |
+
+## 2026-11-05 Round 27 追加
+- 已完成：逢 3 轮整页视觉审计入 backlog；记忆展开触控命中 ≥32px（对照 list-row 32）。
+- （polish）jump-audit 种子匹配审计行后重拍 → `docs/screenshots/r27/`。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R27）。
+- P1 候选 Round 28：保持 AI 对话——Roadmap 迭代 3 前扫对话缺口 / 或策略 Decline 权重 / 或 filter-empty 故意态进矩阵；默认不接端口转发。
+- 未做：Core-A 仍不接 production safetyContext（策略题继续 held-out）。
+- 下一整页视觉目标：**Round 30**。
+
 ## 2026-11-05 Round 26 追加
 - 已完成：记忆展开态进截图矩阵 → `docs/screenshots/r26/`（宽/窄 × 深/浅 × open / collapsed / jump-audit；`aiMemoryEvidence.open|jumpAudit`）。
 - 已完成：失败钉同屏时记忆芯片进一步 muted（`:has(ai-failure-evidence)`）；审计「真·无记录」与「有筛选无命中」分开——冷静「没有符合筛选的记录」+「清空筛选」。
