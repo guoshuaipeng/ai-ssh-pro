@@ -18,10 +18,11 @@ assert.equal(hasFailedExecPin([{ role: 'assistant', exec: { status: 'ok' } }]), 
 assert.equal(hasFailedExecPin([{ role: 'assistant', exec: { status: 'failed' } }]), true)
 
 assert.ok(translate('zh-CN', 'au2.openAiMiss').includes('当前对话'))
-assert.equal(translate('zh-CN', 'au2.openAiMissAction'), '回到顶部')
+assert.ok(translate('zh-CN', 'au2.openAiMiss').includes('新开对话'))
+assert.equal(translate('zh-CN', 'au2.openAiMissAction'), '新开对话')
 assert.equal(translate('zh-CN', 'fail.nextConfirm'), '下一步待确认')
 assert.ok(translate('zh-CN', 'fail.nextConfirmTip').includes('不会静默'))
-assert.equal(translate('en', 'au2.openAiMissAction'), 'Back to top')
+assert.equal(translate('en', 'au2.openAiMissAction'), 'New chat')
 assert.equal(translate('en', 'fail.nextConfirm'), 'Next confirm')
 
 const panel = norm('src/renderer/src/components/AIPanel.tsx')

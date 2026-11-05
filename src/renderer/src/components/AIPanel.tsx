@@ -1329,6 +1329,8 @@ export default function AIPanel({
   const pendingAgreeRef = useRef<HTMLButtonElement>(null)
   /** Round 23: one-shot — scroll to confirm after 带证据重试. */
   const scrollConfirmAfterEvidenceRetryRef = useRef(false)
+  /** R32: miss toast → startNewChat (effect is declared above the callback). */
+  const startNewChatRef = useRef<(() => void) | null>(null)
   const pendingNeedSessionRef = useRef<HTMLButtonElement>(null)
   const pendingDeclineRef = useRef<HTMLButtonElement>(null)
   const [inputMenu, setInputMenu] = useState<{ x: number; y: number } | null>(null)
@@ -2099,7 +2101,7 @@ export default function AIPanel({
     }
     root.querySelectorAll('.is-audit-focus').forEach((n) => n.classList.remove('is-audit-focus'))
     if (!el) {
-      // Round 22: calm info toast + scroll-to-top action (R17 weak-toast debt).
+      // Round 32: calm info toast + New chat on this host (R17/R22 debt; no fabricated history).
       const miss = buildAuditOpenAiMissToast()
       showToast(tg(miss.messageKey), {
         kind: miss.kind,
@@ -2108,12 +2110,7 @@ export default function AIPanel({
         action: {
           label: tg(miss.actionKey),
           run: () => {
-            const list = document.querySelector<HTMLElement>('.ai-panel .ai-messages, .ai-panel [data-testid="ai-messages"]')
-            if (list) list.scrollTo({ top: 0, behavior: 'smooth' })
-            else {
-              const root = document.querySelector('.ai-panel') as HTMLElement | null
-              root?.scrollTo?.({ top: 0, behavior: 'smooth' })
-            }
+            startNewChatRef.current?.()
           }
         }
       })
@@ -2356,6 +2353,7 @@ export default function AIPanel({
       showToast(tg(archived ? 'ai.archivedChat' : 'ai.newChatStarted'))
     })()
   }, [archiveCurrent, busy, persistKey, refreshWorkingGoal])
+  startNewChatRef.current = startNewChat
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement | null>(null)

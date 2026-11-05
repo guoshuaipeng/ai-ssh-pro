@@ -1,4 +1,4 @@
-/** Round 22: audit → AI jump miss — calm info toast (not error). */
+/** Round 22/32: audit → AI jump miss — calm info toast; action starts a new chat (no fabricated history). */
 export type AuditOpenAiMissToast = {
   messageKey: 'au2.openAiMiss'
   actionKey: 'au2.openAiMissAction'
