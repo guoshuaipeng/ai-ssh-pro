@@ -55,7 +55,7 @@ export type ScreenshotOp =
   /** Round 18: AI card highlighted as if arrived from audit row. */
   | { op: "aiAuditFocus"; auditId?: string; command?: string }
   /** Round 20: working-memory / observational evidence chip (honest, capped). */
-  | { op: "aiMemoryEvidence"; goal?: string; hostFacts?: string[]; observations?: string[]; recentCommands?: string[] }
+  | { op: "aiMemoryEvidence"; goal?: string; hostFacts?: string[]; observations?: string[]; recentCommands?: string[]; open?: boolean; jumpAudit?: boolean }
   /** Round 21: failed command evidence pin (S27). */
   | { op: "aiFailureEvidence"; nextConfirm?: string }
 

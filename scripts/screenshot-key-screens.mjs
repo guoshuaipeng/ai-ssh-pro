@@ -11,6 +11,7 @@ import { r18AiShots } from './ai-shot-matrix-r18.mjs'
 import { r20AiShots } from './ai-shot-matrix-r20.mjs'
 import { r22AiShots } from './ai-shot-matrix-r22.mjs'
 import { r25AiShots } from './ai-shot-matrix-r25.mjs'
+import { r26AiShots } from './ai-shot-matrix-r26.mjs'
 import { readFileSync as readSelf } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -364,6 +365,14 @@ const chrome = [
   })),
   // Round 25: failure evidence + short 「下一步 · n」 (wide + narrow)
   ...${JSON.stringify(r25AiShots())}.map((s) => ({
+    name: s.name,
+    size: s.narrow ? N : W,
+    wait: s.wait || 1000,
+    steps: s.steps,
+    expect: s.expect || undefined
+  })),
+  // Round 26: memory expand open/collapse + recent-cmd→audit jump
+  ...${JSON.stringify(r26AiShots())}.map((s) => ({
     name: s.name,
     size: s.narrow ? N : W,
     wait: s.wait || 1000,

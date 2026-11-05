@@ -1089,13 +1089,21 @@ export default function AIPanel({
         return
       }
       if (detail?.op === 'aiMemoryEvidence') {
+        // Round 20 seed; Round 26: open/collapse + recent-cmd → audit jump for shot matrix.
         screenshotForceKeyRef.current = true
+        clearShotAiOp()
+        screenshotResumeLockRef.current = false
+        setScreenshotProtectionOverride(null)
+        setScreenshotAuditFocusId(null)
         setHasApiKey(true)
+        setBusy(false)
         const d = detail as {
           goal?: string
           hostFacts?: string[]
           observations?: string[]
           recentCommands?: string[]
+          open?: boolean
+          jumpAudit?: boolean
         }
         const view = buildMemoryEvidenceView({
           goal: d.goal ?? '排查 nginx 502',
@@ -1105,7 +1113,21 @@ export default function AIPanel({
         })
         setWorkingGoal(view.goal)
         setMemoryView(view)
-        setMemoryOpen(true)
+        const jump = d.jumpAudit === true
+        const wantOpen = jump ? false : d.open !== false
+        setMemoryOpen(wantOpen)
+        if (jump) {
+          const cmd = view.items.find((it) => it.kind === 'recentCommand')
+          const full = ((cmd?.query || cmd?.text) ?? '').trim()
+          const host = conversation
+            ? conversationLabel(conversation.hostLabel, conversation.n)
+            : hostName || undefined
+          window.dispatchEvent(
+            new CustomEvent(OPEN_AUDIT_EVENT, {
+              detail: { host, source: 'AI', type: 'command', text: full }
+            })
+          )
+        }
         return
       }
       if (detail?.op !== 'aiComposerPop') {
