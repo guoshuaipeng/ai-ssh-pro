@@ -8183,6 +8183,31 @@ body.platform-darwin .window-controls {
   min-width: 0;
 }
 
+/* R30 Round30: host banner touch + narrow (visual audit P2) */
+.ai-prod-auto-banner,
+.ai-readonly-banner {
+  min-height: 32px;
+  box-sizing: border-box;
+}
+.ai-prod-auto-text,
+.ai-readonly-text {
+  min-width: 0;
+}
+@container (max-width: 230px) {
+  .ai-prod-auto-hint,
+  .ai-readonly-hint {
+    display: none;
+  }
+  .ai-prod-auto-text,
+  .ai-readonly-text {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+
+
 
 
 /* H08: key ok but no model — calm banner, one primary CTA */

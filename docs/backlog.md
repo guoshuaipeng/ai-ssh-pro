@@ -1,3 +1,29 @@
+## Round 30 全页轻量视觉审计（逢 3 轮，R27 后下一拍；R14–R29 矩阵 + 代码审查）→ backlog
+依据：`docs/screenshots/r14|r27|r28|r29` README 矩阵与当前 AI 面板双横幅 / 记忆·失败钉 / 空错态结构（Electron harness；未新开 Tauri 真机全量）。
+
+| 级别 | 问题 | 处置 |
+|------|------|------|
+| ~~P2~~ | ~~主机横幅触控高度 ≈28px（对照 `--list-row-height: 32px` / R27 记忆）~~ | ✅ Round 30 `min-height: 32px` |
+| ~~P2~~ | ~~≤230px 长中文 chip+hint 互挤；R14 prod 无窄栏对照~~ | ✅ Round 30 `@container` 藏 hint + ellipsis；`docs/screenshots/r30/` 对照矩阵 |
+| P2 | 真机 Tauri 宽/窄×深/浅全量矩阵仍口头债（R6 起） | 继续 declarative matrix；勿再口头延期 |
+| P3 | pending Decline 权重 / 策略 pop 标题窄栏两行 / EN chip（R19） | 可接受 |
+| P3 | model-missing 与横幅可同屏叠放 | 可接受；对照矩阵抽检 |
+| ok | 只读/生产横幅互斥；失败钉降权记忆；filter-empty ≠ true-empty | R26–R29 已做 |
+
+## 2026-11-05 Round 30 追加
+- **已完成**：逢 3 轮整页视觉审计（设计 `docs/design/r30-full-page-visual-audit.md`）+ 横幅触控/窄栏快修。
+- **已完成**：生产↔只读横幅对照截图矩阵 `docs/screenshots/r30/`。
+- P2：真机 Tauri 宽窄×深浅仍欠（Electron harness R14–R30）。
+- P3：英文 chip Confirm/Suggest/Auto；策略题继续 held-out。
+- P1 候选 Round 31：保持 AI 对话——空/错态窄栏进矩阵 / 或 Roadmap 迭代 3 前对话缺口（端口转发仍默认不接）。
+- 下一整页视觉目标：**Round 33**。
+
+### Round 30 UX 验收（编码后）
+- 主 CTA：横幅仍是提醒条（开策略）；待确认仍 Agree；失败钉「带证据重试」。
+- 绑定：横幅绑本会话 protection / screenshot override；只读与生产互斥。
+- 空/错：横幅 ≠ model-missing / reconnect / config empty。
+- 守卫：`test-r30-visual-audit-banner` / `test-r30-contrast-shots`；Core-A 34/34；held-out H01–H08 绿。
+
 ## 2026-11-05 Round 29 追加
 - **已完成**：只读主机冷静横幅（对称 prod-auto）——`readonlyHostHint` + AI 面板 `ai-readonly-banner`（ok 色）；中文「只读主机 · AI 不会写入」；点击开策略；临时解锁终端时横幅仍在（AI 永不写）。
 - **已完成**：截图矩阵 `docs/screenshots/r29/`（宽/窄 × 深/浅，4/4 expect true；op `aiReadonlyBanner`）。
