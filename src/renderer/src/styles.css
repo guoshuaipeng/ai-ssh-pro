@@ -3897,9 +3897,34 @@ body:has(.debug-window-root) #root {
 
 /* Docker services tree (sidebar) + detail panel */
 .profile-row--host {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+.profile-row--host:has(.profile-tags, .profile-note) {
+  height: auto;
+  padding-block: var(--space-1);
+}
+.profile-name-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+}
+.profile-name-line .demo-badge {
+  margin-left: 0;
+}
+.profile-name-text {
+  min-width: 4em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-name-line > :not(.profile-name-text) {
+  flex: none;
 }
 
 .session-host-chevron,
@@ -3942,7 +3967,10 @@ body:has(.debug-window-root) #root {
 }
 
 .host-row-more {
-  flex-shrink: 0;
+  position: absolute;
+  top: 50%;
+  right: var(--space-1);
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3953,7 +3981,7 @@ body:has(.debug-window-root) #root {
   padding: 0;
   border: none;
   border-radius: var(--radius-md);
-  background: transparent;
+  background: var(--color-row-hover-bg);
   color: var(--color-text-muted);
   cursor: pointer;
   line-height: 0;
@@ -4657,8 +4685,9 @@ button.danger {
 
 .profile-tags {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  gap: var(--space-1);
   margin-top: 2px;
 }
 .profile-note {
@@ -4672,6 +4701,7 @@ button.danger {
 }
 
 .profile-tag {
+  flex: none;
   font-size: 10px;
   line-height: 1.4;
   padding: 0 5px;

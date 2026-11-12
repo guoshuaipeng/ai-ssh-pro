@@ -283,8 +283,8 @@ export default function SessionDockerBranch({
             })()
           : null}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {label}
+          <div className="profile-name-line">
+            <span className="profile-name-text">{label}</span>
             {profile.demo ? (
               <span className="demo-badge" data-testid="demo-badge">
                 DEMO
@@ -298,6 +298,7 @@ export default function SessionDockerBranch({
             {(() => {
               const level = stricterLevel(effectiveLevel(profile), sessionReadonly)
               if (level === 'normal') return null
+              if (profile.demo && !profile.protection && !sessionReadonly) return null
               return (
                 <span className={`prot-badge prot-badge--${level}`} data-testid="prot-badge">
                   {tg(level === 'production' ? 'l4.production' : 's4.badge')}
