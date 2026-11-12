@@ -2565,10 +2565,13 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 }
 
 /* Round 17: audit row → AI dialog */
-.audit-table td.au2-detail { display: flex; align-items: center; gap: var(--space-2); }
-.audit-table .au2-detail-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The cell stays a table cell (a flex td drops out of the row, so its bottom border no longer lines up); the link flows inline after the text. */
 .audit-table .au2-open-ai {
-  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
+  margin-left: var(--space-2);
+  line-height: inherit;
+  vertical-align: baseline;
   border: 0;
   background: transparent;
   color: var(--color-accent);
