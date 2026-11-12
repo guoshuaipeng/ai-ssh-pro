@@ -2203,6 +2203,10 @@ button.statusbar-slot:focus-visible {
 .workspace-panel-inner--snippets {
   max-width: 640px;
 }
+.workspace-panel-inner--snippets [data-testid='snip-search'] {
+  width: 100%;
+  box-sizing: border-box;
+}
 
 .workspace-panel-inner--mcp-guide {
   max-width: 720px;

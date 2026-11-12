@@ -216,7 +216,6 @@ export function buildTabMenu(ctx: TabMenuCtx): BuiltNode[] {
       labelKey: 'tab.closeOthers',
       titleKey: 'tab.closeOthersKeep',
       disabled: ctx.closeOthersDisabled,
-      danger: true,
       testId: 'tab-close-others'
     },
     {
@@ -224,11 +223,10 @@ export function buildTabMenu(ctx: TabMenuCtx): BuiltNode[] {
       id: 'closeRight',
       labelKey: 'tab.closeRight',
       disabled: ctx.closeRightDisabled,
-      danger: true,
       testId: 'tab-close-right',
       titleKey: ctx.closeRightDisabled ? 'tab.closeRightDisabled' : undefined
     },
-    { type: 'item', id: 'close', labelKey: 'tab.close', danger: true }
+    { type: 'item', id: 'close', labelKey: 'tab.close' }
   ])
 }
 

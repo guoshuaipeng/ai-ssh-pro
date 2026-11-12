@@ -120,13 +120,20 @@
 .w9-seg {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: var(--space-1);
   align-items: center;
   min-width: 0;
   overflow: hidden;
-  margin: 8px 0;
+  margin: var(--space-2) 0;
 }
-.w9-seg button { white-space: nowrap; flex: none; }
+.w9-seg button {
+  white-space: nowrap;
+  flex: none;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+}
 .w9-seg button[aria-pressed='true'] { border-color: var(--accent); color: var(--text); }
 .w9-badge {
   display: inline-flex;

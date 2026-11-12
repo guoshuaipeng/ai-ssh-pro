@@ -593,7 +593,7 @@ export default function SnippetsPanel({ activeSessionId, variant = 'rail', launc
                 >
                   <span className="sn2-head">
                     <span className="sn2-title">{s.title}</span>
-                    {builtin ? <span className="w9-badge sn2-badge">{t('w9.builtin')}</span> : null}
+                    {builtin && seg !== 'builtin' ? <span className="w9-badge sn2-badge">{t('w9.builtin')}</span> : null}
                     {'tag' in s && s.tag ? <span className="sn2-tag">{s.tag}</span> : null}
                     {!builtin && s.category ? <span className="sn2-tag" data-testid="snip-row-category">{s.category}</span> : null}
                     {!builtin && s.hotkey ? <kbd className="cmdp-kbd" data-testid="snip-hotkey-badge">{s.hotkey}</kbd> : null}
