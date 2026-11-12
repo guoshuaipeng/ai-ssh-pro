@@ -1229,8 +1229,8 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 }
 .sftp-pane-head { padding: 4px 8px 0; }
 .sftp-pane-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sftp-mid { width: 92px; flex: none; display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 8px; }
-.sftp-mid button { white-space: nowrap; }
+.sftp-mid { width: 72px; flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--space-2); padding: var(--space-1); }
+.sftp-mid button { white-space: nowrap; font-size: var(--fs-xs); padding: var(--space-1) var(--space-1); }
 .sftp-pane-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .sftp-pane-toggle button.is-on { background: var(--accent); color: var(--color-text-on-accent); }
 .sftp-autoresume, .sftp-queue-summary { font-size: 12px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }

@@ -119,7 +119,10 @@ function formatMode(mode?: number): string {
 function formatTime(ms?: number): string {
   if (!ms) return '—'
   try {
-    return new Date(ms).toLocaleString()
+    const d = new Date(ms)
+    const p = (n: number) => String(n).padStart(2, '0')
+    // 固定宽度，避免 toLocaleString 带秒后把修改时间列挤成省略号。
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
   } catch {
     return '—'
   }
@@ -427,7 +430,7 @@ export default function SftpPanel({
   const queueReady = useRef(false)
 
   const [tasks, setTasks] = useState<TransferTask[]>([])
-  const [queueOpen, setQueueOpen] = useState(true)
+  const [queueOpen, setQueueOpen] = useState(false)
   const queuePanelRef = useRef<HTMLDivElement>(null)
   const [syncOpen, setSyncOpen] = useState(false)
   // D75: name search under the current remote folder
@@ -1664,19 +1667,6 @@ export default function SftpPanel({
             </button>
             <button
               type="button"
-              className={`sftp-icon-btn${sortMode === 'mtime' ? ' is-on' : ''}`}
-              data-testid="sftp-sort-mode"
-              title={tg(sortMode === 'mtime' ? 'sftp.sortByMtimeTip' : 'sftp.sortByNameTip')}
-              aria-label={tg(sortMode === 'mtime' ? 'sftp.sortMtime' : sortMode === 'size' ? 'd81.sortSize' : 'sftp.sortName')}
-              onClick={() => {
-                setSortMode((m) => (m === 'name' ? 'mtime' : 'name'))
-                setSortFlip(false)
-              }}
-            >
-              <Icon name={sortMode === 'mtime' ? 'history' : 'arrow-down'} size={14} />
-            </button>
-            <button
-              type="button"
               className="sftp-icon-btn"
               data-testid={`sftp-more-${side}`}
               aria-haspopup="menu"
@@ -1687,6 +1677,14 @@ export default function SftpPanel({
                 openContextMenu(ev, [
                   { id: 'copyPath', label: tg('sftp.copyPath'), onSelect: () => void navigator.clipboard.writeText(cwd).then(() => showToast(tg('sftp.copiedPath', { path: cwd }))) },
                   { id: 'editPath', label: tg('sh1.editPath'), onSelect: () => { const el = isLocal ? localPathRef.current : remotePathRef.current; el?.focus(); el?.select() } },
+                  {
+                    id: 'sort',
+                    label: tg(sortMode === 'mtime' ? 'sftp.sortByNameTip' : 'sftp.sortByMtimeTip'),
+                    onSelect: () => {
+                      setSortMode((m) => (m === 'name' ? 'mtime' : 'name'))
+                      setSortFlip(false)
+                    }
+                  },
                   ...(!isLocal && onCdInTerminal && cwd ? [{ id: 'cdTerm', label: tg('d28.btn'), onSelect: () => onCdInTerminal(cwd) }] : []),
                   ...(!isLocal && sessionId ? [{ id: 'treeSearch', label: tg('d75.button'), onSelect: () => setTreeOpen(true) }] : []),
                   { id: 'hidden', label: `${showHidden ? '✓ ' : ''}${tg('d1.hidden')}`, onSelect: () => setShowHidden((v) => !v) }
@@ -1696,6 +1694,19 @@ export default function SftpPanel({
               <Icon name="menu" size={14} />
             </button>
             {/* entry points kept for automation and assistive tech; visually they live in "更多" */}
+            <button
+              type="button"
+              className="sr-only"
+              tabIndex={-1}
+              data-testid="sftp-sort-mode"
+              aria-label={tg(sortMode === 'mtime' ? 'sftp.sortMtime' : sortMode === 'size' ? 'd81.sortSize' : 'sftp.sortName')}
+              onClick={() => {
+                setSortMode((m) => (m === 'name' ? 'mtime' : 'name'))
+                setSortFlip(false)
+              }}
+            >
+              {tg(sortMode === 'mtime' ? 'sftp.sortMtime' : 'sftp.sortName')}
+            </button>
             <button type="button" className="sr-only" tabIndex={-1} data-testid={isLocal ? 'sftp-copy-local-path' : 'sftp-copy-remote-path'} aria-label={tg('sftp.copyPath')} onClick={() => void navigator.clipboard.writeText(cwd).then(() => showToast(tg('sftp.copiedPath', { path: cwd })))}>{tg('sftp.copyPath')}</button>
             <button type="button" className="sr-only" tabIndex={-1} data-testid={isLocal ? 'sftp-local-hidden' : 'sftp-remote-hidden'} aria-pressed={showHidden} aria-label={tg('d1.hidden')} onClick={() => setShowHidden((v) => !v)}>{tg('d1.hidden')}</button>
             {!isLocal && onCdInTerminal && cwd ? (
@@ -1871,7 +1882,7 @@ export default function SftpPanel({
                     return (
                       <th
                         key={col}
-                        style={col === 'size' ? { width: 72 } : col === 'mtime' ? { width: 132 } : undefined}
+                        style={col === 'size' ? { width: 72 } : col === 'mtime' ? { width: 140 } : undefined}
                         aria-sort={on ? (desc ? 'descending' : 'ascending') : 'none'}
                       >
                         <button

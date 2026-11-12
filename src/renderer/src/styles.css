@@ -3768,7 +3768,10 @@ body:has(.debug-window-root) #root {
 
 .sftp-transfers {
   border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel);
-  padding: 8px 10px; max-height: 200px; overflow: auto; flex-shrink: 0;
+  padding: var(--space-1) var(--space-2); max-height: 200px; overflow: auto; flex-shrink: 0;
+}
+.sftp-transfers:not(:has(.sftp-transfer-group)):not(:has(.sftp-queue-empty)) {
+  padding-block: var(--space-1);
 }
 .sftp-transfers-head {
   display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
