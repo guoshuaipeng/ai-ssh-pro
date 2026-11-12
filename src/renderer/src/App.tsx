@@ -3618,6 +3618,16 @@ export default function App() {
     const tab = orderedTabs.find((x) => x.sessionId === sid && (!x.view || x.view === 'session'))
     return tab ? dupLabelFor(tab) : ''
   }
+  // D101 for pickers: port forward / batch / monitor / toolbox name sessions like the tab strip does,
+  // so two tabs of one host read "host" and "host · 2" instead of two identical rows.
+  const pickerSessions = useMemo(() => {
+    const dup = dupOrdinals(orderedTabs.map((t) => ({ id: t.tabId, label: labelFor(t) })))
+    return connectedSshSessions.map((x) => {
+      const tab = orderedTabs.find((t) => t.sessionId === x.sessionId && (!t.view || t.view === 'session'))
+      return tab ? { ...x, title: withOrdinal(labelFor(tab), dup.get(tab.tabId)) } : x
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- labelFor only reads the tab for session tabs
+  }, [connectedSshSessions, orderedTabs])
   const maintSubjects = useMemo(
     () =>
       alertHistory
@@ -9590,7 +9600,7 @@ export default function App() {
                   <ResourceMonitorModal
                     open
                     embedded
-                    sessions={connectedSshSessions}
+                    sessions={pickerSessions}
                     activeSessionId={t.boundSessionId}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     onOpenTools={(sid) => openToolTabRef.current('toolbox', sid)}
@@ -9599,7 +9609,7 @@ export default function App() {
                   <ServerToolsModal
                     open
                     embedded
-                    sessions={connectedSshSessions}
+                    sessions={pickerSessions}
                     activeSessionId={t.boundSessionId}
                     initialTab={t.toolboxTab}
                     writesDisabled={readonlyActive(guardForSession(t.boundSessionId).level, guardForSession(t.boundSessionId).elevated)}
@@ -9627,7 +9637,7 @@ export default function App() {
                   <PortForwardModal
                     open
                     embedded
-                    sessions={connectedSshSessions}
+                    sessions={pickerSessions}
                     activeSessionId={t.boundSessionId ?? activeSessionId ?? null}
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
                     onPickHost={() => setHostPicker({ action: 'portForward', feature: tg('pf4.pickHost') })}
@@ -9637,7 +9647,7 @@ export default function App() {
                     key={`batch:${(t.batchPreselect ?? []).join(',')}:${t.batchCommand ?? ''}`}
                     open
                     embedded
-                    sessions={connectedSshSessions}
+                    sessions={pickerSessions}
                     preselect={t.batchPreselect}
                     initialCommand={t.batchCommand}
                     folders={folders}
@@ -10013,7 +10023,7 @@ export default function App() {
                   />
                 ) : t.view === 'dashboard' ? (
                   <MultiHostDashboard
-                    sessions={connectedSshSessions}
+                    sessions={pickerSessions}
                     alertSessionIds={activeAlertIds}
                     sortAlertsFirst
                     onClose={() => closeTab(t.tabId, t.sessionId, t.status, t.view)}
@@ -11073,7 +11083,7 @@ export default function App() {
       />
       <ResourceMonitorModal
         open={resourceOpen}
-        sessions={connectedSshSessions}
+        sessions={pickerSessions}
         activeSessionId={resourceTarget ?? activeSessionId ?? null}
         onClose={() => {
           setResourceOpen(false)
