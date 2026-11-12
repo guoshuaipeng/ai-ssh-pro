@@ -36,6 +36,20 @@ pub struct AiProvider {
     pub model_list: Option<Vec<String>>,
 }
 
+/// Matches renderer `AiProviderTestInput` / Electron `ai:provider:test` (no provider `id`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiProviderTestInput {
+    #[serde(rename = "baseURL", alias = "baseUrl")]
+    pub base_url: String,
+    #[serde(rename = "apiKey", default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub model: String,
+}
+
+const AI_PROVIDER_TEST_TIMEOUT_SECS: u64 = 12;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiSettings {
@@ -242,57 +256,239 @@ impl AiRuntime {
         Ok(())
     }
 
-    pub async fn test_provider(&self, provider: AiProvider) -> Value {
-        let api_key = provider.api_key.trim().to_string();
-        if api_key.is_empty() {
-            return json!({ "ok": false, "error": "missing apiKey" });
+    pub async fn test_provider(&self, input: AiProviderTestInput) -> Value {
+        let base = input.base_url.trim().trim_end_matches('/').to_string();
+        let api_key = input.api_key.trim().to_string();
+        let model = input.model.trim().to_string();
+
+        if base.is_empty() {
+            return json!({
+                "ok": false,
+                "status": 0,
+                "reason": "baseURL",
+                "messageZh": "请先填写 Base URL（通常以 /v1 或 /compatible-mode/v1 结尾）。",
+                "messageEn": "Enter a Base URL first (often ends with /v1 or /compatible-mode/v1)."
+            });
         }
-        let base = provider.base_url.trim_end_matches('/');
-        let url = format!("{base}/models");
+        if !has_usable_key(&base, &api_key) {
+            return json!({
+                "ok": false,
+                "status": 0,
+                "reason": "apiKey",
+                "messageZh": "请先填写 API Key，再测试连接。",
+                "messageEn": "Enter an API key before testing the connection."
+            });
+        }
+        if model.is_empty() {
+            return json!({
+                "ok": false,
+                "status": 0,
+                "reason": "model",
+                "messageZh": "请先选择或填写模型名。",
+                "messageEn": "Choose or enter a model name first."
+            });
+        }
+
+        let url = format!("{base}/chat/completions");
         let client = match reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(20))
+            .timeout(std::time::Duration::from_secs(AI_PROVIDER_TEST_TIMEOUT_SECS))
             .build()
         {
             Ok(c) => c,
-            Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+            Err(e) => return network_fail_result(&e.to_string()),
         };
-        match client
-            .get(&url)
-            .header("Authorization", format!("Bearer {api_key}"))
-            .send()
-            .await
-        {
-            Ok(res) if res.status().is_success() => json!({ "ok": true }),
+
+        let started = std::time::Instant::now();
+        let mut req = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .json(&json!({
+                "model": model,
+                "messages": [{ "role": "user", "content": "ping" }],
+                "max_tokens": 1,
+                "stream": false,
+                "temperature": 0
+            }));
+        if !api_key.is_empty() {
+            req = req.header("Authorization", format!("Bearer {api_key}"));
+        }
+
+        match req.send().await {
             Ok(res) => {
-                // fallback: try a tiny chat completion
                 let status = res.status().as_u16();
-                let chat_url = format!("{base}/chat/completions");
-                let model = provider
-                    .model_list
-                    .as_ref()
-                    .and_then(|m| m.first())
-                    .cloned()
-                    .unwrap_or_else(|| "gpt-4o-mini".into());
-                match client
-                    .post(&chat_url)
-                    .header("Authorization", format!("Bearer {api_key}"))
-                    .json(&json!({
-                        "model": model,
-                        "messages": [{ "role": "user", "content": "ping" }],
-                        "max_tokens": 1,
-                        "stream": false
-                    }))
-                    .send()
-                    .await
-                {
-                    Ok(r) if r.status().is_success() => json!({ "ok": true }),
-                    Ok(r) => json!({ "ok": false, "error": format!("HTTP {}", r.status()) }),
-                    Err(e) => json!({ "ok": false, "error": format!("models HTTP {status}; chat: {e}") }),
+                let body = res.text().await.unwrap_or_default();
+                let latency_ms = started.elapsed().as_millis() as u64;
+                if (200..300).contains(&status) {
+                    json!({ "ok": true, "latencyMs": latency_ms, "model": model })
+                } else {
+                    let (zh, en) = ai_http_error_messages(status, &body);
+                    json!({
+                        "ok": false,
+                        "status": status,
+                        "reason": "http",
+                        "messageZh": zh,
+                        "messageEn": en
+                    })
                 }
             }
-            Err(e) => json!({ "ok": false, "error": e.to_string() }),
+            Err(e) => {
+                let raw = e.to_string();
+                if e.is_timeout() || raw.to_lowercase().contains("timed out") {
+                    json!({
+                        "ok": false,
+                        "status": 0,
+                        "reason": "timeout",
+                        "messageZh": "连接超时。请检查 Base URL、网络或代理后重试。",
+                        "messageEn": "Connection timed out. Check Base URL, network, or proxy and retry."
+                    })
+                } else {
+                    network_fail_result(&raw)
+                }
+            }
         }
     }
+}
+
+fn host_of(base_url: &str) -> String {
+    let s = base_url.trim();
+    let rest = match s.find("://") {
+        Some(i) => &s[i + 3..],
+        None => s,
+    };
+    let hostport = rest.split('/').next().unwrap_or("");
+    let hostport = match hostport.rsplit_once('@') {
+        Some((_, after)) => after,
+        None => hostport,
+    };
+    let host = if hostport.starts_with('[') {
+        hostport
+            .trim_start_matches('[')
+            .split(']')
+            .next()
+            .unwrap_or("")
+    } else {
+        hostport.split(':').next().unwrap_or("")
+    };
+    host.to_lowercase()
+}
+
+fn key_optional(base_url: &str) -> bool {
+    let h = host_of(base_url);
+    h == "localhost" || h == "::1" || h.starts_with("127.")
+}
+
+fn has_usable_key(base_url: &str, api_key: &str) -> bool {
+    !api_key.trim().is_empty() || key_optional(base_url)
+}
+
+fn network_fail_result(raw: &str) -> Value {
+    let (zh, en) = ai_http_error_messages(0, raw);
+    json!({
+        "ok": false,
+        "status": 0,
+        "reason": "network",
+        "messageZh": zh,
+        "messageEn": en
+    })
+}
+
+fn ai_http_error_messages(status: u16, body: &str) -> (String, String) {
+    // Keep messages aligned with src/shared/ai-http-error.ts
+    let lower = body.to_lowercase();
+    let invalid_key = status == 401
+        || lower.contains("invalid api key")
+        || lower.contains("incorrect api key")
+        || lower.contains("unauthorized")
+        || lower.contains("authentication fail")
+        || body.contains("密钥无效")
+        || body.contains("无效的密钥")
+        || body.contains("密钥错误");
+    if invalid_key {
+        return (
+            "API Key 无效或未授权。请打开 AI 配置检查密钥是否完整、是否选对了 Provider。".into(),
+            "API key is invalid or unauthorized. Open AI settings and check the key and active provider.".into(),
+        );
+    }
+    if status == 403
+        || lower.contains("forbidden")
+        || lower.contains("permission denied")
+        || lower.contains("access denied")
+        || body.contains("没有权限")
+    {
+        return (
+            "API 拒绝访问（403）。请确认该密钥有权调用所选模型，或账号已开通服务。".into(),
+            "API forbidden (403). Confirm the key can call this model, or that the account is enabled.".into(),
+        );
+    }
+    if status == 429
+        || lower.contains("rate limit")
+        || lower.contains("too many requests")
+        || lower.contains("quota")
+        || body.contains("限流")
+        || body.contains("额度")
+    {
+        return (
+            "请求过于频繁或额度用尽（429）。请稍后再试，或换一个 Provider / 模型。".into(),
+            "Rate limited or quota exceeded (429). Retry later, or switch provider / model.".into(),
+        );
+    }
+    if status == 404
+        || lower.contains("model not found")
+        || lower.contains("unknown model")
+        || lower.contains("does not exist")
+        || body.contains("模型不存在")
+        || body.contains("模型无效")
+    {
+        return (
+            "接口或模型不存在。请检查 Base URL（常以 /v1 或 /compatible-mode/v1 结尾）和模型名。".into(),
+            "Endpoint or model not found. Check Base URL (often ends with /v1 or /compatible-mode/v1) and model name.".into(),
+        );
+    }
+    if status == 0
+        || lower.contains("econnrefused")
+        || lower.contains("enotfound")
+        || lower.contains("etimedout")
+        || lower.contains("fetch failed")
+        || lower.contains("error sending request")
+        || lower.contains("dns error")
+        || body.contains("无法连接")
+    {
+        return (
+            "无法连接 AI 服务。请检查 Base URL 是否可访问，以及本机网络 / 代理。".into(),
+            "Could not reach the AI provider. Check Base URL reachability and your network / proxy.".into(),
+        );
+    }
+    if status >= 500 {
+        return (
+            format!("AI 服务暂时不可用（HTTP {status}）。请稍后重试。"),
+            format!("AI provider is temporarily unavailable (HTTP {status}). Try again later."),
+        );
+    }
+    let snippet: String = body.split_whitespace().collect::<Vec<_>>().join(" ");
+    let snippet: String = snippet.chars().take(100).collect();
+    let code_label = if status == 0 {
+        "?".to_string()
+    } else {
+        status.to_string()
+    };
+    (
+        format!(
+            "AI 请求失败（HTTP {code_label}）{}",
+            if snippet.is_empty() {
+                String::new()
+            } else {
+                format!("：{snippet}")
+            }
+        ),
+        format!(
+            "AI request failed (HTTP {code_label}){}",
+            if snippet.is_empty() {
+                String::new()
+            } else {
+                format!(": {snippet}")
+            }
+        ),
+    )
 }
 
 pub type SharedAi = Arc<AiRuntime>;

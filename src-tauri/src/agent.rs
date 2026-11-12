@@ -15,6 +15,36 @@ use crate::ssh::SshManager;
 
 type ConfirmMap = Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>;
 
+/// UI expects `description` (string). Models / fallbacks may send `message` / omit it.
+fn normalize_step_structured(mut parsed: Value, fallback: &str) -> Value {
+    let desc = parsed
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            parsed
+                .get("message")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        })
+        .or_else(|| {
+            parsed
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        })
+        .unwrap_or(fallback)
+        .to_string();
+    if let Some(obj) = parsed.as_object_mut() {
+        obj.insert("description".into(), Value::String(desc));
+        obj.remove("message");
+    }
+    parsed
+}
+
 pub struct AgentRuntime {
     abort: AtomicBool,
     confirms: ConfirmMap,
@@ -176,8 +206,9 @@ impl AgentRuntime {
             messages.push(json!({ "role": "assistant", "content": content }));
 
             let parsed = match extract_json_object_pub(&content) {
-                Ok(v) => v,
+                Ok(v) => normalize_step_structured(v, ""),
                 Err(_) => {
+                    let fallback = content.chars().take(500).collect::<String>();
                     let _ = app.emit(
                         "ai:stream",
                         json!({
@@ -185,7 +216,8 @@ impl AgentRuntime {
                             "structured": {
                                 "action": "end",
                                 "completed": true,
-                                "message": content.chars().take(500).collect::<String>(),
+                                "description": fallback,
+                                "riskLevel": "low",
                             }
                         }),
                     );
@@ -351,7 +383,7 @@ impl AgentRuntime {
                         "type": "step",
                         "requestId": request_id,
                         "safetyMode": "agree",
-                        "structured": parsed
+                        "structured": normalize_step_structured(parsed.clone(), &command)
                     }),
                 );
                 let approved = rx.await.unwrap_or(false);

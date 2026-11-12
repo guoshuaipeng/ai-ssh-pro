@@ -1,0 +1,10 @@
+from pathlib import Path
+retro = Path("docs/retro.md").read_text(encoding="utf-8")
+idx = retro.find("Round 22")
+print("retro Round22 at", idx, "line", retro.count("\n",0,idx)+1 if idx>=0 else None)
+print(retro[idx-80:idx+800] if idx>=0 else "MISSING")
+print("==== BACKLOG ====")
+bt = Path("docs/backlog.md").read_text(encoding="utf-8")
+idx = bt.find("Round 22 收口")
+print("backlog at", idx, "line", bt.count("\n",0,idx)+1 if idx>=0 else None)
+print(bt[idx:idx+900] if idx>=0 else "MISSING")

@@ -18,8 +18,9 @@ function pushMerged(out: HighlightPart[], part: HighlightPart): void {
  * Items that already follow a newline stay put.
  */
 export function softenNumberedBreaks(input: string): string {
-  if (!input) return ''
-  return input.replace(
+  const text = String(input ?? '')
+  if (!text) return ''
+  return text.replace(
     /(^|[\t ：:；;。．、，,])(\d+\)[ \t]*|\d+\.[ \t]+|（\d+）[ \t]*|\(\d+\)[ \t]*)/g,
     (_full, lead: string, item: string, offset: number) => {
       if (offset === 0) return item
@@ -64,9 +65,10 @@ function higherRisk(a: OpsRisk | null, b: OpsRisk | null): OpsRisk | null {
 }
 
 function proposedCommands(text: string): string[] {
-  if (!PROPOSE_RUN.test(text) || ALREADY_RAN.test(text)) return []
+  const src = String(text ?? '')
+  if (!PROPOSE_RUN.test(src) || ALREADY_RAN.test(src)) return []
   const out: string[] = []
-  for (const m of text.matchAll(new RegExp(DIAG_CMD.source, 'g'))) {
+  for (const m of src.matchAll(new RegExp(DIAG_CMD.source, 'g'))) {
     const cmd = m[0].replace(/\s+/g, ' ')
     if (!out.includes(cmd)) out.push(cmd)
   }
@@ -85,7 +87,7 @@ function splitConclusion(body: string): { body: string; conclusion: string | nul
  * to run something. A result write-up that merely names `uptime` stays prose.
  */
 export function layoutOpsReply(raw: string): OpsLayout {
-  const text = softenNumberedBreaks(raw).trim()
+  const text = softenNumberedBreaks(String(raw ?? '')).trim()
   if (!text) return { risk: null, blocks: [] }
   const blocks: OpsBlock[] = []
   let prose: string[] = []
@@ -131,16 +133,17 @@ export function commandBundle(commands: string[]): string {
 
 /** Split a chunk on key metrics (percent, size, size/size). */
 export function splitMetricTokens(chunk: string): HighlightPart[] {
+  const src = String(chunk ?? '')
   const out: HighlightPart[] = []
   const re = new RegExp(METRIC_SOURCE, 'g')
   let last = 0
-  for (const m of chunk.matchAll(re)) {
+  for (const m of src.matchAll(re)) {
     const index = m.index ?? 0
-    if (index > last) pushMerged(out, { kind: 'text', text: chunk.slice(last, index) })
+    if (index > last) pushMerged(out, { kind: 'text', text: src.slice(last, index) })
     pushMerged(out, { kind: 'mark', text: m[0] })
     last = index + m[0].length
   }
-  if (last < chunk.length) pushMerged(out, { kind: 'text', text: chunk.slice(last) })
+  if (last < src.length) pushMerged(out, { kind: 'text', text: src.slice(last) })
   return out
 }
 
@@ -149,7 +152,7 @@ export function splitMetricTokens(chunk: string): HighlightPart[] {
  * `**85%**` and bare `371G/466G` become marks. Long bold sentences stay strong, not a yellow wall.
  */
 export function highlightKeyNumbers(raw: string): HighlightPart[] {
-  const input = softenNumberedBreaks(raw)
+  const input = softenNumberedBreaks(String(raw ?? ''))
   if (!input) return []
   const out: HighlightPart[] = []
   const bold = /\*\*([^*]+)\*\*/g
@@ -185,7 +188,8 @@ export type FenceSegment = { kind: 'text'; text: string } | { kind: 'code'; code
  */
 export function splitFences(raw: string): FenceSegment[] {
   const out: FenceSegment[] = []
-  if (!raw) return out
+  const src = String(raw ?? '')
+  if (!src) return out
   let buf: string[] = []
   let code: string[] | null = null
   let lang = ''
@@ -194,7 +198,7 @@ export function splitFences(raw: string): FenceSegment[] {
     buf = []
     if (text.trim()) out.push({ kind: 'text', text })
   }
-  for (const line of raw.replace(/\r\n/g, '\n').split('\n')) {
+  for (const line of src.replace(/\r\n/g, '\n').split('\n')) {
     const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line)
     if (code === null) {
       if (fence) {
@@ -216,15 +220,16 @@ export type InlineSegment = { kind: 'text' | 'code'; text: string }
 
 /** Split `inline code` spans (single line, non-empty) from prose. */
 export function splitInlineCode(raw: string): InlineSegment[] {
+  const src = String(raw ?? '')
   const out: InlineSegment[] = []
   let last = 0
-  for (const m of raw.matchAll(/`([^`\n]+)`/g)) {
+  for (const m of src.matchAll(/`([^`\n]+)`/g)) {
     const index = m.index ?? 0
-    if (index > last) out.push({ kind: 'text', text: raw.slice(last, index) })
+    if (index > last) out.push({ kind: 'text', text: src.slice(last, index) })
     out.push({ kind: 'code', text: m[1] ?? '' })
     last = index + m[0].length
   }
-  if (last < raw.length) out.push({ kind: 'text', text: raw.slice(last) })
+  if (last < src.length) out.push({ kind: 'text', text: src.slice(last) })
   return out
 }
 

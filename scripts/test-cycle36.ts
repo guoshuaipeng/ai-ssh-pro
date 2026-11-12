@@ -13,7 +13,7 @@ ok(css.includes('.ai-more-menu > button {') && css.includes('[data-testid="termi
 // D90
 ok(ungroupPlan(['a', 'b', 'c'], [{ id: 'a', folderId: 'f' }, { id: 'b' }]).join() === 'a', 'D90 ungroupPlan')
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
-ok(app.includes('data-testid="ungroup-drop"') && app.includes('moveProfileToFolder(moving, undefined)') && app.includes('setHostDragging(true)'), 'D90 wiring')
+ok(app.includes('data-testid="ungrouped-folder-row"') && app.includes('moveProfileToFolder(moving, undefined)') && app.includes('setHostDragging(true)'), 'D90 wiring')
 // D92
 ok(TERMINAL_PREFS_DEFAULTS.copyOnSelect === false, 'D92 default off')
 const store = readFileSync('src/shared/terminal-prefs.ts', 'utf8')

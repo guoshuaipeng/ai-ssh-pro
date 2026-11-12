@@ -1,0 +1,11 @@
+from pathlib import Path
+p = Path(r"src/renderer/src/components/AIPanel.tsx").read_text(encoding="utf-8")
+i = p.find("Round 32: calm info toast + New chat")
+print("MISS BLOCK:")
+print(p[i:i+900])
+print("====CHIP====")
+i = p.find('data-testid="ai-safety-chip-label"')
+print(p[max(0,i-500):i+600])
+print("====startNewChat====")
+i = p.find("const startNewChat = useCallback")
+print(p[i:i+700])

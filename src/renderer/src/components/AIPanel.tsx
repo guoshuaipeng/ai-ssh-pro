@@ -183,8 +183,9 @@ function riskClass(level: string): string {
 
 /** Prose with `inline code` chips; metric highlighting runs on the non-code parts. */
 function HighlightedText({ text }: { text: string }): ReactNode {
-  const segs = splitInlineCode(text)
-  if (!segs.some((s) => s.kind === 'code')) return <MetricText text={text} />
+  const safe = String(text ?? '')
+  const segs = splitInlineCode(safe)
+  if (!segs.some((s) => s.kind === 'code')) return <MetricText text={safe} />
   return (
     <>
       {segs.map((s, i) =>
@@ -266,7 +267,7 @@ function AiCodeBlock({ code, lang }: { code: string; lang: string }) {
 }
 
 function MetricText({ text }: { text: string }): ReactNode {
-  const parts = highlightKeyNumbers(text)
+  const parts = highlightKeyNumbers(String(text ?? ''))
   return (
     <>
       {parts.map((p, i) =>
@@ -333,19 +334,20 @@ export function shortModelName(model: string, max = 14): string {
 
 /** M19 (Cursor-style): muted line under a reply — elapsed time + copy icon. */
 function ReplyMeta({ text, elapsedMs }: { text: string; elapsedMs?: number }) {
+  const body = String(text ?? '')
   return (
     <div className="ai-reply-meta" data-testid="ai-reply-meta">
       {elapsedMs != null ? (
         <span className="ai-reply-meta-time">{tg('ai.workedFor', { s: String(Math.max(1, Math.round(elapsedMs / 1000))) })}</span>
       ) : null}
-      {text.trim() ? (
+      {body.trim() ? (
         <button
           type="button"
           className="ai-meta-btn"
           data-testid="ai-reply-copy"
           title={tg('ux64.copy')}
           aria-label={tg('ux64.copy')}
-          onClick={() => copyText(text)}
+          onClick={() => copyText(body)}
         >
           <Icon name="clipboard-list" size={14} />
         </button>
@@ -376,7 +378,8 @@ function OpsReply({
   /** Command already shown in the card's own command block. */
   skipCommand?: string
 }) {
-  const fences = splitFences(text)
+  const safeText = String(text ?? '')
+  const fences = splitFences(safeText)
   if (fences.some((f) => f.kind === 'code')) {
     const firstText = fences.findIndex((f) => f.kind === 'text')
     return (
@@ -402,13 +405,13 @@ function OpsReply({
       </div>
     )
   }
-  const layout: OpsLayout = layoutOpsReply(text)
+  const layout: OpsLayout = layoutOpsReply(safeText)
   const firstCmd = layout.blocks.findIndex((b) => b.kind === 'commands')
   const structured = layout.blocks.some((b) => b.kind !== 'prose')
   if (!structured) {
     return (
       <div className="ai-reply-desc">
-        <HighlightedText text={text} />
+        <HighlightedText text={safeText} />
       </div>
     )
   }
@@ -1760,13 +1763,17 @@ export default function AIPanel({
       }
       if (ev.type === 'step') {
         usedStepProtocol = true
-        const s = ev.structured
+        const raw = ev.structured as AiAssistantReply & { message?: string; summary?: string }
+        const description = String(
+          raw.description || raw.message || raw.summary || ''
+        )
+        const s: AiAssistantReply = { ...raw, description }
         applyTurn((prev) => {
           const next = [...prev]
           const last = next[next.length - 1]
           const row: AssistantLine = {
             role: 'assistant',
-            content: s.description,
+            content: description,
             streaming: false,
             structured: s,
             requestId: ev.requestId,
@@ -3522,12 +3529,12 @@ export default function AIPanel({
                   </span>
                 ) : null}
                 <div className="ai-card-body">
-                  <OpsReply text={s.description} confirm={false} skipCommand={s.command} />
+                  <OpsReply text={s.description ?? ''} confirm={false} skipCommand={s.command} />
                 </div>
                 {s.appAction ? <AiActionCard key={`${i}-${s.appAction.name}`} proposal={s.appAction} onRun={onAppAction} /> : null}
                 {s.notes ? (
                   <div className="ai-reply-notes">
-                    <OpsReply text={s.notes} confirm={false} skipCommand={s.command} />
+                    <OpsReply text={s.notes ?? ''} confirm={false} skipCommand={s.command} />
                   </div>
                 ) : null}
                 {s.action === 'tool_call' && l.requestId ? (

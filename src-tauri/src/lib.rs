@@ -509,7 +509,9 @@ fn ai_abort_chat(state: State<'_, AppState>) -> bool {
 
 #[tauri::command]
 async fn ai_test_provider(state: State<'_, AppState>, provider: Value) -> Result<Value, String> {
-    let p: ai::AiProvider = serde_json::from_value(provider).map_err(|e| e.to_string())?;
+    // Frontend sends { baseURL, apiKey, model } — same shape as Electron AiProviderTestInput.
+    let p: ai::AiProviderTestInput =
+        serde_json::from_value(provider).map_err(|e| e.to_string())?;
     Ok(state.ai.test_provider(p).await)
 }
 

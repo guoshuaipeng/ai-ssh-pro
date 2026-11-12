@@ -8,6 +8,7 @@ import JumpChainEditor from './JumpChainEditor'
 import CertCard from './CertCard'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
+import Select from './ui/Select'
 
 export type ConnectionConfigModalProps = {
   /** 默认「新建连接」；编辑已保存会话时可传入更明确的标题 */
@@ -75,6 +76,10 @@ export type ConnectionConfigModalProps = {
   jumpChain?: import('@shared/jump-chain').JumpHop[]
   setJumpChain?: (v: import('@shared/jump-chain').JumpHop[]) => void
   profiles?: import('@shared/ipc').SavedSessionProfile[]
+  /** 侧栏分组；空字符串 = 未分组 */
+  folders?: import('@shared/ipc').SavedSessionFolder[]
+  folderId?: string
+  setFolderId?: (v: string) => void
   focusSection?: 'jump' | 'cert' | 'note' | null
   onTestJump?: () => Promise<import('@shared/jump-chain').HopProbeRow[]>
 }
@@ -144,6 +149,9 @@ export default function ConnectionConfigModal({
   jumpChain,
   setJumpChain,
   profiles = [],
+  folders = [],
+  folderId = '',
+  setFolderId,
   focusSection = null,
   onTestJump
 }: ConnectionConfigModalProps) {
@@ -223,6 +231,22 @@ export default function ConnectionConfigModal({
                 <label>{tg('ui.41')}</label>
                 <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={tg('ui.42')} />
               </div>
+              {setFolderId ? (
+                <div className="field">
+                  <label>{tg('conn.folder')}</label>
+                  <Select
+                    testId="conn-folder"
+                    ariaLabel={tg('conn.folder')}
+                    value={folderId}
+                    onChange={setFolderId}
+                    options={[
+                      { value: '', label: tg('app.ungrouped') },
+                      ...folders.map((f) => ({ value: f.id, label: f.name }))
+                    ]}
+                  />
+                  <p className="l4-hint">{tg('conn.folderHint')}</p>
+                </div>
+              ) : null}
               {setSessionNote ? (
                 <div className="field">
                   <label>{tg('conn.note')}</label>

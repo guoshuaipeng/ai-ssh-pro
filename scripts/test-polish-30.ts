@@ -6,7 +6,7 @@ import { tipSuggest, rollback } from '../src/main/core-a-output-truncate'
 import { splitFences, splitInlineCode, layoutOpsReply } from '../src/shared/ai-reply-cards'
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.7.0')
+assert.equal(pkg.version, '0.8.0')
 assert.equal((pkg.scripts['test:parts'] || pkg.scripts.test).includes('scripts/test-polish-30.ts'), true)
 assert.equal(tipSuggest, '0.4.14-polish13')
 assert.equal(rollback, '0.4.13-polish12')
@@ -74,6 +74,9 @@ assert.deepEqual(splitInlineCode('检查 `pm.max_children` 与内存'), [
 ])
 assert.deepEqual(splitInlineCode('no code'), [{ kind: 'text', text: 'no code' }])
 assert.deepEqual(splitInlineCode('a `` b'), [{ kind: 'text', text: 'a `` b' }], 'empty span is prose')
+assert.deepEqual(splitInlineCode(undefined as unknown as string), [], 'undefined does not throw')
+assert.deepEqual(splitFences(undefined as unknown as string), [], 'undefined fences does not throw')
+assert.deepEqual(layoutOpsReply(undefined as unknown as string), { risk: null, blocks: [] }, 'undefined layout does not throw')
 // Ops layout of a fence-free reply is unchanged.
 assert.equal(layoutOpsReply('1) 负载 85% 偏高\n结论：需关注').blocks.length, 2)
 
@@ -81,7 +84,7 @@ const ai = norm('src/renderer/src/components/AIPanel.tsx')
 assert.ok(ai.includes('function AiCodeBlock'))
 assert.ok(ai.includes('data-testid="ai-code-block"'))
 assert.ok(ai.includes('className="ai-inline-code"'))
-assert.ok(ai.includes('const fences = splitFences(text)'))
+assert.ok(ai.includes('const fences = splitFences(safeText)') || ai.includes('const fences = splitFences(text)'))
 assert.ok(ai.includes('<div className="ai-composer" data-testid="ai-composer">'))
 const composer = ai.slice(ai.indexOf('data-testid="ai-composer"'))
 assert.ok(composer.indexOf('<textarea') < composer.indexOf('data-testid="ai-send"'), 'send lives inside the composer, after the textarea')

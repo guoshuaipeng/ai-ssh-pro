@@ -1,0 +1,11 @@
+from pathlib import Path
+p = Path("src/renderer/src/components/AIPanel.tsx").read_text(encoding="utf-8")
+i = p.find("if (detail?.op === 'aiProdBanner')")
+print(p[i:i+900])
+print("====READONLY====")
+i = p.find("if (detail?.op === 'aiReadonlyBanner')")
+print(p[i:i+700])
+print("====APP OPS LIST near empty====")
+app = Path("src/renderer/src/App.tsx").read_text(encoding="utf-8")
+i = app.find("detail.op === 'aiEmptyConfig'")
+print(app[i-600:i+200])

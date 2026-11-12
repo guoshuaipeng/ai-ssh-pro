@@ -56,6 +56,19 @@ const main = readFileSync('src/main/index.ts', 'utf8')
 assert.match(main, /ai:provider:test/)
 assert.match(main, /AI_PROVIDER_TEST_TIMEOUT_MS/)
 
+const tauriAi = readFileSync('src-tauri/src/ai.rs', 'utf8')
+assert.match(tauriAi, /struct AiProviderTestInput/)
+assert.match(tauriAi, /chat\/completions/)
+assert.match(tauriAi, /latencyMs/)
+assert.match(tauriAi, /messageZh/)
+assert.doesNotMatch(tauriAi, /test_provider\(&self, provider: AiProvider\)/)
+
+const tauriLib = readFileSync('src-tauri/src/lib.rs', 'utf8')
+assert.match(tauriLib, /AiProviderTestInput/)
+
+const bridge = readFileSync('src/renderer/src/tauri-bridge.ts', 'utf8')
+assert.match(bridge, /ai_test_provider/)
+
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: { test: string; 'test:parts'?: string } }
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-ai-provider-test/)
 
