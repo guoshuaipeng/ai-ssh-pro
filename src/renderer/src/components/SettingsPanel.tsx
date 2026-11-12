@@ -303,7 +303,12 @@ export default function SettingsPanel({
               </label>
             </section>
           ) : null}
-          {active === 'terminal' ? <TerminalPrefsModal embedded onClose={() => undefined} onSaved={onTerminalSaved} /> : null}
+          {active === 'terminal' ? (
+            <section data-testid="settings-terminal-section">
+              <h3>{t('settings.terminal')}</h3>
+              <TerminalPrefsModal embedded onClose={() => undefined} onSaved={onTerminalSaved} />
+            </section>
+          ) : null}
           {active === 'connections' ? (
             <section>
               <h3>{t('settings.connections')}</h3>

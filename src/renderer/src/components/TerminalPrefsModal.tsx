@@ -148,45 +148,27 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
             />
           </div>
 
-          <label className="field" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              data-testid="osc52-clipboard"
-              checked={osc52Clipboard}
-              onChange={(e) => setOsc52Clipboard(e.target.checked)}
-              style={{ marginTop: 3 }}
-            />
+          <label className="field">
+            <input type="checkbox" data-testid="osc52-clipboard" checked={osc52Clipboard} onChange={(e) => setOsc52Clipboard(e.target.checked)} />
             <span>
-              <strong style={{ display: 'block', fontSize: 13 }}>{tg('term.osc52')}</strong>
-              <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{tg('term.osc52Hint')}</span>
+              <strong className="settings-check-title">{tg('term.osc52')}</strong>
+              <span className="settings-check-hint">{tg('term.osc52Hint')}</span>
             </span>
           </label>
 
-          <label className="field" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              data-testid="copy-on-select"
-              checked={copyOnSelect}
-              onChange={(e) => setCopyOnSelect(e.target.checked)}
-              style={{ marginTop: 3 }}
-            />
+          <label className="field">
+            <input type="checkbox" data-testid="copy-on-select" checked={copyOnSelect} onChange={(e) => setCopyOnSelect(e.target.checked)} />
             <span>
-              <strong style={{ display: 'block', fontSize: 13 }}>{tg('d92.title')}</strong>
-              <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{tg('d92.hint')}</span>
+              <strong className="settings-check-title">{tg('d92.title')}</strong>
+              <span className="settings-check-hint">{tg('d92.hint')}</span>
             </span>
           </label>
 
-          <label className="field" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              data-testid="mute-bell"
-              checked={muteBell}
-              onChange={(e) => setMuteBell(e.target.checked)}
-              style={{ marginTop: 3 }}
-            />
+          <label className="field">
+            <input type="checkbox" data-testid="mute-bell" checked={muteBell} onChange={(e) => setMuteBell(e.target.checked)} />
             <span>
-              <strong style={{ display: 'block', fontSize: 13 }}>{tg('term.muteBell')}</strong>
-              <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{tg('term.muteBellHint')}</span>
+              <strong className="settings-check-title">{tg('term.muteBell')}</strong>
+              <span className="settings-check-hint">{tg('term.muteBellHint')}</span>
             </span>
           </label>
           <fieldset className="paste-skip-prefs" data-testid="paste-skip-prefs">
@@ -240,7 +222,11 @@ export default function TerminalPrefsModal({ onClose, onSaved, embedded = false 
             <p className="smart-count">{tg('x1.recorded', { n: loadSmartHistory().length })}</p>
           </fieldset>
           {rangeError ? <p className="jump-issue">{rangeError}</p> : null}
-          {hint ? <p style={{ margin: 0, fontSize: 12, color: 'var(--accent)' }}>{hint}</p> : null}
+          {hint ? (
+            <p className="settings-saved-hint" role="status" aria-live="polite">
+              {hint}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
