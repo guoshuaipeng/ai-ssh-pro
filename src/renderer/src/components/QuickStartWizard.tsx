@@ -76,8 +76,6 @@ export default function QuickStartWizard({
             <div className="ux60-actions">
               <Button variant="primary" data-testid="ux60-connect" onClick={onConnect}>{t('ux60.s2.connect')}</Button>
               <button type="button" onClick={onLater}>{t('ux60.s2.later')}</button>
-            </div>
-            <div className="ux60-actions is-secondary">
               <button type="button" onClick={onSkip}>{t('ux60.skip')}</button>
             </div>
           </>
@@ -89,8 +87,6 @@ export default function QuickStartWizard({
             <div className="ux60-actions">
               <Button variant="primary" data-testid="ux60-home" onClick={onHome}>{t('ux60.s3.home')}</Button>
               <button type="button" onClick={onTerm}>{t('ux60.s3.term')}</button>
-            </div>
-            <div className="ux60-actions is-secondary">
               <button type="button" onClick={onDone}>{t('ux60.done')}</button>
             </div>
           </>
