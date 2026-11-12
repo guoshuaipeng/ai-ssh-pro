@@ -2382,17 +2382,17 @@ fieldset.settings-row { min-inline-size: 0; gap: var(--space-3); }
 fieldset.settings-row > legend { float: left; padding: 0; margin: 0; font-size: inherit; font-weight: inherit; }
 .settings-body > section > .settings-row > span:first-child, fieldset.settings-row > legend { min-width: 88px; color: var(--color-text-secondary); }
 fieldset.settings-row > label { display: inline-flex; align-items: center; gap: var(--space-1); }
+/* Connection page: the nested reconnect rows share the label column of the top-level rows, and each hint sits under its control. */
+.settings-body { --settings-label-w: 88px; }
+.settings-body .l9-policy > .settings-row { min-height: 36px; margin: 0; padding: var(--space-1) 0; box-sizing: border-box; }
+.settings-body .l9-policy > .settings-row > span:first-child { min-width: var(--settings-label-w); color: var(--color-text-secondary); }
+.settings-body .l9-policy > .l7-muted, .settings-body .l9-policy > .l9-error, .settings-body .l9-policy > .jump-issue { margin-left: calc(var(--settings-label-w) + var(--space-2)); margin-bottom: var(--space-1); }
 
 /* V47 P2 polish: SFTP global row fills width; AI status line padded; update badge is a dot */
 .sftp-toolbar .sftp-toolbar-actions { flex: 1 1 auto; min-width: 0; }
 .sftp-toolbar .sftp-compare-open, .sftp-toolbar .sftp-advanced > summary { height: 26px; display: inline-flex; align-items: center; }
 .ai-conv-general { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border-muted); color: var(--color-text-muted); font-size: var(--fs-xs); }
 .app-toolbar-update-badge .app-toolbar-update-text { display: none; }
-/* Connection page: the nested reconnect rows share the label column of the top-level rows, and each hint sits under its control. */
-.settings-body { --settings-label-w: 88px; }
-.settings-body .l9-policy > .settings-row { min-height: 36px; margin: 0; padding: var(--space-1) 0; box-sizing: border-box; }
-.settings-body .l9-policy > .settings-row > span:first-child { min-width: var(--settings-label-w); color: var(--color-text-secondary); }
-.settings-body .l9-policy > .l7-muted, .settings-body .l9-policy > .l9-error, .settings-body .l9-policy > .jump-issue { margin-left: calc(var(--settings-label-w) + var(--space-2)); margin-bottom: var(--space-1); }
 .app-toolbar-update-badge { padding: 0 var(--space-1); min-width: 0; }
 
 /* V48 composer model chip keeps its name; titlebar layout toggles get their own group edge */
@@ -2402,14 +2402,14 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 /* c49 ST3: embedded terminal prefs use settings-row rhythm, single scroll */
 .settings-embed { max-width: 720px; width: 100%; }
 .settings-embed .workspace-panel-body--settings, .settings-embed .workspace-panel-inner--settings { overflow: visible; max-height: none; height: auto; padding: 0; }
+/* The standalone panel centres a 560px column; embedded it must start at the section's left edge like every other settings page. */
+.settings-embed .workspace-panel-inner--settings { max-width: none; margin: 0; }
 .settings-embed div.field { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; column-gap: var(--space-3); min-height: 36px; margin: 0; padding: var(--space-1) 0; border-bottom: 1px solid var(--color-border-muted); }
 .settings-embed label.field { min-height: 36px; margin: 0; padding: var(--space-1) 0; border-bottom: 1px solid var(--color-border-muted); display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; }
 .settings-embed .paste-skip-prefs,
 .settings-embed .smart-prefs {
   margin: var(--space-3) 0 0;
   padding: var(--space-3) 0 0;
-/* The standalone panel centres a 560px column; embedded it must start at the section's left edge like every other settings page. */
-.settings-embed .workspace-panel-inner--settings { max-width: none; margin: 0; }
   border: 0;
   border-top: 1px solid var(--color-border-muted);
   border-radius: 0;
