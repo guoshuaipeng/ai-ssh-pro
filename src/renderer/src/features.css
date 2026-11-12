@@ -1592,8 +1592,10 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l4-soon { font-size: 11px; color: var(--muted); }
 .l4-suggest { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: color-mix(in srgb, var(--color-warn) 15%, transparent); border-radius: 6px; }
 .l4-suggest span { min-width: 0; }
-.term-guard-banner { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; font-size: 12px; white-space: nowrap; overflow: hidden; flex: none; }
+.term-guard-banner { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; font-size: 12px; white-space: nowrap; overflow: hidden; flex: none; container-type: inline-size; }
 .term-guard-banner span { overflow: hidden; text-overflow: ellipsis; }
+.term-guard-banner .banner-ai-short { display: none; }
+.term-guard-banner .term-guard-demo-short { display: none; }
 .term-guard-banner.is-prod { background: var(--color-danger-muted); }
 .term-guard-banner.is-ro { background: var(--color-warn-muted); }
 /* M15: the banner sits in .terminal-stack flow while terminal layers are absolute (inset: 0),
@@ -1616,6 +1618,13 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 @container (max-width: 1024px) {
   .alert-line.is-compact .alert-line-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .term-guard-banner .banner-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+}
+@container (max-width: 760px) {
+  .term-guard-banner .banner-ai-long { display: none; }
+  .term-guard-banner .banner-ai-short { display: inline; }
+}
+@container (max-width: 520px) {
+  .term-guard-banner .banner-lbl { position: static; width: auto; height: auto; }
 }
 @media (max-width: 1366px) {
   .l2-body { overflow-x: hidden; }
@@ -2417,9 +2426,9 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 /* c52 TB1: narrow window -> demo note collapses to a short chip (full text in title) */
 .term-guard-demo-short { display: none; align-items: center; gap: var(--space-1); }
 @media (max-width: 1100px) {
-  .term-guard-demo-text { display: none; }
-  .term-guard-demo-short { display: inline-flex; flex: none; white-space: nowrap; }
-  .term-guard-demo { flex: none; }
+  .term-guard-banner .term-guard-demo-text { display: none; }
+  .term-guard-banner .term-guard-demo-short { display: inline-flex; flex: none; white-space: nowrap; }
+  .term-guard-banner .term-guard-demo { flex: none; }
 }
 /* c52 IN3: read-only basic info aligns labels in one column, never wraps */
 .inv20-readonly { grid-template-columns: max-content minmax(0, 1fr); column-gap: var(--space-3); row-gap: var(--space-2); }

@@ -14,7 +14,8 @@ for (const f of ['HealthProbeFields', 'MultiHostDashboard', 'PostmortemTab', 'Re
 // P2: known-hosts orphan rule, merged banners, tab menu hint
 ok(css.includes('.kh-lookup { padding-bottom: var(--space-2); }'), 'kh-lookup has no divider')
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
-ok(app.includes('className="term-guard-demo"') && app.includes('activeIsDemo && !(activeTab?.sessionId'), 'demo banner merges into guard banner')
+ok(app.includes('className="term-guard-demo"'), 'demo chip still available when merged into guard banner')
+ok(app.includes("g.profile?.demo && !g.profile.protection && g.level === 'production'"), 'calm demo banner suppresses red prod chrome')
 const menus = readFileSync('src/shared/inline-menus.ts', 'utf8')
 ok(menus.includes("titleKey: 'tab.closeOthersKeep'") && !menus.includes("hintKey: 'tab.closeOthersKeep'"), 'close-others hint is a tooltip')
 console.log(`test-c50-polish: ${n} passed`)

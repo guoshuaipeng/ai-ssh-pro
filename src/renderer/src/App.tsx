@@ -500,6 +500,9 @@ const PLACEHOLDER_CONNECT: SshConnectOptions = {
   username: ''
 }
 
+/** 侧栏虚拟「未分组」节点 id（非真实 SavedSessionFolder） */
+const UNGROUPED_FOLDER_ID = '__ungrouped__'
+
 function uuid(): string {
   return crypto.randomUUID()
 }
@@ -581,6 +584,8 @@ export default function App() {
   const [passphrase, setPassphrase] = useState('')
   const [label, setLabel] = useState('')
   const [sessionNote, setSessionNote] = useState('')
+  /** 新建/编辑连接表单的分组；空字符串 = 未分组 */
+  const [formFolderId, setFormFolderId] = useState('')
 
   const [jumpHost, setJumpHost] = useState('')
   const [jumpPort, setJumpPort] = useState('22')
@@ -2759,6 +2764,7 @@ export default function App() {
     const u = username.trim()
     const jump = buildJumpHost()
     const forwards = buildForwards()
+    const chosenFolderId = formFolderId && folders.some((f) => f.id === formFolderId) ? formFolderId : undefined
     const base: Omit<SavedSessionProfile, 'id' | 'folderId'> = {
       label: label.trim() || `${u}@${h}`,
       host: h,
@@ -2778,20 +2784,31 @@ export default function App() {
       ...(normalizeSessionNote(sessionNote) ? { note: normalizeSessionNote(sessionNote) } : { note: undefined })
     }
 
+    const withFolder = (row: SavedSessionProfile): SavedSessionProfile => {
+      if (chosenFolderId) return { ...row, folderId: chosenFolderId }
+      const { folderId: _omit, ...rest } = row
+      return rest
+    }
+
     let nextProfiles: SavedSessionProfile[]
     if (editingSavedId) {
       const id = editingSavedId
       const prev = profiles.find((s) => s.id === id)
-      const merged: SavedSessionProfile = { ...prev, ...base, id }
+      const merged = withFolder({ ...prev, ...base, id })
       const exists = profiles.some((s) => s.id === id)
       nextProfiles = exists ? profiles.map((s) => (s.id === id ? merged : s)) : [...profiles, merged]
     } else {
       const sameTarget = (s: SavedSessionProfile) => s.host === h && s.port === po && s.username === u
       const existing = profiles.find(sameTarget)
-      const row: SavedSessionProfile = { ...existing, ...base, id: existing?.id ?? uuid() }
+      const row = withFolder({ ...existing, ...base, id: existing?.id ?? uuid() })
       nextProfiles = existing ? profiles.map((s) => (s.id === existing.id ? row : s)) : [...profiles, row]
     }
     void persistSessionState({ folders, profiles: nextProfiles })
+    if (chosenFolderId) {
+      setExpandedFolders((e) => ({ ...e, [chosenFolderId]: true }))
+    } else {
+      setExpandedFolders((e) => ({ ...e, [UNGROUPED_FOLDER_ID]: true }))
+    }
     const savedLabel = label.trim() || `${u}@${h}`
     showToast(tg('app.profileSaved', { name: savedLabel }))
   }, [
@@ -2799,6 +2816,7 @@ export default function App() {
     buildJumpHost,
     editingSavedId,
     folders,
+    formFolderId,
     host,
     label,
     passphrase,
@@ -2826,6 +2844,7 @@ export default function App() {
     setPassphrase('')
     setLabel('')
     setSessionNote('')
+    setFormFolderId('')
     setJumpHost('')
     setJumpPort('22')
     setJumpUsername('')
@@ -2855,6 +2874,7 @@ export default function App() {
     setPassphrase(profile.passphrase ?? '')
     setLabel(profile.label)
     setSessionNote(profile.note ?? '')
+    setFormFolderId(profile.folderId ?? '')
     setJumpHost(profile.jumpHost?.host ?? '')
     setJumpPort(String(profile.jumpHost?.port ?? 22))
     setJumpUsername(profile.jumpHost?.username ?? '')
@@ -5246,7 +5266,8 @@ export default function App() {
 
   const toggleFolderExpanded = useCallback((id: string) => {
     setExpandedFolders((prev) => {
-      const open = prev[id] === true
+      // 未分组默认展开（undefined 视为开）；真实分组默认折叠
+      const open = id === UNGROUPED_FOLDER_ID ? prev[id] !== false : prev[id] === true
       return { ...prev, [id]: !open }
     })
   }, [])
@@ -7579,6 +7600,18 @@ export default function App() {
         }, 700)
         return
       }
+      if (detail.op === 'demoProd') {
+        // 截图：把当前演示主机显式标成生产，用于拍红色生产横幅（默认演示只显示中性条）。
+        const demo = sessionStateRef.current.profiles.find((x) => x.demo)
+        if (!demo) return
+        void persistSessionState({
+          ...sessionStateRef.current,
+          profiles: sessionStateRef.current.profiles.map((x) =>
+            x.id === demo.id ? { ...x, protection: 'production' as const } : x
+          )
+        })
+        return
+      }
       if (detail.op === 'sftpMockFill') {
         // Handled by SftpPanel listeners; App no-ops so the event can still bubble.
         return
@@ -8391,31 +8424,58 @@ export default function App() {
                   )
                 })}
 
-                {hostDragging && folders.length > 0 ? (
-                  <div
-                    className="sidebar-ungroup-drop"
-                    data-testid="ungroup-drop"
-                    onDragOver={(e) => {
-                      if (!e.dataTransfer.types.includes(HOST_DRAG_MIME)) return
-                      e.preventDefault()
-                      e.dataTransfer.dropEffect = 'move'
-                      e.currentTarget.classList.add('is-drop-target')
-                    }}
-                    onDragLeave={(e) => e.currentTarget.classList.remove('is-drop-target')}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      setHostDragging(false)
-                      const ids = decodeHostDrag(e.dataTransfer.getData(HOST_DRAG_MIME))
-                      // D90: same path as Move to → Ungrouped; hosts already ungrouped are skipped
-                      const moving = ungroupPlan(ids, profilesRef.current)
-                      if (moving.length) moveProfileToFolder(moving, undefined)
-                      else showToast(tg('d90.already'))
-                    }}
-                  >
-                    {tg('d90.drop')}
+                {filteredRootProfiles.length > 0 || (hostDragging && folders.length > 0) ? (
+                  <div className="session-folder-block" data-testid="ungrouped-folder">
+                    <div
+                      className="session-folder-row"
+                      role="button"
+                      tabIndex={0}
+                      title={tg('app.ungrouped')}
+                      data-testid="ungrouped-folder-row"
+                      onClick={() => toggleFolderExpanded(UNGROUPED_FOLDER_ID)}
+                      onDragOver={(e) => {
+                        if (!e.dataTransfer.types.includes(HOST_DRAG_MIME)) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        e.currentTarget.classList.add('is-drop-target')
+                      }}
+                      onDragLeave={(e) => e.currentTarget.classList.remove('is-drop-target')}
+                      onDrop={(e) => {
+                        e.currentTarget.classList.remove('is-drop-target')
+                        e.preventDefault()
+                        setHostDragging(false)
+                        const ids = decodeHostDrag(e.dataTransfer.getData(HOST_DRAG_MIME))
+                        // D90: same path as Move to → Ungrouped; hosts already ungrouped are skipped
+                        const moving = ungroupPlan(ids, profilesRef.current)
+                        if (moving.length) moveProfileToFolder(moving, undefined)
+                        else showToast(tg('d90.already'))
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          toggleFolderExpanded(UNGROUPED_FOLDER_ID)
+                        }
+                      }}
+                    >
+                      <span className="session-folder-chevron" aria-hidden>
+                        <Twist
+                          open={
+                            sessionSearch.trim()
+                              ? filteredRootProfiles.length > 0
+                              : expandedFolders[UNGROUPED_FOLDER_ID] !== false
+                          }
+                          size={TREE_CHEVRON_SIZE}
+                        />
+                      </span>
+                      <span className="session-folder-name">{tg('app.ungrouped')}</span>
+                      <span className="session-folder-count">{filteredRootProfiles.length}</span>
+                    </div>
+                    {(sessionSearch.trim()
+                      ? filteredRootProfiles.length > 0
+                      : expandedFolders[UNGROUPED_FOLDER_ID] !== false) &&
+                      filteredRootProfiles.map((p) => renderProfileBranch(p, true))}
                   </div>
                 ) : null}
-                {filteredRootProfiles.map((p) => renderProfileBranch(p))}
               </div>
             </aside>
             {layout.showMain ? (
@@ -9118,8 +9178,17 @@ export default function App() {
             )
           })()}
 
-          {/* c50 P2: demo + guard banners merge into one row */}
-          {activeIsDemo && !(activeTab?.sessionId && activeTab.profileId && (() => { const g = guardForSession(activeTab.sessionId); if (g.level === 'normal') return false; const pid = g.profile?.id; return !(pid && guardCollapsed[pid] && !g.elevated) })()) ? (
+          {/* 演示主机未显式设生产/只读时，单独用中性演示条，不叠红色生产警告；显式保护仍与 guard 合并。 */}
+          {activeIsDemo &&
+          (() => {
+            if (!activeTab?.sessionId || !activeTab.profileId) return true
+            const g = guardForSession(activeTab.sessionId)
+            const calmDemo = Boolean(g.profile?.demo && !g.profile.protection && g.level === 'production')
+            if (calmDemo) return true
+            if (g.level === 'normal') return true
+            const pid = g.profile?.id
+            return Boolean(pid && guardCollapsed[pid] && !g.elevated)
+          })() ? (
             <div className="demo-banner" data-testid="demo-banner" role="status">
               <span>{tr('g1.banner')}</span>
               <button type="button" className="primary" onClick={() => openConnectionEditor()}>
@@ -9183,6 +9252,8 @@ export default function App() {
               ? (() => {
                   const g = guardForSession(activeTab.sessionId)
                   if (g.level === 'normal') return null
+                  // 演示默认仍按生产保护执行，但横幅改走中性 demo-banner，避免新用户第一眼被吓到。
+                  if (g.profile?.demo && !g.profile.protection && g.level === 'production') return null
                   const pid = g.profile?.id
                   if (pid && guardCollapsed[pid] && !g.elevated) return null
                   const until = pid ? elevateMap[pid] : undefined
@@ -9406,6 +9477,9 @@ export default function App() {
                     jumpChain={jumpChain}
                     setJumpChain={setJumpChain}
                     profiles={profiles}
+                    folders={folders}
+                    folderId={formFolderId}
+                    setFolderId={setFormFolderId}
                     focusSection={connFocus}
                     onTestJump={async () => {
                       const jump = buildJumpHost()

@@ -9,7 +9,7 @@ ok(css.includes('.inv20-readonly { grid-template-columns: max-content minmax(0, 
 ok(css.includes('.inv20-readonly dt { white-space: nowrap; }'), 'IN3 labels never wrap')
 const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
 ok(app.includes('className="term-guard-demo-short"'), 'TB1 short chip')
-ok(/@media \(max-width: 1100px\) \{\s*\.term-guard-demo-text \{ display: none; \}/.test(css), 'TB1 narrow hides long text')
+ok(/@media \(max-width: 1100px\) \{\s*\.term-guard-banner \.term-guard-demo-text \{ display: none; \}/.test(css), 'TB1 narrow hides long text')
 const i18n = readFileSync('src/renderer/src/lib/i18n.tsx', 'utf8')
 ok(i18n.includes("'g1.bannerShort': '演示'") && i18n.includes("'g1.bannerShort': 'Demo'"), 'TB1 zh/en')
 console.log(`test-c52-polish: ${n} passed`)
