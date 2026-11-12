@@ -12,6 +12,24 @@ export type ChangelogEntry = {
 }
 
 export const CHANGELOG: Readonly<Record<string, ReadonlyArray<ChangelogEntry>>> = {
+  '0.8.0': [
+    {
+      icon: '✦',
+      text: {
+        zh: '轻量桌面版：Windows 安装包缩小到 10MB 以内，下载和升级更快；多会话 SSH、AI 确认后执行、SFTP、ProxyJump、运维工具箱等功能保持不变',
+        en: 'Slim desktop build: the Windows installer is now under 10MB, so downloads and upgrades are faster; multi-session SSH, confirm-before-run AI, SFTP, ProxyJump and the ops toolbox all stay'
+      },
+      where: { zh: '安装包', en: 'Installer' }
+    },
+    {
+      icon: '▷',
+      text: {
+        zh: '产品名称统一为 AI-SSH-Pro，安装包和快捷方式不再带框架名',
+        en: 'The product is named AI-SSH-Pro everywhere; the installer and shortcuts no longer carry the framework name'
+      },
+      where: { zh: '安装包 / 快捷方式', en: 'Installer / shortcuts' }
+    }
+  ],
   '0.7.0': [
     {
       icon: '✦',

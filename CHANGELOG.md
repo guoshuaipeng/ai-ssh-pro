@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.8.0
+
+Released 2026-11-04 (CST).
+
+**轻量桌面版。** Windows 安装包缩小到 10MB 以内（NSIS 约 3–4MB），下载和升级更快。
+**Slim desktop build.** The Windows installer is now under 10MB (NSIS about 3–4MB), so downloads and upgrades are faster.
+
+- **功能保持不变 / Same features**：多会话 SSH、AI 确认后执行、SFTP、ProxyJump、运维工具箱等常用能力全部保留。 Multi-session SSH, confirm-before-run AI, SFTP, ProxyJump and the ops toolbox all stay.
+- **名称统一 / One name**：产品对外名称统一为 AI-SSH-Pro，安装包和快捷方式不再带框架名。 The product is named AI-SSH-Pro everywhere; the installer and shortcuts no longer carry the framework name.
+
 ## v0.7.0
 
 Released 2026-10-21 (CST).
