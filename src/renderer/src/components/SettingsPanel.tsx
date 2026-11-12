@@ -281,7 +281,7 @@ export default function SettingsPanel({
                       setTheme(opt.id)
                       applyUiTheme(opt.id)
                       const themeId = suggestedTerminalTheme(opt.id)
-                      void window.aiss.terminal.setPrefs({ themeId }).then((p) => onTerminalSaved?.(p && typeof p === 'object' ? p : undefined)).catch(() => {})
+                      void window.aiss.terminal.setPrefs({ themeId }).then((p) => { if (p && typeof p === 'object') onTerminalSaved?.(p) }).catch(() => {})
                       saved()
                     }}
                   >
