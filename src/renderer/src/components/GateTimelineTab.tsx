@@ -4,6 +4,7 @@ import { auditEnabled, gateToCsv, loadGateEvents, type AuditEvent, type GateResu
 import { tg, type MessageKey } from '../lib/i18n'
 import PanelHeader from './ui/PanelHeader'
 import Button from './ui/Button'
+import EmptyState from './EmptyState'
 
 const RESULT_KEY: Record<GateResult, MessageKey> = {
   allowed: 's2b.r.allowed',
@@ -87,10 +88,11 @@ export default function GateTimelineTab({
   const events = loadGateEvents()
   const rows = useMemo(() => {
     const text = q.trim().toLowerCase()
+    const hostText = host.trim().toLowerCase()
     return events.filter((e) => {
       if (result && e.gateResult !== result) return false
       if (rule && e.gateRule !== rule) return false
-      if (host && e.host !== host && e.profileId !== host) return false
+      if (hostText && !(e.host ?? '').toLowerCase().includes(hostText) && e.profileId !== host.trim()) return false
       if (text && !`${e.host} ${e.detail} ${e.gateRule ?? ''}`.toLowerCase().includes(text)) return false
       return true
     })
@@ -120,10 +122,26 @@ export default function GateTimelineTab({
       </div>
       <div className="workspace-panel-body">
         {rows.length === 0 ? (
-          <div data-testid="s2b-empty">
-            <p>{tg('s2b.empty')}</p>
-            <p className="l7-muted">{tg('s2b.emptyHint')}</p>
-          </div>
+          events.length > 0 ? (
+            <EmptyState
+              testId="s2b-empty"
+              icon="audit"
+              title={tg('au2.filterEmptyTitle')}
+              desc={tg('au2.filterEmptyDesc')}
+              primary={{
+                label: tg('au2.clearFilters'),
+                testId: 's2b-clear-filters',
+                onClick: () => {
+                  setResult('')
+                  setRule('')
+                  setHost('')
+                  setQ('')
+                }
+              }}
+            />
+          ) : (
+            <EmptyState testId="s2b-empty" icon="audit" title={tg('s2b.empty')} desc={tg('s2b.emptyHint')} />
+          )
         ) : (
           <GateTimelineRows events={rows} narrow={narrow} onSelect={(e) => setOpenId(e.id)} />
         )}

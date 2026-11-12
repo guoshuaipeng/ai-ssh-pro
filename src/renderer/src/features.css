@@ -1699,7 +1699,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .s2b-row, .w4-row { height: 32px; width: 100%; overflow: hidden; border: 0; background: transparent; text-align: left; }
 .w4-row.is-gate { opacity: 1; }
 .w4-row.is-concurrent { opacity: 0.55; }
-.s2b-filters { overflow: hidden; }
+.s2b-filters { overflow: hidden; padding: var(--space-2) var(--space-3); box-sizing: border-box; }
 .s2b-filters input, .s2b-filters select { min-width: 0; }
 .s2b-table { width: 100%; table-layout: fixed; }
 .s2b-table th, .s2b-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
