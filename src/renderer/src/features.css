@@ -2028,6 +2028,7 @@ legend {
 /* 主机 tiles */
 .oh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
 .oh-grid-note { grid-column: 1 / -1; margin: 0; }
+.oh-grid-note .oh-link { margin-left: var(--space-2); }
 .oh-tile {
   position: relative;
   display: flex;

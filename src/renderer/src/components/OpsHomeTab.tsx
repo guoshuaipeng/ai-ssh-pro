@@ -4,7 +4,7 @@ import { ageBucket } from '@shared/alert-workbench'
 import type { DashScope } from '@shared/dashboard-scope'
 import { pickHealthHosts } from '@shared/dashboard-scope'
 import { OPS_HOME_ATTENTION_CAP, OPS_HOME_CARD_CAP } from '@shared/ops-home-density'
-import { probeFiltersActive, selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
+import { applyProbeFilters, probeFiltersActive, selectProbeTargets, type HealthProbeResult, type ProbePrefs } from '@shared/health-probe'
 import { loadMaintenance, silenceUntil } from '@shared/maintenance'
 import { loadMetricCache, pickMetrics, staleAge, staleHintKey, writeCachedMetrics, type MetricView } from '@shared/metric-cache'
 import type { ProtectionLevel } from '@shared/protection'
@@ -217,8 +217,10 @@ export default function OpsHomeTab({
   const cardSource = useMemo(() => {
     if (!probePrefs.enabled) return probePrefs.excludeReadonly ? hosts.filter((h) => h.protection !== 'readonly') : hosts
     const ids = new Set(probeTargets.map((t) => t.profileId))
+    for (const h of applyProbeFilters(sampleHosts.filter((s) => s.alerting || s.sessionId), probePrefs)) ids.add(h.profileId)
     return hosts.filter((h) => ids.has(h.profileId))
-  }, [hosts, probePrefs.enabled, probePrefs.excludeReadonly, probeTargets])
+  }, [hosts, sampleHosts, probePrefs, probeTargets])
+  const notSampledCount = probePrefs.enabled ? applyProbeFilters(sampleHosts, probePrefs).length - cardSource.length : 0
   // One structure at every width: tiles cap at OPS_HOME_CARD_CAP, the grid only changes its column count.
   const ranked = useMemo(() => pickHealthHosts(cardSource, (h) => h.alerting, OPS_HOME_CARD_CAP), [cardSource])
   const visibleSamples = useMemo<SampleHost[]>(
@@ -992,6 +994,12 @@ export default function OpsHomeTab({
               </div>
             )}
             {ranked.more > 0 ? <p className="oh-muted oh-grid-note">{t('l7.moreHosts', { n: ranked.more })}</p> : null}
+            {ranked.more === 0 && notSampledCount > 0 ? (
+              <p className="oh-muted oh-grid-note" data-testid="oh-not-sampled">
+                {t('l7e.notSampled', { n: notSampledCount })}
+                <button type="button" className="oh-link" onClick={() => setProbeOpen(true)}>{t('l7b.settings')}</button>
+              </p>
+            ) : null}
           </Section>
 
           {quick}
