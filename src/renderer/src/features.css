@@ -1493,7 +1493,7 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .l7-card-top, .l2-filters, .l2-actions, .l2-status-row, .l4-row, .l4-links { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
 .l7-icon-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; white-space: nowrap; }
 .l7-card-name, .alert-line-host, .alert-line-rule, .l2-detail-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.alert-line-host { min-width: 120px; }
+.alert-line-host, .alert-line-rule { min-width: 0; }
 .l7-card-top .demo-badge { flex: none; margin-left: 0; }
 .l7-fill { display: block; height: 100%; }
 .l7-ok { background: var(--color-ok); }
@@ -1510,14 +1510,14 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .scope-picker { display: flex; gap: 6px; min-width: 0; }
 .scope-picker select { max-width: 140px; }
 
-.alert-line { display: grid; grid-template-columns: 10px minmax(0, 1.1fr) minmax(0, 0.8fr) 52px 72px auto; gap: 6px; align-items: center; min-height: 40px; padding: 0 8px; border-radius: 6px; }
+.alert-line { position: relative; display: grid; grid-auto-flow: column; grid-template-columns: 10px minmax(0, 1.1fr) minmax(0, 0.8fr) 52px 72px; grid-auto-columns: max-content; gap: 6px; align-items: center; min-height: 40px; padding: 0 var(--space-2); border-radius: var(--radius-md); }
 .alert-line.is-selected { box-shadow: inset 3px 0 0 var(--color-accent); background: var(--color-row-selected-bg); }
 .alert-line.is-active { font-weight: 600; }
 .alert-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-muted); }
 .alert-dot--crit { background: var(--color-danger); }
 .alert-dot--warn { background: var(--color-warn); }
-.alert-line-actions { display: flex; gap: 4px; opacity: 0; }
-.alert-line:hover .alert-line-actions, .alert-line:focus-within .alert-line-actions, .alert-line.is-selected .alert-line-actions { opacity: 1; }
+.alert-line-actions { position: absolute; top: 50%; right: var(--space-2); transform: translateY(-50%); display: flex; gap: var(--space-1); opacity: 0; pointer-events: none; border-radius: var(--radius-md); background: var(--color-bg-elevated); box-shadow: 0 0 0 1px var(--color-border-muted); }
+.alert-line:hover .alert-line-actions, .alert-line:focus-within .alert-line-actions { opacity: 1; pointer-events: auto; }
 .alert-line-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; white-space: nowrap; }
 .alert-line-btn:disabled { opacity: 0.4; cursor: default; }
 .alert-line-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -1568,6 +1568,12 @@ button.linkish { background: none; border: none; color: var(--accent); cursor: p
 .alert-rules-panel .o2-table { table-layout: fixed; }
 .alert-rules-panel .o2-table input,
 .alert-rules-panel .o2-table select { max-width: 100%; box-sizing: border-box; }
+/* Fixed layout split the drawer into four equal columns: the checkbox wasted a quarter and the "%" wrapped under its input. */
+.alert-rules-panel .o2-table th:first-child, .alert-rules-panel .o2-table td:first-child { width: 32px; }
+.alert-rules-panel .o2-table th:nth-child(3), .alert-rules-panel .o2-table td:nth-child(3) { width: 92px; white-space: nowrap; }
+.alert-rules-panel .o2-table th:nth-child(4), .alert-rules-panel .o2-table td:nth-child(4) { width: 116px; }
+/* Four buttons do not fit one row in a 360px drawer; wrap instead of a scrollbar that clips the first button. */
+.alert-rules-panel .modal-actions { flex-wrap: wrap; overflow-x: visible; }
 .alert-rules-panel:focus { outline: none; }
 .alert-rules-panel:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
 .alert-rules-panel:focus-visible { box-shadow: inset 0 0 0 1px var(--color-accent); }
