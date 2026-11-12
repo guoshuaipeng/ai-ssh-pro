@@ -7611,7 +7611,7 @@ export default function App() {
         return
       }
       if (detail.op === 'demoProd') {
-        // 截图：把当前演示主机显式标成生产，用于拍红色生产横幅（默认演示只显示中性条）。
+        // Screenshot: mark the demo host as production explicitly, to capture the red production banner.
         const demo = sessionStateRef.current.profiles.find((x) => x.demo)
         if (!demo) return
         void persistSessionState({
@@ -9188,12 +9188,12 @@ export default function App() {
             )
           })()}
 
-          {/* 演示主机未显式设生产/只读时，单独用中性演示条，不叠红色生产警告；显式保护仍与 guard 合并。 */}
+          {/* A demo host without explicit production / read-only gets the neutral demo strip alone (no red production warning); explicit protection still merges with the guard banner. */}
           {activeIsDemo &&
           (() => {
             if (!activeTab?.sessionId || !activeTab.profileId) return true
             const g = guardForSession(activeTab.sessionId)
-            const calmDemo = Boolean(g.profile?.demo && !g.profile.protection && g.level === 'production')
+            const calmDemo = Boolean(g.profile?.demo && !g.profile.protection && g.level === 'production' && !g.elevated)
             if (calmDemo) return true
             if (g.level === 'normal') return true
             const pid = g.profile?.id
@@ -9262,8 +9262,9 @@ export default function App() {
               ? (() => {
                   const g = guardForSession(activeTab.sessionId)
                   if (g.level === 'normal') return null
-                  // 演示默认仍按生产保护执行，但横幅改走中性 demo-banner，避免新用户第一眼被吓到。
-                  if (g.profile?.demo && !g.profile.protection && g.level === 'production') return null
+                  // A default demo host is still enforced as production, but shows the neutral demo strip instead.
+                  // While protection is paused the banner comes back, so the countdown stays visible.
+                  if (g.profile?.demo && !g.profile.protection && g.level === 'production' && !g.elevated) return null
                   const pid = g.profile?.id
                   if (pid && guardCollapsed[pid] && !g.elevated) return null
                   const until = pid ? elevateMap[pid] : undefined

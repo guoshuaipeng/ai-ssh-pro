@@ -28,6 +28,8 @@ export type ScreenshotOp =
   | { op: "aiChat"; empty?: boolean }
   /** Visual QA (M22): open the first saved host's profile on its 安全 card (read-only + 自动执行 → capped). */
   | { op: "hostSafety" }
+  /** Visual QA: mark the demo host as production explicitly, to capture the red production banner (a default demo shows the neutral strip). */
+  | { op: "demoProd" }
   /** Visual QA (M25): open a composer chip popover (model menu or safety policy). */
   | { op: "aiComposerPop"; which: "model" | "safety" }
   /** Round 7 H04/H05: put AI panel into a real busy+streaming state (no DOM inject). */
