@@ -44,6 +44,6 @@ const storeRs = readFileSync('src-tauri/src/store.rs', 'utf8')
 assert.match(storeRs, /muteBell/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.7.0')
+assert.equal(pkg.version, '0.8.0')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-mute-bell/)
 console.log('test-mute-bell ok')

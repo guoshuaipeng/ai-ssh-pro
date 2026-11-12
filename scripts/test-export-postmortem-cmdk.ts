@@ -13,6 +13,6 @@ assert.match(app, /action === 'exportPostmortem'/)
 assert.match(app, /aiss-export-postmortem/)
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string; scripts: { test: string; 'test:parts'?: string } }
-assert.equal(pkg.version, '0.7.0')
+assert.equal(pkg.version, '0.8.0')
 assert.match(pkg.scripts['test:parts'] || pkg.scripts.test, /test-export-postmortem-cmdk/)
 console.log('test-export-postmortem-cmdk ok')
