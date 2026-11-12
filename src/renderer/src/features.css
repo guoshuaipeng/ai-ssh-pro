@@ -2387,6 +2387,28 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 .settings-body .l9-policy > .settings-row { min-height: 36px; margin: 0; padding: var(--space-1) 0; box-sizing: border-box; }
 .settings-body .l9-policy > .settings-row > span:first-child { min-width: var(--settings-label-w); color: var(--color-text-secondary); }
 .settings-body .l9-policy > .l7-muted, .settings-body .l9-policy > .l9-error, .settings-body .l9-policy > .jump-issue { margin-left: calc(var(--settings-label-w) + var(--space-2)); margin-bottom: var(--space-1); }
+/* AI page: headings, radios, checkboxes and number rows share one left edge; a hint sits under its own label text. */
+.ai-policy, .ai-form-check { --ai-check-w: 14px; --ai-line: 20px; --ai-text-x: calc(var(--ai-check-w) + var(--space-2)); }
+.settings-channel.ai-policy { gap: var(--space-3); min-inline-size: 0; }
+.settings-channel.ai-policy > legend, .settings-subhead { padding: 0; font-size: var(--fs-base); font-weight: var(--fw-semibold); line-height: var(--ai-line, var(--lh-normal)); color: var(--color-text-primary); }
+.settings-channel.ai-policy > legend { margin: 0 0 var(--space-1); }
+.settings-subhead { margin: var(--space-4) 0 0; padding-top: var(--space-4); border-top: 1px solid var(--color-border-muted); }
+.ai-policy-saved { margin-left: var(--space-2); font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--color-text-muted); }
+.ai-policy input[type='radio'], .ai-policy input[type='checkbox'], .ai-form-check input[type='checkbox'] { flex: none; width: var(--ai-check-w); height: var(--ai-check-w); margin: calc((var(--ai-line) - var(--ai-check-w)) / 2) 0 0; }
+.settings-channel.ai-policy .policy-radios { gap: var(--space-2); margin: 0; }
+.settings-channel.ai-policy .policy-choice, .ai-opt-row, .ai-form-check > label { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; font-size: var(--fs-sm); line-height: var(--ai-line); color: var(--color-text-primary); cursor: pointer; }
+.ai-policy .policy-choice-text { gap: 0; min-width: 0; }
+.ai-policy .policy-choice-name { display: inline-flex; align-items: center; gap: var(--space-2); }
+.ai-policy .policy-choice-name .safety-band-dot { margin-top: 0; }
+.ai-policy .policy-choice-hint, .ai-opt-hint, .ai-form-check-hint { line-height: var(--lh-normal); text-wrap: pretty; }
+.ai-policy .policy-advanced { display: flex; flex-direction: column; gap: var(--space-3); margin: 0 0 0 var(--ai-text-x); padding-left: var(--space-3); border-left: 2px solid var(--color-border-muted); }
+.ai-opt { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.ai-opt-row.policy-steps { align-items: center; justify-content: flex-start; gap: var(--space-3); cursor: default; }
+.ai-opt-row.policy-steps > input { margin: 0; }
+.ai-opt-check + .ai-opt-hint { margin-left: var(--ai-text-x); }
+.ai-form-check-hint { display: block; font-size: var(--fs-xs); color: var(--color-text-muted); }
+.field input.ai-form-num { width: 96px; font-variant-numeric: tabular-nums; }
+.settings-body > section > button { align-self: flex-start; }
 
 /* V47 P2 polish: SFTP global row fills width; AI status line padded; update badge is a dot */
 .sftp-toolbar .sftp-toolbar-actions { flex: 1 1 auto; min-width: 0; }

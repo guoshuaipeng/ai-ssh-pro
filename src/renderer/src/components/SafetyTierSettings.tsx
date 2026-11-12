@@ -79,8 +79,11 @@ export default function SafetyTierSettings() {
   }
 
   return (
-    <fieldset className="settings-channel" data-testid="safety-tier">
-      <legend>{tg('policy.title')}</legend>
+    <fieldset className="settings-channel ai-policy" data-testid="safety-tier">
+      <legend>
+        {tg('policy.title')}
+        <span className="ai-policy-saved" role="status" aria-live="polite">{hint}</span>
+      </legend>
       <p className="l7-muted">{tg('safety.hint')}</p>
       <div className="n1-sources policy-radios" role="radiogroup" aria-label={tg('policy.title')} data-testid="ai-policy-radios">
         {AI_POLICIES.map((id) => {
@@ -88,9 +91,11 @@ export default function SafetyTierSettings() {
           return (
             <label key={id} className={`n1-choice policy-choice${policy === id ? ' is-active' : ''}`} data-band={band} data-policy={id}>
               <input type="radio" name="ai-policy" checked={policy === id} onChange={() => savePolicy(id)} />
-              <span className={`safety-band-dot safety-band-${safetyBandTone(band)}`} aria-hidden="true" />
               <span className="policy-choice-text">
-                <span className="policy-choice-name">{tg(POLICY_KEY[id])}</span>
+                <span className="policy-choice-name">
+                  <span className={`safety-band-dot safety-band-${safetyBandTone(band)}`} aria-hidden="true" />
+                  {tg(POLICY_KEY[id])}
+                </span>
                 <span className="l7-muted policy-choice-hint">{tg(HINT_KEY[id])}</span>
               </span>
             </label>
@@ -99,77 +104,85 @@ export default function SafetyTierSettings() {
       </div>
       {policy === 'auto' ? (
         <div className="policy-advanced" data-testid="ai-policy-advanced">
-          <label className="settings-row">
-            <input
-              type="checkbox"
-              role="switch"
-              data-testid="ai-auto-high-risk"
-              aria-checked={autoHigh}
-              checked={autoHigh}
-              onChange={(e) => {
-                const next = e.target.checked
-                setAutoHigh(next)
-                void window.aiss.ai.setSettings({ aiAutoHighRisk: next }).then(flash)
-              }}
-            />
-            {tg('policy.autoHighRisk')}
-          </label>
-          <p className="l7-muted">{tg('policy.autoHighRiskHint')}</p>
-          <label className="settings-row policy-steps" data-testid="ai-auto-streak-row">
-            <span>{tg('policy.autoStreak')}</span>
-            <input
-              type="number"
-              className="policy-steps-input"
-              data-testid="ai-auto-streak"
-              min={MIN_AI_AUTO_STREAK}
-              max={MAX_AI_AUTO_STREAK}
-              step={1}
-              value={autoStreak}
-              onChange={(e) => setAutoStreak(e.target.value)}
-              onBlur={() => {
-                const next = resolveAiAutoStreak(autoStreak)
-                setAutoStreak(String(next))
-                void window.aiss.ai.setSettings({ aiAutoStreak: next }).then(flash)
-              }}
-            />
-          </label>
-          <p className="l7-muted">{tg('policy.autoStreakHint', { min: MIN_AI_AUTO_STREAK, max: MAX_AI_AUTO_STREAK })}</p>
+          <div className="ai-opt">
+            <label className="ai-opt-row ai-opt-check">
+              <input
+                type="checkbox"
+                role="switch"
+                data-testid="ai-auto-high-risk"
+                aria-checked={autoHigh}
+                checked={autoHigh}
+                onChange={(e) => {
+                  const next = e.target.checked
+                  setAutoHigh(next)
+                  void window.aiss.ai.setSettings({ aiAutoHighRisk: next }).then(flash)
+                }}
+              />
+              <span>{tg('policy.autoHighRisk')}</span>
+            </label>
+            <p className="l7-muted ai-opt-hint">{tg('policy.autoHighRiskHint')}</p>
+          </div>
+          <div className="ai-opt">
+            <label className="ai-opt-row policy-steps" data-testid="ai-auto-streak-row">
+              <span>{tg('policy.autoStreak')}</span>
+              <input
+                type="number"
+                className="policy-steps-input"
+                data-testid="ai-auto-streak"
+                min={MIN_AI_AUTO_STREAK}
+                max={MAX_AI_AUTO_STREAK}
+                step={1}
+                value={autoStreak}
+                onChange={(e) => setAutoStreak(e.target.value)}
+                onBlur={() => {
+                  const next = resolveAiAutoStreak(autoStreak)
+                  setAutoStreak(String(next))
+                  void window.aiss.ai.setSettings({ aiAutoStreak: next }).then(flash)
+                }}
+              />
+            </label>
+            <p className="l7-muted ai-opt-hint">{tg('policy.autoStreakHint', { min: MIN_AI_AUTO_STREAK, max: MAX_AI_AUTO_STREAK })}</p>
+          </div>
         </div>
       ) : null}
-      <label className="settings-row policy-steps" data-testid="ai-max-steps-row">
-        <span>{tg('policy.maxSteps')}</span>
-        <input
-          type="number"
-          className="policy-steps-input"
-          data-testid="ai-max-steps"
-          min={MIN_AI_MAX_STEPS}
-          max={MAX_AI_MAX_STEPS}
-          step={1}
-          value={maxSteps}
-          onChange={(e) => setMaxSteps(e.target.value)}
-          onBlur={() => {
-            const next = resolveAiMaxSteps(maxSteps)
-            setMaxSteps(String(next))
-            void window.aiss.ai.setSettings({ aiMaxSteps: next }).then(flash)
-          }}
-        />
-      </label>
-      <p className="l7-muted">{tg('policy.maxStepsHint', { min: MIN_AI_MAX_STEPS, max: MAX_AI_MAX_STEPS })}</p>
+      <div className="ai-opt">
+        <label className="ai-opt-row policy-steps" data-testid="ai-max-steps-row">
+          <span>{tg('policy.maxSteps')}</span>
+          <input
+            type="number"
+            className="policy-steps-input"
+            data-testid="ai-max-steps"
+            min={MIN_AI_MAX_STEPS}
+            max={MAX_AI_MAX_STEPS}
+            step={1}
+            value={maxSteps}
+            onChange={(e) => setMaxSteps(e.target.value)}
+            onBlur={() => {
+              const next = resolveAiMaxSteps(maxSteps)
+              setMaxSteps(String(next))
+              void window.aiss.ai.setSettings({ aiMaxSteps: next }).then(flash)
+            }}
+          />
+        </label>
+        <p className="l7-muted ai-opt-hint">{tg('policy.maxStepsHint', { min: MIN_AI_MAX_STEPS, max: MAX_AI_MAX_STEPS })}</p>
+      </div>
       {/* B1: exit-code capture */}
-      <label className="settings-row l4-check" data-testid="ai-exit-capture-row">
-        <input
-          type="checkbox"
-          data-testid="ai-exit-capture"
-          checked={exitCapture}
-          onChange={(e) => {
-            const on = e.target.checked
-            setExitCapture(on)
-            void window.aiss.ai.setSettings({ aiExitCapture: on }).then(flash)
-          }}
-        />
-        {tg('policy.exitCapture')}
-      </label>
-      <p className="l7-muted">{tg('policy.exitCaptureHint')}</p>
+      <div className="ai-opt">
+        <label className="ai-opt-row ai-opt-check" data-testid="ai-exit-capture-row">
+          <input
+            type="checkbox"
+            data-testid="ai-exit-capture"
+            checked={exitCapture}
+            onChange={(e) => {
+              const on = e.target.checked
+              setExitCapture(on)
+              void window.aiss.ai.setSettings({ aiExitCapture: on }).then(flash)
+            }}
+          />
+          <span>{tg('policy.exitCapture')}</span>
+        </label>
+        <p className="l7-muted ai-opt-hint">{tg('policy.exitCaptureHint')}</p>
+      </div>
       {overrides.length > 0 ? (
         <>
           <button
@@ -193,7 +206,6 @@ export default function SafetyTierSettings() {
           ) : null}
         </>
       ) : null}
-      {hint ? <p className="l7-muted">{hint}</p> : null}
     </fieldset>
   )
 }

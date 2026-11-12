@@ -349,6 +349,7 @@ export default function SettingsPanel({
             <section>
               <h3>{t('settings.ai')}</h3>
               <SafetyTierSettings />
+              <h4 className="settings-subhead" data-testid="settings-ai-providers">{t('settings.aiProviders')}</h4>
               <AiConfigForm />
               <button type="button" onClick={onOpenMcp}>
                 {t('menu.mcpGuide')}

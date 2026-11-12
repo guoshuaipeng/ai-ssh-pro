@@ -251,6 +251,8 @@ const chrome = [
   { name: 'settings-narrow', size: W, steps: [{ op: 'aiChat', empty: true }, { op: 'aiChat', empty: true }, { op: 'menu', action: 'settings' }, { click: '.settings-nav button[data-section="terminal"]' }], wait: 1400 },
   { name: 'ai-history', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }, { click: '[data-testid="ai-new-chat"]' }, { op: 'aiChat' }, { op: 'aiChat' }, { click: '[data-testid="ai-history"]' }], wait: 1600 },
   { name: 'settings-ai', size: W, steps: [{ op: 'menu', action: 'settings' }, { click: '.settings-nav button[data-section="ai"]' }, { click: '.policy-choice[data-policy="auto"] input' }], wait: 1400 },
+  { name: 'settings-ai-mid', size: W, steps: [{ op: 'menu', action: 'settings' }, { click: '.settings-nav button[data-section="ai"]' }, { eval: "document.querySelector('[data-testid=ai-provider-select]')?.scrollIntoView({block:'start'}); true" }], wait: 1000 },
+  { name: 'settings-ai-bottom', size: W, steps: [{ op: 'menu', action: 'settings' }, { click: '.settings-nav button[data-section="ai"]' }, { eval: "const b = document.querySelector('.settings-body'); if (b) b.scrollTop = b.scrollHeight; true" }], wait: 1000 },
   { name: 'ai-header', size: W, steps: [{ op: 'menu', action: 'demoHost' }, { op: 'menu', action: 'demoHost' }, { op: 'aiChat' }, { op: 'aiChat' }], wait: 1800 },
   { name: 'modal', size: W, steps: [{ op: 'knownHosts' }], wait: 1200, close: true },
   { name: 'cmdk', size: W, steps: [{ op: 'menu', action: 'commandPalette' }], wait: 900, close: true },

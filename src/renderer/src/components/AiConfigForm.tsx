@@ -436,23 +436,17 @@ export default function AiConfigForm() {
           min={0}
           max={2}
           step={0.1}
+          className="ai-form-num"
           value={temperature}
           onChange={(e) => setTemperature(parseFloat(e.target.value) || 0)}
         />
       </div>
-      <div className="field" style={{ marginBottom: 12 }}>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={useOpenClaw}
-            onChange={(e) => setUseOpenClaw(e.target.checked)}
-            style={{ marginTop: 3 }}
-          />
+      <div className="field ai-form-check">
+        <label>
+          <input type="checkbox" checked={useOpenClaw} onChange={(e) => setUseOpenClaw(e.target.checked)} />
           <span>
             {tg('ui.16')}
-            <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 4 }}>
-              {tg('ui.17')}
-            </span>
+            <span className="ai-form-check-hint">{tg('ui.17')}</span>
           </span>
         </label>
       </div>
