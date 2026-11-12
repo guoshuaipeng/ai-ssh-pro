@@ -906,7 +906,7 @@ export default function HostInventoryModal({ onClose, link, onUpserted, onConnec
               </div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                 <Button variant="primary" onClick={onNew} disabled={saving}>
-                  New
+                  {tg('inv.new')}
                 </Button>
               </div>
               {!loading && entries.length === 0 ? (
