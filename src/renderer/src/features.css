@@ -2322,10 +2322,10 @@ body > .titlebar-popover.split-mode-menu { z-index: var(--z-menu); }
 .au2-dates { display: inline-flex; align-items: center; gap: var(--space-1); }
 .au2-count { margin-left: auto; white-space: nowrap; }
 .au2-chip { display: inline-flex; align-items: center; flex: none; padding: 0 6px; height: 20px; border-radius: 999px; background: var(--color-bg-muted, var(--bg-muted)); color: var(--color-text-secondary, var(--muted)); font-size: 11px; font-variant-numeric: tabular-nums; }
-.au2-chip.is-ai, .au2-src.is-ai { background: color-mix(in srgb, var(--accent, #3b82f6) 18%, transparent); color: var(--accent, #3b82f6); }
+.au2-chip.is-ai, .au2-src.is-ai { background: color-mix(in srgb, var(--color-accent) 18%, transparent); color: var(--color-accent); }
 .au2-outcome { font-weight: 600; }
-.au2-outcome.is-allowed { color: var(--success, #16a34a); }
-.au2-outcome.is-blocked { color: var(--danger, #dc2626); }
+.au2-outcome.is-allowed { color: var(--color-ok); }
+.au2-outcome.is-blocked { color: var(--color-danger); }
 .au2-outcome.is-cancelled { color: var(--color-text-muted, var(--muted)); }
 .audit-table td.au2-policy, .audit-table td.au2-detail { white-space: normal; overflow-wrap: anywhere; max-width: 320px; }
 .audit-table th:nth-child(5), .audit-table td:nth-child(5) { width: 48px; }
@@ -2487,18 +2487,18 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   margin-bottom: 6px;
 }
 .ai-card-streaming .ai-stream-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .ai-card-streaming .ai-stream-partial {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   max-height: 9em;
   overflow: auto;
@@ -2512,18 +2512,18 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   margin-bottom: 6px;
 }
 .ai-card-cancelled .ai-stream-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .ai-card-cancelled .ai-stream-partial {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   max-height: 9em;
   overflow: auto;
@@ -2537,9 +2537,9 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.2;
-  padding: 2px 8px;
+  padding: 2px var(--space-2);
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
@@ -2558,7 +2558,7 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
 }
 
 /* Round 17: audit row → AI dialog */
-.audit-table td.au2-detail { display: flex; align-items: center; gap: 8px; }
+.audit-table td.au2-detail { display: flex; align-items: center; gap: var(--space-2); }
 .audit-table .au2-detail-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .audit-table .au2-open-ai {
   flex: 0 0 auto;
@@ -2566,7 +2566,7 @@ fieldset.settings-row > label { display: inline-flex; align-items: center; gap: 
   background: transparent;
   color: var(--color-accent);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   padding: 0 2px;
   white-space: nowrap;
 }
