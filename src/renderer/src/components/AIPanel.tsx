@@ -1918,7 +1918,7 @@ export default function AIPanel({
       }
       refreshWorkingGoal(persistKey)
       // Persist user + assistant text after the turn completes — under the turn's own key.
-      voidMicrotask(() => {
+      queueMicrotask(() => {
         persistTurn(turn.lines)
         if (turnRef.current === turn) turnRef.current = null
         setTurnElsewhere(null)
